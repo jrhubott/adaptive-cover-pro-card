@@ -43,3 +43,46 @@ Intentionally deferred work. Not a bug tracker — those live in [GitHub Issues]
 - [ ] No card-side changes needed — unique_id path continues to be primary.
 
 **Tracked decision.** See conversation 2026-04-21 (`/home/jrhubott/.claude/plans/i-m-thinking-that-a-quizzical-koala.md`).
+
+---
+
+## [Card] Service shortcut menu
+
+**Context.** Phase 3 of the original plan included a long-press-header
+service sheet that calls `adaptive_cover_pro.set_sun_tracking`,
+`set_position_limits`, `set_climate`, etc. with current values prefilled.
+Useful for users tuning their cover from the dashboard without opening the
+Options flow.
+
+**Why deferred.** The editor (Phase 3's main ask) is higher value. The
+service sheet requires a lot of per-service schema/UI work (each service
+has 5–15 parameters), and building it well overlaps with the ha-form
+polish planned for v0.4.
+
+**Acceptance.**
+- [ ] Long-press header on the card opens a bottom sheet / overlay.
+- [ ] Sheet lists the ACP runtime services (from `services.yaml`).
+- [ ] Selecting a service opens a form prefilled with current config
+  values (fetched from `coordinator.data` via sensor attributes or a
+  separate service export).
+- [ ] Submit calls the service; the card state updates on the next HA
+  push.
+
+---
+
+## [Card] ha-form native-looking editor
+
+**Context.** v0.3.0 editor uses native `<select>` and `<input>` elements.
+HA's own card editors use `ha-form`, `ha-select`, `ha-switch`, etc., which
+integrate better with the theme and have built-in validation.
+
+**Why deferred.** Native controls are functional and unblock the feature.
+Migrating to ha-form requires more careful typing (ha-form expects a
+schema DSL, not direct children) and a styling pass.
+
+**Acceptance.**
+- [ ] Replace native `<select>` with `<ha-combo-box>` or `<ha-select>`.
+- [ ] Replace toggle `<input type="checkbox">` with `<ha-switch>` +
+  `<ha-formfield>`.
+- [ ] Verify the editor styling matches other HA core card editors in
+  both light and dark themes.

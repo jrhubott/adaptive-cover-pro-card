@@ -1,6 +1,6 @@
 {
   "name": "adaptive-cover-pro-card",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Custom Lovelace card for the Adaptive Cover Pro Home Assistant integration. Visualizes sun/window geometry, the full pipeline decision trace, and live cover positions with inline controls.",
   "keywords": [
     "home-assistant",

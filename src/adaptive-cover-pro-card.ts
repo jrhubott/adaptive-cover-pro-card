@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
-import { CARD_NAME, CARD_VERSION, COVER_TYPE_ICONS } from './const';
+import { CARD_EDITOR_NAME, CARD_NAME, CARD_VERSION, COVER_TYPE_ICONS } from './const';
 import { discoverEntities } from './lib/entity-discovery';
 import {
   fetchEntityRegistry,
@@ -17,6 +17,7 @@ import './components/decision-strip';
 import './components/cover-bar';
 import './components/overrides-panel';
 import './components/climate-panel';
+import './adaptive-cover-pro-card-editor';
 
 const DEFAULT_SECTIONS: CardSection[] = [
   'sky',
@@ -47,6 +48,17 @@ export class AdaptiveCoverProCard extends LitElement {
 
   public getCardSize(): number {
     return 6;
+  }
+
+  public static async getConfigElement(): Promise<HTMLElement> {
+    return document.createElement(CARD_EDITOR_NAME);
+  }
+
+  public static getStubConfig(): AdaptiveCoverProCardConfig {
+    return {
+      type: `custom:${CARD_NAME}`,
+      entry_id: '',
+    };
   }
 
   public connectedCallback(): void {
