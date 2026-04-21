@@ -1,4 +1,4 @@
-export const CARD_VERSION = '0.1.1';
+export const CARD_VERSION = '0.1.3';
 export const CARD_NAME = 'adaptive-cover-pro-card';
 export const CARD_EDITOR_NAME = 'adaptive-cover-pro-card-editor';
 
@@ -43,32 +43,80 @@ export const COVER_TYPE_ICONS: Record<string, string> = {
   cover_tilt: 'mdi:blinds',
 };
 
-/**
- * Maps an ACP entity's translation_key (set in sensor.py etc.) to a logical role
- * the card uses. Used by `entity-discovery.ts` to map a config_entry_id to named slots.
- */
-export const TRANSLATION_KEY_ROLES = {
-  cover_position: 'target_position_sensor',
-  sun_position: 'sun_sensor',
-  control_status: 'control_status_sensor',
-  decision_trace: 'decision_trace_sensor',
-  last_cover_action: 'last_action_sensor',
-  last_skipped_action: 'last_skipped_sensor',
-  manual_override_end_time: 'manual_override_end_sensor',
-  position_verification: 'position_verification_sensor',
-  motion_status: 'motion_status_sensor',
-  force_override_triggers: 'force_override_sensor',
-  climate_status: 'climate_status_sensor',
-  sun_motion: 'sun_infront_binary',
-  manual_override: 'manual_override_binary',
-  position_mismatch: 'position_mismatch_binary',
-  glare_active: 'glare_active_binary',
-  integration_enabled: 'integration_enabled_switch',
-  automatic_control: 'automatic_control_switch',
-  manual_toggle: 'manual_toggle_switch',
-  climate_mode: 'climate_mode_switch',
-  motion_control: 'motion_control_switch',
-  reset_manual_override: 'reset_override_button',
-} as const;
+/** Logical slots the card binds to. */
+export type EntityRole =
+  | 'target_position_sensor'
+  | 'sun_sensor'
+  | 'start_sensor'
+  | 'end_sensor'
+  | 'control_status_sensor'
+  | 'decision_trace_sensor'
+  | 'last_action_sensor'
+  | 'last_skipped_sensor'
+  | 'manual_override_end_sensor'
+  | 'position_verification_sensor'
+  | 'motion_status_sensor'
+  | 'force_override_sensor'
+  | 'climate_status_sensor'
+  | 'sun_infront_binary'
+  | 'manual_override_binary'
+  | 'position_mismatch_binary'
+  | 'glare_active_binary'
+  | 'integration_enabled_switch'
+  | 'automatic_control_switch'
+  | 'manual_toggle_switch'
+  | 'climate_mode_switch'
+  | 'motion_control_switch'
+  | 'reset_override_button';
 
-export type EntityRole = (typeof TRANSLATION_KEY_ROLES)[keyof typeof TRANSLATION_KEY_ROLES];
+/**
+ * Map (platform, unique_id suffix) → card role.
+ *
+ * Every ACP entity's unique_id is `{entry_id}_{suffix}` where the suffix is
+ * set by the integration — it is immutable for the lifetime of the entity (not
+ * affected by entity_id renames, device renames, or translation changes). This
+ * is the authoritative identity field, sourced from the HA entity registry via
+ * `config/entity_registry/list` websocket command.
+ *
+ * Platform must be part of the key: `manual_override` is used by both the
+ * binary sensor (platform `binary_sensor`) and the switch (platform `switch`,
+ * with capitalization: `Manual Override`). Platform disambiguates.
+ *
+ * Suffixes below are copied verbatim from:
+ *   sensor.py    — super().__init__(..., "suffix", ...) calls
+ *   binary_sensor.py — `f"{unique_id}_{key}"` / `f"{unique_id}_position_mismatch"`
+ *   switch.py    — `f"{entry_id}_{switch_name}"`
+ *   button.py    — `f"{entry_id}_Reset Manual Override"`
+ */
+export const UNIQUE_ID_ROLES: Record<string, EntityRole> = {
+  // sensor
+  'sensor:Cover_Position': 'target_position_sensor',
+  'sensor:sun_position': 'sun_sensor',
+  'sensor:Start Sun': 'start_sensor',
+  'sensor:End Sun': 'end_sensor',
+  'sensor:control_status': 'control_status_sensor',
+  'sensor:decision_trace': 'decision_trace_sensor',
+  'sensor:last_cover_action': 'last_action_sensor',
+  'sensor:last_skipped_action': 'last_skipped_sensor',
+  'sensor:manual_override_end_time': 'manual_override_end_sensor',
+  'sensor:position_verification': 'position_verification_sensor',
+  'sensor:motion_status': 'motion_status_sensor',
+  'sensor:force_override_triggers': 'force_override_sensor',
+  'sensor:climate_status': 'climate_status_sensor',
+
+  // binary_sensor
+  'binary_sensor:sun_motion': 'sun_infront_binary',
+  'binary_sensor:manual_override': 'manual_override_binary',
+  'binary_sensor:position_mismatch': 'position_mismatch_binary',
+  'binary_sensor:glare_active': 'glare_active_binary',
+
+  // switch (note: different case/spacing than the binary_sensor keys)
+  'switch:Integration Enabled': 'integration_enabled_switch',
+  'switch:Automatic Control': 'automatic_control_switch',
+  'switch:Manual Override': 'manual_toggle_switch',
+  'switch:Climate Mode': 'climate_mode_switch',
+  'switch:Motion Control': 'motion_control_switch',
+
+  // button
+  'button:Reset Manual Override': 'reset_override_button',
+};

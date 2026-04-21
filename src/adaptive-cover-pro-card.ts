@@ -4,6 +4,11 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import { CARD_NAME, CARD_VERSION, COVER_TYPE_ICONS } from './const';
 import { discoverEntities } from './lib/entity-discovery';
+import {
+  fetchEntityRegistry,
+  subscribeEntityRegistry,
+  type EntityRegistryEntry,
+} from './lib/entity-registry';
 import type { AdaptiveCoverProCardConfig, CardSection, DiscoveredEntities } from './types';
 
 import './components/sky-compass';
@@ -18,6 +23,11 @@ export class AdaptiveCoverProCard extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
 
   @state() private _config?: AdaptiveCoverProCardConfig;
+  @state() private _registry: EntityRegistryEntry[] | null = null;
+  @state() private _registryError: string | null = null;
+
+  private _unsubRegistry: (() => void) | null = null;
+  private _fetchInFlight = false;
 
   public setConfig(config: AdaptiveCoverProCardConfig): void {
     if (!config?.entry_id) {
@@ -28,6 +38,48 @@ export class AdaptiveCoverProCard extends LitElement {
 
   public getCardSize(): number {
     return 6;
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    if (this.hass) this._ensureRegistry();
+  }
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    if (this._unsubRegistry) {
+      this._unsubRegistry();
+      this._unsubRegistry = null;
+    }
+  }
+
+  protected updated(changed: Map<string, unknown>): void {
+    if (changed.has('hass') && this.hass) this._ensureRegistry();
+  }
+
+  private _ensureRegistry(): void {
+    if (this._registry !== null || this._fetchInFlight) return;
+    this._fetchInFlight = true;
+    fetchEntityRegistry(this.hass)
+      .then((entries) => {
+        this._registry = entries;
+        this._registryError = null;
+      })
+      .catch((err: Error) => {
+        this._registryError = err?.message ?? 'entity registry fetch failed';
+      })
+      .finally(() => {
+        this._fetchInFlight = false;
+      });
+
+    if (!this._unsubRegistry) {
+      this._unsubRegistry = subscribeEntityRegistry(this.hass, () => {
+        // Force a refresh on the next tick.
+        this._registry = null;
+        this._fetchInFlight = false;
+        this._ensureRegistry();
+      });
+    }
   }
 
   private get _sections(): CardSection[] {
@@ -72,31 +124,39 @@ export class AdaptiveCoverProCard extends LitElement {
     this.hass.callService(domain, 'toggle', { entity_id: entityId });
   }
 
-  private _renderEmpty(): TemplateResult {
-    const h = this.hass as HomeAssistant & {
-      devices?: Record<string, { id: string; config_entries?: string[] }>;
-      entities?: Record<string, { device_id?: string; translation_key?: string }>;
-    };
+  private _renderLoading(): TemplateResult {
+    return html`
+      <ha-card>
+        <div class="empty">
+          <p class="dim">Loading Adaptive Cover Pro registry…</p>
+        </div>
+      </ha-card>
+    `;
+  }
+
+  private _renderEmpty(reason: string): TemplateResult {
     const entryId = this._config!.entry_id;
-    const deviceCount = Object.values(h.devices ?? {}).filter((d) =>
-      d.config_entries?.includes(entryId),
+    const registrySize = this._registry?.length ?? 0;
+    const acpCount = this._registry?.filter(
+      (e) => e.config_entry_id === entryId && e.platform === 'adaptive_cover_pro',
     ).length;
-    const hasRegistries = Boolean(h.devices && h.entities);
     return html`
       <ha-card>
         <div class="empty">
           <p><strong>No Adaptive Cover Pro entities found</strong></p>
-          <p class="dim">
-            Configured <code>entry_id</code>: <code>${entryId}</code>
-          </p>
+          <p class="dim">Configured <code>entry_id</code>: <code>${entryId}</code></p>
           <ul class="diag">
-            <li>hass.devices / hass.entities present: <code>${hasRegistries ? 'yes' : 'no'}</code></li>
-            <li>Devices matching this entry_id: <code>${deviceCount}</code></li>
+            <li>Reason: <code>${reason}</code></li>
+            <li>Registry entries loaded: <code>${registrySize}</code></li>
+            <li>ACP entities matching entry_id: <code>${acpCount ?? '—'}</code></li>
+            ${this._registryError
+              ? html`<li>Registry fetch error: <code>${this._registryError}</code></li>`
+              : nothing}
           </ul>
           <p class="dim">
-            If the device count is 0, the <code>entry_id</code> is wrong. Find the correct one
-            at <code>/config/integrations</code> → click the Adaptive Cover Pro entry →
-            the URL bar shows <code>config_entry=…</code>.
+            If the count is 0, the <code>entry_id</code> is wrong. Find it at
+            <code>/config/integrations</code> → click the Adaptive Cover Pro entry → the URL bar
+            shows <code>config_entry=…</code>.
           </p>
         </div>
       </ha-card>
@@ -106,10 +166,12 @@ export class AdaptiveCoverProCard extends LitElement {
   protected render(): TemplateResult | typeof nothing {
     if (!this._config || !this.hass) return nothing;
 
-    const discovered = discoverEntities(this.hass, this._config);
-    if (!discovered) {
-      return this._renderEmpty();
+    if (this._registry === null) {
+      return this._registryError ? this._renderEmpty('registry fetch failed') : this._renderLoading();
     }
+
+    const discovered = discoverEntities(this.hass, this._config, this._registry);
+    if (!discovered) return this._renderEmpty('no matching entities after unique_id lookup');
 
     const sections = this._sections;
     return html`
@@ -199,6 +261,14 @@ export class AdaptiveCoverProCard extends LitElement {
       background: var(--code-editor-background-color, rgba(0, 0, 0, 0.08));
       padding: 1px 6px;
       border-radius: 3px;
+    }
+    .empty ul.diag {
+      list-style: none;
+      padding: 0;
+      margin: 8px auto;
+      text-align: left;
+      display: inline-block;
+      font-size: 0.82rem;
     }
     .footer {
       font-size: 0.7rem;
