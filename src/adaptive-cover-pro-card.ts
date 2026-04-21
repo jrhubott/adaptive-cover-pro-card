@@ -72,25 +72,43 @@ export class AdaptiveCoverProCard extends LitElement {
     this.hass.callService(domain, 'toggle', { entity_id: entityId });
   }
 
+  private _renderEmpty(): TemplateResult {
+    const h = this.hass as HomeAssistant & {
+      devices?: Record<string, { id: string; config_entries?: string[] }>;
+      entities?: Record<string, { device_id?: string; translation_key?: string }>;
+    };
+    const entryId = this._config!.entry_id;
+    const deviceCount = Object.values(h.devices ?? {}).filter((d) =>
+      d.config_entries?.includes(entryId),
+    ).length;
+    const hasRegistries = Boolean(h.devices && h.entities);
+    return html`
+      <ha-card>
+        <div class="empty">
+          <p><strong>No Adaptive Cover Pro entities found</strong></p>
+          <p class="dim">
+            Configured <code>entry_id</code>: <code>${entryId}</code>
+          </p>
+          <ul class="diag">
+            <li>hass.devices / hass.entities present: <code>${hasRegistries ? 'yes' : 'no'}</code></li>
+            <li>Devices matching this entry_id: <code>${deviceCount}</code></li>
+          </ul>
+          <p class="dim">
+            If the device count is 0, the <code>entry_id</code> is wrong. Find the correct one
+            at <code>/config/integrations</code> → click the Adaptive Cover Pro entry →
+            the URL bar shows <code>config_entry=…</code>.
+          </p>
+        </div>
+      </ha-card>
+    `;
+  }
+
   protected render(): TemplateResult | typeof nothing {
     if (!this._config || !this.hass) return nothing;
 
     const discovered = discoverEntities(this.hass, this._config);
     if (!discovered) {
-      return html`
-        <ha-card>
-          <div class="empty">
-            <p>
-              No Adaptive Cover Pro entities found for
-              <code>${this._config.entry_id}</code>.
-            </p>
-            <p class="dim">
-              Check the <code>entry_id</code> in your card configuration — it must match an active
-              Adaptive Cover Pro config entry.
-            </p>
-          </div>
-        </ha-card>
-      `;
+      return this._renderEmpty();
     }
 
     const sections = this._sections;
