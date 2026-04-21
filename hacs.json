@@ -1,0 +1,7 @@
+{
+  "name": "Adaptive Cover Pro Card",
+  "content_in_root": false,
+  "filename": "adaptive-cover-pro-card.js",
+  "homeassistant": "2024.5.0",
+  "render_readme": true
+}

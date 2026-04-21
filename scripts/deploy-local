@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Build and copy the card bundle into a local HA www/community/ directory for quick iteration.
+#
+# Configure via a `.deploy` file (gitignored) at repo root, shaped like:
+#   HA_WWW=/path/to/homeassistant/www/community/adaptive-cover-pro-card
+#
+# Usage: scripts/deploy-local [--dry-run]
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+DRY_RUN=0
+if [[ "${1:-}" == "--dry-run" ]]; then
+  DRY_RUN=1
+fi
+
+if [[ ! -f .deploy ]]; then
+  echo "✖ Missing .deploy config. Create one at repo root with:"
+  echo "    HA_WWW=/path/to/homeassistant/www/community/adaptive-cover-pro-card"
+  exit 1
+fi
+
+# shellcheck disable=SC1091
+source .deploy
+
+if [[ -z "${HA_WWW:-}" ]]; then
+  echo "✖ .deploy must set HA_WWW"
+  exit 1
+fi
+
+echo "→ Building"
+npm run build
+
+if [[ $DRY_RUN -eq 1 ]]; then
+  echo "→ Would copy dist/adaptive-cover-pro-card.js → $HA_WWW/adaptive-cover-pro-card.js"
+  exit 0
+fi
+
+mkdir -p "$HA_WWW"
+cp dist/adaptive-cover-pro-card.js "$HA_WWW/adaptive-cover-pro-card.js"
+echo "✓ Deployed to $HA_WWW"
+echo "  Add this to your dashboard resources if you haven't yet:"
+echo "    url: /local/community/adaptive-cover-pro-card/adaptive-cover-pro-card.js"
+echo "    type: module"

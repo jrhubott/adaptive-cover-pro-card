@@ -1,0 +1,6 @@
+# Copy to `.deploy` (gitignored) and set your values.
+# Used by scripts/deploy-local to copy the built card into your dev Home Assistant.
+
+# Absolute path to the directory inside your HA config where the card should live.
+# HA serves files from config/www/* at /local/*.
+HA_WWW=/home/you/homeassistant/config/www/community/adaptive-cover-pro-card

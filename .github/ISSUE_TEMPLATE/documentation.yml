@@ -1,0 +1,25 @@
+---
+name: "Documentation issue"
+description: "Report missing, incorrect, or unclear documentation"
+labels: ["documentation"]
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Where is the documentation issue?
+      description: "Link to the page, section, or file."
+      placeholder: "e.g. README Quick Start section"
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: What is wrong or missing?
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Suggested improvement
+    validations:
+      required: false

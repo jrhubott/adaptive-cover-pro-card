@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Kill any running rollup watch / vitest processes for this repo.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+pkill -f "rollup -c -w" 2>/dev/null || true
+pkill -f "vitest" 2>/dev/null || true
+echo "✓ Stopped dev watchers (if any)"

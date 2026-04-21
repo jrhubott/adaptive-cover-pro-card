@@ -1,0 +1,26 @@
+---
+name: "Question"
+description: "Ask a question about card configuration or behavior"
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Before asking, check the [README](https://github.com/jrhubott/adaptive-cover-pro-card#readme) and
+        existing [questions](https://github.com/jrhubott/adaptive-cover-pro-card/issues?q=is%3Aissue+label%3Aquestion).
+        Questions about the **integration itself** (why the blind moved, etc.) belong in the
+        [integration repo](https://github.com/jrhubott/adaptive-cover-pro/issues).
+
+  - type: input
+    id: card_version
+    attributes:
+      label: Card version
+      placeholder: "e.g. 0.1.0"
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Your question
+    validations:
+      required: true

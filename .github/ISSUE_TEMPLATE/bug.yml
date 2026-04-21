@@ -1,0 +1,90 @@
+---
+name: "Bug report"
+description: "Report a bug with the Adaptive Cover Pro Card"
+labels: "bug"
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Bugs with the **integration** (sensors, calculations, pipeline) belong in
+        [jrhubott/adaptive-cover-pro](https://github.com/jrhubott/adaptive-cover-pro/issues).
+        Only file here for bugs in the card's rendering, interactions, or YAML config.
+
+  - type: checkboxes
+    attributes:
+      label: Checklist
+      options:
+        - label: I have confirmed I am running the [latest card release](https://github.com/jrhubott/adaptive-cover-pro-card/releases/latest).
+          required: true
+        - label: I have searched [existing bug reports](https://github.com/jrhubott/adaptive-cover-pro-card/issues?q=is%3Aissue+label%3Abug) and this is not a duplicate.
+          required: true
+        - label: The issue is with the card UI, not the integration (entity values, calculation results, service behavior).
+          required: true
+
+  - type: input
+    id: card_version
+    validations:
+      required: true
+    attributes:
+      label: Card version
+      description: "Shown in the card footer and in the browser console on page load."
+      placeholder: "e.g. 0.1.0"
+
+  - type: input
+    id: integration_version
+    validations:
+      required: true
+    attributes:
+      label: Adaptive Cover Pro integration version
+      description: "Found under Settings → Devices & Services → Adaptive Cover Pro."
+      placeholder: "e.g. 2.18.1"
+
+  - type: input
+    id: homeassistant
+    validations:
+      required: true
+    attributes:
+      label: Home Assistant version
+      description: >
+        Found in: [**Settings** > **About**](https://my.home-assistant.io/redirect/info/).
+      placeholder: "e.g. 2025.4.0"
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser / device
+      placeholder: "e.g. Chrome 128 on macOS / HA Companion iOS"
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Describe the issue
+      description: "What happened? What did you expect to see?"
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Card YAML configuration
+      render: yaml
+      placeholder: |
+        type: custom:adaptive-cover-pro-card
+        entry_id: abc123...
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Screenshots
+      description: "Drag screenshots here. Card bugs almost always need a screenshot."
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Browser console output
+      description: "Any errors in the browser devtools console? Paste them here."
+      render: text
+    validations:
+      required: false

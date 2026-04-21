@@ -1,0 +1,44 @@
+---
+name: "Enhancement"
+description: "Suggest an improvement or new feature for the card"
+labels: "enhancement"
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Before opening an enhancement request, search [existing enhancements](https://github.com/jrhubott/adaptive-cover-pro-card/issues?q=is%3Aissue+label%3Aenhancement) to see if yours has already been suggested.
+
+  - type: checkboxes
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched [existing enhancements](https://github.com/jrhubott/adaptive-cover-pro-card/issues?q=is%3Aissue+label%3Aenhancement) and this is not a duplicate.
+          required: true
+        - label: This request covers a single enhancement (open a separate issue for each one).
+          required: true
+
+  - type: textarea
+    attributes:
+      label: Is your enhancement related to a problem?
+      placeholder: "I'm always frustrated when [...]"
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Describe the solution you'd like
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Mock-up or screenshot
+      description: "Sketch, screenshot, or description of what the card would look like."
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Alternatives you've considered
+    validations:
+      required: false

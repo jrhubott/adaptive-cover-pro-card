@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Run ESLint + Prettier checks. Use --fix to auto-correct.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+if [[ "${1:-}" == "--fix" ]]; then
+  npm run format
+  npx eslint src tests --ext .ts --fix
+else
+  npm run lint
+  npm run format:check
+fi

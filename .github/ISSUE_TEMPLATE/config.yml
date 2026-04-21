@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Adaptive Cover Pro integration
+    url: https://github.com/jrhubott/adaptive-cover-pro/issues
+    about: Issues with the integration itself (sensors, calculations, services) belong in the integration repo.
+  - name: Home Assistant Community
+    url: https://community.home-assistant.io/
+    about: General Home Assistant questions and community support.

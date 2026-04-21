@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Install dev dependencies and pre-commit hooks for local development.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+echo "→ Installing npm dependencies"
+npm ci
+
+if command -v pre-commit >/dev/null 2>&1; then
+  echo "→ Installing pre-commit hooks"
+  pre-commit install
+else
+  echo "⚠ pre-commit not found on PATH — skipping. Install with: pipx install pre-commit"
+fi
+
+echo "→ Running a first build to populate dist/"
+npm run build
+
+echo "✓ Setup complete"
