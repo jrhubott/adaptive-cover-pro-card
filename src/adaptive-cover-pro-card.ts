@@ -167,7 +167,9 @@ export class AdaptiveCoverProCard extends LitElement {
     if (!this._config || !this.hass) return nothing;
 
     if (this._registry === null) {
-      return this._registryError ? this._renderEmpty('registry fetch failed') : this._renderLoading();
+      return this._registryError
+        ? this._renderEmpty('registry fetch failed')
+        : this._renderLoading();
     }
 
     const discovered = discoverEntities(this.hass, this._config, this._registry);

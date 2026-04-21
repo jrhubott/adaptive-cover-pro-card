@@ -143,27 +143,19 @@ describe('discoverEntities (unique_id based)', () => {
     );
     expect(d).not.toBeNull();
     expect(d!.entry_title).toBe('Living Room Blinds');
-    expect(d!.entities.target_position_sensor).toBe(
-      'sensor.living_room_blinds_target_position',
-    );
+    expect(d!.entities.target_position_sensor).toBe('sensor.living_room_blinds_target_position');
     expect(d!.entities.sun_sensor).toBe('sensor.living_room_blinds_sun_position');
     expect(d!.entities.start_sensor).toBe('sensor.living_room_blinds_start_sun');
     expect(d!.entities.end_sensor).toBe('sensor.living_room_blinds_end_sun');
-    expect(d!.entities.decision_trace_sensor).toBe(
-      'sensor.living_room_blinds_decision_trace',
-    );
-    expect(d!.entities.sun_infront_binary).toBe(
-      'binary_sensor.living_room_blinds_sun_infront',
-    );
+    expect(d!.entities.decision_trace_sensor).toBe('sensor.living_room_blinds_decision_trace');
+    expect(d!.entities.sun_infront_binary).toBe('binary_sensor.living_room_blinds_sun_infront');
     expect(d!.entities.manual_override_binary).toBe(
       'binary_sensor.living_room_blinds_manual_override',
     );
     expect(d!.entities.integration_enabled_switch).toBe(
       'switch.living_room_blinds_integration_enabled',
     );
-    expect(d!.entities.manual_toggle_switch).toBe(
-      'switch.living_room_blinds_manual_override',
-    );
+    expect(d!.entities.manual_toggle_switch).toBe('switch.living_room_blinds_manual_override');
     expect(d!.entities.reset_override_button).toBe(
       'button.living_room_blinds_reset_manual_override',
     );
@@ -228,9 +220,7 @@ describe('discoverEntities (unique_id based)', () => {
     );
     expect(d).not.toBeNull();
     expect(d!.entry_title).toBe(ENTRY_ID);
-    expect(d!.entities.target_position_sensor).toBe(
-      'sensor.living_room_blinds_target_position',
-    );
+    expect(d!.entities.target_position_sensor).toBe('sensor.living_room_blinds_target_position');
   });
 
   it('skips entries whose unique_id does not start with the entry_id prefix', () => {

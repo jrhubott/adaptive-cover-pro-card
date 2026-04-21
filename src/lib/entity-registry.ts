@@ -19,10 +19,7 @@ export interface EntityRegistryEntry {
 
 type HassWithConnection = HomeAssistant & {
   connection: {
-    subscribeEvents: (
-      callback: () => void,
-      event: string,
-    ) => Promise<() => void>;
+    subscribeEvents: (callback: () => void, event: string) => Promise<() => void>;
   };
 };
 
