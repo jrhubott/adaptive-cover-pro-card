@@ -9,6 +9,9 @@
 #   scripts/release beta         # 0.1.0 -> 0.1.1-beta.1 (or bump -beta.N)
 #   scripts/release 0.2.0        # explicit
 #   scripts/release --dry-run ...
+#
+# Requires `release_notes/vX.Y.Z.md` to exist for the target version — matches
+# the publish-release.yml workflow's body_path expectation. Author notes first.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -60,7 +63,18 @@ esac
 
 echo "→ New version: $new_version"
 
-# keep CARD_VERSION in src/const.ts in sync
+# Pre-flight: release notes file must exist. publish-release.yml reads this
+# verbatim as the GitHub Release body via body_path, so a missing file would
+# fail the workflow after tag-push — catch it locally instead.
+notes_file="release_notes/v${new_version}.md"
+if [[ ! -f "$notes_file" ]]; then
+  echo "✖ Missing $notes_file — author release notes first."
+  echo "  Reverting package.json / package-lock.json."
+  git checkout -- package.json package-lock.json
+  exit 1
+fi
+
+# Keep CARD_VERSION in src/const.ts in sync
 sed -i.bak "s/^export const CARD_VERSION = '.*';$/export const CARD_VERSION = '$new_version';/" src/const.ts
 rm -f src/const.ts.bak
 
