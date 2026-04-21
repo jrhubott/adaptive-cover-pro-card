@@ -1,4 +1,4 @@
-export const CARD_VERSION = '0.1.3';
+export const CARD_VERSION = '0.1.4';
 export const CARD_NAME = 'adaptive-cover-pro-card';
 export const CARD_EDITOR_NAME = 'adaptive-cover-pro-card-editor';
 

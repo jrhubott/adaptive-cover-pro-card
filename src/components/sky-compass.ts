@@ -6,7 +6,10 @@ import type { DiscoveredEntities, SunPositionAttributes } from '../types';
 import { azimuthToCartesian, normalizeAzimuth, sunDotPosition, wedgePath } from '../lib/geometry';
 import { formatDegrees } from '../lib/formatters';
 
-const VIEWBOX = 240;
+// viewBox must have ~30 px of padding beyond OUTER_R so cardinal labels
+// (positioned at OUTER_R + 6..14) don't clip when rendered with
+// text-anchor="middle" (~7px half-width at 12px font).
+const VIEWBOX = 280;
 const OUTER_R = 110;
 
 @customElement('acp-sky-compass')
