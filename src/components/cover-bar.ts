@@ -9,6 +9,7 @@ import { formatPercent } from '../lib/formatters';
 export class CoverBar extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ attribute: false }) public discovered!: DiscoveredEntities;
+  @property({ type: Boolean, reflect: true }) public compact = false;
 
   private _target(): { target: number | null; covers: Record<string, number | null> } {
     const id = this.discovered.entities.target_position_sensor;
@@ -43,6 +44,7 @@ export class CoverBar extends LitElement {
   }
 
   protected render(): TemplateResult | typeof nothing {
+    if (!this.hass || !this.discovered) return nothing;
     const { target, covers } = this._target();
     const mismatched = this._mismatched();
     const entries = Object.entries(covers);
@@ -144,6 +146,13 @@ export class CoverBar extends LitElement {
       border-radius: 6px;
       cursor: pointer;
       overflow: hidden;
+    }
+    :host([compact]) .track {
+      height: 6px;
+    }
+    :host([compact]) .cover {
+      font-size: 0.75rem;
+      gap: 6px;
     }
     .fill {
       height: 100%;

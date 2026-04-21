@@ -9,6 +9,7 @@ import { countdownTo } from '../lib/formatters';
 export class OverridesPanel extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ attribute: false }) public discovered!: DiscoveredEntities;
+  @property({ type: Boolean, reflect: true }) public compact = false;
 
   private _manualActive(): boolean {
     const id = this.discovered.entities.manual_override_binary;
@@ -47,6 +48,7 @@ export class OverridesPanel extends LitElement {
   }
 
   protected render(): TemplateResult | typeof nothing {
+    if (!this.hass || !this.discovered) return nothing;
     const manualActive = this._manualActive();
     const manualEnd = this._manualEndIso();
     const motion = this._motionStatus();
@@ -117,6 +119,13 @@ export class OverridesPanel extends LitElement {
       border-radius: 6px;
       background: var(--secondary-background-color, rgba(0, 0, 0, 0.04));
       font-size: 0.8rem;
+    }
+    :host([compact]) .tile {
+      padding: 4px 8px;
+      font-size: 0.72rem;
+    }
+    :host([compact]) .tile-sub {
+      display: none;
     }
     .tile.active {
       background: var(--primary-color);

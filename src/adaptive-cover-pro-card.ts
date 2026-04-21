@@ -208,27 +208,35 @@ export class AdaptiveCoverProCard extends LitElement {
             ? html`<acp-elevation-chart
                 .hass=${this.hass}
                 .discovered=${discovered}
+                ?compact=${!!this._config.compact}
               ></acp-elevation-chart>`
             : nothing}
           ${sections.includes('decision')
             ? html`<acp-decision-strip
                 .hass=${this.hass}
                 .discovered=${discovered}
+                ?compact=${!!this._config.compact}
               ></acp-decision-strip>`
             : nothing}
           ${sections.includes('covers')
-            ? html`<acp-cover-bar .hass=${this.hass} .discovered=${discovered}></acp-cover-bar>`
+            ? html`<acp-cover-bar
+                .hass=${this.hass}
+                .discovered=${discovered}
+                ?compact=${!!this._config.compact}
+              ></acp-cover-bar>`
             : nothing}
           ${sections.includes('overrides')
             ? html`<acp-overrides-panel
                 .hass=${this.hass}
                 .discovered=${discovered}
+                ?compact=${!!this._config.compact}
               ></acp-overrides-panel>`
             : nothing}
           ${sections.includes('climate')
             ? html`<acp-climate-panel
                 .hass=${this.hass}
                 .discovered=${discovered}
+                ?compact=${!!this._config.compact}
               ></acp-climate-panel>`
             : nothing}
         </div>

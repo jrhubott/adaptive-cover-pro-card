@@ -9,7 +9,6 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
   type: string;
   entry_id: string;
   show_sections?: CardSection[];
-  theme?: 'auto' | 'light' | 'dark';
   compact?: boolean;
 }
 

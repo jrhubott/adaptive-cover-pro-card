@@ -16,6 +16,7 @@ const OUTER_R = 110;
 export class SkyCompass extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ attribute: false }) public discovered!: DiscoveredEntities;
+  @property({ type: Boolean, reflect: true }) public compact = false;
 
   private _sun(): SunPositionAttributes | null {
     const id = this.discovered.entities.sun_sensor;
@@ -37,6 +38,7 @@ export class SkyCompass extends LitElement {
   }
 
   protected render(): TemplateResult | typeof nothing {
+    if (!this.hass || !this.discovered) return nothing;
     const sun = this._sun();
     if (!sun) {
       return html`<div class="placeholder">Sun sensor not yet populated.</div>`;
@@ -134,6 +136,16 @@ export class SkyCompass extends LitElement {
       max-width: 260px;
       height: auto;
       display: block;
+    }
+    :host([compact]) svg {
+      max-width: 180px;
+    }
+    :host([compact]) .legend {
+      display: none;
+    }
+    :host([compact]) .stats {
+      font-size: 0.7rem;
+      gap: 8px;
     }
     .grid {
       fill: none;

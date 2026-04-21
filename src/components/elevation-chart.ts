@@ -17,6 +17,7 @@ const PAD_B = 22;
 export class ElevationChart extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ attribute: false }) public discovered!: DiscoveredEntities;
+  @property({ type: Boolean, reflect: true }) public compact = false;
 
   private _sunAttrs(): SunPositionAttributes | null {
     const id = this.discovered.entities.sun_sensor;
@@ -27,6 +28,7 @@ export class ElevationChart extends LitElement {
   }
 
   protected render(): TemplateResult | typeof nothing {
+    if (!this.hass || !this.discovered) return nothing;
     const attrs = this._sunAttrs();
     const { latitude, longitude } = this.hass.config as unknown as {
       latitude?: number;
@@ -177,6 +179,12 @@ export class ElevationChart extends LitElement {
       height: auto;
       aspect-ratio: 400 / 160;
       display: block;
+    }
+    :host([compact]) svg {
+      aspect-ratio: 400 / 110;
+    }
+    :host([compact]) .head {
+      font-size: 0.72rem;
     }
     .grid {
       stroke: var(--divider-color);

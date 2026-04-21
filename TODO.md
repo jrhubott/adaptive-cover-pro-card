@@ -70,6 +70,40 @@ polish planned for v0.4.
 
 ---
 
+## [Card] Bootstrap the Wiki (one-time)
+
+**Context.** The repo has `has_wiki: true` but the wiki repo (`.wiki.git`)
+doesn't exist on GitHub until the first page is created. Cloning
+`git@github.com:jrhubott/adaptive-cover-pro-card.wiki.git` fails with
+"Repository not found" until that happens.
+
+**Why deferred.** Needs a one-time manual step via the GitHub web UI that
+an automated run can't bypass.
+
+**Acceptance.**
+- [ ] Visit <https://github.com/jrhubott/adaptive-cover-pro-card/wiki>,
+  click **Create the first page**, title it `Home`, save. This
+  initializes the `.wiki.git` repo.
+- [ ] Clone locally as `../adaptive-cover-pro-card.wiki/`.
+- [ ] Populate:
+  - `Home.md` — elevator pitch + jump-off links (mirror the integration's
+    wiki Home page structure)
+  - `Installation.md` — HACS + manual + cache-buster tips
+  - `Configuration.md` — YAML schema + editor walkthrough + per-section
+    toggles
+  - `Sky-Compass.md`, `Sun-Today.md`, `Decision-Strip.md`,
+    `Cover-Positions.md`, `Overrides.md`, `Climate.md` — section deep-dives
+  - `Troubleshooting.md` — empty-state diagnostics, module cache traps,
+    wget + cache-buster workflow
+  - `For-Developers.md` — setup, scripts, test, release
+  - `_Sidebar.md`, `_Footer.md`
+- [ ] Reference absolute raw URLs for images
+  (`https://raw.githubusercontent.com/jrhubott/adaptive-cover-pro-card/main/images/…`).
+- [ ] Trim README to point at the wiki (it's already slim; just add a
+  "Full docs" banner once pages exist).
+
+---
+
 ## [Card] ha-form native-looking editor
 
 **Context.** v0.3.0 editor uses native `<select>` and `<input>` elements.

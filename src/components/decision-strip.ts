@@ -10,6 +10,7 @@ import { formatPercent } from '../lib/formatters';
 export class DecisionStrip extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ attribute: false }) public discovered!: DiscoveredEntities;
+  @property({ type: Boolean, reflect: true }) public compact = false;
 
   private _trace(): { winner: string; reason: string; steps: Map<string, TraceRow> } | null {
     const id = this.discovered.entities.decision_trace_sensor;
@@ -30,6 +31,7 @@ export class DecisionStrip extends LitElement {
   }
 
   protected render(): TemplateResult | typeof nothing {
+    if (!this.hass || !this.discovered) return nothing;
     const t = this._trace();
     if (!t) return html`<div class="placeholder">Decision trace not yet populated.</div>`;
     return html`
@@ -95,6 +97,14 @@ export class DecisionStrip extends LitElement {
       border-radius: 4px;
       font-size: 0.8rem;
       line-height: 1.3;
+    }
+    :host([compact]) .row {
+      grid-template-columns: 96px 36px 40px 1fr auto;
+      font-size: 0.72rem;
+      padding: 1px 4px;
+    }
+    :host([compact]) .reason {
+      display: none;
     }
     .row.skip {
       opacity: 0.55;

@@ -26,8 +26,10 @@ const STRATEGY_ICONS: Record<string, string> = {
 export class ClimatePanel extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ attribute: false }) public discovered!: DiscoveredEntities;
+  @property({ type: Boolean, reflect: true }) public compact = false;
 
   protected render(): TemplateResult | typeof nothing {
+    if (!this.hass || !this.discovered) return nothing;
     const id = this.discovered.entities.climate_status_sensor;
     if (!id) return nothing; // no climate → hide section entirely
     const st = this.hass.states[id];
@@ -156,6 +158,15 @@ export class ClimatePanel extends LitElement {
       display: flex;
       flex-wrap: wrap;
       gap: 4px;
+    }
+    :host([compact]) .temps {
+      gap: 6px;
+    }
+    :host([compact]) .temp {
+      padding: 4px 6px;
+    }
+    :host([compact]) .strategy {
+      font-size: 0.85rem;
     }
     .chip {
       display: inline-flex;
