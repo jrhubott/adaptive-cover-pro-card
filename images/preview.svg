@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 320" font-family="-apple-system, system-ui, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1f2e"/>
+      <stop offset="100%" stop-color="#0f1420"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffd54f"/>
+      <stop offset="70%" stop-color="#ffc107"/>
+      <stop offset="100%" stop-color="#ff9800" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fovGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffd54f" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#ffd54f" stop-opacity="0.1"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="640" height="320" rx="12" fill="url(#bg)"/>
+
+  <!-- Title strip -->
+  <text x="20" y="30" fill="#e0e0e0" font-size="14" font-weight="600" letter-spacing="0.05em">ADAPTIVE COVER PRO</text>
+  <text x="20" y="52" fill="#b0bec5" font-size="12">Living Room Blinds</text>
+  <rect x="540" y="18" width="38" height="18" rx="9" fill="#4fc3f7" fill-opacity="0.25" stroke="#4fc3f7"/>
+  <text x="559" y="31" fill="#4fc3f7" font-size="10" text-anchor="middle" font-weight="600">ON</text>
+  <rect x="585" y="18" width="46" height="18" rx="9" fill="#4fc3f7"/>
+  <text x="608" y="31" fill="#0f1420" font-size="10" text-anchor="middle" font-weight="700">AUTO</text>
+
+  <!-- Sky compass, left panel -->
+  <g transform="translate(150, 190)">
+    <!-- elevation rings -->
+    <circle r="95" fill="none" stroke="#37474f" stroke-width="1"/>
+    <circle r="63" fill="none" stroke="#37474f" stroke-width="0.8" stroke-opacity="0.6"/>
+    <circle r="32" fill="none" stroke="#37474f" stroke-width="0.6" stroke-opacity="0.4"/>
+    <!-- cardinal lines -->
+    <line x1="0" y1="-95" x2="0" y2="95" stroke="#37474f" stroke-width="0.5" stroke-opacity="0.5"/>
+    <line x1="-95" y1="0" x2="95" y2="0" stroke="#37474f" stroke-width="0.5" stroke-opacity="0.5"/>
+
+    <!-- FOV wedge (south-east facing, 120° spread) -->
+    <path d="M 0 0 L 67.175 67.175 A 95 95 0 0 1 -67.175 67.175 Z" fill="url(#fovGrad)" stroke="#ffd54f" stroke-width="1" stroke-opacity="0.5"/>
+
+    <!-- Window normal -->
+    <line x1="0" y1="0" x2="0" y2="95" stroke="#4fc3f7" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="0" cy="0" r="4" fill="#4fc3f7"/>
+
+    <!-- Cardinal labels -->
+    <text x="0" y="-103" fill="#b0bec5" font-size="12" font-weight="600" text-anchor="middle">N</text>
+    <text x="107" y="4" fill="#b0bec5" font-size="12" font-weight="600" text-anchor="middle">E</text>
+    <text x="0" y="113" fill="#b0bec5" font-size="12" font-weight="600" text-anchor="middle">S</text>
+    <text x="-107" y="4" fill="#b0bec5" font-size="12" font-weight="600" text-anchor="middle">W</text>
+
+    <!-- Sun dot (inside FOV, slightly east of south) -->
+    <circle cx="40" cy="55" r="14" fill="url(#sun)" opacity="0.6"/>
+    <circle cx="40" cy="55" r="7" fill="#ffd54f"/>
+
+    <!-- stat strip -->
+    <text x="0" y="150" fill="#b0bec5" font-size="10" text-anchor="middle" font-variant-numeric="tabular-nums">
+      Azi 146.2° · Elev 34.8° · γ -12.5°
+    </text>
+  </g>
+
+  <!-- Decision strip, right panel -->
+  <g transform="translate(320, 70)">
+    <text x="0" y="0" fill="#78909c" font-size="10" letter-spacing="0.05em">PIPELINE</text>
+    <text x="280" y="0" fill="#b0bec5" font-size="10" text-anchor="end">Winner: SOLAR</text>
+
+    <g font-size="11" font-family="ui-monospace, monospace">
+      <g opacity="0.55" fill="#b0bec5">
+        <text x="0" y="18">Force Override</text><text x="200" y="18">────</text><text x="280" y="18" text-anchor="end">not active</text>
+      </g>
+      <g opacity="0.55" fill="#b0bec5">
+        <text x="0" y="34">Weather Safety</text><text x="200" y="34">────</text><text x="280" y="34" text-anchor="end">all clear</text>
+      </g>
+      <g opacity="0.55" fill="#b0bec5">
+        <text x="0" y="50">Manual Override</text><text x="200" y="50">────</text><text x="280" y="50" text-anchor="end">not active</text>
+      </g>
+      <g opacity="0.55" fill="#b0bec5">
+        <text x="0" y="66">Custom Position</text><text x="200" y="66">────</text><text x="280" y="66" text-anchor="end">no sensors</text>
+      </g>
+      <g opacity="0.55" fill="#b0bec5">
+        <text x="0" y="82">Motion Timeout</text><text x="200" y="82">────</text><text x="280" y="82" text-anchor="end">disabled</text>
+      </g>
+      <g opacity="0.55" fill="#b0bec5">
+        <text x="0" y="98">Cloud Suppression</text><text x="200" y="98">────</text><text x="280" y="98" text-anchor="end">below threshold</text>
+      </g>
+      <g opacity="0.55" fill="#b0bec5">
+        <text x="0" y="114">Climate</text><text x="200" y="114">────</text><text x="280" y="114" text-anchor="end">intermediate</text>
+      </g>
+      <!-- Winner row -->
+      <rect x="-6" y="123" width="302" height="18" rx="4" fill="#4fc3f7"/>
+      <g fill="#0f1420" font-weight="700">
+        <text x="0" y="137">Solar Tracking</text>
+        <text x="200" y="137">████</text>
+        <text x="252" y="137" text-anchor="end">42%</text>
+        <text x="280" y="137" text-anchor="end">✓</text>
+      </g>
+      <g opacity="0.55" fill="#b0bec5">
+        <text x="0" y="156">Default</text><text x="200" y="156">────</text><text x="280" y="156" text-anchor="end">fallback</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Bottom strip: cover bars + overrides -->
+  <g transform="translate(320, 245)">
+    <text x="0" y="0" fill="#78909c" font-size="10" letter-spacing="0.05em">COVERS · Target 42%</text>
+    <!-- Cover 1 -->
+    <text x="0" y="20" fill="#b0bec5" font-size="11">Left</text>
+    <rect x="42" y="12" width="180" height="10" rx="5" fill="#263238"/>
+    <rect x="42" y="12" width="72" height="10" rx="5" fill="#4fc3f7"/>
+    <rect x="117.6" y="9" width="2" height="16" fill="#ff5252"/>
+    <text x="235" y="20" fill="#b0bec5" font-size="11" text-anchor="end" font-variant-numeric="tabular-nums">40%</text>
+
+    <!-- Cover 2 -->
+    <text x="0" y="42" fill="#b0bec5" font-size="11">Right</text>
+    <rect x="42" y="34" width="180" height="10" rx="5" fill="#263238"/>
+    <rect x="42" y="34" width="68" height="10" rx="5" fill="#4fc3f7"/>
+    <rect x="117.6" y="31" width="2" height="16" fill="#ff5252"/>
+    <text x="235" y="42" fill="#b0bec5" font-size="11" text-anchor="end" font-variant-numeric="tabular-nums">38%</text>
+  </g>
+
+  <!-- caption -->
+  <text x="320" y="305" fill="#546e7a" font-size="10" text-anchor="middle">Sun tracked against window FOV · 10-handler pipeline · live cover positions</text>
+</svg>

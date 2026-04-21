@@ -6,6 +6,8 @@
 
 Custom Lovelace card for the [Adaptive Cover Pro](https://github.com/jrhubott/adaptive-cover-pro) Home Assistant integration. One glance tells you *what* the integration is doing, *why* it decided that, and *how* to take over.
 
+![Preview](https://raw.githubusercontent.com/jrhubott/adaptive-cover-pro-card/main/images/preview.svg)
+
 > **📖 Full documentation:** see the [Wiki](https://github.com/jrhubott/adaptive-cover-pro-card/wiki).
 
 ---
