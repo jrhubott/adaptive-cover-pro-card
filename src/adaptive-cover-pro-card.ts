@@ -12,11 +12,20 @@ import {
 import type { AdaptiveCoverProCardConfig, CardSection, DiscoveredEntities } from './types';
 
 import './components/sky-compass';
+import './components/elevation-chart';
 import './components/decision-strip';
 import './components/cover-bar';
 import './components/overrides-panel';
+import './components/climate-panel';
 
-const DEFAULT_SECTIONS: CardSection[] = ['sky', 'decision', 'covers', 'overrides'];
+const DEFAULT_SECTIONS: CardSection[] = [
+  'sky',
+  'elevation',
+  'decision',
+  'covers',
+  'overrides',
+  'climate',
+];
 
 @customElement(CARD_NAME)
 export class AdaptiveCoverProCard extends LitElement {
@@ -183,6 +192,12 @@ export class AdaptiveCoverProCard extends LitElement {
           ${sections.includes('sky')
             ? html`<acp-sky-compass .hass=${this.hass} .discovered=${discovered}></acp-sky-compass>`
             : nothing}
+          ${sections.includes('elevation')
+            ? html`<acp-elevation-chart
+                .hass=${this.hass}
+                .discovered=${discovered}
+              ></acp-elevation-chart>`
+            : nothing}
           ${sections.includes('decision')
             ? html`<acp-decision-strip
                 .hass=${this.hass}
@@ -197,6 +212,12 @@ export class AdaptiveCoverProCard extends LitElement {
                 .hass=${this.hass}
                 .discovered=${discovered}
               ></acp-overrides-panel>`
+            : nothing}
+          ${sections.includes('climate')
+            ? html`<acp-climate-panel
+                .hass=${this.hass}
+                .discovered=${discovered}
+              ></acp-climate-panel>`
             : nothing}
         </div>
         <div class="footer dim">adaptive-cover-pro-card v${CARD_VERSION}</div>

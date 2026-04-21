@@ -3,7 +3,7 @@ import type { EntityRole, HandlerName } from './const';
 
 export type { HomeAssistant };
 
-export type CardSection = 'sky' | 'decision' | 'covers' | 'overrides' | 'climate';
+export type CardSection = 'sky' | 'elevation' | 'decision' | 'covers' | 'overrides' | 'climate';
 
 export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
   type: string;
