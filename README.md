@@ -8,7 +8,7 @@ Custom Lovelace card for the [Adaptive Cover Pro](https://github.com/jrhubott/ad
 
 ![Preview](https://raw.githubusercontent.com/jrhubott/adaptive-cover-pro-card/main/images/preview.svg)
 
-> **📖 Full documentation:** see the [Wiki](https://github.com/jrhubott/adaptive-cover-pro-card/wiki).
+> **📖 Full documentation:** see the [Lovelace Card](https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card) page on the integration wiki.
 
 ---
 
@@ -52,7 +52,7 @@ Find your `entry_id` on the integration's URL:
 
 ## For developers
 
-See the [For Developers](https://github.com/jrhubott/adaptive-cover-pro-card/wiki/For-Developers) wiki hub for the full dev setup, build/release flow, and contribution guide. Quick start:
+See the [For Developers](https://github.com/jrhubott/adaptive-cover-pro/wiki/For-Developers) wiki hub for the full dev setup, build/release flow, and contribution guide. Quick start:
 
 ```bash
 npm install
