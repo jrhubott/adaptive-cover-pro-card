@@ -10,6 +10,7 @@ export class OverridesPanel extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ attribute: false }) public discovered!: DiscoveredEntities;
   @property({ type: Boolean, reflect: true }) public compact = false;
+  @property({ type: Boolean, attribute: 'reset-enabled' }) public resetEnabled = true;
 
   private _manualActive(): boolean {
     const id = this.discovered.entities.manual_override_binary;
@@ -82,10 +83,15 @@ export class OverridesPanel extends LitElement {
               </div>`
             : nothing}
           ${resetId
-            ? html`<button class="tile action" @click=${this._resetManual}>
-                <ha-icon icon="mdi:restore"></ha-icon>
-                <div class="tile-value">Reset Manual</div>
-              </button>`
+            ? this.resetEnabled
+              ? html`<button class="tile action" @click=${this._resetManual}>
+                  <ha-icon icon="mdi:restore"></ha-icon>
+                  <div class="tile-value">Reset Manual</div>
+                </button>`
+              : html`<button class="tile action readonly" aria-disabled="true" tabindex="-1">
+                  <ha-icon icon="mdi:restore"></ha-icon>
+                  <div class="tile-value">Reset Manual</div>
+                </button>`
             : nothing}
         </div>
       </div>
@@ -127,6 +133,9 @@ export class OverridesPanel extends LitElement {
     :host([compact]) .tile-sub {
       display: none;
     }
+    :host([compact]) .label {
+      display: none;
+    }
     .tile.active {
       background: var(--primary-color);
       color: var(--text-primary-color, #fff);
@@ -144,6 +153,15 @@ export class OverridesPanel extends LitElement {
     .tile.action:hover {
       background: var(--primary-color);
       color: var(--text-primary-color, #fff);
+    }
+    .tile.action.readonly {
+      cursor: default;
+      opacity: 0.85;
+      pointer-events: none;
+    }
+    .tile.action.readonly:hover {
+      background: var(--secondary-background-color, rgba(0, 0, 0, 0.04));
+      color: inherit;
     }
     .tile-label {
       font-size: 0.72rem;

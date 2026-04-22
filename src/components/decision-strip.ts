@@ -108,6 +108,9 @@ export class DecisionStrip extends LitElement {
     :host([compact]) .reason {
       display: none;
     }
+    :host([compact]) .head {
+      display: none;
+    }
     .row.skip {
       opacity: 0.55;
     }

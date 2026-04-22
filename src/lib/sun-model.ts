@@ -95,3 +95,26 @@ export function findFovWindow(
   if (bestStart === -1) return null;
   return { startIdx: bestStart, endIdx: bestEnd };
 }
+
+/**
+ * Return the azimuths of the first and last above-horizon sun samples.
+ * These approximate the compass directions of sunrise and sunset.
+ * Returns null for either if the sun never rises (or never sets) today.
+ */
+export function sunriseSetAzimuths(samples: SunSample[]): {
+  riseAzimuth: number | null;
+  setAzimuth: number | null;
+} {
+  let riseIdx = -1;
+  let setIdx = -1;
+  for (let i = 0; i < samples.length; i++) {
+    if (samples[i].elevation > 0) {
+      if (riseIdx === -1) riseIdx = i;
+      setIdx = i;
+    }
+  }
+  return {
+    riseAzimuth: riseIdx >= 0 ? samples[riseIdx].azimuth : null,
+    setAzimuth: setIdx >= 0 ? samples[setIdx].azimuth : null,
+  };
+}

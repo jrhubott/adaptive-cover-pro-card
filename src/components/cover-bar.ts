@@ -154,6 +154,9 @@ export class CoverBar extends LitElement {
       font-size: 0.75rem;
       gap: 6px;
     }
+    :host([compact]) .head {
+      display: none;
+    }
     .fill {
       height: 100%;
       background: var(--primary-color);

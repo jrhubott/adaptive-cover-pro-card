@@ -1,0 +1,274 @@
+#!/usr/bin/env bash
+
+# Deploy adaptive-cover-pro-card to a Home Assistant server via SMB.
+#
+# Usage:
+#   ./scripts/deploy [--dry-run] [--verbose] [--help]
+#
+# Flags:
+#   --dry-run   Simulate deploy without copying files
+#   --verbose   Show bash trace (set -x)
+#   --help      Show help and exit
+#
+# Environment variables (or set in .deploy config file):
+#   HA_SMB_HOST   SMB hostname or IP (default: home-assistant.home)
+#   HA_SMB_SHARE  SMB share name (default: config)
+#   HA_SMB_USER   SMB username (optional; omit for guest access)
+#   HA_SMB_PASS   SMB password (optional)
+#   HA_URL        Home Assistant URL (default: http://home-assistant.home:8123)
+#   HA_TOKEN      Long-lived access token (optional; prompted if not set)
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+# ── Load config file ─────────────────────────────────────────────────────────
+# Copy .deploy.example to .deploy and fill in your values (file is .gitignored)
+if [[ -f ".deploy" ]]; then
+    # shellcheck source=/dev/null
+    source ".deploy"
+fi
+
+HA_SMB_HOST="${HA_SMB_HOST:-home-assistant.home}"
+HA_SMB_SHARE="${HA_SMB_SHARE:-config}"
+DRY_RUN=false
+VERBOSE=false
+MOUNTED_BY_US=false
+
+for arg in "$@"; do
+    case "$arg" in
+        --dry-run)    DRY_RUN=true ;;
+        --verbose|-v) VERBOSE=true ;;
+        --help|-h)
+            cat <<'HELP'
+Usage: ./scripts/deploy [--dry-run] [--verbose] [--help]
+
+Flags:
+  --dry-run   Simulate deploy without copying files
+  --verbose   Show bash trace (set -x)
+  --help      Show this help message and exit
+
+Environment variables (or set in .deploy config file):
+  HA_SMB_HOST   SMB hostname or IP  (default: home-assistant.home)
+  HA_SMB_SHARE  SMB share name      (default: config)
+  HA_SMB_USER   SMB username        (optional; omit for guest access)
+  HA_SMB_PASS   SMB password        (optional)
+  HA_URL        Home Assistant URL  (default: http://home-assistant.home:8123)
+  HA_TOKEN      Long-lived access token (optional; prompted if not set)
+HELP
+            exit 0
+            ;;
+    esac
+done
+
+if $VERBOSE; then
+    set -x
+fi
+
+if $DRY_RUN; then
+    echo "==> Dry run mode — no files will be copied"
+fi
+
+# ── Compute dev version ───────────────────────────────────────────────────────
+GIT_HASH="$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")"
+if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
+    GIT_HASH="${GIT_HASH}-dirty"
+fi
+BASE_VERSION="$(node -p "require('./package.json').version")"
+DEV_VERSION="${BASE_VERSION}-dev.${GIT_HASH}"
+
+# If the tag already exists for this version, append an incrementing counter.
+# For dirty builds, counter is persisted in .dirty-deploy (gitignored).
+_DIRTY_N=""
+if [[ "$GIT_HASH" == *"-dirty" ]]; then
+    _BASE_HASH="${GIT_HASH%%-dirty}"
+    _DIRTY_N=1
+    if [[ -f ".dirty-deploy" ]]; then
+        IFS=: read -r _SAVED_HASH _SAVED_N < ".dirty-deploy"
+        if [[ "$_SAVED_HASH" == "$_BASE_HASH" ]]; then
+            _DIRTY_N="${_SAVED_N:-1}"
+        fi
+    fi
+    DEV_VERSION="${DEV_VERSION}.${_DIRTY_N}"
+else
+    _COUNTER=1
+    _VERSIONED="${DEV_VERSION}"
+    while git rev-parse "refs/tags/deploy/${_VERSIONED}" &>/dev/null; do
+        _VERSIONED="${DEV_VERSION}.${_COUNTER}"
+        _COUNTER=$((_COUNTER + 1))
+    done
+    DEV_VERSION="${_VERSIONED}"
+fi
+
+# ── Cleanup on exit ──────────────────────────────────────────────────────────
+cleanup() {
+    if [[ -n "${ORIGINAL_CONST:-}" ]]; then
+        echo "$ORIGINAL_CONST" > src/const.ts
+    fi
+    if $MOUNTED_BY_US && [[ -n "${MOUNT_POINT:-}" ]]; then
+        if mount | grep -q "on ${MOUNT_POINT} "; then
+            echo "==> Unmounting ${MOUNT_POINT}..."
+            diskutil unmount force "${MOUNT_POINT}" 2>/dev/null || umount "${MOUNT_POINT}" 2>/dev/null || true
+        fi
+        rmdir "${MOUNT_POINT}" 2>/dev/null || true
+    fi
+}
+
+# ── Build with dev version stamped into CARD_VERSION ─────────────────────────
+ORIGINAL_CONST="$(cat src/const.ts)"
+trap cleanup EXIT
+sed -i '' "s/export const CARD_VERSION = '.*'/export const CARD_VERSION = '${DEV_VERSION}'/" src/const.ts
+echo "==> Building (version ${DEV_VERSION})"
+npm run build
+echo "$ORIGINAL_CONST" > src/const.ts
+ORIGINAL_CONST=""  # disarm cleanup restore
+
+# ── Build SMB URL ────────────────────────────────────────────────────────────
+if [[ -n "${HA_SMB_USER:-}" ]]; then
+    PASS_PART=""
+    if [[ -n "${HA_SMB_PASS:-}" ]]; then
+        PASS_PART=":${HA_SMB_PASS}"
+    fi
+    SMB_URL="//${HA_SMB_USER}${PASS_PART}@${HA_SMB_HOST}/${HA_SMB_SHARE}"
+else
+    SMB_URL="//${HA_SMB_HOST}/${HA_SMB_SHARE}"
+fi
+
+# ── Mount (reuse existing mount if present) ───────────────────────────────────
+EXISTING_MOUNT="$(mount | grep -i "${HA_SMB_HOST}/${HA_SMB_SHARE}" | awk '{print $3}' | head -1)"
+if [[ -n "$EXISTING_MOUNT" ]]; then
+    echo "==> Share already mounted at ${EXISTING_MOUNT}, reusing it."
+    MOUNT_POINT="$EXISTING_MOUNT"
+else
+    MOUNT_POINT="$(mktemp -d)"
+    MOUNTED_BY_US=true
+    echo "==> Mounting smb://${HA_SMB_HOST}/${HA_SMB_SHARE} → ${MOUNT_POINT}..."
+    if $VERBOSE; then
+        mount_smbfs "${SMB_URL}" "${MOUNT_POINT}" || true
+    else
+        mount_smbfs "${SMB_URL}" "${MOUNT_POINT}" 2>/dev/null || true
+    fi
+    if ! mount | grep -q "on ${MOUNT_POINT} "; then
+        echo "    Guest access failed; trying with credentials..."
+        read -r -p "    SMB username: " SMB_USER
+        read -r -s -p "    SMB password: " SMB_PASS
+        echo
+        mount_smbfs "//${SMB_USER}:${SMB_PASS}@${HA_SMB_HOST}/${HA_SMB_SHARE}" "${MOUNT_POINT}"
+    fi
+fi
+
+# ── Deploy ───────────────────────────────────────────────────────────────────
+SRC="dist/adaptive-cover-pro-card.js"
+DST_DIR="${MOUNT_POINT}/www/community/adaptive-cover-pro-card"
+DST="${DST_DIR}/adaptive-cover-pro-card.js"
+
+echo "==> Deploying ${SRC} → ${DST}..."
+
+if $DRY_RUN; then
+    echo ""
+    echo "==> Dry run complete — no files were copied."
+else
+    mkdir -p "${DST_DIR}"
+    cp "${SRC}" "${DST}"
+
+    echo ""
+    echo "==> Deploy complete (version ${DEV_VERSION})."
+
+    # ── Tag the deployed commit in git ────────────────────────────────────────
+    GIT_TAG="deploy/${DEV_VERSION}"
+    if [[ "$GIT_HASH" == *"-dirty" ]]; then
+        echo "==> Skipping git tag — working tree is dirty."
+        echo "${_BASE_HASH}:$((_DIRTY_N + 1))" > ".dirty-deploy"
+    else
+        echo "==> Tagging deployed commit as ${GIT_TAG}..."
+        git tag "${GIT_TAG}"
+        git push origin "${GIT_TAG}" 2>/dev/null && echo "    Tag pushed to origin." \
+            || echo "    Warning: tag created locally but could not push to origin."
+    fi
+
+    # ── Bump Lovelace resource URL so HA serves the new bundle ───────────────
+    HA_URL="${HA_URL:-http://home-assistant.home:8123}"
+    if [[ -z "${HA_TOKEN:-}" ]]; then
+        read -r -p "==> Long-lived access token (for resource URL bump): " HA_TOKEN
+    fi
+
+    NEW_URL="/local/community/adaptive-cover-pro-card/adaptive-cover-pro-card.js?v=${DEV_VERSION}"
+
+    BUMP_RESULT=$(python3 - "${HA_URL}" "${HA_TOKEN}" "${NEW_URL}" <<'PYEOF'
+import socket, json, struct, os, sys, base64
+
+ha_url, token, new_url = sys.argv[1], sys.argv[2], sys.argv[3]
+host_port = ha_url.replace('http://','').replace('https://','')
+host = host_port.split(':')[0]
+port = int(host_port.split(':')[1]) if ':' in host_port else 8123
+
+try:
+    sock = socket.create_connection((host, port), timeout=10)
+except OSError as e:
+    print(f'CONNFAIL:{e}'); sys.exit(0)
+
+key = base64.b64encode(os.urandom(16)).decode()
+sock.sendall((
+    f'GET /api/websocket HTTP/1.1\r\nHost: {host}:{port}\r\n'
+    'Upgrade: websocket\r\nConnection: Upgrade\r\n'
+    f'Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n'
+).encode())
+buf = b''
+while b'\r\n\r\n' not in buf:
+    buf += sock.recv(1)
+
+def ws_recv():
+    h = sock.recv(2); ln = h[1] & 0x7f
+    if ln == 126: ln = struct.unpack('>H', sock.recv(2))[0]
+    elif ln == 127: ln = struct.unpack('>Q', sock.recv(8))[0]
+    data = b''
+    while len(data) < ln: data += sock.recv(ln - len(data))
+    return json.loads(data)
+
+def ws_send(msg):
+    data = json.dumps(msg).encode(); mask = os.urandom(4)
+    masked = bytes(b ^ mask[i % 4] for i, b in enumerate(data)); ln = len(data)
+    header = (bytes([0x81, 0x80 | ln]) + mask if ln < 126
+              else bytes([0x81, 0xfe]) + struct.pack('>H', ln) + mask)
+    sock.sendall(header + masked)
+
+ws_recv()  # auth_required
+ws_send({'type': 'auth', 'access_token': token})
+if ws_recv().get('type') != 'auth_ok':
+    print('AUTHFAIL'); sys.exit(0)
+
+ws_send({'id': 1, 'type': 'lovelace/resources/list'})
+resources = ws_recv().get('result', [])
+match = next((r for r in resources if 'adaptive-cover-pro-card' in r.get('url', '')), None)
+if not match:
+    print('NOTFOUND'); sys.exit(0)
+
+ws_send({'id': 2, 'type': 'lovelace/resources/update',
+         'resource_id': match['id'], 'res_type': 'module', 'url': new_url})
+print('OK' if ws_recv().get('success') else 'UPDATEFAIL')
+sock.close()
+PYEOF
+    )
+
+    case "$BUMP_RESULT" in
+        OK)
+            echo "==> Resource URL updated — reload the dashboard tab."
+            ;;
+        NOTFOUND)
+            echo "==> Resource entry not found — add it manually in Settings → Dashboards → Resources:"
+            echo "    ${NEW_URL}"
+            ;;
+        AUTHFAIL)
+            echo "==> HA token rejected — check HA_TOKEN in .deploy."
+            echo "    Update the resource URL manually to: ${NEW_URL}"
+            ;;
+        CONNFAIL:*)
+            echo "==> Could not reach HA at ${HA_URL} — ${BUMP_RESULT#CONNFAIL:}"
+            echo "    Check HA_URL in .deploy, then update the resource URL manually to:"
+            echo "    ${NEW_URL}"
+            ;;
+        *)
+            echo "==> Resource URL bump failed — update manually to: ${NEW_URL}"
+            ;;
+    esac
+fi

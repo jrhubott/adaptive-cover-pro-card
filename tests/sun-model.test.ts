@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { azimuthInFov, findFovWindow, sampleDay, startOfDay } from '../src/lib/sun-model';
+import {
+  azimuthInFov,
+  findFovWindow,
+  sampleDay,
+  startOfDay,
+  sunriseSetAzimuths,
+} from '../src/lib/sun-model';
 
 describe('azimuthInFov', () => {
   it('matches when azimuth equals window normal', () => {
@@ -80,5 +86,38 @@ describe('findFovWindow', () => {
     // Make sure both endpoints are above horizon
     expect(samples[win!.startIdx].elevation).toBeGreaterThan(0);
     expect(samples[win!.endIdx].elevation).toBeGreaterThan(0);
+  });
+});
+
+describe('sunriseSetAzimuths', () => {
+  it('returns null for both when no samples are above horizon', () => {
+    const noSun = [
+      { t: new Date(), elevation: -10, azimuth: 90 },
+      { t: new Date(), elevation: -5, azimuth: 95 },
+    ];
+    expect(sunriseSetAzimuths(noSun)).toEqual({ riseAzimuth: null, setAzimuth: null });
+  });
+
+  it('returns the first and last above-horizon azimuths for a real day', () => {
+    const samples = sampleDay(45.5, -73.6, new Date('2026-06-21T00:00:00'));
+    const { riseAzimuth, setAzimuth } = sunriseSetAzimuths(samples);
+    expect(riseAzimuth).not.toBeNull();
+    expect(setAzimuth).not.toBeNull();
+    // Midsummer sunrise is NE (roughly 50–70°) and sunset is NW (roughly 290–310°)
+    expect(riseAzimuth!).toBeGreaterThan(30);
+    expect(riseAzimuth!).toBeLessThan(100);
+    expect(setAzimuth!).toBeGreaterThan(260);
+    expect(setAzimuth!).toBeLessThan(330);
+  });
+
+  it('returns the same azimuth for rise and set when only one sample is above horizon', () => {
+    const oneSun = [
+      { t: new Date(), elevation: -5, azimuth: 80 },
+      { t: new Date(), elevation: 1, azimuth: 90 },
+      { t: new Date(), elevation: -5, azimuth: 100 },
+    ];
+    const { riseAzimuth, setAzimuth } = sunriseSetAzimuths(oneSun);
+    expect(riseAzimuth).toBe(90);
+    expect(setAzimuth).toBe(90);
   });
 });
