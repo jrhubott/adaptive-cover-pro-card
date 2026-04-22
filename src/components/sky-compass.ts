@@ -142,6 +142,9 @@ export class SkyCompass extends LitElement {
           <div><span class="dot sun valid"></span> Sun (in FOV)</div>
           <div><span class="dot sun"></span> Sun (outside)</div>
           <div><span class="swatch fov"></span> Window FOV</div>
+          <div><span class="swatch sun-path-swatch"></span> Sun path</div>
+          <div><span class="dot rise-dot"></span> Sunrise</div>
+          <div><span class="dot set-dot"></span> Sunset</div>
         </div>
         ${this.showStats
           ? html`<div class="stats dim">
@@ -254,6 +257,19 @@ export class SkyCompass extends LitElement {
     }
     .dot.sun.valid {
       background: gold;
+    }
+    .swatch.sun-path-swatch {
+      background: gold;
+      opacity: 0.45;
+      border-radius: 2px;
+    }
+    .dot.rise-dot {
+      background: var(--warning-color, gold);
+      opacity: 0.75;
+    }
+    .dot.set-dot {
+      background: var(--secondary-text-color);
+      opacity: 0.55;
     }
     .stats {
       display: flex;
