@@ -5,6 +5,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "npm"
     directory: "/"
@@ -13,3 +17,16 @@ updates:
     ignore:
       - dependency-name: "lit"
         update-types: ["version-update:semver-major"]
+    groups:
+      eslint:
+        patterns:
+          - "eslint"
+          - "@typescript-eslint/*"
+          - "eslint-*"
+      rollup:
+        patterns:
+          - "rollup"
+          - "@rollup/*"
+      types:
+        patterns:
+          - "@types/*"
