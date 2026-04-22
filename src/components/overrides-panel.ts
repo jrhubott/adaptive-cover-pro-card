@@ -133,6 +133,9 @@ export class OverridesPanel extends LitElement {
     :host([compact]) .tile-sub {
       display: none;
     }
+    :host([compact]) .label {
+      display: none;
+    }
     .tile.active {
       background: var(--primary-color);
       color: var(--text-primary-color, #fff);

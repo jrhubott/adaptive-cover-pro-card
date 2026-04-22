@@ -184,7 +184,7 @@ export class ElevationChart extends LitElement {
       aspect-ratio: 400 / 110;
     }
     :host([compact]) .head {
-      font-size: 0.72rem;
+      display: none;
     }
     .grid {
       stroke: var(--divider-color);

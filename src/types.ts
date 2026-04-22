@@ -10,6 +10,7 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
   entry_id: string;
   show_sections?: CardSection[];
   compact?: boolean;
+  show_compass_stats?: boolean;
   show_version?: boolean;
   hide_inactive_handlers?: boolean;
   controls?: {

@@ -213,7 +213,7 @@ export class AdaptiveCoverProCard extends LitElement {
         ${this._renderHeader(discovered, flags)}
         <div class="body ${this._config.compact ? 'compact' : ''}">
           ${sections.includes('sky')
-            ? html`<acp-sky-compass .hass=${this.hass} .discovered=${discovered}></acp-sky-compass>`
+            ? html`<acp-sky-compass .hass=${this.hass} .discovered=${discovered} ?compact=${!!this._config.compact} .showStats=${this._config.show_compass_stats ?? true}></acp-sky-compass>`
             : nothing}
           ${sections.includes('elevation')
             ? html`<acp-elevation-chart
@@ -227,7 +227,7 @@ export class AdaptiveCoverProCard extends LitElement {
                 .hass=${this.hass}
                 .discovered=${discovered}
                 ?compact=${!!this._config.compact}
-                ?hide-inactive=${!!this._config.hide_inactive_handlers}
+                ?hide-inactive=${!!this._config.hide_inactive_handlers || !!this._config.compact}
               ></acp-decision-strip>`
             : nothing}
           ${sections.includes('covers')

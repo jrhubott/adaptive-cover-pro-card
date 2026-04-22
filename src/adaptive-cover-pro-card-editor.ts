@@ -117,6 +117,10 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
     this._emit({ ...(this._config ?? { type: '', entry_id: '' }), show_version: enabled });
   }
 
+  private _onCompassStatsToggle(enabled: boolean): void {
+    this._emit({ ...(this._config ?? { type: '', entry_id: '' }), show_compass_stats: enabled });
+  }
+
   private _onHideInactiveToggle(enabled: boolean): void {
     this._emit({
       ...(this._config ?? { type: '', entry_id: '' }),
@@ -221,6 +225,18 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
             <span class="toggle-text">
               <span class="toggle-label">Compact mode</span>
               <span class="toggle-desc">Tighter spacing between sections.</span>
+            </span>
+          </label>
+          <label class="toggle-row">
+            <input
+              type="checkbox"
+              .checked=${this._config.show_compass_stats ?? true}
+              @change=${(e: Event) =>
+                this._onCompassStatsToggle((e.target as HTMLInputElement).checked)}
+            />
+            <span class="toggle-text">
+              <span class="toggle-label">Show compass stats</span>
+              <span class="toggle-desc">Azi, Elev, ∠, and Window angle below the sky compass.</span>
             </span>
           </label>
           <label class="toggle-row">

@@ -17,6 +17,7 @@ export class SkyCompass extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ attribute: false }) public discovered!: DiscoveredEntities;
   @property({ type: Boolean, reflect: true }) public compact = false;
+  @property({ attribute: false }) public showStats = true;
 
   private _sun(): SunPositionAttributes | null {
     const id = this.discovered.entities.sun_sensor;
@@ -63,7 +64,9 @@ export class SkyCompass extends LitElement {
 
     const inFov = sun.in_fov;
     const sunValid = this._sunInfront();
-    const sunDotClass = sunValid ? 'sun valid' : inFov ? 'sun in-fov' : 'sun';
+    const belowHorizon = sunElev <= 0;
+    const sunDotClass =
+      !belowHorizon && sunValid ? 'sun valid' : !belowHorizon && inFov ? 'sun in-fov' : 'sun';
 
     return html`
       <div class="compass">
@@ -111,12 +114,14 @@ export class SkyCompass extends LitElement {
           <div><span class="dot sun"></span> Sun (outside)</div>
           <div><span class="swatch fov"></span> Window FOV</div>
         </div>
-        <div class="stats dim">
-          <span>Azi: ${formatDegrees(sunAzi)}</span>
-          <span>Elev: ${formatDegrees(sunElev)}</span>
-          <span>γ: ${formatDegrees(sun.gamma)}</span>
-          <span>Window: ${formatDegrees(windowAzi)}</span>
-        </div>
+        ${this.showStats
+          ? html`<div class="stats dim">
+              <span>Azi: ${formatDegrees(sunAzi)}</span>
+              <span>Elev: ${formatDegrees(sunElev)}</span>
+              <span>∠: ${formatDegrees(sun.gamma)}</span>
+              <span>Window: ${formatDegrees(windowAzi)}</span>
+            </div>`
+          : nothing}
       </div>
     `;
   }
@@ -142,10 +147,6 @@ export class SkyCompass extends LitElement {
     }
     :host([compact]) .legend {
       display: none;
-    }
-    :host([compact]) .stats {
-      font-size: 0.7rem;
-      gap: 8px;
     }
     .grid {
       fill: none;

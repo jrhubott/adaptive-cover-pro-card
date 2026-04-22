@@ -168,6 +168,9 @@ export class ClimatePanel extends LitElement {
     :host([compact]) .strategy {
       font-size: 0.85rem;
     }
+    :host([compact]) .head {
+      display: none;
+    }
     .chip {
       display: inline-flex;
       align-items: center;
