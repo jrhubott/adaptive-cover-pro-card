@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import '../src/components/decision-strip';
 import '../src/components/cover-bar';
 import '../src/components/overrides-panel';
+import '../src/components/header-pill';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities } from '../src/types';
 
@@ -153,6 +154,129 @@ describe('acp-overrides-panel', () => {
     };
     await flush(el);
     expect(el.shadowRoot!.querySelector('.tile.action')).toBeTruthy();
+  });
+
+  it('reset tile is interactive by default (no aria-disabled, no readonly class)', async () => {
+    const el = await mount<LitLike>('acp-overrides-panel');
+    el.hass = { states: {} } as unknown as HomeAssistant;
+    el.discovered = { ...baseDiscovered, entities: { reset_override_button: 'button.reset' } };
+    await flush(el);
+    const btn = el.shadowRoot!.querySelector('.tile.action')!;
+    expect(btn.hasAttribute('aria-disabled')).toBe(false);
+    expect(btn.classList.contains('readonly')).toBe(false);
+  });
+
+  it('reset tile gets aria-disabled and .readonly when resetEnabled=false', async () => {
+    interface OverridesLike extends LitLike {
+      resetEnabled?: boolean;
+    }
+    const el = await mount<OverridesLike>('acp-overrides-panel');
+    el.hass = { states: {} } as unknown as HomeAssistant;
+    el.discovered = { ...baseDiscovered, entities: { reset_override_button: 'button.reset' } };
+    el.resetEnabled = false;
+    await flush(el);
+    const btn = el.shadowRoot!.querySelector('.tile.action')!;
+    expect(btn.getAttribute('aria-disabled')).toBe('true');
+    expect(btn.getAttribute('tabindex')).toBe('-1');
+    expect(btn.classList.contains('readonly')).toBe(true);
+  });
+
+  it('does not call hass.callService when resetEnabled=false and tile is clicked', async () => {
+    interface OverridesLike extends LitLike {
+      resetEnabled?: boolean;
+    }
+    const callService = vi.fn();
+    const el = await mount<OverridesLike>('acp-overrides-panel');
+    el.hass = { states: {}, callService } as unknown as HomeAssistant;
+    el.discovered = { ...baseDiscovered, entities: { reset_override_button: 'button.reset' } };
+    el.resetEnabled = false;
+    await flush(el);
+    (el.shadowRoot!.querySelector('.tile.action') as HTMLElement).click();
+    expect(callService).not.toHaveBeenCalled();
+  });
+
+  it('calls hass.callService when resetEnabled=true and tile is clicked', async () => {
+    interface OverridesLike extends LitLike {
+      resetEnabled?: boolean;
+    }
+    const callService = vi.fn();
+    const el = await mount<OverridesLike>('acp-overrides-panel');
+    el.hass = { states: {}, callService } as unknown as HomeAssistant;
+    el.discovered = { ...baseDiscovered, entities: { reset_override_button: 'button.reset' } };
+    el.resetEnabled = true;
+    await flush(el);
+    (el.shadowRoot!.querySelector('.tile.action') as HTMLElement).click();
+    expect(callService).toHaveBeenCalledWith('button', 'press', { entity_id: 'button.reset' });
+  });
+});
+
+describe('acp-header-pill', () => {
+  interface PillLike extends HTMLElement {
+    updateComplete: Promise<boolean>;
+    on?: boolean;
+    readonly?: boolean;
+    label?: string;
+  }
+
+  it('renders with aria-disabled and tabindex=-1 when readonly=true', async () => {
+    const el = document.createElement('acp-header-pill') as PillLike;
+    el.on = false;
+    el.readonly = true;
+    el.label = 'ON';
+    document.body.appendChild(el);
+    await el.updateComplete;
+    const btn = el.shadowRoot!.querySelector('button')!;
+    expect(btn.getAttribute('aria-disabled')).toBe('true');
+    expect(btn.getAttribute('tabindex')).toBe('-1');
+  });
+
+  it('adds .readonly CSS class when readonly=true', async () => {
+    const el = document.createElement('acp-header-pill') as PillLike;
+    el.on = true;
+    el.readonly = true;
+    el.label = 'ON';
+    document.body.appendChild(el);
+    await el.updateComplete;
+    const btn = el.shadowRoot!.querySelector('button')!;
+    expect(btn.classList.contains('readonly')).toBe(true);
+  });
+
+  it('does not emit pill-click when readonly=true and clicked', async () => {
+    const el = document.createElement('acp-header-pill') as PillLike;
+    el.on = true;
+    el.readonly = true;
+    el.label = 'ON';
+    document.body.appendChild(el);
+    await el.updateComplete;
+    const listener = vi.fn();
+    el.addEventListener('pill-click', listener);
+    el.shadowRoot!.querySelector('button')!.click();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('emits pill-click when readonly=false and clicked', async () => {
+    const el = document.createElement('acp-header-pill') as PillLike;
+    el.on = true;
+    el.readonly = false;
+    el.label = 'ON';
+    document.body.appendChild(el);
+    await el.updateComplete;
+    const listener = vi.fn();
+    el.addEventListener('pill-click', listener);
+    el.shadowRoot!.querySelector('button')!.click();
+    expect(listener).toHaveBeenCalledOnce();
+  });
+
+  it('has no aria-disabled and no .readonly class when readonly=false', async () => {
+    const el = document.createElement('acp-header-pill') as PillLike;
+    el.on = false;
+    el.readonly = false;
+    el.label = 'OFF';
+    document.body.appendChild(el);
+    await el.updateComplete;
+    const btn = el.shadowRoot!.querySelector('button')!;
+    expect(btn.hasAttribute('aria-disabled')).toBe(false);
+    expect(btn.classList.contains('readonly')).toBe(false);
   });
 });
 

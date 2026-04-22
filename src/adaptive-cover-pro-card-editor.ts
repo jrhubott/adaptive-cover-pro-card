@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant, LovelaceCardEditor } from 'custom-card-helpers';
 
 import { CARD_EDITOR_NAME } from './const';
+import type { ControlFlags } from './const';
 import { fetchAcpConfigEntries, type AcpConfigEntry } from './lib/config-entries';
 import type { AdaptiveCoverProCardConfig, CardSection } from './types';
 
@@ -123,6 +124,11 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
     });
   }
 
+  private _onControlToggle(key: keyof ControlFlags, enabled: boolean): void {
+    const cfg = this._config ?? { type: '', entry_id: '' };
+    this._emit({ ...cfg, controls: { ...cfg.controls, [key]: enabled } });
+  }
+
   protected render(): TemplateResult | typeof nothing {
     if (!this._config) return nothing;
     const activeSections = new Set(this._currentSections);
@@ -153,6 +159,55 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
               </label>
             `,
           )}
+        </div>
+
+        <div class="section">
+          <label class="field-label">Controls</label>
+          <div class="hint">Render as read-only (visible but not clickable).</div>
+          <label class="toggle-row">
+            <input
+              type="checkbox"
+              .checked=${this._config.controls?.integration_enabled ?? true}
+              @change=${(e: Event) =>
+                this._onControlToggle(
+                  'integration_enabled',
+                  (e.target as HTMLInputElement).checked,
+                )}
+            />
+            <span class="toggle-text">
+              <span class="toggle-label">Integration ON/OFF pill</span>
+              <span class="toggle-desc">Allow toggling the integration from the card header.</span>
+            </span>
+          </label>
+          <label class="toggle-row">
+            <input
+              type="checkbox"
+              .checked=${this._config.controls?.automatic_control ?? true}
+              @change=${(e: Event) =>
+                this._onControlToggle('automatic_control', (e.target as HTMLInputElement).checked)}
+            />
+            <span class="toggle-text">
+              <span class="toggle-label">Automatic Control pill</span>
+              <span class="toggle-desc"
+                >Allow toggling automatic control from the card header.</span
+              >
+            </span>
+          </label>
+          <label class="toggle-row">
+            <input
+              type="checkbox"
+              .checked=${this._config.controls?.reset_manual_override ?? true}
+              @change=${(e: Event) =>
+                this._onControlToggle(
+                  'reset_manual_override',
+                  (e.target as HTMLInputElement).checked,
+                )}
+            />
+            <span class="toggle-text">
+              <span class="toggle-label">Reset Manual Override button</span>
+              <span class="toggle-desc">Allow pressing the reset tile in the overrides panel.</span>
+            </span>
+          </label>
         </div>
 
         <div class="section">

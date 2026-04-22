@@ -88,6 +88,24 @@ export type EntityRole =
  *   switch.py    — `f"{entry_id}_{switch_name}"`
  *   button.py    — `f"{entry_id}_Reset Manual Override"`
  */
+export type ControlFlags = {
+  integration_enabled: boolean;
+  automatic_control: boolean;
+  reset_manual_override: boolean;
+};
+
+export const DEFAULT_CONTROL_FLAGS: ControlFlags = {
+  integration_enabled: true,
+  automatic_control: true,
+  reset_manual_override: true,
+};
+
+export function resolveControlFlags(
+  cfg: { controls?: Partial<ControlFlags> } | undefined,
+): ControlFlags {
+  return { ...DEFAULT_CONTROL_FLAGS, ...cfg?.controls };
+}
+
 export const UNIQUE_ID_ROLES: Record<string, EntityRole> = {
   // sensor
   'sensor:Cover_Position': 'target_position_sensor',

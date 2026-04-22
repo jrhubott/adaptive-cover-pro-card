@@ -12,6 +12,11 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
   compact?: boolean;
   show_version?: boolean;
   hide_inactive_handlers?: boolean;
+  controls?: {
+    integration_enabled?: boolean;
+    automatic_control?: boolean;
+    reset_manual_override?: boolean;
+  };
 }
 
 export interface DiscoveredEntities {

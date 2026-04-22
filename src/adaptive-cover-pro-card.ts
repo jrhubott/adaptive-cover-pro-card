@@ -2,7 +2,13 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
-import { CARD_EDITOR_NAME, CARD_NAME, CARD_VERSION, COVER_TYPE_ICONS } from './const';
+import {
+  CARD_EDITOR_NAME,
+  CARD_NAME,
+  CARD_VERSION,
+  COVER_TYPE_ICONS,
+  resolveControlFlags,
+} from './const';
 import { discoverEntities } from './lib/entity-discovery';
 import {
   fetchEntityRegistry,
@@ -11,6 +17,7 @@ import {
 } from './lib/entity-registry';
 import type { AdaptiveCoverProCardConfig, CardSection, DiscoveredEntities } from './types';
 
+import './components/header-pill';
 import './components/sky-compass';
 import './components/elevation-chart';
 import './components/decision-strip';
@@ -107,7 +114,10 @@ export class AdaptiveCoverProCard extends LitElement {
     return this._config?.show_sections ?? DEFAULT_SECTIONS;
   }
 
-  private _renderHeader(d: DiscoveredEntities): TemplateResult {
+  private _renderHeader(
+    d: DiscoveredEntities,
+    flags: ReturnType<typeof resolveControlFlags>,
+  ): TemplateResult {
     const icon = COVER_TYPE_ICONS[d.cover_type] ?? 'mdi:window-shutter';
     const enabledId = d.entities.integration_enabled_switch;
     const autoId = d.entities.automatic_control_switch;
@@ -119,22 +129,22 @@ export class AdaptiveCoverProCard extends LitElement {
         <span class="title">${d.entry_title}</span>
         <span class="spacer"></span>
         ${enabledId
-          ? html`<button
-              class="pill ${enabledOn ? 'on' : 'off'}"
-              @click=${() => this._toggle(enabledId)}
+          ? html`<acp-header-pill
+              .on=${enabledOn}
+              .readonly=${!flags.integration_enabled}
+              .label=${enabledOn ? 'ON' : 'OFF'}
               title="Integration Enabled"
-            >
-              ${enabledOn ? 'ON' : 'OFF'}
-            </button>`
+              @pill-click=${() => this._toggle(enabledId)}
+            ></acp-header-pill>`
           : nothing}
         ${autoId
-          ? html`<button
-              class="pill ${autoOn ? 'on' : 'off'}"
-              @click=${() => this._toggle(autoId)}
+          ? html`<acp-header-pill
+              .on=${autoOn}
+              .readonly=${!flags.automatic_control}
+              label="Auto"
               title="Automatic Control"
-            >
-              Auto
-            </button>`
+              @pill-click=${() => this._toggle(autoId)}
+            ></acp-header-pill>`
           : nothing}
       </div>
     `;
@@ -196,10 +206,11 @@ export class AdaptiveCoverProCard extends LitElement {
     const discovered = discoverEntities(this.hass, this._config, this._registry);
     if (!discovered) return this._renderEmpty('no matching entities after unique_id lookup');
 
+    const flags = resolveControlFlags(this._config);
     const sections = this._sections;
     return html`
       <ha-card>
-        ${this._renderHeader(discovered)}
+        ${this._renderHeader(discovered, flags)}
         <div class="body ${this._config.compact ? 'compact' : ''}">
           ${sections.includes('sky')
             ? html`<acp-sky-compass .hass=${this.hass} .discovered=${discovered}></acp-sky-compass>`
@@ -231,6 +242,7 @@ export class AdaptiveCoverProCard extends LitElement {
                 .hass=${this.hass}
                 .discovered=${discovered}
                 ?compact=${!!this._config.compact}
+                .resetEnabled=${flags.reset_manual_override}
               ></acp-overrides-panel>`
             : nothing}
           ${sections.includes('climate')
@@ -273,24 +285,6 @@ export class AdaptiveCoverProCard extends LitElement {
     }
     .spacer {
       flex: 1 1 auto;
-    }
-    .pill {
-      padding: 2px 10px;
-      border-radius: 999px;
-      border: 1px solid var(--divider-color);
-      background: transparent;
-      font-size: 0.78rem;
-      letter-spacing: 0.04em;
-      cursor: pointer;
-      color: var(--secondary-text-color);
-    }
-    .pill.on {
-      background: var(--primary-color);
-      color: var(--text-primary-color, #fff);
-      border-color: transparent;
-    }
-    .pill.off {
-      opacity: 0.6;
     }
     .body {
       display: grid;
