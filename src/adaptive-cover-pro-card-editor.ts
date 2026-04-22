@@ -112,6 +112,17 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
     this._emit({ ...(this._config ?? { type: '', entry_id: '' }), compact: enabled });
   }
 
+  private _onVersionToggle(enabled: boolean): void {
+    this._emit({ ...(this._config ?? { type: '', entry_id: '' }), show_version: enabled });
+  }
+
+  private _onHideInactiveToggle(enabled: boolean): void {
+    this._emit({
+      ...(this._config ?? { type: '', entry_id: '' }),
+      hide_inactive_handlers: enabled,
+    });
+  }
+
   protected render(): TemplateResult | typeof nothing {
     if (!this._config) return nothing;
     const activeSections = new Set(this._currentSections);
@@ -155,6 +166,31 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
             <span class="toggle-text">
               <span class="toggle-label">Compact mode</span>
               <span class="toggle-desc">Tighter spacing between sections.</span>
+            </span>
+          </label>
+          <label class="toggle-row">
+            <input
+              type="checkbox"
+              .checked=${this._config.hide_inactive_handlers ?? false}
+              @change=${(e: Event) =>
+                this._onHideInactiveToggle((e.target as HTMLInputElement).checked)}
+            />
+            <span class="toggle-text">
+              <span class="toggle-label">Hide inactive handlers</span>
+              <span class="toggle-desc"
+                >Show only the winner and actively matched pipeline handlers.</span
+              >
+            </span>
+          </label>
+          <label class="toggle-row">
+            <input
+              type="checkbox"
+              .checked=${this._config.show_version ?? false}
+              @change=${(e: Event) => this._onVersionToggle((e.target as HTMLInputElement).checked)}
+            />
+            <span class="toggle-text">
+              <span class="toggle-label">Show version tag</span>
+              <span class="toggle-desc">Display card version at the bottom.</span>
             </span>
           </label>
         </div>
