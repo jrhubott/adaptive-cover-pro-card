@@ -4,6 +4,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { DiscoveredEntities, SunPositionAttributes } from '../types';
 import { azimuthToCartesian, normalizeAzimuth, sunDotPosition, wedgePath } from '../lib/geometry';
+import { sampleDay, startOfDay, sunriseSetAzimuths } from '../lib/sun-model';
 import { formatDegrees } from '../lib/formatters';
 
 // viewBox must have ~30 px of padding beyond OUTER_R so cardinal labels
@@ -54,6 +55,27 @@ export class SkyCompass extends LitElement {
     const sunPt = sunDotPosition(sunAzi, sunElev);
     const windowArrow = azimuthToCartesian(windowAzi, OUTER_R);
 
+    const { latitude, longitude } = this.hass.config as unknown as {
+      latitude?: number;
+      longitude?: number;
+    };
+    const samples =
+      latitude !== undefined && longitude !== undefined
+        ? sampleDay(latitude, longitude, startOfDay())
+        : [];
+
+    const pathPoints = samples
+      .filter((s) => s.elevation > 0)
+      .map((s) => {
+        const pt = sunDotPosition(s.azimuth, s.elevation);
+        return `${(pt.x * OUTER_R).toFixed(1)},${(pt.y * OUTER_R).toFixed(1)}`;
+      })
+      .join(' ');
+
+    const { riseAzimuth, setAzimuth } = sunriseSetAzimuths(samples);
+    const risePt = riseAzimuth !== null ? azimuthToCartesian(riseAzimuth, OUTER_R) : null;
+    const setPt = setAzimuth !== null ? azimuthToCartesian(setAzimuth, OUTER_R) : null;
+
     const blindSpot = sun.blind_spot_range
       ? wedgePath(
           normalizeAzimuth(sun.blind_spot_range[0]),
@@ -85,6 +107,13 @@ export class SkyCompass extends LitElement {
 
             <!-- blind spot (hatched) -->
             ${blindSpot ? svg`<path class="blind-spot" d=${blindSpot} />` : nothing}
+
+            <!-- sun path arc -->
+            ${pathPoints ? svg`<polyline class="sun-path" points=${pathPoints} />` : nothing}
+
+            <!-- sunrise / sunset markers -->
+            ${risePt ? svg`<circle class="rise-marker" cx=${risePt.x} cy=${risePt.y} r="4" />` : nothing}
+            ${setPt ? svg`<circle class="set-marker" cx=${setPt.x} cy=${setPt.y} r="4" />` : nothing}
 
             <!-- window normal arrow -->
             <line
@@ -240,6 +269,21 @@ export class SkyCompass extends LitElement {
       color: var(--secondary-text-color);
       text-align: center;
       padding: 20px;
+    }
+    .sun-path {
+      fill: none;
+      stroke: var(--warning-color, gold);
+      stroke-width: 1.5;
+      stroke-dasharray: 4 3;
+      opacity: 0.45;
+    }
+    .rise-marker {
+      fill: var(--warning-color, gold);
+      opacity: 0.75;
+    }
+    .set-marker {
+      fill: var(--secondary-text-color);
+      opacity: 0.55;
     }
   `;
 }

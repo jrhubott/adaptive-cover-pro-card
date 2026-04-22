@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { azimuthInFov, findFovWindow, sampleDay, startOfDay, sunriseSetAzimuths } from '../src/lib/sun-model';
+import {
+  azimuthInFov,
+  findFovWindow,
+  sampleDay,
+  startOfDay,
+  sunriseSetAzimuths,
+} from '../src/lib/sun-model';
 
 describe('azimuthInFov', () => {
   it('matches when azimuth equals window normal', () => {
