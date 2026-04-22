@@ -216,6 +216,7 @@ export class AdaptiveCoverProCard extends LitElement {
                 .hass=${this.hass}
                 .discovered=${discovered}
                 ?compact=${!!this._config.compact}
+                ?hide-inactive=${!!this._config.hide_inactive_handlers}
               ></acp-decision-strip>`
             : nothing}
           ${sections.includes('covers')
@@ -240,7 +241,9 @@ export class AdaptiveCoverProCard extends LitElement {
               ></acp-climate-panel>`
             : nothing}
         </div>
-        <div class="footer dim">adaptive-cover-pro-card v${CARD_VERSION}</div>
+        ${this._config.show_version
+          ? html`<div class="footer dim">adaptive-cover-pro-card v${CARD_VERSION}</div>`
+          : nothing}
       </ha-card>
     `;
   }

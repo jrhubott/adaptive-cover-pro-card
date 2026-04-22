@@ -30,19 +30,21 @@ export class DecisionStrip extends LitElement {
     return { winner: st.state, reason: attrs.reason ?? '', steps };
   }
 
+  @property({ type: Boolean, reflect: true, attribute: 'hide-inactive' }) public hideInactive =
+    false;
+
   protected render(): TemplateResult | typeof nothing {
     if (!this.hass || !this.discovered) return nothing;
     const t = this._trace();
     if (!t) return html`<div class="placeholder">Decision trace not yet populated.</div>`;
+    const visible = selectVisibleHandlers(HANDLER_ORDER, t.steps, t.winner, this.hideInactive);
     return html`
       <div class="wrap">
         <div class="head">
           <span class="label">Pipeline</span>
           <span class="winner">Winner: ${t.winner}</span>
         </div>
-        <div class="rows">
-          ${HANDLER_ORDER.map((h) => this._row(h, t.steps.get(h), t.winner === h))}
-        </div>
+        <div class="rows">${visible.map((h) => this._row(h, t.steps.get(h), t.winner === h))}</div>
         <div class="reason dim">${t.reason}</div>
       </div>
     `;
@@ -155,6 +157,16 @@ export class DecisionStrip extends LitElement {
       text-align: center;
     }
   `;
+}
+
+export function selectVisibleHandlers(
+  order: readonly HandlerName[],
+  steps: Map<string, { matched: boolean }>,
+  winner: string,
+  hideInactive: boolean,
+): HandlerName[] {
+  if (!hideInactive) return [...order];
+  return order.filter((h) => h === winner || steps.get(h)?.matched === true);
 }
 
 interface TraceRow {
