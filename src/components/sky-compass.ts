@@ -19,6 +19,7 @@ export class SkyCompass extends LitElement {
   @property({ attribute: false }) public discovered!: DiscoveredEntities;
   @property({ type: Boolean, reflect: true }) public compact = false;
   @property({ attribute: false }) public showStats = true;
+  @property({ attribute: false }) public showLegend = true;
 
   private _sun(): SunPositionAttributes | null {
     const id = this.discovered.entities.sun_sensor;
@@ -151,7 +152,7 @@ export class SkyCompass extends LitElement {
             />
           `}
         </svg>
-        <div class="legend">
+        ${this.showLegend ? html`<div class="legend">
           <div><span class="dot sun valid"></span> Sun (in FOV)</div>
           <div><span class="dot sun"></span> Sun (outside)</div>
           <div><span class="swatch fov"></span> Window FOV</div>
@@ -159,7 +160,7 @@ export class SkyCompass extends LitElement {
           <div><span class="dot rise-dot"></span> Sunrise</div>
           <div><span class="dot set-dot"></span> Sunset</div>
           <div><span class="swatch cover-fill-swatch"></span> Cover closed</div>
-        </div>
+        </div>` : nothing}
         ${this.showStats
           ? html`<div class="stats dim">
               <span>Azi: ${formatDegrees(sunAzi)}</span>
