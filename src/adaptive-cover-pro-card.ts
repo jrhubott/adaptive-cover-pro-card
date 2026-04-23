@@ -219,6 +219,7 @@ export class AdaptiveCoverProCard extends LitElement {
                 ?compact=${!!this._config.compact}
                 .showStats=${this._config.show_compass_stats ?? true}
                 .showLegend=${this._config.show_compass_legend ?? true}
+                .showMoon=${this._config.show_moon ?? false}
               ></acp-sky-compass>`
             : nothing}
           ${sections.includes('elevation')

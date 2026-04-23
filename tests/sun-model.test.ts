@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   azimuthInFov,
   findFovWindow,
+  getMoonData,
   sampleDay,
   startOfDay,
   sunriseSetAzimuths,
@@ -86,6 +87,69 @@ describe('findFovWindow', () => {
     // Make sure both endpoints are above horizon
     expect(samples[win!.startIdx].elevation).toBeGreaterThan(0);
     expect(samples[win!.endIdx].elevation).toBeGreaterThan(0);
+  });
+});
+
+describe('getMoonData', () => {
+  it('returns azimuth in [0, 360) and elevation in [-90, 90]', () => {
+    const moon = getMoonData(45.5, -73.6, new Date('2026-04-22T20:00:00Z'));
+    expect(moon.azimuth).toBeGreaterThanOrEqual(0);
+    expect(moon.azimuth).toBeLessThan(360);
+    expect(moon.elevation).toBeGreaterThanOrEqual(-90);
+    expect(moon.elevation).toBeLessThanOrEqual(90);
+  });
+
+  it('returns fraction in [0, 1] and phase in [0, 1)', () => {
+    const moon = getMoonData(45.5, -73.6, new Date('2026-04-22T20:00:00Z'));
+    expect(moon.fraction).toBeGreaterThanOrEqual(0);
+    expect(moon.fraction).toBeLessThanOrEqual(1);
+    expect(moon.phase).toBeGreaterThanOrEqual(0);
+    expect(moon.phase).toBeLessThan(1);
+  });
+
+  it('reports near-full moon on a known full-moon date (2025-01-13)', () => {
+    const moon = getMoonData(45.5, -73.6, new Date('2025-01-13T22:00:00Z'));
+    expect(moon.fraction).toBeGreaterThan(0.95);
+    expect(moon.phaseName).toBe('Full Moon');
+  });
+
+  it('reports near-new moon on a known new-moon date (2025-01-29)', () => {
+    const moon = getMoonData(45.5, -73.6, new Date('2025-01-29T12:36:00Z'));
+    expect(moon.fraction).toBeLessThan(0.05);
+    expect(moon.phaseName).toBe('New Moon');
+  });
+
+  it('phaseName covers all eight phase bands', () => {
+    const phases = [0.03, 0.12, 0.25, 0.38, 0.50, 0.62, 0.75, 0.88];
+    const expected = [
+      'New Moon',
+      'Waxing Crescent',
+      'First Quarter',
+      'Waxing Gibbous',
+      'Full Moon',
+      'Waning Gibbous',
+      'Last Quarter',
+      'Waning Crescent',
+    ];
+    // Drive through _phaseName indirectly via a mock getMoonData call at lat/lon
+    // where the phase is irrelevant; we check phase→name mapping via real dates
+    // that hit each band.
+    const knownDates: [string, string][] = [
+      ['2025-01-29T12:36:00Z', 'New Moon'],
+      ['2025-02-02T00:00:00Z', 'Waxing Crescent'],
+      ['2025-02-05T08:02:00Z', 'First Quarter'],
+      ['2025-02-10T00:00:00Z', 'Waxing Gibbous'],
+      ['2025-02-12T13:53:00Z', 'Full Moon'],
+      ['2025-02-17T00:00:00Z', 'Waning Gibbous'],
+      ['2025-02-20T17:33:00Z', 'Last Quarter'],
+      ['2025-02-25T00:00:00Z', 'Waning Crescent'],
+    ];
+    for (const [dateStr, expectedName] of knownDates) {
+      const moon = getMoonData(45.5, -73.6, new Date(dateStr));
+      expect(moon.phaseName, `${dateStr} → ${expectedName}`).toBe(expectedName);
+    }
+    void phases;
+    void expected;
   });
 });
 

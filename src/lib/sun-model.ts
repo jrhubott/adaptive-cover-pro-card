@@ -96,6 +96,39 @@ export function findFovWindow(
   return { startIdx: bestStart, endIdx: bestEnd };
 }
 
+export interface MoonData {
+  azimuth: number;
+  elevation: number;
+  phase: number;
+  fraction: number;
+  phaseName: string;
+}
+
+export function getMoonData(latitude: number, longitude: number, now: Date = new Date()): MoonData {
+  const pos = SunCalc.getMoonPosition(now, latitude, longitude);
+  const illum = SunCalc.getMoonIllumination(now);
+  const azimuth = ((((pos.azimuth * 180) / Math.PI + 180) % 360) + 360) % 360;
+  const elevation = (pos.altitude * 180) / Math.PI;
+  return {
+    azimuth,
+    elevation,
+    phase: illum.phase,
+    fraction: illum.fraction,
+    phaseName: _phaseName(illum.phase),
+  };
+}
+
+function _phaseName(p: number): string {
+  if (p < 0.0625 || p >= 0.9375) return 'New Moon';
+  if (p < 0.1875) return 'Waxing Crescent';
+  if (p < 0.3125) return 'First Quarter';
+  if (p < 0.4375) return 'Waxing Gibbous';
+  if (p < 0.5625) return 'Full Moon';
+  if (p < 0.6875) return 'Waning Gibbous';
+  if (p < 0.8125) return 'Last Quarter';
+  return 'Waning Crescent';
+}
+
 /**
  * Return the azimuths of the first and last above-horizon sun samples.
  * These approximate the compass directions of sunrise and sunset.

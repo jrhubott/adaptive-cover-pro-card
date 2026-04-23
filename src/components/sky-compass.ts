@@ -4,7 +4,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { DiscoveredEntities, SunPositionAttributes } from '../types';
 import { azimuthToCartesian, normalizeAzimuth, sunDotPosition, wedgePath } from '../lib/geometry';
-import { sampleDay, startOfDay, sunriseSetAzimuths } from '../lib/sun-model';
+import { sampleDay, startOfDay, sunriseSetAzimuths, getMoonData } from '../lib/sun-model';
 import { formatDegrees } from '../lib/formatters';
 
 // viewBox must have ~30 px of padding beyond OUTER_R so cardinal labels
@@ -20,6 +20,7 @@ export class SkyCompass extends LitElement {
   @property({ type: Boolean, reflect: true }) public compact = false;
   @property({ attribute: false }) public showStats = true;
   @property({ attribute: false }) public showLegend = true;
+  @property({ attribute: false }) public showMoon = false;
 
   private _sun(): SunPositionAttributes | null {
     const id = this.discovered.entities.sun_sensor;
@@ -72,6 +73,21 @@ export class SkyCompass extends LitElement {
         ? sampleDay(latitude, longitude, startOfDay())
         : [];
 
+    const moon =
+      this.showMoon && latitude !== undefined && longitude !== undefined
+        ? getMoonData(latitude, longitude)
+        : null;
+    const moonAboveHorizon = moon !== null && moon.elevation > 0;
+    const MOON_R = 6;
+    const moonShadowDx = moon
+      ? moon.phase < 0.5
+        ? -4 * MOON_R * moon.phase
+        : 4 * MOON_R * (1 - moon.phase)
+      : 0;
+    const moonPt = moonAboveHorizon ? sunDotPosition(moon!.azimuth, moon!.elevation) : null;
+    const moonX = moonPt ? moonPt.x * OUTER_R : 0;
+    const moonY = moonPt ? moonPt.y * OUTER_R : 0;
+
     const pathPoints = samples
       .filter((s) => s.elevation > 0)
       .map((s) => {
@@ -105,6 +121,14 @@ export class SkyCompass extends LitElement {
       <div class="compass">
         <svg viewBox="${-VIEWBOX / 2} ${-VIEWBOX / 2} ${VIEWBOX} ${VIEWBOX}">
           ${svg`
+            <defs>
+              ${moonAboveHorizon ? svg`
+                <mask id="moon-phase-mask">
+                  <circle cx=${moonX} cy=${moonY} r=${MOON_R} fill="white" />
+                  <circle cx=${moonX + moonShadowDx} cy=${moonY} r=${MOON_R} fill="black" />
+                </mask>
+              ` : nothing}
+            </defs>
             <!-- concentric elevation rings at 30°, 60° -->
             <circle class="grid" r=${OUTER_R} />
             <circle class="grid" r=${(OUTER_R * 2) / 3} />
@@ -143,6 +167,12 @@ export class SkyCompass extends LitElement {
             <text class="cardinal" x="0" y=${OUTER_R + 14} text-anchor="middle">S</text>
             <text class="cardinal" x=${-OUTER_R - 10} y="4" text-anchor="middle">W</text>
 
+            <!-- moon dot (above-horizon only) -->
+            ${moonAboveHorizon ? svg`
+              <circle class="moon-outline" cx=${moonX} cy=${moonY} r=${MOON_R} />
+              <circle class="moon-lit" cx=${moonX} cy=${moonY} r=${MOON_R} mask="url(#moon-phase-mask)" />
+            ` : nothing}
+
             <!-- sun dot -->
             <circle
               class=${sunDotClass}
@@ -155,6 +185,7 @@ export class SkyCompass extends LitElement {
         ${this.showLegend ? html`<div class="legend">
           <div><span class="dot sun valid"></span> Sun (in FOV)</div>
           <div><span class="dot sun"></span> Sun (outside)</div>
+          ${this.showMoon ? html`<div><span class="dot moon-dot"></span> Moon</div>` : nothing}
           <div><span class="swatch fov"></span> Window FOV</div>
           <div><span class="swatch sun-path-swatch"></span> Sun path</div>
           <div><span class="dot rise-dot"></span> Sunrise</div>
@@ -167,6 +198,9 @@ export class SkyCompass extends LitElement {
               <span>Elev: ${formatDegrees(sunElev)}</span>
               <span>∠: ${formatDegrees(sun.gamma)}</span>
               <span>Window: ${formatDegrees(windowAzi)}</span>
+              ${this.showMoon && moon
+                ? html`<span>${moon.phaseName} ${Math.round(moon.fraction * 100)}%</span>`
+                : nothing}
             </div>`
           : nothing}
       </div>
@@ -328,6 +362,23 @@ export class SkyCompass extends LitElement {
     .set-marker {
       fill: var(--secondary-text-color);
       opacity: 0.55;
+    }
+    .moon-outline {
+      fill: none;
+      stroke: var(--secondary-text-color);
+      stroke-width: 0.8;
+      opacity: 0.5;
+    }
+    .moon-lit {
+      fill: var(--secondary-text-color);
+      opacity: 0.75;
+      transition:
+        cx 0.3s ease,
+        cy 0.3s ease;
+    }
+    .dot.moon-dot {
+      background: var(--secondary-text-color);
+      opacity: 0.6;
     }
   `;
 }
