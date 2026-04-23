@@ -192,7 +192,7 @@ else
         read -r -p "==> Long-lived access token (for resource URL bump): " HA_TOKEN
     fi
 
-    NEW_URL="/local/community/adaptive-cover-pro-card/adaptive-cover-pro-card.js?v=${DEV_VERSION}"
+    NEW_URL="/hacsfiles/adaptive-cover-pro-card/adaptive-cover-pro-card.js?v=${DEV_VERSION}"
 
     BUMP_RESULT=$(python3 - "${HA_URL}" "${HA_TOKEN}" "${NEW_URL}" <<'PYEOF'
 import socket, json, struct, os, sys, base64
