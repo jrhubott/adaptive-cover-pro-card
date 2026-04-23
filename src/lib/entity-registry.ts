@@ -1,4 +1,5 @@
 import type { HomeAssistant } from 'custom-card-helpers';
+import type { RegistryEventPayload } from './registry-diff';
 
 /**
  * Minimum shape we need from the HA entity registry.
@@ -19,7 +20,10 @@ export interface EntityRegistryEntry {
 
 type HassWithConnection = HomeAssistant & {
   connection: {
-    subscribeEvents: (callback: () => void, event: string) => Promise<() => void>;
+    subscribeEvents: (
+      callback: (ev: { data: RegistryEventPayload }) => void,
+      event: string,
+    ) => Promise<() => void>;
   };
 };
 
@@ -36,13 +40,19 @@ export async function fetchEntityRegistry(hass: HomeAssistant): Promise<EntityRe
  * once the underlying async subscription resolves. Safe to call before the
  * subscription promise resolves — we'll still unsubscribe when it does.
  */
-export function subscribeEntityRegistry(hass: HomeAssistant, onChange: () => void): () => void {
+export function subscribeEntityRegistry(
+  hass: HomeAssistant,
+  onChange: (payload: RegistryEventPayload) => void,
+): () => void {
   const h = hass as HassWithConnection;
   let unsubFn: (() => void) | null = null;
   let cancelled = false;
 
   h.connection
-    .subscribeEvents(onChange, 'entity_registry_updated')
+    .subscribeEvents(
+      (ev: { data: RegistryEventPayload }) => onChange(ev.data),
+      'entity_registry_updated',
+    )
     .then((unsub) => {
       if (cancelled) unsub();
       else unsubFn = unsub;

@@ -3,6 +3,36 @@ import { INTEGRATION_DOMAIN, UNIQUE_ID_ROLES } from '../const';
 import type { EntityRegistryEntry } from './entity-registry';
 import type { DiscoveredEntities, AdaptiveCoverProCardConfig } from '../types';
 
+interface MemoKey {
+  registry: EntityRegistryEntry[];
+  hass: HomeAssistant;
+  entryId: string;
+}
+
+export function createDiscoveryMemo(): (
+  hass: HomeAssistant,
+  config: AdaptiveCoverProCardConfig,
+  registry: EntityRegistryEntry[],
+) => DiscoveredEntities | null {
+  let lastKey: MemoKey | null = null;
+  let lastResult: DiscoveredEntities | null = null;
+
+  return (hass, config, registry) => {
+    const entryId = config.entry_id ?? '';
+    if (
+      lastKey !== null &&
+      lastKey.registry === registry &&
+      lastKey.hass === hass &&
+      lastKey.entryId === entryId
+    ) {
+      return lastResult;
+    }
+    lastKey = { registry, hass, entryId };
+    lastResult = discoverEntities(hass, config, registry);
+    return lastResult;
+  };
+}
+
 interface DeviceDisplay {
   id: string;
   name?: string;

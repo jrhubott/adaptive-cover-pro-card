@@ -165,10 +165,16 @@ DST="${DST_DIR}/adaptive-cover-pro-card.js"
 echo "==> Deploying ${SRC} → ${DST}..."
 
 if $DRY_RUN; then
+    GZ_FILES=$(find "${DST_DIR}" -maxdepth 1 -name '*.gz' 2>/dev/null)
+    if [[ -n "$GZ_FILES" ]]; then
+        echo "==> Would delete: $GZ_FILES"
+    fi
     echo ""
     echo "==> Dry run complete — no files were copied."
 else
     mkdir -p "${DST_DIR}"
+    # Remove any stale gzip-compressed copies HACS may have left behind.
+    find "${DST_DIR}" -maxdepth 1 -name '*.gz' -delete
     cp "${SRC}" "${DST}"
 
     echo ""
@@ -192,7 +198,7 @@ else
         read -r -p "==> Long-lived access token (for resource URL bump): " HA_TOKEN
     fi
 
-    NEW_URL="/local/community/adaptive-cover-pro-card/adaptive-cover-pro-card.js?v=${DEV_VERSION}"
+    NEW_URL="/hacsfiles/adaptive-cover-pro-card/adaptive-cover-pro-card.js?v=${DEV_VERSION}"
 
     BUMP_RESULT=$(python3 - "${HA_URL}" "${HA_TOKEN}" "${NEW_URL}" <<'PYEOF'
 import socket, json, struct, os, sys, base64
@@ -240,12 +246,14 @@ if ws_recv().get('type') != 'auth_ok':
 ws_send({'id': 1, 'type': 'lovelace/resources/list'})
 resources = ws_recv().get('result', [])
 match = next((r for r in resources if 'adaptive-cover-pro-card' in r.get('url', '')), None)
-if not match:
-    print('NOTFOUND'); sys.exit(0)
-
-ws_send({'id': 2, 'type': 'lovelace/resources/update',
-         'resource_id': match['id'], 'res_type': 'module', 'url': new_url})
-print('OK' if ws_recv().get('success') else 'UPDATEFAIL')
+if match:
+    ws_send({'id': 2, 'type': 'lovelace/resources/update',
+             'resource_id': match['id'], 'res_type': 'module', 'url': new_url})
+    print('OK' if ws_recv().get('success') else 'UPDATEFAIL')
+else:
+    ws_send({'id': 2, 'type': 'lovelace/resources/create',
+             'res_type': 'module', 'url': new_url})
+    print('CREATED' if ws_recv().get('success') else 'CREATEFAIL')
 sock.close()
 PYEOF
     )
@@ -254,8 +262,11 @@ PYEOF
         OK)
             echo "==> Resource URL updated — reload the dashboard tab."
             ;;
-        NOTFOUND)
-            echo "==> Resource entry not found — add it manually in Settings → Dashboards → Resources:"
+        CREATED)
+            echo "==> Resource created — reload the dashboard tab."
+            ;;
+        CREATEFAIL)
+            echo "==> Could not create resource — add it manually in Settings → Dashboards → Resources:"
             echo "    ${NEW_URL}"
             ;;
         AUTHFAIL)

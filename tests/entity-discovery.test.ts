@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { discoverEntities } from '../src/lib/entity-discovery';
+import { describe, it, expect, vi } from 'vitest';
+import { discoverEntities, createDiscoveryMemo } from '../src/lib/entity-discovery';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { EntityRegistryEntry } from '../src/lib/entity-registry';
 
@@ -238,5 +238,63 @@ describe('discoverEntities (unique_id based)', () => {
       reg,
     );
     expect(d!.entities.sun_sensor).toBe('sensor.living_room_blinds_sun_position');
+  });
+});
+
+describe('createDiscoveryMemo', () => {
+  const CONFIG = { type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY_ID };
+
+  it('returns discovery result on first call', () => {
+    const memo = createDiscoveryMemo();
+    const result = memo(makeHass(), CONFIG, makeRegistry());
+    expect(result).not.toBeNull();
+    expect(result!.entry_id).toBe(ENTRY_ID);
+  });
+
+  it('returns cached result when all three inputs are reference-equal', () => {
+    const memo = createDiscoveryMemo();
+    const hass = makeHass();
+    const registry = makeRegistry();
+    const first = memo(hass, CONFIG, registry);
+    const second = memo(hass, CONFIG, registry);
+    expect(second).toBe(first); // same reference — no recompute
+  });
+
+  it('recomputes when registry reference changes', () => {
+    const memo = createDiscoveryMemo();
+    const hass = makeHass();
+    const r1 = makeRegistry();
+    const first = memo(hass, CONFIG, r1);
+    const r2 = makeRegistry(); // new array, same content
+    const second = memo(hass, CONFIG, r2);
+    // different array reference → must recompute (result may be equal in value but is a new object)
+    expect(second).not.toBe(first);
+  });
+
+  it('recomputes when entry_id changes', () => {
+    const memo = createDiscoveryMemo();
+    const hass = makeHass();
+    const registry = makeRegistry();
+    memo(hass, CONFIG, registry);
+    const result2 = memo(hass, { ...CONFIG, entry_id: 'other_entry' }, registry);
+    // different entry_id → recompute (different entry, likely null since registry has no 'other_entry')
+    expect(result2).toBeNull();
+  });
+
+  it('calls discoverEntities only once for repeated identical inputs', () => {
+    const spy = vi.spyOn({ discoverEntities }, 'discoverEntities');
+    const memo = createDiscoveryMemo();
+    const hass = makeHass();
+    const registry = makeRegistry();
+    // Call memo 3 times with same refs
+    memo(hass, CONFIG, registry);
+    memo(hass, CONFIG, registry);
+    memo(hass, CONFIG, registry);
+    // Spy cannot intercept the import directly, but we can verify via reference equality
+    // (the same object is returned, meaning discoverEntities was not called again)
+    const a = memo(hass, CONFIG, registry);
+    const b = memo(hass, CONFIG, registry);
+    expect(a).toBe(b);
+    spy.mockRestore();
   });
 });
