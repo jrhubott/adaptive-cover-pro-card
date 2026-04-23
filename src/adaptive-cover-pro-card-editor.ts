@@ -267,9 +267,7 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
             />
             <span class="toggle-text">
               <span class="toggle-label">Show moon on compass</span>
-              <span class="toggle-desc"
-                >Moon position and phase overlay on the sky compass.</span
-              >
+              <span class="toggle-desc">Moon position and phase overlay on the sky compass.</span>
             </span>
           </label>
           <label class="toggle-row">

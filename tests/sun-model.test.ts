@@ -120,7 +120,7 @@ describe('getMoonData', () => {
   });
 
   it('phaseName covers all eight phase bands', () => {
-    const phases = [0.03, 0.12, 0.25, 0.38, 0.50, 0.62, 0.75, 0.88];
+    const phases = [0.03, 0.12, 0.25, 0.38, 0.5, 0.62, 0.75, 0.88];
     const expected = [
       'New Moon',
       'Waxing Crescent',

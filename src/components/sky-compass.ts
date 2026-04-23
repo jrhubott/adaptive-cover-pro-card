@@ -122,12 +122,16 @@ export class SkyCompass extends LitElement {
         <svg viewBox="${-VIEWBOX / 2} ${-VIEWBOX / 2} ${VIEWBOX} ${VIEWBOX}">
           ${svg`
             <defs>
-              ${moonAboveHorizon ? svg`
+              ${
+                moonAboveHorizon
+                  ? svg`
                 <mask id="moon-phase-mask">
                   <circle cx=${moonX} cy=${moonY} r=${MOON_R} fill="white" />
                   <circle cx=${moonX + moonShadowDx} cy=${moonY} r=${MOON_R} fill="black" />
                 </mask>
-              ` : nothing}
+              `
+                  : nothing
+              }
             </defs>
             <!-- concentric elevation rings at 30°, 60° -->
             <circle class="grid" r=${OUTER_R} />
@@ -168,10 +172,14 @@ export class SkyCompass extends LitElement {
             <text class="cardinal" x=${-OUTER_R - 10} y="4" text-anchor="middle">W</text>
 
             <!-- moon dot (above-horizon only) -->
-            ${moonAboveHorizon ? svg`
+            ${
+              moonAboveHorizon
+                ? svg`
               <circle class="moon-outline" cx=${moonX} cy=${moonY} r=${MOON_R} />
               <circle class="moon-lit" cx=${moonX} cy=${moonY} r=${MOON_R} mask="url(#moon-phase-mask)" />
-            ` : nothing}
+            `
+                : nothing
+            }
 
             <!-- sun dot -->
             <circle
@@ -182,16 +190,18 @@ export class SkyCompass extends LitElement {
             />
           `}
         </svg>
-        ${this.showLegend ? html`<div class="legend">
-          <div><span class="dot sun valid"></span> Sun (in FOV)</div>
-          <div><span class="dot sun"></span> Sun (outside)</div>
-          ${this.showMoon ? html`<div><span class="dot moon-dot"></span> Moon</div>` : nothing}
-          <div><span class="swatch fov"></span> Window FOV</div>
-          <div><span class="swatch sun-path-swatch"></span> Sun path</div>
-          <div><span class="dot rise-dot"></span> Sunrise</div>
-          <div><span class="dot set-dot"></span> Sunset</div>
-          <div><span class="swatch cover-fill-swatch"></span> Cover closed</div>
-        </div>` : nothing}
+        ${this.showLegend
+          ? html`<div class="legend">
+              <div><span class="dot sun valid"></span> Sun (in FOV)</div>
+              <div><span class="dot sun"></span> Sun (outside)</div>
+              ${this.showMoon ? html`<div><span class="dot moon-dot"></span> Moon</div>` : nothing}
+              <div><span class="swatch fov"></span> Window FOV</div>
+              <div><span class="swatch sun-path-swatch"></span> Sun path</div>
+              <div><span class="dot rise-dot"></span> Sunrise</div>
+              <div><span class="dot set-dot"></span> Sunset</div>
+              <div><span class="swatch cover-fill-swatch"></span> Cover closed</div>
+            </div>`
+          : nothing}
         ${this.showStats
           ? html`<div class="stats dim">
               <span>Azi: ${formatDegrees(sunAzi)}</span>
