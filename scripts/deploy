@@ -240,12 +240,14 @@ if ws_recv().get('type') != 'auth_ok':
 ws_send({'id': 1, 'type': 'lovelace/resources/list'})
 resources = ws_recv().get('result', [])
 match = next((r for r in resources if 'adaptive-cover-pro-card' in r.get('url', '')), None)
-if not match:
-    print('NOTFOUND'); sys.exit(0)
-
-ws_send({'id': 2, 'type': 'lovelace/resources/update',
-         'resource_id': match['id'], 'res_type': 'module', 'url': new_url})
-print('OK' if ws_recv().get('success') else 'UPDATEFAIL')
+if match:
+    ws_send({'id': 2, 'type': 'lovelace/resources/update',
+             'resource_id': match['id'], 'res_type': 'module', 'url': new_url})
+    print('OK' if ws_recv().get('success') else 'UPDATEFAIL')
+else:
+    ws_send({'id': 2, 'type': 'lovelace/resources/create',
+             'res_type': 'module', 'url': new_url})
+    print('CREATED' if ws_recv().get('success') else 'CREATEFAIL')
 sock.close()
 PYEOF
     )
@@ -254,8 +256,11 @@ PYEOF
         OK)
             echo "==> Resource URL updated — reload the dashboard tab."
             ;;
-        NOTFOUND)
-            echo "==> Resource entry not found — add it manually in Settings → Dashboards → Resources:"
+        CREATED)
+            echo "==> Resource created — reload the dashboard tab."
+            ;;
+        CREATEFAIL)
+            echo "==> Could not create resource — add it manually in Settings → Dashboards → Resources:"
             echo "    ${NEW_URL}"
             ;;
         AUTHFAIL)
