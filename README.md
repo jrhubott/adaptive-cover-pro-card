@@ -19,6 +19,13 @@ Custom Lovelace card for the [Adaptive Cover Pro](https://github.com/jrhubott/ad
 - **Cover positions** — live actual position per cover, with the target as a marker and mismatch warnings. Click the track to set a position.
 - **Overrides panel** — manual override countdown, force-override status, motion timeout, and a one-click reset button.
 
+## Cards in this bundle
+
+| Card | Type | Summary |
+|------|------|---------|
+| Adaptive Cover Pro | `custom:adaptive-cover-pro-card` | The full card — pick one integration entry, get every section (sky, decisions, covers, overrides, climate). |
+| Adaptive Cover Pro — Sky Compass | `custom:adaptive-cover-pro-sky-compass-card` | Sky compass only. Accepts **multiple** integration entries; overlays each window's FOV, blind spot, and cover-closure wedge on a single compass with a shared sun dot. |
+
 ## Quick install
 
 **HACS (recommended):**
@@ -39,12 +46,33 @@ Custom Lovelace card for the [Adaptive Cover Pro](https://github.com/jrhubott/ad
 
 ## Usage
 
+**Full card:**
 ```yaml
 type: custom:adaptive-cover-pro-card
 entry_id: YOUR_CONFIG_ENTRY_ID   # find this under Settings → Devices & Services
 # optional:
 show_sections: [sky, decision, covers, overrides]
 compact: false
+```
+
+**Standalone Sky Compass** (one or more entries):
+```yaml
+type: custom:adaptive-cover-pro-sky-compass-card
+entry_ids:
+  - KITCHEN_ENTRY_ID
+  - LIVING_ROOM_ENTRY_ID
+# optional:
+title: West-facing windows
+compact: false
+show_legend: true
+show_stats: true
+show_moon: false
+show_blind_spot: true
+show_window_arrow: true
+show_cover_fill: true
+show_sun_path: true
+show_sunrise_sunset: true
+show_cardinals: true
 ```
 
 Find your `entry_id` on the integration's URL:
