@@ -9,12 +9,14 @@ import {
   COVER_TYPE_ICONS,
   resolveControlFlags,
 } from './const';
-import { discoverEntities } from './lib/entity-discovery';
+import { createDiscoveryMemo } from './lib/entity-discovery';
 import {
   fetchEntityRegistry,
   subscribeEntityRegistry,
   type EntityRegistryEntry,
 } from './lib/entity-registry';
+import { registryCache } from './lib/registry-cache';
+import { registryChanged, isAcpRegistryEvent, filterAcp } from './lib/registry-diff';
 import type { AdaptiveCoverProCardConfig, CardSection, DiscoveredEntities } from './types';
 
 import './components/header-pill';
@@ -42,15 +44,26 @@ export class AdaptiveCoverProCard extends LitElement {
   @state() private _config?: AdaptiveCoverProCardConfig;
   @state() private _registry: EntityRegistryEntry[] | null = null;
   @state() private _registryError: string | null = null;
+  @state() private _discovered: DiscoveredEntities | null = null;
 
   private _unsubRegistry: (() => void) | null = null;
   private _fetchInFlight = false;
+  private _memo = createDiscoveryMemo();
+  private _debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private _debounceFirstAt: number | null = null;
+  private readonly _DEBOUNCE_DELAY = 500;
+  private readonly _DEBOUNCE_MAX = 2000;
 
   public setConfig(config: AdaptiveCoverProCardConfig): void {
     if (!config?.entry_id) {
       throw new Error('adaptive-cover-pro-card: `entry_id` is required');
     }
     this._config = { ...config };
+    // Warm-start: synchronously hydrate registry from cache so first render skips loading state.
+    if (this._registry === null) {
+      const cached = registryCache.get(config.entry_id);
+      if (cached) this._registry = cached.entries;
+    }
   }
 
   public getCardSize(): number {
@@ -79,18 +92,62 @@ export class AdaptiveCoverProCard extends LitElement {
       this._unsubRegistry();
       this._unsubRegistry = null;
     }
+    if (this._debounceTimer !== null) {
+      clearTimeout(this._debounceTimer);
+      this._debounceTimer = null;
+      this._debounceFirstAt = null;
+    }
   }
 
   protected updated(changed: Map<string, unknown>): void {
     if (changed.has('hass') && this.hass) this._ensureRegistry();
   }
 
+  protected willUpdate(changed: Map<string, unknown>): void {
+    if (
+      this._registry !== null &&
+      this._config &&
+      this.hass &&
+      (changed.has('hass') || changed.has('_registry') || changed.has('_config'))
+    ) {
+      this._discovered = this._memo(this.hass, this._config, this._registry);
+    }
+  }
+
   private _ensureRegistry(): void {
-    if (this._registry !== null || this._fetchInFlight) return;
+    // Always fetch (or revalidate) — _fetchRegistry guards against concurrent in-flight fetches
+    // and only swaps _registry when the ACP slice actually changed.
+    this._fetchRegistry();
+
+    if (!this._unsubRegistry) {
+      this._unsubRegistry = subscribeEntityRegistry(this.hass, (payload) => {
+        const acpIds = new Set(
+          filterAcp(this._registry ?? [], this._config?.entry_id ?? '').map((e) => e.entity_id),
+        );
+        if (!isAcpRegistryEvent(payload, acpIds)) return;
+        this._scheduleRefetch();
+      });
+    }
+  }
+
+  private _fetchRegistry(): void {
+    if (this._fetchInFlight) return;
     this._fetchInFlight = true;
     fetchEntityRegistry(this.hass)
       .then((entries) => {
-        this._registry = entries;
+        const entryId = this._config?.entry_id;
+        if (entryId) {
+          const slice = filterAcp(entries, entryId);
+          if (
+            this._registry === null ||
+            registryChanged(filterAcp(this._registry, entryId), slice)
+          ) {
+            this._registry = entries;
+            registryCache.set(entryId, slice);
+          }
+        } else {
+          this._registry = entries;
+        }
         this._registryError = null;
       })
       .catch((err: Error) => {
@@ -99,15 +156,30 @@ export class AdaptiveCoverProCard extends LitElement {
       .finally(() => {
         this._fetchInFlight = false;
       });
+  }
 
-    if (!this._unsubRegistry) {
-      this._unsubRegistry = subscribeEntityRegistry(this.hass, () => {
-        // Force a refresh on the next tick.
-        this._registry = null;
-        this._fetchInFlight = false;
-        this._ensureRegistry();
-      });
+  private _scheduleRefetch(): void {
+    const now = Date.now();
+    if (this._debounceFirstAt === null) this._debounceFirstAt = now;
+
+    const elapsed = now - this._debounceFirstAt;
+    const remaining = this._DEBOUNCE_MAX - elapsed;
+    const delay = Math.min(this._DEBOUNCE_DELAY, remaining);
+
+    if (this._debounceTimer !== null) clearTimeout(this._debounceTimer);
+
+    if (delay <= 0) {
+      // Max wait exceeded — fire immediately.
+      this._debounceFirstAt = null;
+      this._fetchRegistry();
+      return;
     }
+
+    this._debounceTimer = setTimeout(() => {
+      this._debounceTimer = null;
+      this._debounceFirstAt = null;
+      this._fetchRegistry();
+    }, delay);
   }
 
   private get _sections(): CardSection[] {
@@ -203,7 +275,7 @@ export class AdaptiveCoverProCard extends LitElement {
         : this._renderLoading();
     }
 
-    const discovered = discoverEntities(this.hass, this._config, this._registry);
+    const discovered = this._discovered;
     if (!discovered) return this._renderEmpty('no matching entities after unique_id lookup');
 
     const flags = resolveControlFlags(this._config);
