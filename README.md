@@ -8,7 +8,7 @@ Custom Lovelace card for the [Adaptive Cover Pro](https://github.com/jrhubott/ad
 
 ![Preview](https://raw.githubusercontent.com/jrhubott/adaptive-cover-pro-card/main/images/card-preview.png)
 
-> **📖 Full documentation:** see the [Lovelace Card](https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card) page on the integration wiki.
+> **📖 Full documentation:** [Lovelace Card](https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card) (full card) · [Sky Compass Card](https://github.com/jrhubott/adaptive-cover-pro/wiki/Sky-Compass-Card) (standalone multi-entry compass) on the integration wiki.
 
 ---
 
@@ -23,8 +23,8 @@ Custom Lovelace card for the [Adaptive Cover Pro](https://github.com/jrhubott/ad
 
 | Card | Type | Summary |
 |------|------|---------|
-| Adaptive Cover Pro | `custom:adaptive-cover-pro-card` | The full card — pick one integration entry, get every section (sky, decisions, covers, overrides, climate). |
-| Adaptive Cover Pro — Sky Compass | `custom:adaptive-cover-pro-sky-compass-card` | Sky compass only. Accepts **multiple** integration entries; overlays each window's FOV, blind spot, and cover-closure wedge on a single compass with a shared sun dot. |
+| [Adaptive Cover Pro](https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card) | `custom:adaptive-cover-pro-card` | The full card — pick one integration entry, get every section (sky, decisions, covers, overrides, climate). |
+| [Adaptive Cover Pro — Sky Compass](https://github.com/jrhubott/adaptive-cover-pro/wiki/Sky-Compass-Card) | `custom:adaptive-cover-pro-sky-compass-card` | Sky compass only. Accepts **multiple** integration entries; overlays each window's FOV, blind spot, and cover-closure wedge on a single compass with a shared sun dot. |
 
 ## Quick install
 
