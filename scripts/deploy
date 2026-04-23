@@ -165,10 +165,16 @@ DST="${DST_DIR}/adaptive-cover-pro-card.js"
 echo "==> Deploying ${SRC} → ${DST}..."
 
 if $DRY_RUN; then
+    GZ_FILES=$(find "${DST_DIR}" -maxdepth 1 -name '*.gz' 2>/dev/null)
+    if [[ -n "$GZ_FILES" ]]; then
+        echo "==> Would delete: $GZ_FILES"
+    fi
     echo ""
     echo "==> Dry run complete — no files were copied."
 else
     mkdir -p "${DST_DIR}"
+    # Remove any stale gzip-compressed copies HACS may have left behind.
+    find "${DST_DIR}" -maxdepth 1 -name '*.gz' -delete
     cp "${SRC}" "${DST}"
 
     echo ""
