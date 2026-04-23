@@ -33,6 +33,13 @@ export class SkyCompass extends LitElement {
     };
   }
 
+  private _coverPosition(): number | null {
+    const id = this.discovered.entities.target_position_sensor;
+    if (!id) return null;
+    const val = parseFloat(this.hass.states[id]?.state ?? '');
+    return Number.isNaN(val) ? null : val;
+  }
+
   private _sunInfront(): boolean {
     const id = this.discovered.entities.sun_infront_binary;
     if (!id) return false;
@@ -84,6 +91,9 @@ export class SkyCompass extends LitElement {
         )
       : null;
 
+    const coverPos = this._coverPosition();
+    const coverR = coverPos !== null ? OUTER_R * (1 - coverPos / 100) : null;
+
     const inFov = sun.in_fov;
     const sunValid = this._sunInfront();
     const belowHorizon = sunElev <= 0;
@@ -104,6 +114,9 @@ export class SkyCompass extends LitElement {
 
             <!-- FOV wedge -->
             <path class="fov" d=${wedgePath(fovStart, fovEnd, OUTER_R)} />
+
+            <!-- cover closure fill (inner wedge, same FOV span, radius ∝ closure) -->
+            ${coverR !== null && coverR > 0.5 ? svg`<path class="cover-fill" d=${wedgePath(fovStart, fovEnd, coverR)} />` : nothing}
 
             <!-- blind spot (hatched) -->
             ${blindSpot ? svg`<path class="blind-spot" d=${blindSpot} />` : nothing}
@@ -145,6 +158,7 @@ export class SkyCompass extends LitElement {
           <div><span class="swatch sun-path-swatch"></span> Sun path</div>
           <div><span class="dot rise-dot"></span> Sunrise</div>
           <div><span class="dot set-dot"></span> Sunset</div>
+          <div><span class="swatch cover-fill-swatch"></span> Cover closed</div>
         </div>
         ${this.showStats
           ? html`<div class="stats dim">
@@ -195,6 +209,14 @@ export class SkyCompass extends LitElement {
       stroke: var(--warning-color, gold);
       stroke-width: 1;
       stroke-opacity: 0.7;
+      transition: all 0.3s ease;
+    }
+    .cover-fill {
+      fill: var(--primary-color);
+      fill-opacity: 0.3;
+      stroke: var(--primary-color);
+      stroke-width: 1;
+      stroke-opacity: 0.6;
       transition: all 0.3s ease;
     }
     .blind-spot {
@@ -257,6 +279,11 @@ export class SkyCompass extends LitElement {
     }
     .dot.sun.valid {
       background: gold;
+    }
+    .swatch.cover-fill-swatch {
+      background: var(--primary-color);
+      opacity: 0.35;
+      border-radius: 2px;
     }
     .swatch.sun-path-swatch {
       background: gold;
