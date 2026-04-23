@@ -108,7 +108,14 @@ cleanup() {
     if $MOUNTED_BY_US && [[ -n "${MOUNT_POINT:-}" ]]; then
         if mount | grep -q "on ${MOUNT_POINT} "; then
             echo "==> Unmounting ${MOUNT_POINT}..."
-            diskutil unmount force "${MOUNT_POINT}" 2>/dev/null || umount "${MOUNT_POINT}" 2>/dev/null || true
+            case "$(uname)" in
+                Darwin)
+                    diskutil unmount force "${MOUNT_POINT}" 2>/dev/null || umount "${MOUNT_POINT}" 2>/dev/null || true
+                    ;;
+                *)
+                    sudo umount "${MOUNT_POINT}" 2>/dev/null || umount "${MOUNT_POINT}" 2>/dev/null || true
+                    ;;
+            esac
         fi
         rmdir "${MOUNT_POINT}" 2>/dev/null || true
     fi
@@ -117,13 +124,15 @@ cleanup() {
 # ── Build with dev version stamped into CARD_VERSION ─────────────────────────
 ORIGINAL_CONST="$(cat src/const.ts)"
 trap cleanup EXIT
-sed -i '' "s/export const CARD_VERSION = '.*'/export const CARD_VERSION = '${DEV_VERSION}'/" src/const.ts
+# Portable sed -i: -i.bak works on both GNU (Linux) and BSD (macOS) sed.
+sed -i.bak "s/export const CARD_VERSION = '.*'/export const CARD_VERSION = '${DEV_VERSION}'/" src/const.ts
+rm -f src/const.ts.bak
 echo "==> Building (version ${DEV_VERSION})"
 npm run build
 echo "$ORIGINAL_CONST" > src/const.ts
 ORIGINAL_CONST=""  # disarm cleanup restore
 
-# ── Build SMB URL ────────────────────────────────────────────────────────────
+# ── Build SMB URL (macOS mount_smbfs form) ───────────────────────────────────
 if [[ -n "${HA_SMB_USER:-}" ]]; then
     PASS_PART=""
     if [[ -n "${HA_SMB_PASS:-}" ]]; then
@@ -134,6 +143,44 @@ else
     SMB_URL="//${HA_SMB_HOST}/${HA_SMB_SHARE}"
 fi
 
+# Pick the mount command based on OS. macOS uses mount_smbfs; Linux uses
+# mount.cifs (from cifs-utils). On Linux the mount syscall needs root, so we
+# call it via sudo — configure passwordless sudo for mount.cifs if you want
+# this fully hands-off. Pre-mounting manually also works; the existing-mount
+# check below reuses an existing mount and skips this entirely.
+do_mount() {
+    local mount_point="$1"
+    case "$(uname)" in
+        Darwin)
+            if $VERBOSE; then
+                mount_smbfs "${SMB_URL}" "${mount_point}"
+            else
+                mount_smbfs "${SMB_URL}" "${mount_point}" 2>/dev/null
+            fi
+            ;;
+        Linux)
+            if ! command -v mount.cifs >/dev/null 2>&1; then
+                echo "    mount.cifs not found — install cifs-utils (sudo apt install cifs-utils)" >&2
+                return 1
+            fi
+            local opts="uid=$(id -u),gid=$(id -g)"
+            if [[ -n "${HA_SMB_USER:-}" ]]; then
+                opts="${opts},username=${HA_SMB_USER}"
+                if [[ -n "${HA_SMB_PASS:-}" ]]; then
+                    opts="${opts},password=${HA_SMB_PASS}"
+                fi
+            else
+                opts="${opts},guest"
+            fi
+            sudo mount -t cifs "//${HA_SMB_HOST}/${HA_SMB_SHARE}" "${mount_point}" -o "${opts}"
+            ;;
+        *)
+            echo "    Unsupported OS: $(uname)" >&2
+            return 1
+            ;;
+    esac
+}
+
 # ── Mount (reuse existing mount if present) ───────────────────────────────────
 EXISTING_MOUNT="$(mount | grep -i "${HA_SMB_HOST}/${HA_SMB_SHARE}" | awk '{print $3}' | head -1)"
 if [[ -n "$EXISTING_MOUNT" ]]; then
@@ -142,18 +189,15 @@ if [[ -n "$EXISTING_MOUNT" ]]; then
 else
     MOUNT_POINT="$(mktemp -d)"
     MOUNTED_BY_US=true
-    echo "==> Mounting smb://${HA_SMB_HOST}/${HA_SMB_SHARE} → ${MOUNT_POINT}..."
-    if $VERBOSE; then
-        mount_smbfs "${SMB_URL}" "${MOUNT_POINT}" || true
-    else
-        mount_smbfs "${SMB_URL}" "${MOUNT_POINT}" 2>/dev/null || true
-    fi
+    echo "==> Mounting //${HA_SMB_HOST}/${HA_SMB_SHARE} → ${MOUNT_POINT}..."
+    do_mount "${MOUNT_POINT}" || true
     if ! mount | grep -q "on ${MOUNT_POINT} "; then
-        echo "    Guest access failed; trying with credentials..."
-        read -r -p "    SMB username: " SMB_USER
-        read -r -s -p "    SMB password: " SMB_PASS
+        echo "    First mount attempt failed; trying with credentials..."
+        read -r -p "    SMB username: " HA_SMB_USER
+        read -r -s -p "    SMB password: " HA_SMB_PASS
         echo
-        mount_smbfs "//${SMB_USER}:${SMB_PASS}@${HA_SMB_HOST}/${HA_SMB_SHARE}" "${MOUNT_POINT}"
+        export HA_SMB_USER HA_SMB_PASS
+        do_mount "${MOUNT_POINT}"
     fi
 fi
 
