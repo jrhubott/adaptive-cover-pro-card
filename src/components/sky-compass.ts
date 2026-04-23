@@ -6,6 +6,7 @@ import type { DiscoveredEntities, SunPositionAttributes } from '../types';
 import { azimuthToCartesian, normalizeAzimuth, sunDotPosition, wedgePath } from '../lib/geometry';
 import { sampleDay, startOfDay, sunriseSetAzimuths, getMoonData } from '../lib/sun-model';
 import { formatDegrees } from '../lib/formatters';
+import { colorForIndex } from '../lib/palette';
 
 // viewBox must have ~30 px of padding beyond OUTER_R so cardinal labels
 // (positioned at OUTER_R + 6..14) don't clip when rendered with
@@ -13,17 +14,33 @@ import { formatDegrees } from '../lib/formatters';
 const VIEWBOX = 280;
 const OUTER_R = 110;
 
+interface EntryOverlay {
+  d: DiscoveredEntities;
+  sun: SunPositionAttributes;
+  sunAzi: number;
+  sunInfront: boolean;
+  coverPos: number | null;
+  color: string;
+  index: number;
+}
+
 @customElement('acp-sky-compass')
 export class SkyCompass extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
-  @property({ attribute: false }) public discovered!: DiscoveredEntities;
+  @property({ attribute: false }) public discovered_list: DiscoveredEntities[] = [];
   @property({ type: Boolean, reflect: true }) public compact = false;
   @property({ attribute: false }) public showStats = true;
   @property({ attribute: false }) public showLegend = true;
   @property({ attribute: false }) public showMoon = false;
+  @property({ attribute: false }) public showCardinals = true;
+  @property({ attribute: false }) public showBlindSpot = true;
+  @property({ attribute: false }) public showSunPath = true;
+  @property({ attribute: false }) public showSunriseSunset = true;
+  @property({ attribute: false }) public showCoverFill = true;
+  @property({ attribute: false }) public showWindowArrow = true;
 
-  private _sun(): SunPositionAttributes | null {
-    const id = this.discovered.entities.sun_sensor;
+  private _sunFor(d: DiscoveredEntities): SunPositionAttributes | null {
+    const id = d.entities.sun_sensor;
     if (!id) return null;
     const state = this.hass.states[id];
     if (!state) return null;
@@ -35,34 +52,60 @@ export class SkyCompass extends LitElement {
     };
   }
 
-  private _coverPosition(): number | null {
-    const id = this.discovered.entities.target_position_sensor;
+  private _coverPositionFor(d: DiscoveredEntities): number | null {
+    const id = d.entities.target_position_sensor;
     if (!id) return null;
     const val = parseFloat(this.hass.states[id]?.state ?? '');
     return Number.isNaN(val) ? null : val;
   }
 
-  private _sunInfront(): boolean {
-    const id = this.discovered.entities.sun_infront_binary;
+  private _sunInfrontFor(d: DiscoveredEntities): boolean {
+    const id = d.entities.sun_infront_binary;
     if (!id) return false;
     return this.hass.states[id]?.state === 'on';
   }
 
+  private _buildOverlays(): EntryOverlay[] {
+    const out: EntryOverlay[] = [];
+    this.discovered_list.forEach((d, i) => {
+      const sun = this._sunFor(d);
+      if (!sun) return;
+      const sunSensorId = d.entities.sun_sensor;
+      const sunAzi = parseFloat(this.hass.states[sunSensorId!]?.state ?? '0');
+      out.push({
+        d,
+        sun,
+        sunAzi,
+        sunInfront: this._sunInfrontFor(d),
+        coverPos: this._coverPositionFor(d),
+        color: colorForIndex(i),
+        index: i,
+      });
+    });
+    return out;
+  }
+
   protected render(): TemplateResult | typeof nothing {
-    if (!this.hass || !this.discovered) return nothing;
-    const sun = this._sun();
-    if (!sun) {
+    if (!this.hass) return nothing;
+    if (!this.discovered_list || this.discovered_list.length === 0) {
+      return html`<div class="placeholder">No Adaptive Cover Pro entries selected.</div>`;
+    }
+
+    const overlays = this._buildOverlays();
+    if (overlays.length === 0) {
       return html`<div class="placeholder">Sun sensor not yet populated.</div>`;
     }
 
-    const windowAzi = normalizeAzimuth(sun.window_azimuth);
-    const fovStart = normalizeAzimuth(windowAzi - sun.fov_left);
-    const fovEnd = normalizeAzimuth(windowAzi + sun.fov_right);
-    const sunSensorId = this.discovered.entities.sun_sensor;
-    const sunAzi = parseFloat(this.hass.states[sunSensorId!]?.state ?? '0');
-    const sunElev = sun.elevation;
+    const multi = overlays.length > 1;
+    const first = overlays[0];
+    const sunAzi = first.sunAzi;
+    const sunElev = first.sun.elevation;
     const sunPt = sunDotPosition(sunAzi, sunElev);
-    const windowArrow = azimuthToCartesian(windowAzi, OUTER_R);
+    const anyInFov = overlays.some((o) => o.sun.in_fov);
+    const anyValid = overlays.some((o) => o.sunInfront);
+    const belowHorizon = sunElev <= 0;
+    const sunDotClass =
+      !belowHorizon && anyValid ? 'sun valid' : !belowHorizon && anyInFov ? 'sun in-fov' : 'sun';
 
     const { latitude, longitude } = this.hass.config as unknown as {
       latitude?: number;
@@ -88,42 +131,23 @@ export class SkyCompass extends LitElement {
     const moonX = moonPt ? moonPt.x * OUTER_R : 0;
     const moonY = moonPt ? moonPt.y * OUTER_R : 0;
 
-    const pathPoints = samples
-      .filter((s) => s.elevation > 0)
-      .map((s) => {
-        const pt = sunDotPosition(s.azimuth, s.elevation);
-        return `${(pt.x * OUTER_R).toFixed(1)},${(pt.y * OUTER_R).toFixed(1)}`;
-      })
-      .join(' ');
+    const pathPoints = this.showSunPath
+      ? samples
+          .filter((s) => s.elevation > 0)
+          .map((s) => {
+            const pt = sunDotPosition(s.azimuth, s.elevation);
+            return `${(pt.x * OUTER_R).toFixed(1)},${(pt.y * OUTER_R).toFixed(1)}`;
+          })
+          .join(' ')
+      : '';
 
-    const { riseAzimuth, setAzimuth } = sunriseSetAzimuths(samples);
+    const { riseAzimuth, setAzimuth } = this.showSunriseSunset
+      ? sunriseSetAzimuths(samples)
+      : { riseAzimuth: null, setAzimuth: null };
     const risePt = riseAzimuth !== null ? azimuthToCartesian(riseAzimuth, OUTER_R) : null;
     const setPt = setAzimuth !== null ? azimuthToCartesian(setAzimuth, OUTER_R) : null;
 
-    const blindSpot = sun.blind_spot_range
-      ? wedgePath(
-          normalizeAzimuth(sun.blind_spot_range[0]),
-          normalizeAzimuth(sun.blind_spot_range[1]),
-          OUTER_R,
-        )
-      : null;
-
-    const coverPos = this._coverPosition();
-    const coverR = coverPos !== null ? OUTER_R * (1 - coverPos / 100) : null;
-
-    const inFov = sun.in_fov;
-    const sunValid = this._sunInfront();
-    const belowHorizon = sunElev <= 0;
-    const sunDotClass =
-      !belowHorizon && sunValid ? 'sun valid' : !belowHorizon && inFov ? 'sun in-fov' : 'sun';
-
-    const ttFov = `Window FOV: ${formatDegrees(sun.fov_left)} left / ${formatDegrees(sun.fov_right)} right`;
-    const ttWindow = `Window normal: ${formatDegrees(windowAzi)}`;
     const ttSun = `Sun: ${formatDegrees(sunAzi)} az / ${formatDegrees(sunElev)} el`;
-    const ttCoverFill = coverPos !== null ? `Cover closed: ${coverPos}%` : '';
-    const ttBlindSpot = sun.blind_spot_range
-      ? `Blind spot: ${formatDegrees(sun.blind_spot_range[0])} – ${formatDegrees(sun.blind_spot_range[1])}`
-      : '';
     const ttRise = riseAzimuth !== null ? `Sunrise: ${formatDegrees(riseAzimuth)}` : '';
     const ttSet = setAzimuth !== null ? `Sunset: ${formatDegrees(setAzimuth)}` : '';
     const ttMoon =
@@ -138,99 +162,219 @@ export class SkyCompass extends LitElement {
                 moonAboveHorizon
                   ? svg`
                 <mask id="moon-phase-mask">
-                  <circle cx=${moonX} cy=${moonY} r=${MOON_R} fill="white" />
-                  <circle cx=${moonX + moonShadowDx} cy=${moonY} r=${MOON_R} fill="black" />
+                  <circle cx=${moonX} cy=${moonY} r=${MOON_R} fill="white"></circle>
+                  <circle cx=${moonX + moonShadowDx} cy=${moonY} r=${MOON_R} fill="black"></circle>
                 </mask>
               `
                   : nothing
               }
             </defs>
-            <!-- concentric elevation rings at 30°, 60° -->
-            <circle class="grid" r=${OUTER_R} />
-            <circle class="grid" r=${(OUTER_R * 2) / 3} />
-            <circle class="grid" r=${OUTER_R / 3} />
-            <!-- cardinal direction lines -->
-            <line class="grid thin" x1="0" y1=${-OUTER_R} x2="0" y2=${OUTER_R} />
-            <line class="grid thin" x1=${-OUTER_R} y1="0" x2=${OUTER_R} y2="0" />
 
-            <!-- FOV wedge -->
-            <g data-tooltip=${ttFov}>
-              <title>${ttFov}</title>
-              <path class="fov" d=${wedgePath(fovStart, fovEnd, OUTER_R)} />
-            </g>
+            <circle class="grid" r=${OUTER_R}></circle>
+            <circle class="grid" r=${(OUTER_R * 2) / 3}></circle>
+            <circle class="grid" r=${OUTER_R / 3}></circle>
+            <line class="grid thin" x1="0" y1=${-OUTER_R} x2="0" y2=${OUTER_R}></line>
+            <line class="grid thin" x1=${-OUTER_R} y1="0" x2=${OUTER_R} y2="0"></line>
 
-            <!-- cover closure fill (inner wedge, same FOV span, radius ∝ closure) -->
-            ${coverR !== null && coverR > 0.5 ? svg`<g data-tooltip=${ttCoverFill}><title>${ttCoverFill}</title><path class="cover-fill" d=${wedgePath(fovStart, fovEnd, coverR)} /></g>` : nothing}
+            ${overlays.map((o) => this._renderEntryLayers(o, multi))}
 
-            <!-- blind spot (hatched) -->
-            ${blindSpot ? svg`<g data-tooltip=${ttBlindSpot}><title>${ttBlindSpot}</title><path class="blind-spot" d=${blindSpot} /></g>` : nothing}
+            ${
+              this.showSunPath && pathPoints
+                ? svg`<g data-tooltip="Sun path (today)"><title>Sun path (today)</title><polyline class="sun-path" points=${pathPoints}></polyline></g>`
+                : nothing
+            }
 
-            <!-- sun path arc -->
-            ${pathPoints ? svg`<g data-tooltip="Sun path (today)"><title>Sun path (today)</title><polyline class="sun-path" points=${pathPoints} /></g>` : nothing}
+            ${
+              this.showSunriseSunset && risePt && riseAzimuth !== null
+                ? svg`<g data-tooltip=${ttRise}><title>${ttRise}</title><circle class="rise-marker" cx=${risePt.x} cy=${risePt.y} r="4"></circle></g>`
+                : nothing
+            }
+            ${
+              this.showSunriseSunset && setPt && setAzimuth !== null
+                ? svg`<g data-tooltip=${ttSet}><title>${ttSet}</title><circle class="set-marker" cx=${setPt.x} cy=${setPt.y} r="4"></circle></g>`
+                : nothing
+            }
 
-            <!-- sunrise / sunset markers -->
-            ${risePt && riseAzimuth !== null ? svg`<g data-tooltip=${ttRise}><title>${ttRise}</title><circle class="rise-marker" cx=${risePt.x} cy=${risePt.y} r="4" /></g>` : nothing}
-            ${setPt && setAzimuth !== null ? svg`<g data-tooltip=${ttSet}><title>${ttSet}</title><circle class="set-marker" cx=${setPt.x} cy=${setPt.y} r="4" /></g>` : nothing}
+            ${
+              this.showCardinals
+                ? svg`
+              <text class="cardinal" x="0" y=${-OUTER_R - 6} text-anchor="middle">N</text>
+              <text class="cardinal" x=${OUTER_R + 10} y="4" text-anchor="middle">E</text>
+              <text class="cardinal" x="0" y=${OUTER_R + 14} text-anchor="middle">S</text>
+              <text class="cardinal" x=${-OUTER_R - 10} y="4" text-anchor="middle">W</text>
+            `
+                : nothing
+            }
 
-            <!-- window normal arrow -->
-            <g data-tooltip=${ttWindow}>
-              <title>${ttWindow}</title>
-              <line class="window" x1="0" y1="0" x2=${windowArrow.x} y2=${windowArrow.y} />
-              <circle class="window-base" cx="0" cy="0" r="4" />
-            </g>
-
-            <!-- cardinal labels -->
-            <text class="cardinal" x="0" y=${-OUTER_R - 6} text-anchor="middle">N</text>
-            <text class="cardinal" x=${OUTER_R + 10} y="4" text-anchor="middle">E</text>
-            <text class="cardinal" x="0" y=${OUTER_R + 14} text-anchor="middle">S</text>
-            <text class="cardinal" x=${-OUTER_R - 10} y="4" text-anchor="middle">W</text>
-
-            <!-- moon dot (above-horizon only) -->
             ${
               moonAboveHorizon
                 ? svg`
               <g data-tooltip=${ttMoon}>
                 <title>${ttMoon}</title>
-                <circle class="moon-outline" cx=${moonX} cy=${moonY} r=${MOON_R} />
-                <circle class="moon-lit" cx=${moonX} cy=${moonY} r=${MOON_R} mask="url(#moon-phase-mask)" />
+                <circle class="moon-outline" cx=${moonX} cy=${moonY} r=${MOON_R}></circle>
+                <circle class="moon-lit" cx=${moonX} cy=${moonY} r=${MOON_R} mask="url(#moon-phase-mask)"></circle>
               </g>
             `
                 : nothing
             }
 
-            <!-- sun dot -->
             <g data-tooltip=${ttSun}>
               <title>${ttSun}</title>
-              <circle class=${sunDotClass} cx=${sunPt.x * OUTER_R} cy=${sunPt.y * OUTER_R} r="7" />
+              <circle class=${sunDotClass} cx=${sunPt.x * OUTER_R} cy=${sunPt.y * OUTER_R} r="7"></circle>
             </g>
           `}
         </svg>
-        ${this.showLegend
-          ? html`<div class="legend">
-              <div><span class="dot sun valid"></span> Sun (in FOV)</div>
-              <div><span class="dot sun"></span> Sun (outside)</div>
-              ${this.showMoon ? html`<div><span class="dot moon-dot"></span> Moon</div>` : nothing}
-              <div><span class="swatch fov"></span> Window FOV</div>
-              <div><span class="swatch sun-path-swatch"></span> Sun path</div>
-              <div><span class="dot rise-dot"></span> Sunrise</div>
-              <div><span class="dot set-dot"></span> Sunset</div>
-              <div><span class="swatch cover-fill-swatch"></span> Cover closed</div>
-              <div><span class="swatch window-swatch"></span> Window normal</div>
-            </div>`
-          : nothing}
-        ${this.showStats
-          ? html`<div class="stats dim">
-              <span>Azi: ${formatDegrees(sunAzi)}</span>
-              <span>Elev: ${formatDegrees(sunElev)}</span>
-              <span>∠: ${formatDegrees(sun.gamma)}</span>
-              <span>Window: ${formatDegrees(windowAzi)}</span>
-              ${this.showMoon && moon
-                ? html`<span>${moon.phaseName} ${Math.round(moon.fraction * 100)}%</span>`
-                : nothing}
-            </div>`
-          : nothing}
+        ${this.showLegend ? this._renderLegend(overlays, multi) : nothing}
+        ${this.showStats ? this._renderStats(overlays, multi) : nothing}
       </div>
     `;
+  }
+
+  private _renderEntryLayers(o: EntryOverlay, multi: boolean) {
+    const windowAzi = normalizeAzimuth(o.sun.window_azimuth);
+    const fovStart = normalizeAzimuth(windowAzi - o.sun.fov_left);
+    const fovEnd = normalizeAzimuth(windowAzi + o.sun.fov_right);
+    const windowArrow = azimuthToCartesian(windowAzi, OUTER_R);
+    const coverR = o.coverPos !== null ? OUTER_R * (1 - o.coverPos / 100) : null;
+    const blindSpot = o.sun.blind_spot_range
+      ? wedgePath(
+          normalizeAzimuth(o.sun.blind_spot_range[0]),
+          normalizeAzimuth(o.sun.blind_spot_range[1]),
+          OUTER_R,
+        )
+      : null;
+    const fovPath = wedgePath(fovStart, fovEnd, OUTER_R);
+    const coverPath = coverR !== null ? wedgePath(fovStart, fovEnd, coverR) : '';
+
+    const label = multi ? `${o.d.entry_title}: ` : '';
+    const ttFov = `${label}FOV ${formatDegrees(o.sun.fov_left)} left / ${formatDegrees(o.sun.fov_right)} right`;
+    const ttWindow = `${label}Window normal: ${formatDegrees(windowAzi)}`;
+    const ttCoverFill = o.coverPos !== null ? `${label}Cover closed: ${o.coverPos}%` : '';
+    const ttBlindSpot = o.sun.blind_spot_range
+      ? `${label}Blind spot: ${formatDegrees(o.sun.blind_spot_range[0])} – ${formatDegrees(o.sun.blind_spot_range[1])}`
+      : '';
+
+    const fovStyle = multi ? `fill: ${o.color}; stroke: ${o.color};` : '';
+    const coverStyle = multi ? `fill: ${o.color}; stroke: ${o.color};` : '';
+    const blindStyle = multi ? `fill: ${o.color}; stroke: ${o.color};` : '';
+    const arrowStyle = multi ? `stroke: ${o.color};` : '';
+    const arrowBaseStyle = multi ? `fill: ${o.color};` : '';
+
+    const showCover = this.showCoverFill && coverR !== null && coverR > 0.5;
+    const showBlind = this.showBlindSpot && !!blindSpot;
+    const showArrow = this.showWindowArrow;
+    const arrowPath = `M 0 0 L ${windowArrow.x} ${windowArrow.y}`;
+    const hideStyle = 'display: none;';
+
+    return svg`<g class="entry-overlay">
+      <g data-tooltip=${ttFov}>
+        <title>${ttFov}</title>
+        <path class="fov" style=${fovStyle} d=${fovPath}></path>
+      </g>
+      <g class="arrow-group" data-tooltip=${ttWindow} style=${showArrow ? '' : hideStyle}>
+        <title>${ttWindow}</title>
+        <path class="window" style=${arrowStyle} d=${arrowPath}></path>
+        <circle class="window-base" style=${arrowBaseStyle} cx="0" cy="0" r="4"></circle>
+      </g>
+      <g class="cover-group" data-tooltip=${ttCoverFill} style=${showCover ? '' : hideStyle}>
+        <title>${ttCoverFill}</title>
+        <path class="cover-fill" style=${coverStyle} d=${coverPath}></path>
+      </g>
+      <g class="blind-group" data-tooltip=${ttBlindSpot} style=${showBlind ? '' : hideStyle}>
+        <title>${ttBlindSpot}</title>
+        <path class="blind-spot" style=${blindStyle} d=${blindSpot ?? ''}></path>
+      </g>
+    </g>`;
+  }
+
+  private _renderLegend(overlays: EntryOverlay[], multi: boolean): TemplateResult {
+    if (multi) {
+      return html`
+        <div class="legend">
+          ${overlays.map(
+            (o) => html`
+              <div>
+                <span class="swatch entry" style="background: ${o.color}"></span>
+                ${o.d.entry_title}
+                ${o.sunInfront
+                  ? html`<span class="status valid">✓ in FOV</span>`
+                  : o.sun.in_fov
+                    ? html`<span class="status in-fov">in FOV</span>`
+                    : html`<span class="status">—</span>`}
+              </div>
+            `,
+          )}
+          <div><span class="dot sun valid"></span> Sun</div>
+          ${this.showMoon ? html`<div><span class="dot moon-dot"></span> Moon</div>` : nothing}
+        </div>
+      `;
+    }
+    return html`<div class="legend">
+      <div><span class="dot sun valid"></span> Sun (in FOV)</div>
+      <div><span class="dot sun"></span> Sun (outside)</div>
+      ${this.showMoon ? html`<div><span class="dot moon-dot"></span> Moon</div>` : nothing}
+      <div><span class="swatch fov"></span> Window FOV</div>
+      ${this.showSunPath
+        ? html`<div><span class="swatch sun-path-swatch"></span> Sun path</div>`
+        : nothing}
+      ${this.showSunriseSunset
+        ? html`<div><span class="dot rise-dot"></span> Sunrise</div>
+            <div><span class="dot set-dot"></span> Sunset</div>`
+        : nothing}
+      ${this.showCoverFill
+        ? html`<div><span class="swatch cover-fill-swatch"></span> Cover closed</div>`
+        : nothing}
+      ${this.showWindowArrow
+        ? html`<div><span class="swatch window-swatch"></span> Window normal</div>`
+        : nothing}
+    </div>`;
+  }
+
+  private _renderStats(overlays: EntryOverlay[], multi: boolean): TemplateResult {
+    const first = overlays[0];
+    const sunAzi = first.sunAzi;
+    const sunElev = first.sun.elevation;
+    const { latitude, longitude } = this.hass.config as unknown as {
+      latitude?: number;
+      longitude?: number;
+    };
+    const moon =
+      this.showMoon && latitude !== undefined && longitude !== undefined
+        ? getMoonData(latitude, longitude)
+        : null;
+
+    if (multi) {
+      return html`
+        <div class="stats dim">
+          <div class="stats-row">
+            <span>Sun: ${formatDegrees(sunAzi)} / ${formatDegrees(sunElev)}</span>
+            ${this.showMoon && moon
+              ? html`<span>${moon.phaseName} ${Math.round(moon.fraction * 100)}%</span>`
+              : nothing}
+          </div>
+          ${overlays.map(
+            (o) => html`
+              <div class="stats-row entry-row">
+                <span class="swatch entry" style="background: ${o.color}"></span>
+                <span class="entry-name">${o.d.entry_title}</span>
+                <span>∠${formatDegrees(o.sun.gamma)}</span>
+                <span>W ${formatDegrees(normalizeAzimuth(o.sun.window_azimuth))}</span>
+                ${o.sun.in_fov ? html`<span class="status in-fov">✓</span>` : nothing}
+              </div>
+            `,
+          )}
+        </div>
+      `;
+    }
+    return html`<div class="stats dim">
+      <span>Azi: ${formatDegrees(sunAzi)}</span>
+      <span>Elev: ${formatDegrees(sunElev)}</span>
+      <span>∠: ${formatDegrees(first.sun.gamma)}</span>
+      <span>Window: ${formatDegrees(normalizeAzimuth(first.sun.window_azimuth))}</span>
+      ${this.showMoon && moon
+        ? html`<span>${moon.phaseName} ${Math.round(moon.fraction * 100)}%</span>`
+        : nothing}
+    </div>`;
   }
 
   public static styles = css`
@@ -287,6 +431,7 @@ export class SkyCompass extends LitElement {
       stroke-dasharray: 3 3;
     }
     .window {
+      fill: none;
       stroke: var(--primary-color);
       stroke-width: 3;
       stroke-linecap: round;
@@ -321,6 +466,16 @@ export class SkyCompass extends LitElement {
       flex-wrap: wrap;
       justify-content: center;
     }
+    .legend .status {
+      margin-left: 4px;
+      opacity: 0.8;
+    }
+    .legend .status.valid {
+      color: gold;
+    }
+    .legend .status.in-fov {
+      color: orange;
+    }
     .dot,
     .swatch {
       display: inline-block;
@@ -334,6 +489,10 @@ export class SkyCompass extends LitElement {
       background: gold;
       opacity: 0.4;
       border-radius: 2px;
+    }
+    .swatch.entry {
+      border-radius: 2px;
+      opacity: 0.9;
     }
     .dot.sun {
       background: var(--secondary-text-color);
@@ -365,10 +524,23 @@ export class SkyCompass extends LitElement {
     }
     .stats {
       display: flex;
-      gap: 12px;
+      flex-direction: column;
+      gap: 4px;
       font-size: 0.78rem;
+      align-items: center;
+    }
+    .stats-row {
+      display: flex;
+      gap: 10px;
       flex-wrap: wrap;
       justify-content: center;
+    }
+    .entry-row .entry-name {
+      font-weight: 500;
+      color: var(--primary-text-color);
+    }
+    .entry-row .status.in-fov {
+      color: orange;
     }
     .dim {
       color: var(--secondary-text-color);

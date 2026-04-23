@@ -22,6 +22,22 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
   };
 }
 
+export interface SkyCompassCardConfig extends LovelaceCardConfig {
+  type: string;
+  entry_ids: string[];
+  title?: string;
+  compact?: boolean;
+  show_legend?: boolean;
+  show_stats?: boolean;
+  show_moon?: boolean;
+  show_cardinals?: boolean;
+  show_blind_spot?: boolean;
+  show_sun_path?: boolean;
+  show_sunrise_sunset?: boolean;
+  show_cover_fill?: boolean;
+  show_window_arrow?: boolean;
+}
+
 export interface DiscoveredEntities {
   entry_id: string;
   entry_title: string;

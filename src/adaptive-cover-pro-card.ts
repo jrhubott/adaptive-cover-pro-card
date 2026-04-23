@@ -27,6 +27,7 @@ import './components/cover-bar';
 import './components/overrides-panel';
 import './components/climate-panel';
 import './adaptive-cover-pro-card-editor';
+import './adaptive-cover-pro-sky-compass-card';
 
 const DEFAULT_SECTIONS: CardSection[] = [
   'sky',
@@ -287,7 +288,7 @@ export class AdaptiveCoverProCard extends LitElement {
           ${sections.includes('sky')
             ? html`<acp-sky-compass
                 .hass=${this.hass}
-                .discovered=${discovered}
+                .discovered_list=${[discovered]}
                 ?compact=${!!this._config.compact}
                 .showStats=${this._config.show_compass_stats ?? true}
                 .showLegend=${this._config.show_compass_legend ?? true}
