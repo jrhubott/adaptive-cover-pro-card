@@ -163,7 +163,10 @@ describe('sunriseSetAzimuths', () => {
   });
 
   it('returns the first and last above-horizon azimuths for a real day', () => {
-    const samples = sampleDay(45.5, -73.6, new Date('2026-06-21T00:00:00'));
+    // Use an explicit UTC time that falls in Montreal's night (2 am local, UTC-4) so the
+    // 24-hour window starts well after the previous sunset and before this day's sunrise.
+    // Without the Z suffix the constructor is local-time-dependent and fails in UTC CI.
+    const samples = sampleDay(45.5, -73.6, new Date('2026-06-21T06:00:00Z'));
     const { riseAzimuth, setAzimuth } = sunriseSetAzimuths(samples);
     expect(riseAzimuth).not.toBeNull();
     expect(setAzimuth).not.toBeNull();
