@@ -120,6 +120,14 @@ export class SkyCompass extends LitElement {
     const ttFov = `Window FOV: ${formatDegrees(sun.fov_left)} left / ${formatDegrees(sun.fov_right)} right`;
     const ttWindow = `Window normal: ${formatDegrees(windowAzi)}`;
     const ttSun = `Sun: ${formatDegrees(sunAzi)} az / ${formatDegrees(sunElev)} el`;
+    const ttCoverFill = coverPos !== null ? `Cover closed: ${coverPos}%` : '';
+    const ttBlindSpot = sun.blind_spot_range
+      ? `Blind spot: ${formatDegrees(sun.blind_spot_range[0])} – ${formatDegrees(sun.blind_spot_range[1])}`
+      : '';
+    const ttRise = riseAzimuth !== null ? `Sunrise: ${formatDegrees(riseAzimuth)}` : '';
+    const ttSet = setAzimuth !== null ? `Sunset: ${formatDegrees(setAzimuth)}` : '';
+    const ttMoon =
+      moon !== null ? `Moon: ${moon.phaseName} (${Math.round(moon.fraction * 100)}%)` : '';
 
     return html`
       <div class="compass">
@@ -147,24 +155,26 @@ export class SkyCompass extends LitElement {
 
             <!-- FOV wedge -->
             <g data-tooltip=${ttFov}>
+              <title>${ttFov}</title>
               <path class="fov" d=${wedgePath(fovStart, fovEnd, OUTER_R)} />
             </g>
 
             <!-- cover closure fill (inner wedge, same FOV span, radius ∝ closure) -->
-            ${coverR !== null && coverR > 0.5 ? svg`<g data-tooltip=${'Cover closed: ' + coverPos + '%'}><path class="cover-fill" d=${wedgePath(fovStart, fovEnd, coverR)} /></g>` : nothing}
+            ${coverR !== null && coverR > 0.5 ? svg`<g data-tooltip=${ttCoverFill}><title>${ttCoverFill}</title><path class="cover-fill" d=${wedgePath(fovStart, fovEnd, coverR)} /></g>` : nothing}
 
             <!-- blind spot (hatched) -->
-            ${blindSpot ? svg`<g data-tooltip=${'Blind spot: ' + formatDegrees(sun.blind_spot_range![0]) + ' – ' + formatDegrees(sun.blind_spot_range![1])}><path class="blind-spot" d=${blindSpot} /></g>` : nothing}
+            ${blindSpot ? svg`<g data-tooltip=${ttBlindSpot}><title>${ttBlindSpot}</title><path class="blind-spot" d=${blindSpot} /></g>` : nothing}
 
             <!-- sun path arc -->
-            ${pathPoints ? svg`<g data-tooltip="Sun path (today)"><polyline class="sun-path" points=${pathPoints} /></g>` : nothing}
+            ${pathPoints ? svg`<g data-tooltip="Sun path (today)"><title>Sun path (today)</title><polyline class="sun-path" points=${pathPoints} /></g>` : nothing}
 
             <!-- sunrise / sunset markers -->
-            ${risePt && riseAzimuth !== null ? svg`<g data-tooltip=${'Sunrise: ' + formatDegrees(riseAzimuth)}><circle class="rise-marker" cx=${risePt.x} cy=${risePt.y} r="4" /></g>` : nothing}
-            ${setPt && setAzimuth !== null ? svg`<g data-tooltip=${'Sunset: ' + formatDegrees(setAzimuth)}><circle class="set-marker" cx=${setPt.x} cy=${setPt.y} r="4" /></g>` : nothing}
+            ${risePt && riseAzimuth !== null ? svg`<g data-tooltip=${ttRise}><title>${ttRise}</title><circle class="rise-marker" cx=${risePt.x} cy=${risePt.y} r="4" /></g>` : nothing}
+            ${setPt && setAzimuth !== null ? svg`<g data-tooltip=${ttSet}><title>${ttSet}</title><circle class="set-marker" cx=${setPt.x} cy=${setPt.y} r="4" /></g>` : nothing}
 
             <!-- window normal arrow -->
             <g data-tooltip=${ttWindow}>
+              <title>${ttWindow}</title>
               <line class="window" x1="0" y1="0" x2=${windowArrow.x} y2=${windowArrow.y} />
               <circle class="window-base" cx="0" cy="0" r="4" />
             </g>
@@ -179,7 +189,8 @@ export class SkyCompass extends LitElement {
             ${
               moonAboveHorizon
                 ? svg`
-              <g data-tooltip=${'Moon: ' + moon!.phaseName + ' (' + Math.round(moon!.fraction * 100) + '%)'}>
+              <g data-tooltip=${ttMoon}>
+                <title>${ttMoon}</title>
                 <circle class="moon-outline" cx=${moonX} cy=${moonY} r=${MOON_R} />
                 <circle class="moon-lit" cx=${moonX} cy=${moonY} r=${MOON_R} mask="url(#moon-phase-mask)" />
               </g>
@@ -189,6 +200,7 @@ export class SkyCompass extends LitElement {
 
             <!-- sun dot -->
             <g data-tooltip=${ttSun}>
+              <title>${ttSun}</title>
               <circle class=${sunDotClass} cx=${sunPt.x * OUTER_R} cy=${sunPt.y * OUTER_R} r="7" />
             </g>
           `}
@@ -397,6 +409,9 @@ export class SkyCompass extends LitElement {
     .dot.moon-dot {
       background: var(--secondary-text-color);
       opacity: 0.6;
+    }
+    g[data-tooltip] {
+      cursor: help;
     }
   `;
 }
