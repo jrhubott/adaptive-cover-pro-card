@@ -136,6 +136,12 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
     });
   }
 
+  _onNorthOffsetChange(e: Event): void {
+    const raw = parseFloat((e.target as HTMLInputElement).value);
+    const value = Number.isFinite(raw) ? raw : 0;
+    this._emit({ ...(this._config ?? { type: '', entry_id: '' }), north_offset: value });
+  }
+
   private _onControlToggle(key: keyof ControlFlags, enabled: boolean): void {
     const cfg = this._config ?? { type: '', entry_id: '' };
     this._emit({ ...cfg, controls: { ...cfg.controls, [key]: enabled } });
@@ -295,6 +301,19 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
               <span class="toggle-desc">Display card version at the bottom.</span>
             </span>
           </label>
+        </div>
+
+        <div class="section">
+          <label class="field-label">Compass north offset (°)</label>
+          <div class="hint">Rotate the compass clockwise so "up" matches your map. Default: 0.</div>
+          <input
+            type="number"
+            class="text-input"
+            .value=${String(this._config.north_offset ?? 0)}
+            step="1"
+            inputmode="numeric"
+            @change=${this._onNorthOffsetChange}
+          />
         </div>
       </div>
     `;

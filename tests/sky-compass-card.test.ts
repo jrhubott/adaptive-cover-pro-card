@@ -95,6 +95,17 @@ describe('adaptive-cover-pro-sky-compass-card setConfig', () => {
     ).not.toThrow();
   });
 
+  it('accepts north_offset config', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: 'custom:adaptive-cover-pro-sky-compass-card',
+        entry_ids: ['abc'],
+        north_offset: 90,
+      }),
+    ).not.toThrow();
+  });
+
   it('defensively copies entry_ids so callers can mutate their input', () => {
     const el = makeCard();
     const input = ['a', 'b'];

@@ -15,6 +15,7 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
   show_moon?: boolean;
   show_version?: boolean;
   hide_inactive_handlers?: boolean;
+  north_offset?: number;
   controls?: {
     integration_enabled?: boolean;
     automatic_control?: boolean;
@@ -37,6 +38,7 @@ export interface SkyCompassCardConfig extends LovelaceCardConfig {
   show_cover_fill?: boolean;
   show_window_arrow?: boolean;
   cover_colors?: (string | null)[];
+  north_offset?: number;
 }
 
 export interface DiscoveredEntities {

@@ -10,6 +10,7 @@ import {
   resolveControlFlags,
 } from './const';
 import { createDiscoveryMemo } from './lib/entity-discovery';
+import { normalizeAzimuth } from './lib/geometry';
 import {
   fetchEntityRegistry,
   subscribeEntityRegistry,
@@ -293,6 +294,7 @@ export class AdaptiveCoverProCard extends LitElement {
                 .showStats=${this._config.show_compass_stats ?? true}
                 .showLegend=${this._config.show_compass_legend ?? true}
                 .showMoon=${this._config.show_moon ?? false}
+                .northOffsetDeg=${normalizeAzimuth(this._config.north_offset ?? 0)}
               ></acp-sky-compass>`
             : nothing}
           ${sections.includes('elevation')

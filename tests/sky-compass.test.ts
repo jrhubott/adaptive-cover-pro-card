@@ -16,6 +16,7 @@ interface SkyCompassLike extends HTMLElement {
   showSunriseSunset?: boolean;
   showCoverFill?: boolean;
   showWindowArrow?: boolean;
+  northOffsetDeg?: number;
 }
 
 function makeDiscovered(entryId: string, title: string): DiscoveredEntities {
@@ -173,6 +174,34 @@ describe('acp-sky-compass coverColors', () => {
     const fovs = el.shadowRoot!.querySelectorAll('path.fov');
     expect(fovs[0].getAttribute('style') ?? '').toContain('#ff3366');
     expect(fovs[1].getAttribute('style') ?? '').toContain('#ff7f0e');
+  });
+});
+
+describe('acp-sky-compass northOffsetDeg', () => {
+  // Window azimuth=180. FOV ±45 → fovStart=135, fovEnd=225.
+  // The FOV wedge path changes when offset rotates the compass.
+  // path.fov is a literal class (no binding), confirmed working in existing tests.
+  const d = () => makeDiscovered('entry1', 'Kitchen');
+  const hass = () => makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
+
+  it('northOffsetDeg=0 and northOffsetDeg=90 produce different FOV paths', async () => {
+    const el0 = await mountCompass([d()], hass(), { northOffsetDeg: 0 });
+    const el90 = await mountCompass([d()], hass(), { northOffsetDeg: 90 });
+    const path0 = el0.shadowRoot!.querySelector('path.fov')?.getAttribute('d') ?? '';
+    const path90 = el90.shadowRoot!.querySelector('path.fov')?.getAttribute('d') ?? '';
+    expect(path0).toBeTruthy();
+    expect(path90).toBeTruthy();
+    expect(path0).not.toBe(path90);
+  });
+
+  it('northOffsetDeg=90 FOV path matches northOffsetDeg=0 path shifted by 90°', async () => {
+    // wedgePath(135, 225, 110, 0, 90) should equal wedgePath(225, 315, 110, 0, 0)
+    // i.e. the window's FOV wedge (centered on South=180) should appear at West=270 when offset=90
+    const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
+    const expected = wedgePath(normalizeAzimuth(225), normalizeAzimuth(315), 110, 0, 0);
+    const el90 = await mountCompass([d()], hass(), { northOffsetDeg: 90 });
+    const actual = el90.shadowRoot!.querySelector('path.fov')?.getAttribute('d') ?? '';
+    expect(actual).toBe(expected);
   });
 });
 

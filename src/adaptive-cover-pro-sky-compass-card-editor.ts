@@ -189,6 +189,12 @@ export class AdaptiveCoverProSkyCompassCardEditor extends LitElement implements 
     this._emit({ ...this._baseConfig(), [key]: enabled });
   }
 
+  _onNorthOffsetChange(e: Event): void {
+    const raw = parseFloat((e.target as HTMLInputElement).value);
+    const value = Number.isFinite(raw) ? raw : 0;
+    this._emit({ ...this._baseConfig(), north_offset: value });
+  }
+
   private _onTitleChange(e: Event): void {
     const value = (e.target as HTMLInputElement).value;
     const base = this._baseConfig();
@@ -279,6 +285,19 @@ export class AdaptiveCoverProSkyCompassCardEditor extends LitElement implements 
               </label>
             `,
           )}
+        </div>
+
+        <div class="section">
+          <label class="field-label">Compass north offset (°)</label>
+          <div class="hint">Rotate the compass clockwise so "up" matches your map. Default: 0.</div>
+          <input
+            type="number"
+            class="text-input"
+            .value=${String(this._config.north_offset ?? 0)}
+            step="1"
+            inputmode="numeric"
+            @change=${this._onNorthOffsetChange}
+          />
         </div>
       </div>
     `;
