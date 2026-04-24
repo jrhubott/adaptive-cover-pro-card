@@ -4,6 +4,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import { SKY_COMPASS_CARD_EDITOR_NAME, SKY_COMPASS_CARD_NAME } from './const';
 import { discoverEntities } from './lib/entity-discovery';
+import { normalizeAzimuth } from './lib/geometry';
 import {
   fetchEntityRegistry,
   subscribeEntityRegistry,
@@ -148,6 +149,7 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
           .showCoverFill=${cfg.show_cover_fill ?? true}
           .showWindowArrow=${cfg.show_window_arrow ?? true}
           .coverColors=${cfg.cover_colors ?? []}
+          .northOffsetDeg=${normalizeAzimuth(cfg.north_offset ?? 0)}
         ></acp-sky-compass>
         ${missing.length > 0
           ? html`<div class="warn dim">Entries not found: ${missing.join(', ')}</div>`

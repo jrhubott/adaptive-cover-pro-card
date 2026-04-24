@@ -65,3 +65,55 @@ describe('geometry', () => {
     expect(d).toMatch(/A 50 50/);
   });
 });
+
+describe('geometry — north offset', () => {
+  it('azimuthToCartesian default (offset=0) preserves existing behavior', () => {
+    const p = azimuthToCartesian(0, 1, 0);
+    expect(p.x).toBeCloseTo(0);
+    expect(p.y).toBeCloseTo(-1);
+  });
+
+  it('azimuthToCartesian offset=90 rotates N to East position', () => {
+    const p = azimuthToCartesian(0, 1, 90);
+    expect(p.x).toBeCloseTo(1);
+    expect(p.y).toBeCloseTo(0);
+  });
+
+  it('azimuthToCartesian offset=90: East azimuth moves to South position', () => {
+    const p = azimuthToCartesian(90, 1, 90);
+    expect(p.x).toBeCloseTo(0);
+    expect(p.y).toBeCloseTo(1);
+  });
+
+  it('azimuthToCartesian offset=360 same as offset=0', () => {
+    const p0 = azimuthToCartesian(45, 1, 0);
+    const p360 = azimuthToCartesian(45, 1, 360);
+    expect(p360.x).toBeCloseTo(p0.x);
+    expect(p360.y).toBeCloseTo(p0.y);
+  });
+
+  it('azimuthToCartesian negative offset same as positive equivalent', () => {
+    const pNeg = azimuthToCartesian(0, 1, -90);
+    const pPos = azimuthToCartesian(0, 1, 270);
+    expect(pNeg.x).toBeCloseTo(pPos.x);
+    expect(pNeg.y).toBeCloseTo(pPos.y);
+  });
+
+  it('sunDotPosition forwards offset to azimuthToCartesian', () => {
+    const p = sunDotPosition(0, 0, 90);
+    expect(p.x).toBeCloseTo(1);
+    expect(p.y).toBeCloseTo(0);
+  });
+
+  it('wedgePath with offset produces different path than without', () => {
+    const d0 = wedgePath(0, 90, 100, 0, 0);
+    const d90 = wedgePath(0, 90, 100, 0, 90);
+    expect(d0).not.toBe(d90);
+  });
+
+  it('wedgePath offset=90: wedge(0,90) equivalent to wedge(90,180) with offset=0', () => {
+    const dOffset = wedgePath(0, 90, 100, 0, 90);
+    const dBase = wedgePath(90, 180, 100, 0, 0);
+    expect(dOffset).toBe(dBase);
+  });
+});

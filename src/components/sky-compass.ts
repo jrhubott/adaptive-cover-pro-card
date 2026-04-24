@@ -40,6 +40,7 @@ export class SkyCompass extends LitElement {
   @property({ attribute: false }) public showCoverFill = true;
   @property({ attribute: false }) public showWindowArrow = true;
   @property({ attribute: false }) public coverColors: (string | null | undefined)[] = [];
+  @property({ attribute: false }) public northOffsetDeg = 0;
 
   private _sunFor(d: DiscoveredEntities): SunPositionAttributes | null {
     const id = d.entities.sun_sensor;
@@ -100,13 +101,14 @@ export class SkyCompass extends LitElement {
       return html`<div class="placeholder">Sun sensor not yet populated.</div>`;
     }
 
+    const o = normalizeAzimuth(this.northOffsetDeg);
     const multi = overlays.length > 1;
     const first = overlays[0];
     const sunAzi = first.sunAzi;
     const sunElev = first.sun.elevation;
-    const sunPt = sunDotPosition(sunAzi, sunElev);
-    const anyInFov = overlays.some((o) => o.sun.in_fov);
-    const anyValid = overlays.some((o) => o.sunInfront);
+    const sunPt = sunDotPosition(sunAzi, sunElev, o);
+    const anyInFov = overlays.some((ov) => ov.sun.in_fov);
+    const anyValid = overlays.some((ov) => ov.sunInfront);
     const belowHorizon = sunElev <= 0;
     const sunDotClass =
       !belowHorizon && anyValid ? 'sun valid' : !belowHorizon && anyInFov ? 'sun in-fov' : 'sun';
@@ -131,7 +133,7 @@ export class SkyCompass extends LitElement {
         ? -4 * MOON_R * moon.phase
         : 4 * MOON_R * (1 - moon.phase)
       : 0;
-    const moonPt = moonAboveHorizon ? sunDotPosition(moon!.azimuth, moon!.elevation) : null;
+    const moonPt = moonAboveHorizon ? sunDotPosition(moon!.azimuth, moon!.elevation, o) : null;
     const moonX = moonPt ? moonPt.x * OUTER_R : 0;
     const moonY = moonPt ? moonPt.y * OUTER_R : 0;
 
@@ -139,7 +141,7 @@ export class SkyCompass extends LitElement {
       ? samples
           .filter((s) => s.elevation > 0)
           .map((s) => {
-            const pt = sunDotPosition(s.azimuth, s.elevation);
+            const pt = sunDotPosition(s.azimuth, s.elevation, o);
             return `${(pt.x * OUTER_R).toFixed(1)},${(pt.y * OUTER_R).toFixed(1)}`;
           })
           .join(' ')
@@ -148,8 +150,14 @@ export class SkyCompass extends LitElement {
     const { riseAzimuth, setAzimuth } = this.showSunriseSunset
       ? sunriseSetAzimuths(samples)
       : { riseAzimuth: null, setAzimuth: null };
-    const risePt = riseAzimuth !== null ? azimuthToCartesian(riseAzimuth, OUTER_R) : null;
-    const setPt = setAzimuth !== null ? azimuthToCartesian(setAzimuth, OUTER_R) : null;
+    const risePt = riseAzimuth !== null ? azimuthToCartesian(riseAzimuth, OUTER_R, o) : null;
+    const setPt = setAzimuth !== null ? azimuthToCartesian(setAzimuth, OUTER_R, o) : null;
+
+    const cardinalPad = 14;
+    const cardN = azimuthToCartesian(0, OUTER_R + cardinalPad, o);
+    const cardE = azimuthToCartesian(90, OUTER_R + cardinalPad, o);
+    const cardS = azimuthToCartesian(180, OUTER_R + cardinalPad, o);
+    const cardW = azimuthToCartesian(270, OUTER_R + cardinalPad, o);
 
     const ttSun = `Sun: ${formatDegrees(sunAzi)} az / ${formatDegrees(sunElev)} el`;
     const ttRise = riseAzimuth !== null ? `Sunrise: ${formatDegrees(riseAzimuth)}` : '';
@@ -180,7 +188,7 @@ export class SkyCompass extends LitElement {
             <line class="grid thin" x1="0" y1=${-OUTER_R} x2="0" y2=${OUTER_R}></line>
             <line class="grid thin" x1=${-OUTER_R} y1="0" x2=${OUTER_R} y2="0"></line>
 
-            ${overlays.map((o) => this._renderEntryLayers(o, multi))}
+            ${overlays.map((ov) => this._renderEntryLayers(ov, multi, o))}
 
             ${
               this.showSunPath && pathPoints
@@ -202,10 +210,10 @@ export class SkyCompass extends LitElement {
             ${
               this.showCardinals
                 ? svg`
-              <text class="cardinal" x="0" y=${-OUTER_R - 6} text-anchor="middle">N</text>
-              <text class="cardinal" x=${OUTER_R + 10} y="4" text-anchor="middle">E</text>
-              <text class="cardinal" x="0" y=${OUTER_R + 14} text-anchor="middle">S</text>
-              <text class="cardinal" x=${-OUTER_R - 10} y="4" text-anchor="middle">W</text>
+              <text class="cardinal" x=${cardN.x} y=${cardN.y} text-anchor="middle" dominant-baseline="central">N</text>
+              <text class="cardinal" x=${cardE.x} y=${cardE.y} text-anchor="middle" dominant-baseline="central">E</text>
+              <text class="cardinal" x=${cardS.x} y=${cardS.y} text-anchor="middle" dominant-baseline="central">S</text>
+              <text class="cardinal" x=${cardW.x} y=${cardW.y} text-anchor="middle" dominant-baseline="central">W</text>
             `
                 : nothing
             }
@@ -234,21 +242,23 @@ export class SkyCompass extends LitElement {
     `;
   }
 
-  private _renderEntryLayers(o: EntryOverlay, multi: boolean) {
+  private _renderEntryLayers(o: EntryOverlay, multi: boolean, northOffsetDeg = 0) {
     const windowAzi = normalizeAzimuth(o.sun.window_azimuth);
     const fovStart = normalizeAzimuth(windowAzi - o.sun.fov_left);
     const fovEnd = normalizeAzimuth(windowAzi + o.sun.fov_right);
-    const windowArrow = azimuthToCartesian(windowAzi, OUTER_R);
+    const windowArrow = azimuthToCartesian(windowAzi, OUTER_R, northOffsetDeg);
     const coverR = o.coverPos !== null ? OUTER_R * (1 - o.coverPos / 100) : null;
     const blindSpot = o.sun.blind_spot_range
       ? wedgePath(
           normalizeAzimuth(o.sun.blind_spot_range[0]),
           normalizeAzimuth(o.sun.blind_spot_range[1]),
           OUTER_R,
+          0,
+          northOffsetDeg,
         )
       : null;
-    const fovPath = wedgePath(fovStart, fovEnd, OUTER_R);
-    const coverPath = coverR !== null ? wedgePath(fovStart, fovEnd, coverR) : '';
+    const fovPath = wedgePath(fovStart, fovEnd, OUTER_R, 0, northOffsetDeg);
+    const coverPath = coverR !== null ? wedgePath(fovStart, fovEnd, coverR, 0, northOffsetDeg) : '';
 
     const label = multi ? `${o.d.entry_title}: ` : '';
     const ttFov = `${label}FOV ${formatDegrees(o.sun.fov_left)} left / ${formatDegrees(o.sun.fov_right)} right`;

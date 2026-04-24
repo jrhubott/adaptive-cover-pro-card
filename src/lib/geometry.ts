@@ -18,9 +18,10 @@ export function degToRad(deg: number): number {
   return (deg * Math.PI) / 180;
 }
 
-/** Azimuth (degrees, 0=N clockwise) + radius (0..1) → Cartesian point on a unit circle with +y down. */
-export function azimuthToCartesian(azimuthDeg: number, radius: number): Point {
-  const theta = degToRad(azimuthDeg - 90);
+/** Azimuth (degrees, 0=N clockwise) + radius (0..1) → Cartesian point on a unit circle with +y down.
+ *  northOffsetDeg rotates the whole compass clockwise by that many degrees (0 = North at top). */
+export function azimuthToCartesian(azimuthDeg: number, radius: number, northOffsetDeg = 0): Point {
+  const theta = degToRad(azimuthDeg - 90 + northOffsetDeg);
   return {
     x: radius * Math.cos(theta),
     y: radius * Math.sin(theta),
@@ -43,6 +44,7 @@ export function wedgePath(
   endAziDeg: number,
   outerR: number,
   innerR = 0,
+  northOffsetDeg = 0,
 ): string {
   const normalize = (a: number) => ((a % 360) + 360) % 360;
   const start = normalize(startAziDeg);
@@ -51,15 +53,15 @@ export function wedgePath(
   if (sweep < 0) sweep += 360;
   const largeArc = sweep > 180 ? 1 : 0;
 
-  const p0 = azimuthToCartesian(start, outerR);
-  const p1 = azimuthToCartesian(end, outerR);
+  const p0 = azimuthToCartesian(start, outerR, northOffsetDeg);
+  const p1 = azimuthToCartesian(end, outerR, northOffsetDeg);
 
   if (innerR <= 0) {
     return `M 0 0 L ${p0.x} ${p0.y} A ${outerR} ${outerR} 0 ${largeArc} 1 ${p1.x} ${p1.y} Z`;
   }
 
-  const q0 = azimuthToCartesian(end, innerR);
-  const q1 = azimuthToCartesian(start, innerR);
+  const q0 = azimuthToCartesian(end, innerR, northOffsetDeg);
+  const q1 = azimuthToCartesian(start, innerR, northOffsetDeg);
   return [
     `M ${p0.x} ${p0.y}`,
     `A ${outerR} ${outerR} 0 ${largeArc} 1 ${p1.x} ${p1.y}`,
@@ -70,8 +72,12 @@ export function wedgePath(
 }
 
 /** Project sun (azimuth, elevation) onto the compass. */
-export function sunDotPosition(azimuthDeg: number, elevationDeg: number): Point {
-  return azimuthToCartesian(azimuthDeg, elevationToRadius(elevationDeg));
+export function sunDotPosition(
+  azimuthDeg: number,
+  elevationDeg: number,
+  northOffsetDeg = 0,
+): Point {
+  return azimuthToCartesian(azimuthDeg, elevationToRadius(elevationDeg), northOffsetDeg);
 }
 
 /** Normalize arbitrary degrees to [0, 360). */
