@@ -36,6 +36,7 @@ export interface SkyCompassCardConfig extends LovelaceCardConfig {
   show_sunrise_sunset?: boolean;
   show_cover_fill?: boolean;
   show_window_arrow?: boolean;
+  cover_colors?: (string | null)[];
 }
 
 export interface DiscoveredEntities {

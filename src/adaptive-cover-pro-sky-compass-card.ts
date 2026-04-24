@@ -147,6 +147,7 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
           .showSunriseSunset=${cfg.show_sunrise_sunset ?? true}
           .showCoverFill=${cfg.show_cover_fill ?? true}
           .showWindowArrow=${cfg.show_window_arrow ?? true}
+          .coverColors=${cfg.cover_colors ?? []}
         ></acp-sky-compass>
         ${missing.length > 0
           ? html`<div class="warn dim">Entries not found: ${missing.join(', ')}</div>`

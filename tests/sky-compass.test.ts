@@ -7,6 +7,7 @@ interface SkyCompassLike extends HTMLElement {
   updateComplete: Promise<boolean>;
   hass?: HomeAssistant;
   discovered_list?: DiscoveredEntities[];
+  coverColors?: (string | null | undefined)[];
   showLegend?: boolean;
   showStats?: boolean;
   showCardinals?: boolean;
@@ -135,6 +136,43 @@ describe('acp-sky-compass (multi-entry overlay)', () => {
     const el = await mountCompass([good, missing], hass);
     const fovs = el.shadowRoot!.querySelectorAll('path.fov');
     expect(fovs.length).toBe(1);
+  });
+});
+
+describe('acp-sky-compass coverColors', () => {
+  it('applies override color as inline style on single-entry compass FOV', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
+    const el = await mountCompass([d], hass, { coverColors: ['#ff3366'] });
+    const fov = el.shadowRoot!.querySelector('path.fov') as SVGPathElement;
+    expect(fov.getAttribute('style') ?? '').toContain('#ff3366');
+  });
+
+  it('null slot falls back to palette color in multi-entry compass', async () => {
+    const d1 = makeDiscovered('entry1', 'Kitchen');
+    const d2 = makeDiscovered('entry2', 'Living');
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 },
+      { sensorId: 'sensor.sun_pos_entry2', windowAzimuth: 90 },
+    ]);
+    const el = await mountCompass([d1, d2], hass, { coverColors: ['#ff3366', null] });
+    const fovs = el.shadowRoot!.querySelectorAll('path.fov');
+    expect(fovs[0].getAttribute('style') ?? '').toContain('#ff3366');
+    // slot 1 null → colorForIndex(1) = '#ff7f0e'
+    expect(fovs[1].getAttribute('style') ?? '').toContain('#ff7f0e');
+  });
+
+  it('shorter coverColors array falls back for missing slots', async () => {
+    const d1 = makeDiscovered('entry1', 'Kitchen');
+    const d2 = makeDiscovered('entry2', 'Living');
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 },
+      { sensorId: 'sensor.sun_pos_entry2', windowAzimuth: 90 },
+    ]);
+    const el = await mountCompass([d1, d2], hass, { coverColors: ['#ff3366'] });
+    const fovs = el.shadowRoot!.querySelectorAll('path.fov');
+    expect(fovs[0].getAttribute('style') ?? '').toContain('#ff3366');
+    expect(fovs[1].getAttribute('style') ?? '').toContain('#ff7f0e');
   });
 });
 
