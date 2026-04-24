@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PALETTE, colorForIndex } from '../src/lib/palette';
+import { PALETTE, colorForIndex, resolveCoverColor } from '../src/lib/palette';
 
 describe('palette', () => {
   it('returns the first color for index 0', () => {
@@ -20,5 +20,30 @@ describe('palette', () => {
     for (const c of PALETTE) {
       expect(c).toMatch(/^#[0-9a-f]{6}$/i);
     }
+  });
+});
+
+describe('resolveCoverColor', () => {
+  it('returns palette default with isOverride false when override is undefined', () => {
+    expect(resolveCoverColor(undefined, 0)).toEqual({ color: PALETTE[0], isOverride: false });
+  });
+
+  it('returns palette default with isOverride false for null', () => {
+    expect(resolveCoverColor(null, 2)).toEqual({ color: PALETTE[2], isOverride: false });
+  });
+
+  it('returns palette default with isOverride false for empty string', () => {
+    expect(resolveCoverColor('', 2)).toEqual({ color: PALETTE[2], isOverride: false });
+  });
+
+  it('returns override with isOverride true for a non-empty string', () => {
+    expect(resolveCoverColor('#ff3366', 0)).toEqual({ color: '#ff3366', isOverride: true });
+  });
+
+  it('wraps index for palette fallback', () => {
+    expect(resolveCoverColor(undefined, PALETTE.length)).toEqual({
+      color: PALETTE[0],
+      isOverride: false,
+    });
   });
 });

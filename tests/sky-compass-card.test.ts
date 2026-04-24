@@ -73,6 +73,28 @@ describe('adaptive-cover-pro-sky-compass-card setConfig', () => {
     ).not.toThrow();
   });
 
+  it('accepts cover_colors array alongside entry_ids', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: 'custom:adaptive-cover-pro-sky-compass-card',
+        entry_ids: ['a', 'b'],
+        cover_colors: ['#ff3366', null],
+      }),
+    ).not.toThrow();
+  });
+
+  it('accepts cover_colors shorter than entry_ids', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: 'custom:adaptive-cover-pro-sky-compass-card',
+        entry_ids: ['a', 'b', 'c'],
+        cover_colors: ['#ff3366'],
+      }),
+    ).not.toThrow();
+  });
+
   it('defensively copies entry_ids so callers can mutate their input', () => {
     const el = makeCard();
     const input = ['a', 'b'];

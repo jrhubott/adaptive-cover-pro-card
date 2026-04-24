@@ -6,7 +6,7 @@ import type { DiscoveredEntities, SunPositionAttributes } from '../types';
 import { azimuthToCartesian, normalizeAzimuth, sunDotPosition, wedgePath } from '../lib/geometry';
 import { sampleDay, startOfDay, sunriseSetAzimuths, getMoonData } from '../lib/sun-model';
 import { formatDegrees } from '../lib/formatters';
-import { colorForIndex } from '../lib/palette';
+import { resolveCoverColor } from '../lib/palette';
 
 // viewBox must have ~30 px of padding beyond OUTER_R so cardinal labels
 // (positioned at OUTER_R + 6..14) don't clip when rendered with
@@ -21,6 +21,7 @@ interface EntryOverlay {
   sunInfront: boolean;
   coverPos: number | null;
   color: string;
+  isOverride: boolean;
   index: number;
 }
 
@@ -38,6 +39,7 @@ export class SkyCompass extends LitElement {
   @property({ attribute: false }) public showSunriseSunset = true;
   @property({ attribute: false }) public showCoverFill = true;
   @property({ attribute: false }) public showWindowArrow = true;
+  @property({ attribute: false }) public coverColors: (string | null | undefined)[] = [];
 
   private _sunFor(d: DiscoveredEntities): SunPositionAttributes | null {
     const id = d.entities.sun_sensor;
@@ -72,13 +74,15 @@ export class SkyCompass extends LitElement {
       if (!sun) return;
       const sunSensorId = d.entities.sun_sensor;
       const sunAzi = parseFloat(this.hass.states[sunSensorId!]?.state ?? '0');
+      const { color, isOverride } = resolveCoverColor(this.coverColors?.[i], i);
       out.push({
         d,
         sun,
         sunAzi,
         sunInfront: this._sunInfrontFor(d),
         coverPos: this._coverPositionFor(d),
-        color: colorForIndex(i),
+        color,
+        isOverride,
         index: i,
       });
     });
@@ -254,11 +258,12 @@ export class SkyCompass extends LitElement {
       ? `${label}Blind spot: ${formatDegrees(o.sun.blind_spot_range[0])} – ${formatDegrees(o.sun.blind_spot_range[1])}`
       : '';
 
-    const fovStyle = multi ? `fill: ${o.color}; stroke: ${o.color};` : '';
-    const coverStyle = multi ? `fill: ${o.color}; stroke: ${o.color};` : '';
-    const blindStyle = multi ? `fill: ${o.color}; stroke: ${o.color};` : '';
-    const arrowStyle = multi ? `stroke: ${o.color};` : '';
-    const arrowBaseStyle = multi ? `fill: ${o.color};` : '';
+    const inlineColor = multi || o.isOverride;
+    const fovStyle = inlineColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
+    const coverStyle = inlineColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
+    const blindStyle = inlineColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
+    const arrowStyle = inlineColor ? `stroke: ${o.color};` : '';
+    const arrowBaseStyle = inlineColor ? `fill: ${o.color};` : '';
 
     const showCover = this.showCoverFill && coverR !== null && coverR > 0.5;
     const showBlind = this.showBlindSpot && !!blindSpot;

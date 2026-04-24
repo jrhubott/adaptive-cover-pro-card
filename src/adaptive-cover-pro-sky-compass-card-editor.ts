@@ -4,6 +4,7 @@ import type { HomeAssistant, LovelaceCardEditor } from 'custom-card-helpers';
 
 import { SKY_COMPASS_CARD_EDITOR_NAME, SKY_COMPASS_CARD_NAME } from './const';
 import { fetchAcpConfigEntries, type AcpConfigEntry } from './lib/config-entries';
+import { colorForIndex } from './lib/palette';
 import type { SkyCompassCardConfig } from './types';
 
 type ToggleKey =
@@ -132,6 +133,42 @@ export class AdaptiveCoverProSkyCompassCardEditor extends LitElement implements 
     return this._config ?? { type: `custom:${SKY_COMPASS_CARD_NAME}`, entry_ids: [] };
   }
 
+  private _trimColors(arr: (string | null)[]): (string | null)[] | undefined {
+    let last = -1;
+    for (let i = 0; i < arr.length; i++) if (arr[i]) last = i;
+    if (last < 0) return undefined;
+    return arr.slice(0, last + 1);
+  }
+
+  private _emitWithColors(
+    base: SkyCompassCardConfig,
+    colors: (string | null)[],
+    overrides?: Partial<SkyCompassCardConfig>,
+  ): void {
+    const trimmed = this._trimColors(colors);
+    const { cover_colors: _cc, ...rest } = base;
+    void _cc;
+    const next: SkyCompassCardConfig = trimmed
+      ? { ...(rest as SkyCompassCardConfig), ...overrides, cover_colors: trimmed }
+      : { ...(rest as SkyCompassCardConfig), ...overrides };
+    this._emit(next);
+  }
+
+  private _onCoverColorChange(index: number, value: string): void {
+    const base = this._baseConfig();
+    const colors: (string | null)[] = [...(base.cover_colors ?? [])];
+    while (colors.length <= index) colors.push(null);
+    colors[index] = value;
+    this._emitWithColors(base, colors);
+  }
+
+  private _onCoverColorReset(index: number): void {
+    const base = this._baseConfig();
+    const colors: (string | null)[] = [...(base.cover_colors ?? [])];
+    if (index < colors.length) colors[index] = null;
+    this._emitWithColors(base, colors);
+  }
+
   private _onEntryToggle(entryId: string, enabled: boolean): void {
     const base = this._baseConfig();
     const current = new Set(base.entry_ids);
@@ -139,7 +176,13 @@ export class AdaptiveCoverProSkyCompassCardEditor extends LitElement implements 
     else current.delete(entryId);
     // Preserve discovery order for consistency.
     const ordered = (this._entries ?? []).map((e) => e.entry_id).filter((id) => current.has(id));
-    this._emit({ ...base, entry_ids: ordered });
+    // Re-align cover_colors to new entry_ids order.
+    const oldColors = base.cover_colors ?? [];
+    const newColors: (string | null)[] = ordered.map((id) => {
+      const oldIdx = base.entry_ids.indexOf(id);
+      return oldIdx >= 0 ? (oldColors[oldIdx] ?? null) : null;
+    });
+    this._emitWithColors(base, newColors, { entry_ids: ordered });
   }
 
   private _onToggle(key: ToggleKey, enabled: boolean): void {
@@ -180,6 +223,42 @@ export class AdaptiveCoverProSkyCompassCardEditor extends LitElement implements 
             @change=${this._onTitleChange}
           />
         </div>
+
+        ${this._config.entry_ids.length > 0
+          ? html`
+              <div class="section">
+                <label class="field-label">Cover colors</label>
+                <div class="hint">Override the default palette color for each overlay.</div>
+                ${this._config.entry_ids.map((id, i) => {
+                  const override = this._config!.cover_colors?.[i] ?? null;
+                  const resolved = override ?? colorForIndex(i);
+                  const entry = this._entries?.find((e) => e.entry_id === id);
+                  return html`
+                    <div class="color-row">
+                      <input
+                        type="color"
+                        .value=${resolved}
+                        @change=${(e: Event) =>
+                          this._onCoverColorChange(i, (e.target as HTMLInputElement).value)}
+                      />
+                      <span class="toggle-text">
+                        <span class="toggle-label">${entry?.title ?? id}</span>
+                        <span class="toggle-desc">${override ? override : 'default'}</span>
+                      </span>
+                      <button
+                        type="button"
+                        class="reset-btn"
+                        ?disabled=${!override}
+                        @click=${() => this._onCoverColorReset(i)}
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  `;
+                })}
+              </div>
+            `
+          : nothing}
 
         <div class="section">
           <label class="field-label">Display</label>
@@ -312,6 +391,39 @@ export class AdaptiveCoverProSkyCompassCardEditor extends LitElement implements 
     .entry-list {
       display: flex;
       flex-direction: column;
+    }
+    .color-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 4px 0;
+    }
+    .color-row input[type='color'] {
+      width: 32px;
+      height: 32px;
+      border: 1px solid var(--divider-color);
+      border-radius: 4px;
+      padding: 2px;
+      background: none;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .color-row .toggle-text {
+      flex: 1;
+    }
+    .reset-btn {
+      background: none;
+      border: 1px solid var(--divider-color);
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: 0.78rem;
+      color: var(--secondary-text-color);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .reset-btn:disabled {
+      opacity: 0.35;
+      cursor: default;
     }
     code {
       background: var(--code-editor-background-color, rgba(0, 0, 0, 0.08));

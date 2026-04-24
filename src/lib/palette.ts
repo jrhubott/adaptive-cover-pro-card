@@ -12,3 +12,18 @@ export function colorForIndex(i: number): string {
   const n = PALETTE.length;
   return PALETTE[((i % n) + n) % n];
 }
+
+export interface ResolvedColor {
+  color: string;
+  isOverride: boolean;
+}
+
+export function resolveCoverColor(
+  override: string | null | undefined,
+  index: number,
+): ResolvedColor {
+  if (typeof override === 'string' && override.length > 0) {
+    return { color: override, isOverride: true };
+  }
+  return { color: colorForIndex(index), isOverride: false };
+}
