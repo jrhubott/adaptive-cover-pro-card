@@ -158,6 +158,10 @@ export class SkyCompass extends LitElement {
     const cardE = azimuthToCartesian(90, OUTER_R + cardinalPad, o);
     const cardS = azimuthToCartesian(180, OUTER_R + cardinalPad, o);
     const cardW = azimuthToCartesian(270, OUTER_R + cardinalPad, o);
+    const gridNS0 = azimuthToCartesian(0, OUTER_R, o);
+    const gridNS1 = azimuthToCartesian(180, OUTER_R, o);
+    const gridEW0 = azimuthToCartesian(90, OUTER_R, o);
+    const gridEW1 = azimuthToCartesian(270, OUTER_R, o);
 
     const ttSun = `Sun: ${formatDegrees(sunAzi)} az / ${formatDegrees(sunElev)} el`;
     const ttRise = riseAzimuth !== null ? `Sunrise: ${formatDegrees(riseAzimuth)}` : '';
@@ -185,8 +189,8 @@ export class SkyCompass extends LitElement {
             <circle class="grid" r=${OUTER_R}></circle>
             <circle class="grid" r=${(OUTER_R * 2) / 3}></circle>
             <circle class="grid" r=${OUTER_R / 3}></circle>
-            <line class="grid thin" x1="0" y1=${-OUTER_R} x2="0" y2=${OUTER_R}></line>
-            <line class="grid thin" x1=${-OUTER_R} y1="0" x2=${OUTER_R} y2="0"></line>
+            <line class="grid thin" x1=${gridNS0.x} y1=${gridNS0.y} x2=${gridNS1.x} y2=${gridNS1.y}></line>
+            <line class="grid thin" x1=${gridEW0.x} y1=${gridEW0.y} x2=${gridEW1.x} y2=${gridEW1.y}></line>
 
             ${overlays.map((ov) => this._renderEntryLayers(ov, multi, o))}
 
