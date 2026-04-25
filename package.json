@@ -32,7 +32,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "custom-card-helpers": "^1.9.0",
+    "custom-card-helpers": "^2.0.0",
     "lit": "^3.1.4",
     "suncalc": "^1.9.0"
   },
