@@ -84,3 +84,15 @@ export function sunDotPosition(
 export function normalizeAzimuth(deg: number): number {
   return ((deg % 360) + 360) % 360;
 }
+
+/**
+ * Convert the integration's blind_spot_range (FOV-left-relative offsets,
+ * [fov_left − blind_spot_right, fov_left − blind_spot_left]) into absolute
+ * compass bearings [startAzi, endAzi] suitable for wedgePath.
+ */
+export function blindSpotBearings(
+  windowAziDeg: number,
+  range: readonly [number, number],
+): [number, number] {
+  return [normalizeAzimuth(windowAziDeg - range[1]), normalizeAzimuth(windowAziDeg - range[0])];
+}

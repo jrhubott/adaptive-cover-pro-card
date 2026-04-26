@@ -205,10 +205,40 @@ describe('acp-sky-compass northOffsetDeg', () => {
   });
 });
 
+describe('acp-sky-compass blind spot bearing conversion', () => {
+  // Integration emits blind_spot_range as FOV-left-relative offsets:
+  //   [fov_left - blind_spot_right, fov_left - blind_spot_left]
+  // Absolute bearings = windowAzimuth - range[1] (start) and windowAzimuth - range[0] (end)
+  // Repro: windowAzimuth=180, blind_spot_range=[10, 30] → absolute 150°–170°
+  it('renders blind spot wedge at absolute compass bearings derived from window_azimuth', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, blindSpot: [10, 30] },
+    ]);
+    const el = await mountCompass([d], hass);
+    const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
+    const expected = wedgePath(normalizeAzimuth(150), normalizeAzimuth(170), 110, 0, 0);
+    const blind = el.shadowRoot!.querySelector('path.blind-spot') as SVGPathElement;
+    expect(blind.getAttribute('d')).toBe(expected);
+  });
+
+  it('blind spot tooltip shows absolute compass bearings', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, blindSpot: [10, 30] },
+    ]);
+    const el = await mountCompass([d], hass);
+    const title = el.shadowRoot!.querySelector('g.blind-group > title');
+    expect(title?.textContent ?? '').toContain('150');
+    expect(title?.textContent ?? '').toContain('170');
+  });
+});
+
 describe('acp-sky-compass visual toggles', () => {
   const d = () => makeDiscovered('entry1', 'Kitchen');
+  // Use offset values [10, 30] — with windowAzimuth=180 these must render at 150°–170°, inside FOV [135°–225°]
   const hass = () =>
-    makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, blindSpot: [0, 45] }]);
+    makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, blindSpot: [10, 30] }]);
 
   it('showLegend=false hides legend block', async () => {
     const el = await mountCompass([d()], hass(), { showLegend: false });
@@ -230,6 +260,16 @@ describe('acp-sky-compass visual toggles', () => {
     const group = el.shadowRoot!.querySelector('g.blind-group') as SVGGElement | null;
     expect(group).not.toBeNull();
     expect(group!.getAttribute('style') ?? '').toContain('display: none');
+  });
+
+  it('showBlindSpot=true (default) renders blind-spot wedge inside FOV', async () => {
+    const el = await mountCompass([d()], hass());
+    const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
+    // windowAzimuth=180, fov_left=45, fov_right=45 → FOV: 135°–225°
+    // blind_spot_range=[10, 30] → absolute bearings 150°–170° (inside FOV)
+    const expected = wedgePath(normalizeAzimuth(150), normalizeAzimuth(170), 110, 0, 0);
+    const blind = el.shadowRoot!.querySelector('path.blind-spot') as SVGPathElement;
+    expect(blind.getAttribute('d')).toBe(expected);
   });
 
   it('showWindowArrow=false hides arrow group', async () => {
