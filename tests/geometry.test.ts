@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   azimuthToCartesian,
+  blindSpotBearings,
   elevationToRadius,
   normalizeAzimuth,
   sunDotPosition,
@@ -115,5 +116,25 @@ describe('geometry — north offset', () => {
     const dOffset = wedgePath(0, 90, 100, 0, 90);
     const dBase = wedgePath(90, 180, 100, 0, 0);
     expect(dOffset).toBe(dBase);
+  });
+});
+
+describe('geometry — blindSpotBearings', () => {
+  it('repro: windowAzimuth=180, range=[10, 30] → [150, 170]', () => {
+    const [start, end] = blindSpotBearings(180, [10, 30]);
+    expect(start).toBeCloseTo(150);
+    expect(end).toBeCloseTo(170);
+  });
+
+  it('wrap-around: windowAzimuth=10, range=[20, 40] → [330, 350]', () => {
+    const [start, end] = blindSpotBearings(10, [20, 40]);
+    expect(start).toBeCloseTo(330);
+    expect(end).toBeCloseTo(350);
+  });
+
+  it('identity: windowAzimuth=0, range=[0, 0] → [0, 0]', () => {
+    const [start, end] = blindSpotBearings(0, [0, 0]);
+    expect(start).toBeCloseTo(0);
+    expect(end).toBeCloseTo(0);
   });
 });

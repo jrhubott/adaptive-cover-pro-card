@@ -3,7 +3,13 @@ import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { DiscoveredEntities, SunPositionAttributes } from '../types';
-import { azimuthToCartesian, normalizeAzimuth, sunDotPosition, wedgePath } from '../lib/geometry';
+import {
+  azimuthToCartesian,
+  blindSpotBearings,
+  normalizeAzimuth,
+  sunDotPosition,
+  wedgePath,
+} from '../lib/geometry';
 import { sampleDay, startOfDay, sunriseSetAzimuths, getMoonData } from '../lib/sun-model';
 import { formatDegrees } from '../lib/formatters';
 import { resolveCoverColor } from '../lib/palette';
@@ -252,14 +258,11 @@ export class SkyCompass extends LitElement {
     const fovEnd = normalizeAzimuth(windowAzi + o.sun.fov_right);
     const windowArrow = azimuthToCartesian(windowAzi, OUTER_R, northOffsetDeg);
     const coverR = o.coverPos !== null ? OUTER_R * (1 - o.coverPos / 100) : null;
-    const blindSpot = o.sun.blind_spot_range
-      ? wedgePath(
-          normalizeAzimuth(o.sun.blind_spot_range[0]),
-          normalizeAzimuth(o.sun.blind_spot_range[1]),
-          OUTER_R,
-          0,
-          northOffsetDeg,
-        )
+    const bsBearings = o.sun.blind_spot_range
+      ? blindSpotBearings(windowAzi, o.sun.blind_spot_range as [number, number])
+      : null;
+    const blindSpot = bsBearings
+      ? wedgePath(bsBearings[0], bsBearings[1], OUTER_R, 0, northOffsetDeg)
       : null;
     const fovPath = wedgePath(fovStart, fovEnd, OUTER_R, 0, northOffsetDeg);
     const coverPath = coverR !== null ? wedgePath(fovStart, fovEnd, coverR, 0, northOffsetDeg) : '';
@@ -268,8 +271,8 @@ export class SkyCompass extends LitElement {
     const ttFov = `${label}FOV ${formatDegrees(o.sun.fov_left)} left / ${formatDegrees(o.sun.fov_right)} right`;
     const ttWindow = `${label}Window normal: ${formatDegrees(windowAzi)}`;
     const ttCoverFill = o.coverPos !== null ? `${label}Cover closed: ${o.coverPos}%` : '';
-    const ttBlindSpot = o.sun.blind_spot_range
-      ? `${label}Blind spot: ${formatDegrees(o.sun.blind_spot_range[0])} – ${formatDegrees(o.sun.blind_spot_range[1])}`
+    const ttBlindSpot = bsBearings
+      ? `${label}Blind spot: ${formatDegrees(bsBearings[0])} – ${formatDegrees(bsBearings[1])}`
       : '';
 
     const inlineColor = multi || o.isOverride;
