@@ -60,6 +60,9 @@ export interface DecisionStep {
 export interface DecisionTraceAttributes {
   trace: DecisionStep[];
   reason: string;
+  /** Handlers that are configured in the integration. Older integrations omit
+   *  this; the card falls open and shows all handlers when missing. */
+  enabled_handlers?: string[];
   bypass_auto_control: boolean;
   default_position: number;
   is_sunset_active: boolean;
