@@ -12,7 +12,12 @@ export class DecisionStrip extends LitElement {
   @property({ attribute: false }) public discovered!: DiscoveredEntities;
   @property({ type: Boolean, reflect: true }) public compact = false;
 
-  private _trace(): { winner: string; reason: string; steps: Map<string, TraceRow> } | null {
+  private _trace(): {
+    winner: string;
+    reason: string;
+    steps: Map<string, TraceRow>;
+    enabledHandlers: string[] | undefined;
+  } | null {
     const id = this.discovered.entities.decision_trace_sensor;
     if (!id) return null;
     const st = this.hass.states[id];
@@ -27,7 +32,12 @@ export class DecisionStrip extends LitElement {
         position: row.position,
       });
     }
-    return { winner: st.state, reason: attrs.reason ?? '', steps };
+    return {
+      winner: st.state,
+      reason: attrs.reason ?? '',
+      steps,
+      enabledHandlers: attrs.enabled_handlers,
+    };
   }
 
   @property({ type: Boolean, reflect: true, attribute: 'hide-inactive' }) public hideInactive =
@@ -37,7 +47,14 @@ export class DecisionStrip extends LitElement {
     if (!this.hass || !this.discovered) return nothing;
     const t = this._trace();
     if (!t) return html`<div class="placeholder">Decision trace not yet populated.</div>`;
-    const visible = selectVisibleHandlers(HANDLER_ORDER, t.steps, t.winner, this.hideInactive);
+    const disabled = computeDisabledHandlers(t.enabledHandlers);
+    const visible = selectVisibleHandlers(
+      HANDLER_ORDER,
+      t.steps,
+      t.winner,
+      this.hideInactive,
+      disabled,
+    );
     return html`
       <div class="wrap">
         <div class="head">
@@ -162,14 +179,30 @@ export class DecisionStrip extends LitElement {
   `;
 }
 
+/** Pure helper: derive the set of handlers to hide from the integration's
+ *  `enabled_handlers` attribute on the decision_trace sensor. Fail-open when
+ *  the attribute is absent (older integration) — show all handlers. */
+export function computeDisabledHandlers(
+  enabledHandlers: readonly string[] | undefined,
+): Set<HandlerName> {
+  if (!enabledHandlers) return new Set();
+  const enabled = new Set<string>(enabledHandlers);
+  return new Set(HANDLER_ORDER.filter((h) => !enabled.has(h)));
+}
+
 export function selectVisibleHandlers(
   order: readonly HandlerName[],
   steps: Map<string, { matched: boolean }>,
   winner: string,
   hideInactive: boolean,
+  disabledHandlers: ReadonlySet<HandlerName> = new Set(),
 ): HandlerName[] {
-  if (!hideInactive) return [...order];
-  return order.filter((h) => h === winner || steps.get(h)?.matched === true);
+  return order.filter((h) => {
+    if (h === winner) return true;
+    if (disabledHandlers.has(h)) return false;
+    if (hideInactive && steps.get(h)?.matched !== true) return false;
+    return true;
+  });
 }
 
 interface TraceRow {
