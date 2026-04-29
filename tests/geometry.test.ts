@@ -3,6 +3,7 @@ import {
   azimuthToCartesian,
   blindSpotBearings,
   elevationToRadius,
+  fovBandRadii,
   normalizeAzimuth,
   sunDotPosition,
   wedgePath,
@@ -116,6 +117,58 @@ describe('geometry — north offset', () => {
     const dOffset = wedgePath(0, 90, 100, 0, 90);
     const dBase = wedgePath(90, 180, 100, 0, 0);
     expect(dOffset).toBe(dBase);
+  });
+});
+
+describe('geometry — fovBandRadii', () => {
+  const R = 110;
+
+  it('no limits → full pie defaults', () => {
+    const { outer, inner } = fovBandRadii(undefined, undefined, R);
+    expect(outer).toBeCloseTo(R);
+    expect(inner).toBeCloseTo(0);
+  });
+
+  it('min_elevation=0 (horizon) → outer unchanged', () => {
+    const { outer, inner } = fovBandRadii(0, undefined, R);
+    expect(outer).toBeCloseTo(R);
+    expect(inner).toBeCloseTo(0);
+  });
+
+  it('max_elevation=90 (zenith) → inner unchanged', () => {
+    const { outer, inner } = fovBandRadii(undefined, 90, R);
+    expect(outer).toBeCloseTo(R);
+    expect(inner).toBeCloseTo(0);
+  });
+
+  it('min_elevation=10 only → clips outer radius', () => {
+    const { outer, inner } = fovBandRadii(10, undefined, R);
+    expect(outer).toBeCloseTo(R * elevationToRadius(10));
+    expect(inner).toBeCloseTo(0);
+  });
+
+  it('max_elevation=60 only → clips inner radius (donut)', () => {
+    const { outer, inner } = fovBandRadii(undefined, 60, R);
+    expect(outer).toBeCloseTo(R);
+    expect(inner).toBeCloseTo(R * elevationToRadius(60));
+  });
+
+  it('both min_elevation=10 and max_elevation=60 → annular band', () => {
+    const { outer, inner } = fovBandRadii(10, 60, R);
+    expect(outer).toBeCloseTo(R * elevationToRadius(10));
+    expect(inner).toBeCloseTo(R * elevationToRadius(60));
+  });
+
+  it('inverted limits (min > max) → falls back to full pie', () => {
+    const { outer, inner } = fovBandRadii(70, 30, R);
+    expect(outer).toBeCloseTo(R);
+    expect(inner).toBeCloseTo(0);
+  });
+
+  it('out-of-range values clamp via elevationToRadius', () => {
+    const { outer, inner } = fovBandRadii(-5, 95, R);
+    expect(outer).toBeCloseTo(R);
+    expect(inner).toBeCloseTo(0);
   });
 });
 

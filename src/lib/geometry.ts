@@ -71,6 +71,24 @@ export function wedgePath(
   ].join(' ');
 }
 
+/**
+ * Compute the outer and inner SVG radii for an elevation-bounded FOV wedge.
+ * min_elevation (near horizon) clips the outer edge; max_elevation (near zenith) clips the inner.
+ * Inverted or missing limits fall back to full-pie defaults (outer=outerR, inner=0).
+ */
+export function fovBandRadii(
+  minElevDeg: number | undefined,
+  maxElevDeg: number | undefined,
+  outerR: number,
+): { outer: number; inner: number } {
+  if (minElevDeg !== undefined && maxElevDeg !== undefined && minElevDeg > maxElevDeg) {
+    return { outer: outerR, inner: 0 };
+  }
+  const outer = minElevDeg !== undefined ? outerR * elevationToRadius(minElevDeg) : outerR;
+  const inner = maxElevDeg !== undefined ? outerR * elevationToRadius(maxElevDeg) : 0;
+  return { outer, inner };
+}
+
 /** Project sun (azimuth, elevation) onto the compass. */
 export function sunDotPosition(
   azimuthDeg: number,
