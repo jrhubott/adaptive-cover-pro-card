@@ -1,5 +1,6 @@
 import { LitElement, html, css, svg, nothing, type TemplateResult } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
+import { classMap } from 'lit/directives/class-map.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { DiscoveredEntities, SunPositionAttributes } from '../types';
@@ -47,6 +48,18 @@ export class SkyCompass extends LitElement {
   @property({ attribute: false }) public showWindowArrow = true;
   @property({ attribute: false }) public coverColors: (string | null | undefined)[] = [];
   @property({ attribute: false }) public northOffsetDeg = 0;
+
+  @state() private _hiddenEntries = new Set<string>();
+
+  private _toggleEntry(id: string) {
+    const next = new Set(this._hiddenEntries);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    this._hiddenEntries = next;
+  }
 
   private _sunFor(d: DiscoveredEntities): SunPositionAttributes | null {
     const id = d.entities.sun_sensor;
@@ -106,6 +119,9 @@ export class SkyCompass extends LitElement {
     if (overlays.length === 0) {
       return html`<div class="placeholder">Sun sensor not yet populated.</div>`;
     }
+
+    // Filter at render boundary so stats and legend still see all entries
+    const visibleOverlays = overlays.filter((ov) => !this._hiddenEntries.has(ov.d.entry_id));
 
     const o = normalizeAzimuth(this.northOffsetDeg);
     const multi = overlays.length > 1;
@@ -198,7 +214,7 @@ export class SkyCompass extends LitElement {
             <line class="grid thin" x1=${gridNS0.x} y1=${gridNS0.y} x2=${gridNS1.x} y2=${gridNS1.y}></line>
             <line class="grid thin" x1=${gridEW0.x} y1=${gridEW0.y} x2=${gridEW1.x} y2=${gridEW1.y}></line>
 
-            ${overlays.map((ov) => this._renderEntryLayers(ov, multi, o))}
+            ${visibleOverlays.map((ov) => this._renderEntryLayers(ov, multi, o))}
 
             ${
               this.showSunPath && pathPoints
@@ -315,7 +331,15 @@ export class SkyCompass extends LitElement {
         <div class="legend">
           ${overlays.map(
             (o) => html`
-              <div>
+              <button
+                type="button"
+                class=${classMap({
+                  'entry-toggle': true,
+                  hidden: this._hiddenEntries.has(o.d.entry_id),
+                })}
+                aria-pressed=${!this._hiddenEntries.has(o.d.entry_id)}
+                @click=${() => this._toggleEntry(o.d.entry_id)}
+              >
                 <span class="swatch entry" style="background: ${o.color}"></span>
                 ${o.d.entry_title}
                 ${o.sunInfront
@@ -323,7 +347,7 @@ export class SkyCompass extends LitElement {
                   : o.sun.in_fov
                     ? html`<span class="status in-fov">in FOV</span>`
                     : html`<span class="status">—</span>`}
-              </div>
+              </button>
             `,
           )}
           <div><span class="dot sun valid"></span> Sun</div>
@@ -487,6 +511,20 @@ export class SkyCompass extends LitElement {
       color: var(--secondary-text-color);
       flex-wrap: wrap;
       justify-content: center;
+    }
+    button.entry-toggle {
+      background: none;
+      border: 0;
+      padding: 0;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+    }
+    button.entry-toggle.hidden {
+      opacity: 0.45;
+      text-decoration: line-through;
     }
     .legend .status {
       margin-left: 4px;

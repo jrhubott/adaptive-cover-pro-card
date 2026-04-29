@@ -234,6 +234,83 @@ describe('acp-sky-compass blind spot bearing conversion', () => {
   });
 });
 
+describe('acp-sky-compass legend toggle', () => {
+  function makeTwoEntry() {
+    const d1 = makeDiscovered('entry1', 'Kitchen');
+    const d2 = makeDiscovered('entry2', 'Living');
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 },
+      { sensorId: 'sensor.sun_pos_entry2', windowAzimuth: 90 },
+    ]);
+    return { d1, d2, hass };
+  }
+
+  it('multi-entry legend rows are toggle buttons with aria-pressed="true" initially', async () => {
+    const { d1, d2, hass } = makeTwoEntry();
+    const el = await mountCompass([d1, d2], hass);
+    const buttons = el.shadowRoot!.querySelectorAll('button.entry-toggle');
+    expect(buttons.length).toBe(2);
+    buttons.forEach((btn) => expect(btn.getAttribute('aria-pressed')).toBe('true'));
+  });
+
+  it('clicking a row hides that entry overlay and sets aria-pressed="false"', async () => {
+    const { d1, d2, hass } = makeTwoEntry();
+    const el = await mountCompass([d1, d2], hass);
+    expect(el.shadowRoot!.querySelectorAll('path.fov').length).toBe(2);
+    const btn = el.shadowRoot!.querySelector('button.entry-toggle') as HTMLButtonElement;
+    btn.click();
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelectorAll('path.fov').length).toBe(1);
+    expect(btn.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('clicking a row twice restores the overlay and aria-pressed="true"', async () => {
+    const { d1, d2, hass } = makeTwoEntry();
+    const el = await mountCompass([d1, d2], hass);
+    const btn = el.shadowRoot!.querySelector('button.entry-toggle') as HTMLButtonElement;
+    btn.click();
+    await el.updateComplete;
+    btn.click();
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelectorAll('path.fov').length).toBe(2);
+    expect(btn.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('hidden row still present in legend with .hidden class', async () => {
+    const { d1, d2, hass } = makeTwoEntry();
+    const el = await mountCompass([d1, d2], hass);
+    const btn = el.shadowRoot!.querySelector('button.entry-toggle') as HTMLButtonElement;
+    btn.click();
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelectorAll('button.entry-toggle').length).toBe(2);
+    expect(btn.classList.contains('hidden')).toBe(true);
+  });
+
+  it('hiding an entry does not affect stats panel', async () => {
+    const { d1, d2, hass } = makeTwoEntry();
+    const el = await mountCompass([d1, d2], hass);
+    const btn = el.shadowRoot!.querySelector('button.entry-toggle') as HTMLButtonElement;
+    btn.click();
+    await el.updateComplete;
+    const statsText = el.shadowRoot!.querySelector('.stats')?.textContent ?? '';
+    expect(statsText).toContain('Kitchen');
+    expect(statsText).toContain('Living');
+  });
+
+  it('hidden state survives unrelated hass updates', async () => {
+    const { d1, d2, hass } = makeTwoEntry();
+    const el = await mountCompass([d1, d2], hass);
+    const btn = el.shadowRoot!.querySelector('button.entry-toggle') as HTMLButtonElement;
+    btn.click();
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelectorAll('path.fov').length).toBe(1);
+    // Trigger a re-render by reassigning hass
+    (el as SkyCompassLike).hass = { ...hass };
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelectorAll('path.fov').length).toBe(1);
+  });
+});
+
 describe('acp-sky-compass visual toggles', () => {
   const d = () => makeDiscovered('entry1', 'Kitchen');
   // Use offset values [10, 30] — with windowAzimuth=180 these must render at 150°–170°, inside FOV [135°–225°]
