@@ -86,6 +86,24 @@ export function normalizeAzimuth(deg: number): number {
 }
 
 /**
+ * Compute the outer and inner radii for an elevation-clipped FOV wedge.
+ * min_elevation (near horizon) clips the outer radius; max_elevation (near zenith) clips the inner.
+ * Returns {outer: outerR, inner: 0} (full pie) when limits are absent or inverted.
+ */
+export function fovBandRadii(
+  minElevDeg: number | undefined,
+  maxElevDeg: number | undefined,
+  outerR: number,
+): { outer: number; inner: number } {
+  if (minElevDeg !== undefined && maxElevDeg !== undefined && minElevDeg > maxElevDeg) {
+    return { outer: outerR, inner: 0 };
+  }
+  const outer = minElevDeg !== undefined ? outerR * elevationToRadius(minElevDeg) : outerR;
+  const inner = maxElevDeg !== undefined ? outerR * elevationToRadius(maxElevDeg) : 0;
+  return { outer, inner };
+}
+
+/**
  * Convert the integration's blind_spot_range (FOV-left-relative offsets,
  * [fov_left − blind_spot_right, fov_left − blind_spot_left]) into absolute
  * compass bearings [startAzi, endAzi] suitable for wedgePath.

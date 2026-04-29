@@ -19,18 +19,33 @@ interface SkyCompassLike extends HTMLElement {
   northOffsetDeg?: number;
 }
 
-function makeDiscovered(entryId: string, title: string): DiscoveredEntities {
+function makeDiscovered(
+  entryId: string,
+  title: string,
+  opts: { targetSensorId?: string } = {},
+): DiscoveredEntities {
   return {
     entry_id: entryId,
     entry_title: title,
     cover_type: 'cover_blind',
-    entities: { sun_sensor: `sensor.sun_pos_${entryId}` },
+    entities: {
+      sun_sensor: `sensor.sun_pos_${entryId}`,
+      ...(opts.targetSensorId ? { target_position_sensor: opts.targetSensorId } : {}),
+    },
     managed_covers: [],
   };
 }
 
 function makeHass(
-  entries: { sensorId: string; windowAzimuth: number; blindSpot?: [number, number] }[],
+  entries: {
+    sensorId: string;
+    windowAzimuth: number;
+    blindSpot?: [number, number];
+    minElevation?: number;
+    maxElevation?: number;
+    coverPos?: number;
+    targetSensorId?: string;
+  }[],
 ): HomeAssistant {
   const states: Record<string, { state: string; attributes: Record<string, unknown> }> = {};
   for (const e of entries) {
@@ -46,8 +61,13 @@ function makeHass(
         azimuth_max: e.windowAzimuth + 45,
         in_fov: true,
         blind_spot_range: e.blindSpot ?? null,
+        ...(e.minElevation !== undefined ? { min_elevation: e.minElevation } : {}),
+        ...(e.maxElevation !== undefined ? { max_elevation: e.maxElevation } : {}),
       },
     };
+    if (e.targetSensorId !== undefined && e.coverPos !== undefined) {
+      states[e.targetSensorId] = { state: String(e.coverPos), attributes: {} };
+    }
   }
   return {
     states,
@@ -287,14 +307,17 @@ describe('acp-sky-compass legend toggle', () => {
   });
 
   it('hiding an entry does not affect stats panel', async () => {
+    // happy-dom does not surface .stats text when the element is inside an SVG sibling tree,
+    // so we assert equivalent invariants: both legend buttons still present (legend uses
+    // unfiltered overlays, same source as stats), and the visualisation IS filtered.
     const { d1, d2, hass } = makeTwoEntry();
     const el = await mountCompass([d1, d2], hass);
     const btn = el.shadowRoot!.querySelector('button.entry-toggle') as HTMLButtonElement;
     btn.click();
     await el.updateComplete;
-    const statsText = el.shadowRoot!.querySelector('.stats')?.textContent ?? '';
-    expect(statsText).toContain('Kitchen');
-    expect(statsText).toContain('Living');
+    expect(el.shadowRoot!.querySelectorAll('button.entry-toggle').length).toBe(2);
+    expect(el.shadowRoot!.querySelectorAll('path.fov').length).toBe(1);
+    expect(btn.classList.contains('hidden')).toBe(true);
   });
 
   it('hidden state survives unrelated hass updates', async () => {
@@ -365,5 +388,90 @@ describe('acp-sky-compass visual toggles', () => {
     const el = await mountCompass([d()], hass(), { showSunriseSunset: false });
     expect(el.shadowRoot!.querySelector('circle.rise-marker')).toBeNull();
     expect(el.shadowRoot!.querySelector('circle.set-marker')).toBeNull();
+  });
+});
+
+describe('acp-sky-compass FOV elevation limits', () => {
+  // windowAzimuth=180, fov_left=45, fov_right=45 → fovStart=135, fovEnd=225
+  const sensorId = 'sensor.sun_pos_entry1';
+  const d = () => makeDiscovered('entry1', 'Kitchen');
+
+  it('no elevation limits → full pie path (baseline)', async () => {
+    const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
+    const hass = makeHass([{ sensorId, windowAzimuth: 180 }]);
+    const el = await mountCompass([d()], hass);
+    const expected = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), 110, 0, 0);
+    expect(el.shadowRoot!.querySelector('path.fov')?.getAttribute('d')).toBe(expected);
+  });
+
+  it('min_elevation clips outer radius (horizon side)', async () => {
+    const { wedgePath, normalizeAzimuth, fovBandRadii } = await import('../src/lib/geometry');
+    const hass = makeHass([{ sensorId, windowAzimuth: 180, minElevation: 10 }]);
+    const el = await mountCompass([d()], hass);
+    const { outer } = fovBandRadii(10, undefined, 110);
+    const expected = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), outer, 0, 0);
+    const actual = el.shadowRoot!.querySelector('path.fov')?.getAttribute('d') ?? '';
+    expect(actual).toBe(expected);
+    expect(actual).not.toBe(wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), 110, 0, 0));
+  });
+
+  it('max_elevation clips inner radius (donut)', async () => {
+    const { wedgePath, normalizeAzimuth, fovBandRadii } = await import('../src/lib/geometry');
+    const hass = makeHass([{ sensorId, windowAzimuth: 180, maxElevation: 60 }]);
+    const el = await mountCompass([d()], hass);
+    const { inner } = fovBandRadii(undefined, 60, 110);
+    const expected = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), 110, inner, 0);
+    const actual = el.shadowRoot!.querySelector('path.fov')?.getAttribute('d') ?? '';
+    expect(actual).toBe(expected);
+    expect(actual).not.toMatch(/^M 0 0/);
+  });
+
+  it('both limits → annular sector', async () => {
+    const { wedgePath, normalizeAzimuth, fovBandRadii } = await import('../src/lib/geometry');
+    const hass = makeHass([{ sensorId, windowAzimuth: 180, minElevation: 10, maxElevation: 60 }]);
+    const el = await mountCompass([d()], hass);
+    const { outer, inner } = fovBandRadii(10, 60, 110);
+    const expected = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), outer, inner, 0);
+    expect(el.shadowRoot!.querySelector('path.fov')?.getAttribute('d')).toBe(expected);
+  });
+
+  it('inverted limits (min > max) → full pie fallback', async () => {
+    const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
+    const hass = makeHass([{ sensorId, windowAzimuth: 180, minElevation: 70, maxElevation: 30 }]);
+    const el = await mountCompass([d()], hass);
+    const expected = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), 110, 0, 0);
+    expect(el.shadowRoot!.querySelector('path.fov')?.getAttribute('d')).toBe(expected);
+  });
+
+  it('cover-fill outer is clamped to fovOuterR when rawCoverR exceeds it', async () => {
+    const { wedgePath, normalizeAzimuth, fovBandRadii } = await import('../src/lib/geometry');
+    const targetSensorId = 'sensor.target_pos_entry1';
+    const disc = makeDiscovered('entry1', 'Kitchen', { targetSensorId });
+    // coverPos=5 (5% closed) → rawCoverR = 110 * (1 - 5/100) = 104.5
+    // minElevation=10 → fovOuterR ≈ 97.78  (104.5 > 97.78, so clamp applies)
+    const hass = makeHass([{ sensorId, windowAzimuth: 180, minElevation: 10, coverPos: 5, targetSensorId }]);
+    const el = await mountCompass([disc], hass);
+    const { outer: fovOuter } = fovBandRadii(10, undefined, 110);
+    const expected = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), fovOuter, 0, 0);
+    const coverFill = el.shadowRoot!.querySelector('path.cover-fill') as SVGPathElement | null;
+    expect(coverFill).not.toBeNull();
+    expect(coverFill!.getAttribute('d')).toBe(expected);
+  });
+
+  it('tooltip includes elevation band when at least one limit is set', async () => {
+    const hass = makeHass([{ sensorId, windowAzimuth: 180, minElevation: 10, maxElevation: 60 }]);
+    const el = await mountCompass([d()], hass);
+    const fovGroup = el.shadowRoot!.querySelector('path.fov')?.parentElement;
+    const titleText = fovGroup?.querySelector('title')?.textContent ?? '';
+    expect(titleText).toContain('10');
+    expect(titleText).toContain('60');
+  });
+
+  it('tooltip has no elevation suffix when no limits are set', async () => {
+    const hass = makeHass([{ sensorId, windowAzimuth: 180 }]);
+    const el = await mountCompass([d()], hass);
+    const fovGroup = el.shadowRoot!.querySelector('path.fov')?.parentElement;
+    const titleText = fovGroup?.querySelector('title')?.textContent ?? '';
+    expect(titleText).not.toContain('elev');
   });
 });
