@@ -22,7 +22,7 @@ interface SkyCompassLike extends HTMLElement {
 function makeDiscovered(
   entryId: string,
   title: string,
-  opts: { targetSensorId?: string } = {},
+  opts: { targetSensorId?: string; startSensorId?: string; endSensorId?: string } = {},
 ): DiscoveredEntities {
   return {
     entry_id: entryId,
@@ -31,6 +31,8 @@ function makeDiscovered(
     entities: {
       sun_sensor: `sensor.sun_pos_${entryId}`,
       ...(opts.targetSensorId ? { target_position_sensor: opts.targetSensorId } : {}),
+      ...(opts.startSensorId ? { start_sensor: opts.startSensorId } : {}),
+      ...(opts.endSensorId ? { end_sensor: opts.endSensorId } : {}),
     },
     managed_covers: [],
   };
@@ -45,6 +47,14 @@ function makeHass(
     maxElevation?: number;
     coverPos?: number;
     targetSensorId?: string;
+    startSensorId?: string;
+    startAzimuth?: number;
+    startElevation?: number;
+    startState?: string;
+    endSensorId?: string;
+    endAzimuth?: number;
+    endElevation?: number;
+    endState?: string;
   }[],
 ): HomeAssistant {
   const states: Record<string, { state: string; attributes: Record<string, unknown> }> = {};
@@ -67,6 +77,24 @@ function makeHass(
     };
     if (e.targetSensorId !== undefined && e.coverPos !== undefined) {
       states[e.targetSensorId] = { state: String(e.coverPos), attributes: {} };
+    }
+    if (e.startSensorId !== undefined) {
+      states[e.startSensorId] = {
+        state: e.startState ?? '2026-04-29T07:00:00+00:00',
+        attributes: {
+          ...(e.startAzimuth !== undefined ? { azimuth: e.startAzimuth } : {}),
+          ...(e.startElevation !== undefined ? { elevation: e.startElevation } : {}),
+        },
+      };
+    }
+    if (e.endSensorId !== undefined) {
+      states[e.endSensorId] = {
+        state: e.endState ?? '2026-04-29T19:00:00+00:00',
+        attributes: {
+          ...(e.endAzimuth !== undefined ? { azimuth: e.endAzimuth } : {}),
+          ...(e.endElevation !== undefined ? { elevation: e.endElevation } : {}),
+        },
+      };
     }
   }
   return {
@@ -473,5 +501,130 @@ describe('acp-sky-compass FOV elevation limits', () => {
     const fovGroup = el.shadowRoot!.querySelector('path.fov')?.parentElement;
     const titleText = fovGroup?.querySelector('title')?.textContent ?? '';
     expect(titleText).not.toContain('elev');
+  });
+});
+
+describe('acp-sky-compass active sun arc (start/end sensor azimuths)', () => {
+  // windowAzimuth=180, fov_left=45, fov_right=45 → fovStart=135, fovEnd=225 (full FOV fall-back)
+  const sensorId = 'sensor.sun_pos_entry1';
+  const startId = 'sensor.start_sun_entry1';
+  const endId = 'sensor.end_sun_entry1';
+
+  it('uses start/end sensor azimuths as wedge bounds when available', async () => {
+    const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
+    const d = makeDiscovered('entry1', 'Kitchen', {
+      startSensorId: startId,
+      endSensorId: endId,
+    });
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 180,
+        startSensorId: startId,
+        startAzimuth: 150,
+        startElevation: 12,
+        endSensorId: endId,
+        endAzimuth: 210,
+        endElevation: 18,
+      },
+    ]);
+    const el = await mountCompass([d], hass);
+    const expected = wedgePath(normalizeAzimuth(150), normalizeAzimuth(210), 110, 0, 0);
+    expect(el.shadowRoot!.querySelector('path.fov')?.getAttribute('d')).toBe(expected);
+  });
+
+  it('falls back to fov_left/fov_right when start/end sensors absent from discovery', async () => {
+    const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([{ sensorId, windowAzimuth: 180 }]);
+    const el = await mountCompass([d], hass);
+    const expected = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), 110, 0, 0);
+    expect(el.shadowRoot!.querySelector('path.fov')?.getAttribute('d')).toBe(expected);
+  });
+
+  it('falls back when start sensor state is unavailable', async () => {
+    const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
+    const d = makeDiscovered('entry1', 'Kitchen', {
+      startSensorId: startId,
+      endSensorId: endId,
+    });
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 180,
+        startSensorId: startId,
+        startState: 'unavailable',
+        endSensorId: endId,
+        endAzimuth: 210,
+        endElevation: 18,
+      },
+    ]);
+    const el = await mountCompass([d], hass);
+    const expected = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), 110, 0, 0);
+    expect(el.shadowRoot!.querySelector('path.fov')?.getAttribute('d')).toBe(expected);
+  });
+
+  it('falls back when azimuth attribute is missing (older integration)', async () => {
+    const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
+    const d = makeDiscovered('entry1', 'Kitchen', {
+      startSensorId: startId,
+      endSensorId: endId,
+    });
+    const hass = makeHass([
+      { sensorId, windowAzimuth: 180, startSensorId: startId, endSensorId: endId },
+    ]);
+    const el = await mountCompass([d], hass);
+    const expected = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), 110, 0, 0);
+    expect(el.shadowRoot!.querySelector('path.fov')?.getAttribute('d')).toBe(expected);
+  });
+
+  it('tooltip shows active sun arc range when active', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen', {
+      startSensorId: startId,
+      endSensorId: endId,
+    });
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 180,
+        startSensorId: startId,
+        startAzimuth: 150,
+        startElevation: 12,
+        endSensorId: endId,
+        endAzimuth: 210,
+        endElevation: 18,
+      },
+    ]);
+    const el = await mountCompass([d], hass);
+    const fovGroup = el.shadowRoot!.querySelector('path.fov')?.parentElement;
+    const titleText = fovGroup?.querySelector('title')?.textContent ?? '';
+    expect(titleText).toContain('Active sun arc');
+    expect(titleText).toMatch(/150/);
+    expect(titleText).toMatch(/210/);
+  });
+
+  it('active arc combined with min_elevation still applies elevation clipping', async () => {
+    const { wedgePath, normalizeAzimuth, fovBandRadii } = await import('../src/lib/geometry');
+    const d = makeDiscovered('entry1', 'Kitchen', {
+      startSensorId: startId,
+      endSensorId: endId,
+    });
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 180,
+        minElevation: 10,
+        startSensorId: startId,
+        startAzimuth: 150,
+        startElevation: 12,
+        endSensorId: endId,
+        endAzimuth: 210,
+        endElevation: 18,
+      },
+    ]);
+    const el = await mountCompass([d], hass);
+    const { outer } = fovBandRadii(10, undefined, 110);
+    const expected = wedgePath(normalizeAzimuth(150), normalizeAzimuth(210), outer, 0, 0);
+    expect(el.shadowRoot!.querySelector('path.fov')?.getAttribute('d')).toBe(expected);
   });
 });
