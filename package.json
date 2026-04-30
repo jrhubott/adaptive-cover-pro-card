@@ -24,7 +24,7 @@
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
-    "lint": "eslint src tests",
+    "lint": "eslint src tests && prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
     "test": "vitest run",
