@@ -91,6 +91,11 @@ export interface SunPositionAttributes {
   blind_spot_range?: [number, number];
 }
 
+export interface StartEndSunAttributes {
+  azimuth: number;
+  elevation: number;
+}
+
 export interface CoverPositionAttributes {
   actual_positions: Record<string, number | null>;
   all_at_target: boolean;

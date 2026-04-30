@@ -3,6 +3,7 @@ import {
   azimuthToCartesian,
   blindSpotBearings,
   elevationToRadius,
+  fovBandRadii,
   normalizeAzimuth,
   sunDotPosition,
   wedgePath,
@@ -116,6 +117,58 @@ describe('geometry — north offset', () => {
     const dOffset = wedgePath(0, 90, 100, 0, 90);
     const dBase = wedgePath(90, 180, 100, 0, 0);
     expect(dOffset).toBe(dBase);
+  });
+});
+
+describe('geometry — fovBandRadii', () => {
+  const R = 110;
+
+  it('no limits → full pie {outer: R, inner: 0}', () => {
+    const { outer, inner } = fovBandRadii(undefined, undefined, R);
+    expect(outer).toBe(R);
+    expect(inner).toBe(0);
+  });
+
+  it('min=0 (sunset) → outer stays at horizon, no clip', () => {
+    const { outer, inner } = fovBandRadii(0, undefined, R);
+    expect(outer).toBeCloseTo(R);
+    expect(inner).toBe(0);
+  });
+
+  it('min only → outer clipped, inner stays 0', () => {
+    const { outer, inner } = fovBandRadii(10, undefined, R);
+    expect(outer).toBeCloseTo(R * elevationToRadius(10));
+    expect(inner).toBe(0);
+  });
+
+  it('max=90 → inner stays at 0 (zenith = centre)', () => {
+    const { outer, inner } = fovBandRadii(undefined, 90, R);
+    expect(outer).toBe(R);
+    expect(inner).toBeCloseTo(0);
+  });
+
+  it('max only → inner clipped (donut)', () => {
+    const { outer, inner } = fovBandRadii(undefined, 60, R);
+    expect(outer).toBe(R);
+    expect(inner).toBeCloseTo(R * elevationToRadius(60));
+  });
+
+  it('both set → annular sector', () => {
+    const { outer, inner } = fovBandRadii(10, 60, R);
+    expect(outer).toBeCloseTo(R * elevationToRadius(10));
+    expect(inner).toBeCloseTo(R * elevationToRadius(60));
+  });
+
+  it('inverted limits (min > max) → fallback to full pie', () => {
+    const { outer, inner } = fovBandRadii(70, 30, R);
+    expect(outer).toBe(R);
+    expect(inner).toBe(0);
+  });
+
+  it('out-of-range values clamp via elevationToRadius', () => {
+    const { outer, inner } = fovBandRadii(-5, 95, R);
+    expect(outer).toBeCloseTo(R * elevationToRadius(-5)); // clamps to R*1 = R
+    expect(inner).toBeCloseTo(R * elevationToRadius(95)); // clamps to R*0 = 0
   });
 });
 

@@ -7,6 +7,7 @@ import type { DiscoveredEntities, SunPositionAttributes } from '../types';
 import {
   azimuthToCartesian,
   blindSpotBearings,
+  fovBandRadii,
   normalizeAzimuth,
   sunDotPosition,
   wedgePath,
@@ -85,6 +86,15 @@ export class SkyCompass extends LitElement {
     const id = d.entities.sun_infront_binary;
     if (!id) return false;
     return this.hass.states[id]?.state === 'on';
+  }
+
+  private _readActiveAzimuth(entityId: string | undefined): number | null {
+    if (!entityId) return null;
+    const state = this.hass.states[entityId];
+    if (!state) return null;
+    if (state.state === 'unavailable' || state.state === 'unknown') return null;
+    const azi = (state.attributes as { azimuth?: number }).azimuth;
+    return typeof azi === 'number' && Number.isFinite(azi) ? azi : null;
   }
 
   private _buildOverlays(): EntryOverlay[] {
@@ -272,19 +282,39 @@ export class SkyCompass extends LitElement {
     const windowAzi = normalizeAzimuth(o.sun.window_azimuth);
     const fovStart = normalizeAzimuth(windowAzi - o.sun.fov_left);
     const fovEnd = normalizeAzimuth(windowAzi + o.sun.fov_right);
+    const startAzi = this._readActiveAzimuth(o.d.entities.start_sensor);
+    const endAzi = this._readActiveAzimuth(o.d.entities.end_sensor);
+    const useActive = startAzi !== null && endAzi !== null;
+    const wedgeStart = useActive ? normalizeAzimuth(startAzi!) : fovStart;
+    const wedgeEnd = useActive ? normalizeAzimuth(endAzi!) : fovEnd;
     const windowArrow = azimuthToCartesian(windowAzi, OUTER_R, northOffsetDeg);
-    const coverR = o.coverPos !== null ? OUTER_R * (1 - o.coverPos / 100) : null;
+    const { outer: fovOuterR, inner: fovInnerR } = fovBandRadii(
+      o.sun.min_elevation,
+      o.sun.max_elevation,
+      OUTER_R,
+    );
+    const rawCoverR = o.coverPos !== null ? OUTER_R * (1 - o.coverPos / 100) : null;
+    const coverOuter = rawCoverR !== null ? Math.min(rawCoverR, fovOuterR) : null;
     const bsBearings = o.sun.blind_spot_range
       ? blindSpotBearings(windowAzi, o.sun.blind_spot_range as [number, number])
       : null;
     const blindSpot = bsBearings
       ? wedgePath(bsBearings[0], bsBearings[1], OUTER_R, 0, northOffsetDeg)
       : null;
-    const fovPath = wedgePath(fovStart, fovEnd, OUTER_R, 0, northOffsetDeg);
-    const coverPath = coverR !== null ? wedgePath(fovStart, fovEnd, coverR, 0, northOffsetDeg) : '';
+    const fovPath = wedgePath(wedgeStart, wedgeEnd, fovOuterR, fovInnerR, northOffsetDeg);
+    const coverPath =
+      coverOuter !== null && coverOuter > fovInnerR
+        ? wedgePath(wedgeStart, wedgeEnd, coverOuter, fovInnerR, northOffsetDeg)
+        : '';
 
     const label = multi ? `${o.d.entry_title}: ` : '';
-    const ttFov = `${label}FOV ${formatDegrees(o.sun.fov_left)} left / ${formatDegrees(o.sun.fov_right)} right`;
+    const hasElevLimit = o.sun.min_elevation !== undefined || o.sun.max_elevation !== undefined;
+    const elevSuffix = hasElevLimit
+      ? ` · elev ${formatDegrees(o.sun.min_elevation ?? 0)}–${formatDegrees(o.sun.max_elevation ?? 90)}`
+      : '';
+    const ttFov = useActive
+      ? `${label}Active sun arc ${formatDegrees(wedgeStart)} – ${formatDegrees(wedgeEnd)}${elevSuffix}`
+      : `${label}FOV ${formatDegrees(o.sun.fov_left)} left / ${formatDegrees(o.sun.fov_right)} right${elevSuffix}`;
     const ttWindow = `${label}Window normal: ${formatDegrees(windowAzi)}`;
     const ttCoverFill = o.coverPos !== null ? `${label}Cover closed: ${o.coverPos}%` : '';
     const ttBlindSpot = bsBearings
@@ -298,7 +328,7 @@ export class SkyCompass extends LitElement {
     const arrowStyle = inlineColor ? `stroke: ${o.color};` : '';
     const arrowBaseStyle = inlineColor ? `fill: ${o.color};` : '';
 
-    const showCover = this.showCoverFill && coverR !== null && coverR > 0.5;
+    const showCover = this.showCoverFill && coverPath !== '';
     const showBlind = this.showBlindSpot && !!blindSpot;
     const showArrow = this.showWindowArrow;
     const arrowPath = `M 0 0 L ${windowArrow.x} ${windowArrow.y}`;
