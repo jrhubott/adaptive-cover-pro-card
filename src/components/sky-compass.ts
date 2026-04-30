@@ -308,8 +308,7 @@ export class SkyCompass extends LitElement {
         : '';
 
     const label = multi ? `${o.d.entry_title}: ` : '';
-    const hasElevLimit =
-      o.sun.min_elevation !== undefined || o.sun.max_elevation !== undefined;
+    const hasElevLimit = o.sun.min_elevation !== undefined || o.sun.max_elevation !== undefined;
     const elevSuffix = hasElevLimit
       ? ` · elev ${formatDegrees(o.sun.min_elevation ?? 0)}–${formatDegrees(o.sun.max_elevation ?? 90)}`
       : '';

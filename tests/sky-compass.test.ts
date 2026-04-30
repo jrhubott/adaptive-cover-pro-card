@@ -477,7 +477,9 @@ describe('acp-sky-compass FOV elevation limits', () => {
     const disc = makeDiscovered('entry1', 'Kitchen', { targetSensorId });
     // coverPos=5 (5% closed) → rawCoverR = 110 * (1 - 5/100) = 104.5
     // minElevation=10 → fovOuterR ≈ 97.78  (104.5 > 97.78, so clamp applies)
-    const hass = makeHass([{ sensorId, windowAzimuth: 180, minElevation: 10, coverPos: 5, targetSensorId }]);
+    const hass = makeHass([
+      { sensorId, windowAzimuth: 180, minElevation: 10, coverPos: 5, targetSensorId },
+    ]);
     const el = await mountCompass([disc], hass);
     const { outer: fovOuter } = fovBandRadii(10, undefined, 110);
     const expected = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), fovOuter, 0, 0);
