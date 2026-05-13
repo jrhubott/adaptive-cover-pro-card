@@ -28,6 +28,7 @@ interface EntryOverlay {
   sunAzi: number;
   sunInfront: boolean;
   coverPos: number | null;
+  coverType: DiscoveredEntities['cover_type'];
   color: string;
   isOverride: boolean;
   index: number;
@@ -111,6 +112,7 @@ export class SkyCompass extends LitElement {
         sunAzi,
         sunInfront: this._sunInfrontFor(d),
         coverPos: this._coverPositionFor(d),
+        coverType: d.cover_type,
         color,
         isOverride,
         index: i,
@@ -293,7 +295,9 @@ export class SkyCompass extends LitElement {
       o.sun.max_elevation,
       OUTER_R,
     );
-    const rawCoverR = o.coverPos !== null ? OUTER_R * (1 - o.coverPos / 100) : null;
+    const coverFraction =
+      o.coverType === 'cover_awning' ? o.coverPos! / 100 : 1 - o.coverPos! / 100;
+    const rawCoverR = o.coverPos !== null ? OUTER_R * coverFraction : null;
     const coverOuter = rawCoverR !== null ? Math.min(rawCoverR, fovOuterR) : null;
     const bsBearings = o.sun.blind_spot_range
       ? blindSpotBearings(windowAzi, o.sun.blind_spot_range as [number, number])
@@ -316,7 +320,12 @@ export class SkyCompass extends LitElement {
       ? `${label}Active sun arc ${formatDegrees(wedgeStart)} – ${formatDegrees(wedgeEnd)}${elevSuffix}`
       : `${label}FOV ${formatDegrees(o.sun.fov_left)} left / ${formatDegrees(o.sun.fov_right)} right${elevSuffix}`;
     const ttWindow = `${label}Window normal: ${formatDegrees(windowAzi)}`;
-    const ttCoverFill = o.coverPos !== null ? `${label}Cover closed: ${o.coverPos}%` : '';
+    const ttCoverFill =
+      o.coverPos !== null
+        ? o.coverType === 'cover_awning'
+          ? `${label}Cover extended: ${o.coverPos}%`
+          : `${label}Cover closed: ${o.coverPos}%`
+        : '';
     const ttBlindSpot = bsBearings
       ? `${label}Blind spot: ${formatDegrees(bsBearings[0])} – ${formatDegrees(bsBearings[1])}`
       : '';

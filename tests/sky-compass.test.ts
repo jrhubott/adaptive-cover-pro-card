@@ -23,12 +23,17 @@ interface SkyCompassLike extends HTMLElement {
 function makeDiscovered(
   entryId: string,
   title: string,
-  opts: { targetSensorId?: string; startSensorId?: string; endSensorId?: string } = {},
+  opts: {
+    targetSensorId?: string;
+    startSensorId?: string;
+    endSensorId?: string;
+    coverType?: DiscoveredEntities['cover_type'];
+  } = {},
 ): DiscoveredEntities {
   return {
     entry_id: entryId,
     entry_title: title,
-    cover_type: 'cover_blind',
+    cover_type: opts.coverType ?? 'cover_blind',
     entities: {
       sun_sensor: `sensor.sun_pos_${entryId}`,
       ...(opts.targetSensorId ? { target_position_sensor: opts.targetSensorId } : {}),
@@ -504,6 +509,156 @@ describe('acp-sky-compass FOV elevation limits', () => {
     const fovGroup = el.shadowRoot!.querySelector('path.fov')?.parentElement;
     const titleText = fovGroup?.querySelector('title')?.textContent ?? '';
     expect(titleText).not.toContain('elev');
+  });
+});
+
+describe('acp-sky-compass cover-fill polarity by cover_type', () => {
+  // windowAzimuth=180, fov_left=45, fov_right=45 → fovStart=135, fovEnd=225
+  // No elevation limits, no start/end sensors → fovInnerR=0, fovOuterR=OUTER_R=110
+  // Full FOV wedge = wedgePath(135, 225, 110, 0, 0)
+
+  it('cover_awning at position=100 fills the full FOV wedge', async () => {
+    const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
+    const targetSensorId = 'sensor.target_pos_awning1';
+    const disc = makeDiscovered('awning1', 'Awning', { targetSensorId, coverType: 'cover_awning' });
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_awning1', windowAzimuth: 180, coverPos: 100, targetSensorId },
+    ]);
+    const el = await mountCompass([disc], hass);
+    const expected = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), 110, 0, 0);
+    const coverFill = el.shadowRoot!.querySelector('path.cover-fill') as SVGPathElement | null;
+    const coverGroup = el.shadowRoot!.querySelector('g.cover-group') as SVGGElement | null;
+    expect(coverFill).not.toBeNull();
+    expect(coverFill!.getAttribute('d')).toBe(expected);
+    expect(coverGroup!.getAttribute('style') ?? '').not.toContain('display: none');
+  });
+
+  it('cover_awning at position=0 hides cover-fill', async () => {
+    const targetSensorId = 'sensor.target_pos_awning2';
+    const disc = makeDiscovered('awning2', 'Awning', { targetSensorId, coverType: 'cover_awning' });
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_awning2', windowAzimuth: 180, coverPos: 0, targetSensorId },
+    ]);
+    const el = await mountCompass([disc], hass);
+    const coverGroup = el.shadowRoot!.querySelector('g.cover-group') as SVGGElement | null;
+    expect(coverGroup!.getAttribute('style') ?? '').toContain('display: none');
+  });
+
+  it('cover_awning at 50 and cover_blind at 50 produce the same cover-fill path', async () => {
+    const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
+    const targetAwning = 'sensor.target_pos_awning3';
+    const discAwning = makeDiscovered('awning3', 'Awning', {
+      targetSensorId: targetAwning,
+      coverType: 'cover_awning',
+    });
+    const hassAwning = makeHass([
+      {
+        sensorId: 'sensor.sun_pos_awning3',
+        windowAzimuth: 180,
+        coverPos: 50,
+        targetSensorId: targetAwning,
+      },
+    ]);
+    const elAwning = await mountCompass([discAwning], hassAwning);
+
+    const targetBlind = 'sensor.target_pos_blind3';
+    const discBlind = makeDiscovered('blind3', 'Blind', {
+      targetSensorId: targetBlind,
+      coverType: 'cover_blind',
+    });
+    const hassBlind = makeHass([
+      {
+        sensorId: 'sensor.sun_pos_blind3',
+        windowAzimuth: 180,
+        coverPos: 50,
+        targetSensorId: targetBlind,
+      },
+    ]);
+    const elBlind = await mountCompass([discBlind], hassBlind);
+
+    // Both should use coverFraction=0.5 → rawCoverR = 55 → wedgePath(135, 225, 55, 0, 0)
+    const expectedD = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), 55, 0, 0);
+    const awningD = elAwning.shadowRoot!.querySelector('path.cover-fill')?.getAttribute('d') ?? '';
+    const blindD = elBlind.shadowRoot!.querySelector('path.cover-fill')?.getAttribute('d') ?? '';
+    expect(awningD).toBe(expectedD);
+    expect(blindD).toBe(expectedD);
+  });
+
+  it('cover_blind at position=0 fills the full FOV wedge (regression)', async () => {
+    const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
+    const targetSensorId = 'sensor.target_pos_blind4';
+    const disc = makeDiscovered('blind4', 'Blind', { targetSensorId, coverType: 'cover_blind' });
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_blind4', windowAzimuth: 180, coverPos: 0, targetSensorId },
+    ]);
+    const el = await mountCompass([disc], hass);
+    const expected = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), 110, 0, 0);
+    const coverFill = el.shadowRoot!.querySelector('path.cover-fill') as SVGPathElement | null;
+    const coverGroup = el.shadowRoot!.querySelector('g.cover-group') as SVGGElement | null;
+    expect(coverFill).not.toBeNull();
+    expect(coverFill!.getAttribute('d')).toBe(expected);
+    expect(coverGroup!.getAttribute('style') ?? '').not.toContain('display: none');
+  });
+
+  it('cover_blind at position=100 hides cover-fill (regression)', async () => {
+    const targetSensorId = 'sensor.target_pos_blind5';
+    const disc = makeDiscovered('blind5', 'Blind', { targetSensorId, coverType: 'cover_blind' });
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_blind5', windowAzimuth: 180, coverPos: 100, targetSensorId },
+    ]);
+    const el = await mountCompass([disc], hass);
+    const coverGroup = el.shadowRoot!.querySelector('g.cover-group') as SVGGElement | null;
+    expect(coverGroup!.getAttribute('style') ?? '').toContain('display: none');
+  });
+
+  it('cover_tilt at position=0 fills the full FOV wedge (same semantics as blind)', async () => {
+    const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
+    const targetSensorId = 'sensor.target_pos_tilt6';
+    const disc = makeDiscovered('tilt6', 'Tilt', { targetSensorId, coverType: 'cover_tilt' });
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_tilt6', windowAzimuth: 180, coverPos: 0, targetSensorId },
+    ]);
+    const el = await mountCompass([disc], hass);
+    const expected = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), 110, 0, 0);
+    const coverFill = el.shadowRoot!.querySelector('path.cover-fill') as SVGPathElement | null;
+    expect(coverFill).not.toBeNull();
+    expect(coverFill!.getAttribute('d')).toBe(expected);
+  });
+
+  it('tooltip: cover_awning shows "Cover extended" and cover_blind shows "Cover closed"', async () => {
+    const targetAwning = 'sensor.target_pos_awning7';
+    const discAwning = makeDiscovered('awning7', 'Awning', {
+      targetSensorId: targetAwning,
+      coverType: 'cover_awning',
+    });
+    const hassAwning = makeHass([
+      {
+        sensorId: 'sensor.sun_pos_awning7',
+        windowAzimuth: 180,
+        coverPos: 75,
+        targetSensorId: targetAwning,
+      },
+    ]);
+    const elAwning = await mountCompass([discAwning], hassAwning);
+    const awningTitle = elAwning.shadowRoot!.querySelector('g.cover-group > title');
+    expect(awningTitle?.textContent ?? '').toContain('Cover extended: 75%');
+
+    const targetBlind = 'sensor.target_pos_blind7';
+    const discBlind = makeDiscovered('blind7', 'Blind', {
+      targetSensorId: targetBlind,
+      coverType: 'cover_blind',
+    });
+    const hassBlind = makeHass([
+      {
+        sensorId: 'sensor.sun_pos_blind7',
+        windowAzimuth: 180,
+        coverPos: 75,
+        targetSensorId: targetBlind,
+      },
+    ]);
+    const elBlind = await mountCompass([discBlind], hassBlind);
+    const blindTitle = elBlind.shadowRoot!.querySelector('g.cover-group > title');
+    expect(blindTitle?.textContent ?? '').toContain('Cover closed: 75%');
   });
 });
 
