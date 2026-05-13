@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import '../src/components/sky-compass';
+import { SkyCompass } from '../src/components/sky-compass';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities } from '../src/types';
 
@@ -503,6 +504,78 @@ describe('acp-sky-compass FOV elevation limits', () => {
     const fovGroup = el.shadowRoot!.querySelector('path.fov')?.parentElement;
     const titleText = fovGroup?.querySelector('title')?.textContent ?? '';
     expect(titleText).not.toContain('elev');
+  });
+});
+
+describe('acp-sky-compass legend completeness & theme tokens', () => {
+  // SkyCompass.styles is a Lit CSSResult; .cssText is plain text we can grep.
+  const cssText = (SkyCompass as unknown as { styles: { cssText: string } }).styles.cssText;
+
+  function cssBlock(selector: string): string {
+    // Find `selector {...}` and return the brace contents. Selectors here are
+    // literal strings the source file uses; no regex special chars to escape.
+    const idx = cssText.indexOf(selector);
+    if (idx < 0) throw new Error(`Selector not found in styles: ${selector}`);
+    const open = cssText.indexOf('{', idx);
+    const close = cssText.indexOf('}', open);
+    if (open < 0 || close < 0) throw new Error(`Malformed block for ${selector}`);
+    return cssText.slice(open + 1, close);
+  }
+
+  it('legend renders one swatch per sun visual state (3 distinct .dot.sun classes)', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
+    const el = await mountCompass([d], hass);
+    const dots = Array.from(el.shadowRoot!.querySelectorAll('.legend .dot.sun'));
+    expect(dots.length).toBe(3);
+    const valid = dots.filter((d) => d.classList.contains('valid'));
+    const inFov = dots.filter((d) => d.classList.contains('in-fov'));
+    const bare = dots.filter(
+      (d) => !d.classList.contains('valid') && !d.classList.contains('in-fov'),
+    );
+    expect(valid.length).toBe(1);
+    expect(inFov.length).toBe(1);
+    expect(bare.length).toBe(1);
+  });
+
+  it('legend labels the three sun states with distinct, clear wording', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
+    const el = await mountCompass([d], hass);
+    const text = el.shadowRoot!.textContent ?? '';
+    expect(text).toContain('Sun (hitting window)');
+    expect(text).toContain('Sun (in FOV, not valid)');
+    expect(text).toContain('Sun (outside FOV)');
+  });
+
+  it('FOV swatch shares its theme token with the FOV path', () => {
+    const fov = cssBlock('.fov ');
+    const swatch = cssBlock('.swatch.fov ');
+    expect(fov).toMatch(/var\(--warning-color/);
+    expect(swatch).toMatch(/var\(--warning-color/);
+    expect(swatch).not.toMatch(/background:\s*gold\b/);
+  });
+
+  it('sun-path swatch shares its theme token with the sun-path polyline', () => {
+    const path = cssBlock('.sun-path ');
+    const swatch = cssBlock('.swatch.sun-path-swatch ');
+    expect(path).toMatch(/var\(--warning-color/);
+    expect(swatch).toMatch(/var\(--warning-color/);
+    expect(swatch).not.toMatch(/background:\s*gold\b/);
+  });
+
+  it('valid sun dot and SVG .sun.valid share the same theme token', () => {
+    const svgValid = cssBlock('.sun.valid ');
+    const dotValid = cssBlock('.dot.sun.valid ');
+    expect(svgValid).toMatch(/var\(--warning-color/);
+    expect(dotValid).toMatch(/var\(--warning-color/);
+  });
+
+  it('in-FOV sun dot and SVG .sun.in-fov share the same theme token', () => {
+    const svgInFov = cssBlock('.sun.in-fov ');
+    const dotInFov = cssBlock('.dot.sun.in-fov ');
+    expect(svgInFov).toMatch(/var\(--state-active-color/);
+    expect(dotInFov).toMatch(/var\(--state-active-color/);
   });
 });
 

@@ -386,8 +386,9 @@ export class SkyCompass extends LitElement {
       `;
     }
     return html`<div class="legend">
-      <div><span class="dot sun valid"></span> Sun (in FOV)</div>
-      <div><span class="dot sun"></span> Sun (outside)</div>
+      <div><span class="dot sun valid"></span> Sun (hitting window)</div>
+      <div><span class="dot sun in-fov"></span> Sun (in FOV, not valid)</div>
+      <div><span class="dot sun"></span> Sun (outside FOV)</div>
       ${this.showMoon ? html`<div><span class="dot moon-dot"></span> Moon</div>` : nothing}
       <div><span class="swatch fov"></span> Window FOV</div>
       ${this.showSunPath
@@ -528,11 +529,11 @@ export class SkyCompass extends LitElement {
         fill 0.3s ease;
     }
     .sun.in-fov {
-      fill: orange;
+      fill: var(--state-active-color, orange);
     }
     .sun.valid {
-      fill: gold;
-      filter: drop-shadow(0 0 4px gold);
+      fill: var(--warning-color, gold);
+      filter: drop-shadow(0 0 4px var(--warning-color, gold));
     }
     .legend {
       display: flex;
@@ -561,10 +562,10 @@ export class SkyCompass extends LitElement {
       opacity: 0.8;
     }
     .legend .status.valid {
-      color: gold;
+      color: var(--warning-color, gold);
     }
     .legend .status.in-fov {
-      color: orange;
+      color: var(--state-active-color, orange);
     }
     .dot,
     .swatch {
@@ -576,7 +577,7 @@ export class SkyCompass extends LitElement {
       margin-right: 4px;
     }
     .swatch.fov {
-      background: gold;
+      background: var(--warning-color, gold);
       opacity: 0.4;
       border-radius: 2px;
     }
@@ -588,7 +589,10 @@ export class SkyCompass extends LitElement {
       background: var(--secondary-text-color);
     }
     .dot.sun.valid {
-      background: gold;
+      background: var(--warning-color, gold);
+    }
+    .dot.sun.in-fov {
+      background: var(--state-active-color, orange);
     }
     .swatch.cover-fill-swatch {
       background: var(--primary-color);
@@ -600,7 +604,7 @@ export class SkyCompass extends LitElement {
       border-radius: 2px;
     }
     .swatch.sun-path-swatch {
-      background: gold;
+      background: var(--warning-color, gold);
       opacity: 0.45;
       border-radius: 2px;
     }
@@ -630,7 +634,7 @@ export class SkyCompass extends LitElement {
       color: var(--primary-text-color);
     }
     .entry-row .status.in-fov {
-      color: orange;
+      color: var(--state-active-color, orange);
     }
     .dim {
       color: var(--secondary-text-color);
