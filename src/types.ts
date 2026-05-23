@@ -26,6 +26,22 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
   };
 }
 
+export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
+  type: string;
+  entry_id: string;
+  /** Render the plain-English decision-summary sentence under the title. */
+  show_decision_summary?: boolean;
+  /** Render the cover's current position to the right of the title. */
+  show_position?: boolean;
+  /** What happens on tap — `dialog` opens the more-info dialog, `none` is inert. */
+  tap_action?: 'dialog' | 'none';
+  /** Override the discovered instance title. */
+  name?: string;
+  /** Explicit `cover.*` entity when an entry manages multiple covers
+   *  (default: first key of the integration's `actual_positions`). */
+  cover?: string;
+}
+
 export interface SkyCompassCardConfig extends LovelaceCardConfig {
   type: string;
   entry_ids: string[];

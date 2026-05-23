@@ -24,6 +24,7 @@ import './components/header-pill';
 import './components/sky-compass';
 import './components/elevation-chart';
 import './components/decision-strip';
+import './adaptive-cover-pro-tile-card';
 import './components/cover-bar';
 import './components/overrides-panel';
 import './components/climate-panel';

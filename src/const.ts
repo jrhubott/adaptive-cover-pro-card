@@ -3,6 +3,7 @@ export const CARD_NAME = 'adaptive-cover-pro-card';
 export const CARD_EDITOR_NAME = 'adaptive-cover-pro-card-editor';
 export const SKY_COMPASS_CARD_NAME = 'adaptive-cover-pro-sky-compass-card';
 export const SKY_COMPASS_CARD_EDITOR_NAME = 'adaptive-cover-pro-sky-compass-card-editor';
+export const TILE_CARD_NAME = 'adaptive-cover-pro-tile-card';
 
 export const INTEGRATION_DOMAIN = 'adaptive_cover_pro';
 
@@ -43,6 +44,62 @@ export const COVER_TYPE_ICONS: Record<string, string> = {
   cover_blind: 'mdi:blinds-horizontal',
   cover_awning: 'mdi:awning-outline',
   cover_tilt: 'mdi:blinds',
+};
+
+/**
+ * Badge kinds rendered on the tile card. Each ACP pipeline handler maps to one
+ * kind; `auto` is the fallback for unknown / "default" winners.
+ */
+export type BadgeKind =
+  | 'auto'
+  | 'manual'
+  | 'force'
+  | 'weather'
+  | 'glare_zone'
+  | 'climate'
+  | 'cloud'
+  | 'custom_position'
+  | 'solar'
+  | 'motion';
+
+/**
+ * Map a normalized winner-handler name to its badge kind. Anything not in this
+ * table (including `default` and unknown handler names) falls through to `auto`.
+ */
+export const BADGE_KINDS_BY_HANDLER: Partial<Record<HandlerName, BadgeKind>> = {
+  manual: 'manual',
+  force: 'force',
+  weather: 'weather',
+  glare_zone: 'glare_zone',
+  climate: 'climate',
+  cloud: 'cloud',
+  custom_position: 'custom_position',
+  solar: 'solar',
+  motion: 'motion',
+};
+
+interface BadgeTokens {
+  label: string;
+  bg: string;
+  fg: string;
+}
+
+/**
+ * Visual tokens per badge kind. Colors are chosen against the HA dark/light
+ * background defaults; they're intentionally hard-coded rather than driven by
+ * `var(--*)` so the badge reads the same regardless of theme.
+ */
+export const BADGE_TOKENS: Record<BadgeKind, BadgeTokens> = {
+  auto: { label: 'Auto', bg: 'rgba(76, 175, 80, 0.18)', fg: '#2e7d32' },
+  manual: { label: 'Manual', bg: 'rgba(255, 152, 0, 0.22)', fg: '#e65100' },
+  force: { label: 'Force', bg: 'rgba(244, 67, 54, 0.22)', fg: '#b71c1c' },
+  weather: { label: 'Sun protection', bg: 'rgba(244, 67, 54, 0.22)', fg: '#b71c1c' },
+  glare_zone: { label: 'Glare', bg: 'rgba(244, 67, 54, 0.22)', fg: '#b71c1c' },
+  climate: { label: 'Climate', bg: 'rgba(0, 150, 136, 0.22)', fg: '#00695c' },
+  cloud: { label: 'Cloudy', bg: 'rgba(33, 150, 243, 0.22)', fg: '#0d47a1' },
+  custom_position: { label: 'Custom', bg: 'rgba(156, 39, 176, 0.22)', fg: '#6a1b9a' },
+  solar: { label: 'Sun tracking', bg: 'rgba(76, 175, 80, 0.22)', fg: '#1b5e20' },
+  motion: { label: 'Motion', bg: 'rgba(255, 235, 59, 0.22)', fg: '#827717' },
 };
 
 /** Logical slots the card binds to. */
