@@ -213,7 +213,11 @@ export class MoreInfoDialog extends LitElement {
     if (samples.length === 0) return nothing;
     return html`<div class="forecast-block">
       <div class="forecast-label">Today's forecast</div>
-      <acp-forecast-strip .samples=${samples} .events=${events}></acp-forecast-strip>
+      <acp-forecast-strip
+        .samples=${samples}
+        .events=${events}
+        .now=${Date.now()}
+      ></acp-forecast-strip>
     </div>`;
   }
 

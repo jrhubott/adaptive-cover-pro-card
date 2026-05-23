@@ -16,6 +16,8 @@ import type { ForecastEvent, ForecastSample } from '../types';
 export class ForecastStrip extends LitElement {
   @property({ attribute: false }) public samples: ForecastSample[] = [];
   @property({ attribute: false }) public events: ForecastEvent[] = [];
+  /** Optional override for "now"; defaults to wall-clock at render time. */
+  @property({ attribute: false }) public now?: number;
 
   // Fixed SVG viewport. The element scales to fit its container via
   // preserveAspectRatio="none" so callers can constrain the rendered height
@@ -62,6 +64,19 @@ export class ForecastStrip extends LitElement {
       })
       .filter((node) => node !== null);
 
+    const now = this.now ?? Date.now();
+    let nowMarker: TemplateResult | typeof nothing = nothing;
+    if (now >= start && now <= end) {
+      const x = ((now - start) / span) * VIEW_W;
+      nowMarker = svg`<line
+        class="now-line"
+        x1=${x.toFixed(1)}
+        x2=${x.toFixed(1)}
+        y1="0"
+        y2=${VIEW_H}
+      ><title>Now</title></line>`;
+    }
+
     return html`
       <div class="wrap">
         <svg
@@ -72,6 +87,7 @@ export class ForecastStrip extends LitElement {
           <line class="baseline" x1="0" y1=${VIEW_H - 0.5} x2=${VIEW_W} y2=${VIEW_H - 0.5}></line>
           <polyline class="curve" points=${points} fill="none"></polyline>
           ${eventLines}
+          ${nowMarker}
         </svg>
       </div>
     `;
@@ -128,6 +144,11 @@ export class ForecastStrip extends LitElement {
     }
     .evt-fov_exit {
       stroke: #9e9e9e;
+    }
+    .now-line {
+      stroke: var(--primary-text-color);
+      stroke-width: 1.5;
+      vector-effect: non-scaling-stroke;
     }
   `;
 }
