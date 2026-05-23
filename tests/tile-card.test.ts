@@ -56,6 +56,20 @@ const REGISTRY: EntityRegistryEntry[] = [
     platform: 'adaptive_cover_pro',
     device_id: null,
   },
+  {
+    entity_id: 'switch.integration_enabled',
+    unique_id: `${ENTRY}_Integration Enabled`,
+    config_entry_id: ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+  {
+    entity_id: 'switch.automatic_control',
+    unique_id: `${ENTRY}_Automatic Control`,
+    config_entry_id: ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
 ];
 
 function makeHass(
@@ -64,6 +78,8 @@ function makeHass(
     coverPositionSensorAttrs: Record<string, unknown>;
     manualOverrideOn: boolean;
     decisionAttrs: Record<string, unknown>;
+    integrationEnabled: boolean;
+    automaticControl: boolean;
     callService: (...args: unknown[]) => unknown;
   }> = {},
 ): HomeAssistant {
@@ -86,6 +102,14 @@ function makeHass(
       },
       'sensor.manual_override_end_time': {
         state: '2026-05-23T16:51:00Z',
+        attributes: {},
+      },
+      'switch.integration_enabled': {
+        state: overrides.integrationEnabled === false ? 'off' : 'on',
+        attributes: {},
+      },
+      'switch.automatic_control': {
+        state: overrides.automaticControl === false ? 'off' : 'on',
         attributes: {},
       },
       'cover.left': { state: 'open', attributes: { friendly_name: 'Left blind' } },
@@ -163,6 +187,33 @@ describe('adaptive-cover-pro-tile-card render', () => {
       makeHass({ decisionState: 'custom_position_1' }),
     );
     expect(el.shadowRoot!.querySelector('.resume')).toBeTruthy();
+  });
+
+  it('hides the badge entirely when automatic_control is off but integration is on', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass({ automaticControl: false }));
+    expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeFalsy();
+  });
+
+  it('renders the Off badge when integration_enabled is off', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ integrationEnabled: false }),
+    );
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).toBe('Off');
+  });
+
+  it('renders the Off badge when both switches are off (integration_enabled wins over automatic_control)', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ integrationEnabled: false, automaticControl: false }),
+    );
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).toBe('Off');
   });
 });
 

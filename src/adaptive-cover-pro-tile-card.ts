@@ -183,6 +183,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
         : '';
 
     const hasBottomSummary = !!summary && twoLine;
+    const integrationEnabled = this._switchOn(discovered, 'integration_enabled_switch');
+    const automaticControl = this._switchOn(discovered, 'automatic_control_switch');
+    const renderBadge = showBadge && !(automaticControl === false && integrationEnabled === true);
 
     return html`
       <div
@@ -235,9 +238,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
               </button>
             </div>`
           : nothing}
-        ${showBadge
+        ${renderBadge
           ? html`<acp-tile-badge
               .winner=${winner}
+              .integrationEnabled=${integrationEnabled}
               .slotNumber=${traceAttrs?.custom_position_active_slot}
               .slotName=${traceAttrs?.custom_position_active_slot_name}
               .pct=${position ?? undefined}
@@ -293,6 +297,15 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const id = discovered.entities.manual_override_binary;
     if (!id) return false;
     return this.hass.states[id]?.state === 'on';
+  }
+
+  private _switchOn(
+    discovered: DiscoveredEntities,
+    role: 'integration_enabled_switch' | 'automatic_control_switch',
+  ): boolean {
+    const id = discovered.entities[role];
+    if (!id) return true;
+    return this.hass.states[id]?.state !== 'off';
   }
 
   private _manualEndIso(discovered: DiscoveredEntities): string | undefined {

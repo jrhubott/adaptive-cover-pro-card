@@ -354,3 +354,138 @@ describe('acp-more-info-dialog: Resume Auto', () => {
     expect(el.shadowRoot!.querySelector('button.resume')).toBeTruthy();
   });
 });
+
+describe('acp-more-info-dialog: Controls row', () => {
+  type SwitchStates = Partial<{
+    automatic: 'on' | 'off';
+    climate: 'on' | 'off';
+    motion: 'on' | 'off';
+  }>;
+  function withControls(states: SwitchStates = {}): {
+    d: DiscoveredEntities;
+    h: HomeAssistant;
+    callService: ReturnType<typeof vi.fn>;
+  } {
+    const d = discovered({
+      automatic_control_switch: 'switch.automatic',
+      climate_mode_switch: 'switch.climate',
+      motion_control_switch: 'switch.motion',
+    });
+    const callService = vi.fn();
+    const h = hass({ callService });
+    const s = h.states as Record<string, { state: string; attributes: Record<string, unknown> }>;
+    s['switch.automatic'] = { state: states.automatic ?? 'on', attributes: {} };
+    s['switch.climate'] = { state: states.climate ?? 'on', attributes: {} };
+    s['switch.motion'] = { state: states.motion ?? 'on', attributes: {} };
+    return { d, h, callService };
+  }
+
+  it('renders three chips when all three switches are discovered', async () => {
+    const { d, h } = withControls();
+    const el = await mount({ hass: h, discovered: d, open: true });
+    const chips = el.shadowRoot!.querySelectorAll('.controls-block .ctrl-toggle');
+    expect(chips.length).toBe(3);
+    const labels = Array.from(chips).map(
+      (c) => c.querySelector('.ctrl-label')?.textContent?.trim() ?? '',
+    );
+    expect(labels).toEqual(['Automatic', 'Climate', 'Motion']);
+  });
+
+  it('chip state reflects each switch (on/off)', async () => {
+    const { d, h } = withControls({ automatic: 'off' });
+    const el = await mount({ hass: h, discovered: d, open: true });
+    const chips = el.shadowRoot!.querySelectorAll('.controls-block .ctrl-toggle');
+    expect(chips[0].classList.contains('off')).toBe(true);
+    expect(chips[0].getAttribute('aria-pressed')).toBe('false');
+    expect(chips[1].classList.contains('on')).toBe(true);
+    expect(chips[1].getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('clicking an on chip calls switch.turn_off with that entity_id', async () => {
+    const { d, h, callService } = withControls();
+    const el = await mount({ hass: h, discovered: d, open: true });
+    const chip = el.shadowRoot!.querySelectorAll('.controls-block .ctrl-toggle')[0] as HTMLElement;
+    chip.click();
+    expect(callService).toHaveBeenCalledWith('switch', 'turn_off', {
+      entity_id: 'switch.automatic',
+    });
+  });
+
+  it('clicking an off chip calls switch.turn_on with that entity_id', async () => {
+    const { d, h, callService } = withControls({ motion: 'off' });
+    const el = await mount({ hass: h, discovered: d, open: true });
+    const chip = el.shadowRoot!.querySelectorAll('.controls-block .ctrl-toggle')[2] as HTMLElement;
+    chip.click();
+    expect(callService).toHaveBeenCalledWith('switch', 'turn_on', { entity_id: 'switch.motion' });
+  });
+
+  it('renders only the discovered switches (omits chips for missing entities)', async () => {
+    const d = discovered({ automatic_control_switch: 'switch.automatic' });
+    const h = hass();
+    (h.states as Record<string, { state: string; attributes: Record<string, unknown> }>)[
+      'switch.automatic'
+    ] = { state: 'on', attributes: {} };
+    const el = await mount({ hass: h, discovered: d, open: true });
+    const chips = el.shadowRoot!.querySelectorAll('.controls-block .ctrl-toggle');
+    expect(chips.length).toBe(1);
+    expect(chips[0].querySelector('.ctrl-label')?.textContent?.trim()).toBe('Automatic');
+  });
+
+  it('hides the Controls block entirely when none of the three switches are discovered', async () => {
+    const el = await mount({ hass: hass(), discovered: discovered(), open: true });
+    expect(el.shadowRoot!.querySelector('.controls-block')).toBeNull();
+  });
+});
+
+describe('acp-more-info-dialog: header badge respects control switches', () => {
+  function trace() {
+    return [
+      { handler: 'solar', matched: true, position: 100, reason: '' },
+      { handler: 'default', matched: false, position: 0, reason: '' },
+    ];
+  }
+
+  it('renders matched handler badges when both switches are on', async () => {
+    const d = discovered({
+      automatic_control_switch: 'switch.automatic',
+      integration_enabled_switch: 'switch.master',
+    });
+    const h = hass({ trace: trace() });
+    const s = h.states as Record<string, { state: string; attributes: Record<string, unknown> }>;
+    s['switch.automatic'] = { state: 'on', attributes: {} };
+    s['switch.master'] = { state: 'on', attributes: {} };
+    const el = await mount({ hass: h, discovered: d, open: true });
+    const badges = el.shadowRoot!.querySelectorAll('.header acp-tile-badge');
+    expect(badges.length).toBe(1);
+  });
+
+  it('hides header badges entirely when automatic_control is off (integration on)', async () => {
+    const d = discovered({
+      automatic_control_switch: 'switch.automatic',
+      integration_enabled_switch: 'switch.master',
+    });
+    const h = hass({ trace: trace() });
+    const s = h.states as Record<string, { state: string; attributes: Record<string, unknown> }>;
+    s['switch.automatic'] = { state: 'off', attributes: {} };
+    s['switch.master'] = { state: 'on', attributes: {} };
+    const el = await mount({ hass: h, discovered: d, open: true });
+    const badges = el.shadowRoot!.querySelectorAll('.header acp-tile-badge');
+    expect(badges.length).toBe(0);
+  });
+
+  it('renders a single Off badge in the header when integration_enabled is off', async () => {
+    const d = discovered({
+      automatic_control_switch: 'switch.automatic',
+      integration_enabled_switch: 'switch.master',
+    });
+    const h = hass({ trace: trace() });
+    const s = h.states as Record<string, { state: string; attributes: Record<string, unknown> }>;
+    s['switch.automatic'] = { state: 'on', attributes: {} };
+    s['switch.master'] = { state: 'off', attributes: {} };
+    const el = await mount({ hass: h, discovered: d, open: true });
+    const badges = el.shadowRoot!.querySelectorAll('.header acp-tile-badge');
+    expect(badges.length).toBe(1);
+    const txt = badges[0].shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(txt).toBe('Off');
+  });
+});

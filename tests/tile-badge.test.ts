@@ -9,6 +9,7 @@ interface BadgeLike extends HTMLElement {
   pct?: number;
   minimumMode?: boolean;
   manualEndIso?: string;
+  integrationEnabled?: boolean;
 }
 
 async function mountBadge(props: Partial<BadgeLike>): Promise<BadgeLike> {
@@ -152,5 +153,17 @@ describe('acp-tile-badge', () => {
     const el = await mountBadge({ winner: 'SolarHandler' });
     expect(text(el)).toBe('Sun tracking');
     expect(kind(el)).toBe('solar');
+  });
+
+  it('renders Off when integrationEnabled is false, regardless of winner', async () => {
+    const el = await mountBadge({ winner: 'solar', integrationEnabled: false });
+    expect(text(el)).toBe('Off');
+    expect(kind(el)).toBe('off');
+  });
+
+  it('falls back to handler-driven kind when integrationEnabled is left default (true)', async () => {
+    const el = await mountBadge({ winner: 'default' });
+    expect(text(el)).toBe('Auto');
+    expect(kind(el)).toBe('auto');
   });
 });

@@ -37,6 +37,10 @@ export class TileBadge extends LitElement {
 
   @property({ type: Boolean, reflect: true }) public compact = false;
 
+  /** When false, the badge renders an "Off" pill regardless of `winner`. */
+  @property({ type: Boolean, attribute: 'integration-enabled' })
+  public integrationEnabled = true;
+
   protected render(): TemplateResult {
     const kind = this._kind();
     const tokens = BADGE_TOKENS[kind];
@@ -50,6 +54,7 @@ export class TileBadge extends LitElement {
   }
 
   private _kind(): BadgeKind {
+    if (this.integrationEnabled === false) return 'off';
     const normalized = normalizeHandler(this.winner) as HandlerName;
     return BADGE_KINDS_BY_HANDLER[normalized] ?? 'auto';
   }

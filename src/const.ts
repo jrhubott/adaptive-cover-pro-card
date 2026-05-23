@@ -61,7 +61,8 @@ export type BadgeKind =
   | 'cloud'
   | 'custom_position'
   | 'solar'
-  | 'motion';
+  | 'motion'
+  | 'off';
 
 /**
  * Map a normalized winner-handler name to its badge kind. Anything not in this
@@ -101,6 +102,7 @@ export const BADGE_TOKENS: Record<BadgeKind, BadgeTokens> = {
   custom_position: { label: 'Custom', bg: 'rgba(156, 39, 176, 0.22)', fg: '#6a1b9a' },
   solar: { label: 'Sun tracking', bg: 'rgba(76, 175, 80, 0.22)', fg: '#1b5e20' },
   motion: { label: 'Motion', bg: 'rgba(255, 235, 59, 0.22)', fg: '#827717' },
+  off: { label: 'Off', bg: 'rgba(97, 97, 97, 0.28)', fg: '#212121' },
 };
 
 /** Logical slots the card binds to. */

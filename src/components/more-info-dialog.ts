@@ -51,6 +51,8 @@ export class MoreInfoDialog extends LitElement {
     const summary = attrs ? buildDecisionSentence(attrs.trace ?? [], attrs, winner) : '';
     const target = this._target();
     const showResume = this._shouldShowResume(winner);
+    const integrationEnabled = this._switchOn('integration_enabled_switch');
+    const automaticControl = this._switchOn('automatic_control_switch');
 
     return html`
       <div class="backdrop" data-open @click=${this._onBackdrop}>
@@ -62,22 +64,26 @@ export class MoreInfoDialog extends LitElement {
             ></ha-icon>
             <div class="title">${this.discovered.entry_title}</div>
             <div class="badges">
-              ${matched.map(
-                (h) =>
-                  html`<acp-tile-badge
-                    .winner=${h}
-                    .slotNumber=${h === 'custom_position'
-                      ? attrs?.custom_position_active_slot
-                      : undefined}
-                    .slotName=${h === 'custom_position'
-                      ? attrs?.custom_position_active_slot_name
-                      : undefined}
-                    .pct=${h === 'custom_position' ? (target ?? undefined) : undefined}
-                    .minimumMode=${h === 'custom_position'
-                      ? attrs?.custom_position_minimum_mode
-                      : undefined}
-                  ></acp-tile-badge>`,
-              )}
+              ${!integrationEnabled
+                ? html`<acp-tile-badge .integrationEnabled=${false}></acp-tile-badge>`
+                : !automaticControl
+                  ? nothing
+                  : matched.map(
+                      (h) =>
+                        html`<acp-tile-badge
+                          .winner=${h}
+                          .slotNumber=${h === 'custom_position'
+                            ? attrs?.custom_position_active_slot
+                            : undefined}
+                          .slotName=${h === 'custom_position'
+                            ? attrs?.custom_position_active_slot_name
+                            : undefined}
+                          .pct=${h === 'custom_position' ? (target ?? undefined) : undefined}
+                          .minimumMode=${h === 'custom_position'
+                            ? attrs?.custom_position_minimum_mode
+                            : undefined}
+                        ></acp-tile-badge>`,
+                    )}
             </div>
             <button class="close" type="button" aria-label="Close" @click=${this._emitClose}>
               ✕
@@ -96,7 +102,7 @@ export class MoreInfoDialog extends LitElement {
 
           <acp-cover-bar .hass=${this.hass} .discovered=${this.discovered}></acp-cover-bar>
 
-          ${this._renderForecastStrip()}
+          ${this._renderForecastStrip()} ${this._renderControls()}
           ${showResume
             ? html`<div class="actions">
                 <button class="resume" type="button" @click=${this._onResume}>Resume Auto</button>
@@ -190,6 +196,12 @@ export class MoreInfoDialog extends LitElement {
     return this.hass.states[id]?.state === 'on';
   }
 
+  private _switchOn(role: 'integration_enabled_switch' | 'automatic_control_switch'): boolean {
+    const id = this.discovered.entities[role];
+    if (!id) return true;
+    return this.hass.states[id]?.state !== 'off';
+  }
+
   private _shouldShowResume(winner: string): boolean {
     if (!this.discovered.entities.reset_override_button) return false;
     if (this._manualOverrideOn()) return true;
@@ -227,6 +239,44 @@ export class MoreInfoDialog extends LitElement {
         ${slot.enabled ? 'On' : 'Off'}
       </button>
     </div>`;
+  }
+
+  private _renderControls(): TemplateResult | typeof nothing {
+    type SwitchRole = 'automatic_control_switch' | 'climate_mode_switch' | 'motion_control_switch';
+    const rows: Array<{ role: SwitchRole; label: string }> = (
+      [
+        { role: 'automatic_control_switch', label: 'Automatic' },
+        { role: 'climate_mode_switch', label: 'Climate' },
+        { role: 'motion_control_switch', label: 'Motion' },
+      ] as const
+    ).filter((r) => !!this.discovered.entities[r.role]);
+    if (rows.length === 0) return nothing;
+    return html`<div class="controls-block">
+      <div class="controls-label">Controls</div>
+      <div class="controls-row">${rows.map((r) => this._renderSwitchChip(r.role, r.label))}</div>
+    </div>`;
+  }
+
+  private _renderSwitchChip(
+    role: 'automatic_control_switch' | 'climate_mode_switch' | 'motion_control_switch',
+    label: string,
+  ): TemplateResult {
+    const id = this.discovered.entities[role]!;
+    const on = this.hass.states[id]?.state === 'on';
+    return html`<button
+      class="ctrl-toggle ${on ? 'on' : 'off'}"
+      type="button"
+      aria-pressed=${on}
+      aria-label=${`${label} ${on ? 'on' : 'off'} — tap to toggle`}
+      @click=${() => this._toggleSwitch(id, on)}
+    >
+      <span class="ctrl-label">${label}</span>
+      <span class="ctrl-state">${on ? 'On' : 'Off'}</span>
+    </button>`;
+  }
+
+  private _toggleSwitch(entity_id: string, currentlyOn: boolean): void {
+    this.hass.callService('switch', currentlyOn ? 'turn_off' : 'turn_on', { entity_id });
   }
 
   private _renderForecastStrip(): TemplateResult | typeof nothing {
@@ -452,6 +502,54 @@ export class MoreInfoDialog extends LitElement {
       color: var(--secondary-text-color);
       text-transform: uppercase;
       letter-spacing: 0.05em;
+    }
+    .controls-block {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .controls-label {
+      font-size: 0.78rem;
+      color: var(--secondary-text-color);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .ctrl-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.16));
+      background: transparent;
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: var(--primary-text-color);
+    }
+    .ctrl-toggle .ctrl-label {
+      font-weight: 500;
+    }
+    .ctrl-toggle .ctrl-state {
+      font-size: 0.75rem;
+      color: var(--secondary-text-color);
+    }
+    .ctrl-toggle.on {
+      background: rgba(76, 175, 80, 0.16);
+      border-color: rgba(76, 175, 80, 0.5);
+    }
+    .ctrl-toggle.on .ctrl-state {
+      color: #1b5e20;
+    }
+    .ctrl-toggle.off {
+      opacity: 0.85;
+    }
+    .ctrl-toggle:hover {
+      background: rgba(var(--rgb-primary-color, 33, 150, 243), 0.08);
     }
   `;
 }
