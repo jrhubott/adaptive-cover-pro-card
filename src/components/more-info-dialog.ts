@@ -9,6 +9,9 @@ import type {
   DecisionTraceAttributes,
   DecisionStep,
   DiscoveredEntities,
+  ForecastEvent,
+  ForecastSample,
+  PositionForecastAttributes,
 } from '../types';
 import { formatPercent } from '../lib/formatters';
 
@@ -17,6 +20,7 @@ import './decision-strip';
 import './overrides-panel';
 import './climate-panel';
 import './cover-bar';
+import './forecast-strip';
 
 /**
  * ACP-specific more-info dialog rendered by the card (not HA's built-in
@@ -90,6 +94,7 @@ export class MoreInfoDialog extends LitElement {
 
           <acp-cover-bar .hass=${this.hass} .discovered=${this.discovered}></acp-cover-bar>
 
+          ${this._renderForecastStrip()}
           ${hasReset
             ? html`<div class="actions">
                 <button class="resume" type="button" @click=${this._onResume}>Resume Auto</button>
@@ -196,6 +201,19 @@ export class MoreInfoDialog extends LitElement {
       >
         ${slot.enabled ? 'On' : 'Off'}
       </button>
+    </div>`;
+  }
+
+  private _renderForecastStrip(): TemplateResult | typeof nothing {
+    const id = this.discovered.entities.position_forecast_sensor;
+    if (!id) return nothing;
+    const attrs = this.hass.states[id]?.attributes as PositionForecastAttributes | undefined;
+    const samples: ForecastSample[] = attrs?.forecast ?? [];
+    const events: ForecastEvent[] = attrs?.events ?? [];
+    if (samples.length === 0) return nothing;
+    return html`<div class="forecast-block">
+      <div class="forecast-label">Today's forecast</div>
+      <acp-forecast-strip .samples=${samples} .events=${events}></acp-forecast-strip>
     </div>`;
   }
 
@@ -390,6 +408,17 @@ export class MoreInfoDialog extends LitElement {
     }
     .slot-toggle.off {
       color: var(--secondary-text-color);
+    }
+    .forecast-block {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .forecast-label {
+      font-size: 0.78rem;
+      color: var(--secondary-text-color);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
   `;
 }

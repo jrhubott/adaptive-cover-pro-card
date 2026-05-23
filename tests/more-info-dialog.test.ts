@@ -240,6 +240,49 @@ describe('acp-more-info-dialog: slot management', () => {
   });
 });
 
+describe('acp-more-info-dialog: forecast strip', () => {
+  function discWithForecast(): DiscoveredEntities {
+    return {
+      ...discovered(),
+      entities: { ...discovered().entities, position_forecast_sensor: 'sensor.forecast' },
+    };
+  }
+
+  it('renders the strip when the forecast sensor has samples', async () => {
+    const d = discWithForecast();
+    const h = hass();
+    (h.states as Record<string, unknown>)['sensor.forecast'] = {
+      state: '2026-06-01T10:00:00Z',
+      attributes: {
+        forecast: [
+          { t: '2026-06-01T06:00:00Z', position: 0, handler: 'default' },
+          { t: '2026-06-01T08:00:00Z', position: 50, handler: 'solar' },
+        ],
+        events: [{ t: '2026-06-01T07:30:00Z', kind: 'fov_enter', label: 'Sun enters FOV' }],
+      },
+    };
+    const el = await mount({ hass: h, discovered: d, open: true });
+    const strip = el.shadowRoot!.querySelector('acp-forecast-strip');
+    expect(strip).toBeTruthy();
+  });
+
+  it('hides the strip when the forecast sensor is not discovered', async () => {
+    const el = await mount({ hass: hass(), discovered: discovered(), open: true });
+    expect(el.shadowRoot!.querySelector('acp-forecast-strip')).toBeNull();
+  });
+
+  it('hides the strip when the forecast attribute has no samples', async () => {
+    const d = discWithForecast();
+    const h = hass();
+    (h.states as Record<string, unknown>)['sensor.forecast'] = {
+      state: '',
+      attributes: { forecast: [], events: [] },
+    };
+    const el = await mount({ hass: h, discovered: d, open: true });
+    expect(el.shadowRoot!.querySelector('acp-forecast-strip')).toBeNull();
+  });
+});
+
 describe('acp-more-info-dialog: Resume Auto', () => {
   it('Resume button calls button.press on reset_override_button', async () => {
     const callService = vi.fn();

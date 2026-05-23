@@ -117,6 +117,7 @@ export type EntityRole =
   | 'motion_status_sensor'
   | 'force_override_sensor'
   | 'climate_status_sensor'
+  | 'position_forecast_sensor'
   | 'sun_infront_binary'
   | 'manual_override_binary'
   | 'position_mismatch_binary'
@@ -180,6 +181,7 @@ export const UNIQUE_ID_ROLES: Record<string, EntityRole> = {
   'sensor:motion_status': 'motion_status_sensor',
   'sensor:force_override_triggers': 'force_override_sensor',
   'sensor:climate_status': 'climate_status_sensor',
+  'sensor:position_forecast': 'position_forecast_sensor',
 
   // binary_sensor
   'binary_sensor:sun_motion': 'sun_infront_binary',

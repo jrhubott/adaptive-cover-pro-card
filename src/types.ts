@@ -111,6 +111,23 @@ export interface DecisionTraceAttributes {
   custom_position_slots?: CustomPositionSlotSnapshot[];
 }
 
+export interface ForecastSample {
+  t: string;
+  position: number;
+  handler: 'solar' | 'default' | string;
+}
+
+export interface ForecastEvent {
+  t: string;
+  kind: 'sunrise' | 'sunset' | 'fov_enter' | 'fov_exit' | string;
+  label: string;
+}
+
+export interface PositionForecastAttributes {
+  forecast: ForecastSample[];
+  events: ForecastEvent[];
+}
+
 export interface CustomPositionSlotSnapshot {
   slot: 1 | 2 | 3 | 4;
   enabled: boolean;
