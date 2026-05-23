@@ -90,6 +90,9 @@ export interface DiscoveredEntities {
   entities: Partial<Record<EntityRole, string>>;
   /** Underlying HA cover entity_ids the integration controls. */
   managed_covers: string[];
+  /** HA device the integration's entities are attached to. Used to deep-link
+   *  into `/config/devices/device/<id>` from the more-info dialog. */
+  device_id?: string;
 }
 
 export interface DecisionStep {

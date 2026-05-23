@@ -85,6 +85,26 @@ export class MoreInfoDialog extends LitElement {
                         ></acp-tile-badge>`,
                     )}
             </div>
+            <button
+              class="icon-btn options-link"
+              type="button"
+              aria-label="Configure integration"
+              title="Configure integration"
+              @click=${this._openIntegrationPage}
+            >
+              <ha-icon icon="mdi:tune-variant"></ha-icon>
+            </button>
+            ${this.discovered.device_id
+              ? html`<button
+                  class="icon-btn device-link"
+                  type="button"
+                  aria-label="Open device page"
+                  title="Open device page"
+                  @click=${this._openDevicePage}
+                >
+                  <ha-icon icon="mdi:cog"></ha-icon>
+                </button>`
+              : nothing}
             <button class="close" type="button" aria-label="Close" @click=${this._emitClose}>
               ✕
             </button>
@@ -310,6 +330,22 @@ export class MoreInfoDialog extends LitElement {
     this.advancedOpen = !this.advancedOpen;
   };
 
+  private _openDevicePage = (): void => {
+    const deviceId = this.discovered.device_id;
+    if (!deviceId) return;
+    this._navigate(`/config/devices/device/${deviceId}`);
+  };
+
+  private _openIntegrationPage = (): void => {
+    this._navigate(`/config/integrations/integration/${INTEGRATION_DOMAIN}`);
+  };
+
+  private _navigate(path: string): void {
+    history.pushState(null, '', path);
+    window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: false } }));
+    this._emitClose();
+  }
+
   private _onBackdrop = (e: MouseEvent): void => {
     if (e.target === e.currentTarget) this._emitClose();
   };
@@ -380,6 +416,19 @@ export class MoreInfoDialog extends LitElement {
       padding: 4px 6px;
     }
     .close:hover {
+      color: var(--primary-text-color);
+    }
+    .icon-btn {
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      color: var(--secondary-text-color);
+      padding: 4px 6px;
+      display: inline-flex;
+      align-items: center;
+      --mdc-icon-size: 18px;
+    }
+    .icon-btn:hover {
       color: var(--primary-text-color);
     }
     .summary {

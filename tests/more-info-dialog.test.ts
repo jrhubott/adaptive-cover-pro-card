@@ -81,6 +81,65 @@ describe('acp-more-info-dialog: open/close', () => {
   });
 });
 
+describe('acp-more-info-dialog: header nav buttons', () => {
+  it('omits the device-link button when discovered.device_id is missing', async () => {
+    const el = await mount({ hass: hass(), discovered: discovered(), open: true });
+    expect(el.shadowRoot!.querySelector('button.device-link')).toBeNull();
+  });
+
+  it('renders the device-link button when discovered.device_id is present', async () => {
+    const d = { ...discovered(), device_id: 'dev_123' };
+    const el = await mount({ hass: hass(), discovered: d, open: true });
+    expect(el.shadowRoot!.querySelector('button.device-link')).toBeTruthy();
+  });
+
+  it('clicking device-link navigates to the device page and closes the dialog', async () => {
+    const d = { ...discovered(), device_id: 'dev_123' };
+    const el = await mount({ hass: hass(), discovered: d, open: true });
+    const pushSpy = vi.spyOn(history, 'pushState');
+    const eventSpy = vi.fn();
+    window.addEventListener('location-changed', eventSpy);
+    const closeSpy = vi.fn();
+    el.addEventListener('acp-dialog-close', closeSpy);
+
+    (el.shadowRoot!.querySelector('button.device-link') as HTMLElement).click();
+
+    expect(pushSpy).toHaveBeenCalledWith(null, '', '/config/devices/device/dev_123');
+    expect(eventSpy).toHaveBeenCalledTimes(1);
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+
+    window.removeEventListener('location-changed', eventSpy);
+    pushSpy.mockRestore();
+  });
+
+  it('always renders the options-link button regardless of device_id', async () => {
+    const el = await mount({ hass: hass(), discovered: discovered(), open: true });
+    expect(el.shadowRoot!.querySelector('button.options-link')).toBeTruthy();
+  });
+
+  it('clicking options-link navigates to the integration page and closes the dialog', async () => {
+    const el = await mount({ hass: hass(), discovered: discovered(), open: true });
+    const pushSpy = vi.spyOn(history, 'pushState');
+    const eventSpy = vi.fn();
+    window.addEventListener('location-changed', eventSpy);
+    const closeSpy = vi.fn();
+    el.addEventListener('acp-dialog-close', closeSpy);
+
+    (el.shadowRoot!.querySelector('button.options-link') as HTMLElement).click();
+
+    expect(pushSpy).toHaveBeenCalledWith(
+      null,
+      '',
+      '/config/integrations/integration/adaptive_cover_pro',
+    );
+    expect(eventSpy).toHaveBeenCalledTimes(1);
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+
+    window.removeEventListener('location-changed', eventSpy);
+    pushSpy.mockRestore();
+  });
+});
+
 describe('acp-more-info-dialog: header content', () => {
   it('renders the discovered title in the header', async () => {
     const el = await mount({ hass: hass(), discovered: discovered(), open: true });
