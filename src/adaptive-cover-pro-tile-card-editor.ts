@@ -28,11 +28,28 @@ const RESUME_OPTIONS = [
   { value: 'never', label: 'Never' },
 ];
 
+const LAYOUT_OPTIONS = [
+  { value: 'one-line', label: 'One line (compact)' },
+  { value: 'two-line', label: 'Two lines (title on top)' },
+];
+
+// Mirror the runtime defaults applied in adaptive-cover-pro-tile-card.ts so the
+// editor toggles reflect actual behavior when a key is omitted from YAML.
+const FORM_DEFAULTS = {
+  show_position: true,
+  show_decision_summary: false,
+  show_controls: true,
+  show_badge: true,
+  show_resume: 'auto',
+  layout: 'one-line',
+} as const;
+
 const LABELS: Record<string, string> = {
   entry_id: 'Adaptive Cover Pro instance',
   name: 'Title override',
   icon: 'Icon override',
   cover: 'Cover entity',
+  layout: 'Layout',
   show_position: 'Show position %',
   show_decision_summary: 'Show decision summary',
   show_controls: 'Show ↑■▼ controls',
@@ -145,9 +162,18 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
   private _valueChanged = (e: ValueChangedEvent): void => {
     e.stopPropagation();
     const value = e.detail.value;
-    // ha-form passes back the entire form value; merge over the existing
-    // config so unrelated keys (type, future fields) are preserved.
-    this._emit({ ...(this._config ?? { type: '', entry_id: '' }), ...value });
+    // ha-form passes back the entire form value (including defaults we pre-fill
+    // for display). Drop keys that match the default and weren't already in
+    // the user's config, so the YAML stays minimal.
+    const cleaned: Record<string, unknown> = { ...value };
+    for (const [k, def] of Object.entries(FORM_DEFAULTS)) {
+      const wasSet = this._config && Object.prototype.hasOwnProperty.call(this._config, k);
+      if (!wasSet && cleaned[k] === def) delete cleaned[k];
+    }
+    this._emit({
+      ...(this._config ?? { type: '', entry_id: '' }),
+      ...(cleaned as Partial<AdaptiveCoverProTileCardConfig>),
+    });
   };
 
   protected render(): TemplateResult | typeof nothing {
@@ -176,11 +202,12 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     }
 
     const schema = this._schema();
+    const data = { ...FORM_DEFAULTS, ...this._config };
 
     return html`
       <ha-form
         .hass=${this.hass}
-        .data=${this._config}
+        .data=${data}
         .schema=${schema}
         .computeLabel=${this._computeLabel}
         @value-changed=${this._valueChanged}
@@ -217,6 +244,10 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       { name: 'name', selector: { text: {} } },
       { name: 'icon', selector: { icon: {} } },
       { name: 'cover', selector: coverSelector },
+      {
+        name: 'layout',
+        selector: { select: { mode: 'list', options: LAYOUT_OPTIONS } },
+      },
       { name: 'show_position', selector: { boolean: {} } },
       { name: 'show_decision_summary', selector: { boolean: {} } },
       { name: 'show_controls', selector: { boolean: {} } },

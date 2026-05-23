@@ -286,8 +286,10 @@ describe('acp-more-info-dialog: forecast strip', () => {
 describe('acp-more-info-dialog: Resume Auto', () => {
   it('Resume button calls button.press on reset_override_button', async () => {
     const callService = vi.fn();
+    // Need a winner of custom_position OR manual override on for the button
+    // to render at all under the auto-hide logic.
     const el = await mount({
-      hass: hass({ callService }),
+      hass: hass({ callService, winner: 'custom_position_1' }),
       discovered: discovered(),
       open: true,
     });
@@ -298,7 +300,30 @@ describe('acp-more-info-dialog: Resume Auto', () => {
   it('Resume button is hidden when no reset_override_button discovered', async () => {
     const d = discovered();
     delete d.entities.reset_override_button;
-    const el = await mount({ hass: hass(), discovered: d, open: true });
+    const el = await mount({
+      hass: hass({ winner: 'custom_position_1' }),
+      discovered: d,
+      open: true,
+    });
     expect(el.shadowRoot!.querySelector('button.resume')).toBeNull();
+  });
+
+  it('Resume button is hidden when control is fully automatic (no manual override, no custom position)', async () => {
+    const el = await mount({
+      hass: hass({ winner: 'solar' }),
+      discovered: discovered(),
+      open: true,
+    });
+    expect(el.shadowRoot!.querySelector('button.resume')).toBeNull();
+  });
+
+  it('Resume button is shown when manual override is active', async () => {
+    const d = discovered({ manual_override_binary: 'binary_sensor.manual_override' });
+    const h = hass({ winner: 'solar' });
+    (h.states as Record<string, { state: string; attributes: Record<string, unknown> }>)[
+      'binary_sensor.manual_override'
+    ] = { state: 'on', attributes: {} };
+    const el = await mount({ hass: h, discovered: d, open: true });
+    expect(el.shadowRoot!.querySelector('button.resume')).toBeTruthy();
   });
 });

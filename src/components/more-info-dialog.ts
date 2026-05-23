@@ -48,7 +48,7 @@ export class MoreInfoDialog extends LitElement {
     const matched = this._matchedHandlers(attrs);
     const summary = attrs ? buildDecisionSentence(attrs.trace ?? [], attrs, winner) : '';
     const target = this._target();
-    const hasReset = !!this.discovered.entities.reset_override_button;
+    const showResume = this._shouldShowResume(winner);
 
     return html`
       <div class="backdrop" data-open @click=${this._onBackdrop}>
@@ -95,7 +95,7 @@ export class MoreInfoDialog extends LitElement {
           <acp-cover-bar .hass=${this.hass} .discovered=${this.discovered}></acp-cover-bar>
 
           ${this._renderForecastStrip()}
-          ${hasReset
+          ${showResume
             ? html`<div class="actions">
                 <button class="resume" type="button" @click=${this._onResume}>Resume Auto</button>
               </div>`
@@ -170,6 +170,18 @@ export class MoreInfoDialog extends LitElement {
     if (!btn) return;
     this.hass.callService('button', 'press', { entity_id: btn });
   };
+
+  private _manualOverrideOn(): boolean {
+    const id = this.discovered.entities.manual_override_binary;
+    if (!id) return false;
+    return this.hass.states[id]?.state === 'on';
+  }
+
+  private _shouldShowResume(winner: string): boolean {
+    if (!this.discovered.entities.reset_override_button) return false;
+    if (this._manualOverrideOn()) return true;
+    return (normalizeHandler(winner) as HandlerName) === 'custom_position';
+  }
 
   private _renderSlots(
     slots: CustomPositionSlotSnapshot[] | undefined,

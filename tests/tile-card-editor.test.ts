@@ -166,6 +166,7 @@ describe('adaptive-cover-pro-tile-card editor — schema', () => {
       'name',
       'icon',
       'cover',
+      'layout',
       'show_position',
       'show_decision_summary',
       'show_controls',

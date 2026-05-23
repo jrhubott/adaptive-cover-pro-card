@@ -169,6 +169,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const showPosition = cfg.show_position !== false;
     const showControls = cfg.show_controls !== false;
     const showBadge = cfg.show_badge !== false;
+    const twoLine = cfg.layout === 'two-line';
     const position = this._currentPosition(discovered);
     const winner = this._winner(discovered);
     const traceAttrs = this._traceAttrs(discovered);
@@ -182,7 +183,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
     return html`
       <div
-        class="tile-body"
+        class=${`tile-body${twoLine ? ' two-line' : ''}`}
         role=${inert ? 'group' : 'button'}
         tabindex=${inert ? -1 : 0}
         @pointerdown=${this._onPointerDown}
@@ -426,6 +427,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     }
     ha-card {
       padding: 6px 10px;
+      overflow: hidden;
     }
     .tile-body {
       display: grid;
@@ -436,6 +438,15 @@ export class AdaptiveCoverProTileCard extends LitElement {
       row-gap: 2px;
       cursor: pointer;
       user-select: none;
+      min-width: 0;
+    }
+    .tile-body.two-line {
+      grid-template-columns: 24px auto minmax(0, 1fr) auto;
+      grid-template-rows: auto auto;
+      grid-template-areas:
+        'icon label    label position'
+        'icon controls badge resume';
+      row-gap: 4px;
     }
     .tile-body[role='group'] {
       cursor: default;
@@ -490,6 +501,8 @@ export class AdaptiveCoverProTileCard extends LitElement {
     }
     acp-tile-badge {
       grid-area: badge;
+      min-width: 0;
+      overflow: hidden;
     }
     .resume {
       grid-area: resume;
