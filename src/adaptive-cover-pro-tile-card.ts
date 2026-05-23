@@ -152,6 +152,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
         .hass=${this.hass}
         .discovered=${discovered}
         .open=${this._dialogOpen}
+        .showCompass=${this._config.show_compass !== false}
         @acp-dialog-close=${this._closeDialog}
       ></acp-more-info-dialog>
     `;
@@ -431,7 +432,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
     }
     .tile-body {
       display: grid;
-      grid-template-columns: 24px minmax(0, 1fr) auto auto auto auto;
+      /* Position column is fixed-width so the controls land at the same x
+         across stacked tiles regardless of the digit count (87% vs 100%). */
+      grid-template-columns: 24px minmax(0, 1fr) 3rem auto auto auto;
       grid-template-areas: 'icon label position controls badge resume';
       align-items: center;
       column-gap: 8px;
@@ -441,11 +444,11 @@ export class AdaptiveCoverProTileCard extends LitElement {
       min-width: 0;
     }
     .tile-body.two-line {
-      grid-template-columns: 24px auto minmax(0, 1fr) auto;
+      grid-template-columns: 24px 3rem auto minmax(0, 1fr) auto;
       grid-template-rows: auto auto;
       grid-template-areas:
-        'icon label    label position'
-        'icon controls badge resume';
+        'icon label    label    label label'
+        'icon position controls badge resume';
       row-gap: 4px;
     }
     .tile-body[role='group'] {
@@ -474,6 +477,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
       font-variant-numeric: tabular-nums;
       color: var(--primary-text-color);
       padding: 0 4px;
+      /* Right-align the digits so the % sign sits flush against the controls
+         column edge — combined with the fixed-width position grid column, this
+         keeps the ▲ ■ ▼ row aligned across stacked tiles. */
+      text-align: right;
     }
     .controls {
       grid-area: controls;

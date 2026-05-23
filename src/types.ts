@@ -44,6 +44,9 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   show_controls?: boolean;
   /** Render the contextual badge (default true). */
   show_badge?: boolean;
+  /** Render the sky compass inside the more-info dialog's Advanced section
+   *  (default true). */
+  show_compass?: boolean;
   /** Resume-button visibility. `auto` keeps the original
    *  manual-override/custom-position rule; `always` shows whenever a
    *  reset_override_button exists; `never` hides it. */

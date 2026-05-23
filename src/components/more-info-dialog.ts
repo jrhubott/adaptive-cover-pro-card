@@ -21,6 +21,7 @@ import './overrides-panel';
 import './climate-panel';
 import './cover-bar';
 import './forecast-strip';
+import './sky-compass';
 
 /**
  * ACP-specific more-info dialog rendered by the card (not HA's built-in
@@ -40,6 +41,7 @@ export class MoreInfoDialog extends LitElement {
   @property({ type: Boolean, reflect: true }) public open = false;
 
   @property({ type: Boolean }) public advancedOpen = false;
+  @property({ type: Boolean }) public showCompass = true;
 
   protected render(): TemplateResult | typeof nothing {
     if (!this.open || !this.hass || !this.discovered) return nothing;
@@ -106,6 +108,17 @@ export class MoreInfoDialog extends LitElement {
           </button>
           ${this.advancedOpen
             ? html`<div class="advanced">
+                ${this.showCompass
+                  ? html`<div class="advanced-compass">
+                      <acp-sky-compass
+                        .hass=${this.hass}
+                        .discovered_list=${[this.discovered]}
+                        ?compact=${true}
+                        .showLegend=${false}
+                        .showStats=${true}
+                      ></acp-sky-compass>
+                    </div>`
+                  : nothing}
                 ${this._renderSlots(attrs?.custom_position_slots)}
                 <acp-decision-strip
                   .hass=${this.hass}
@@ -372,6 +385,10 @@ export class MoreInfoDialog extends LitElement {
       gap: 12px;
       padding-top: 4px;
       border-top: 1px solid var(--divider-color, rgba(0, 0, 0, 0.08));
+    }
+    .advanced-compass {
+      display: flex;
+      justify-content: center;
     }
     .slots-section {
       display: flex;

@@ -56,8 +56,11 @@ export class TileBadge extends LitElement {
 
   private _label(kind: BadgeKind, base: string): string {
     if (kind === 'manual') {
+      // The orange "manual" color already signals the kind — when a
+      // countdown time is available we drop the "Manual · " prefix so the
+      // badge stays narrow ("04:35 PM" instead of "Manual · 04:35 PM").
       if (!this.manualEndIso) return base;
-      return `${base} · ${formatClock(this.manualEndIso)}`;
+      return formatClock(this.manualEndIso);
     }
     if (kind === 'custom_position') {
       const slotPart = this.slotName

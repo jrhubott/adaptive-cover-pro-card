@@ -49,14 +49,14 @@ describe('acp-tile-badge', () => {
     expect(kind(el)).toBe('solar');
   });
 
-  it('renders Manual + countdown clock when manualEndIso is set', async () => {
+  it('renders just the countdown clock when manualEndIso is set (the manual color signals the kind)', async () => {
     const el = await mountBadge({
       winner: 'manual',
       manualEndIso: '2026-05-23T16:51:00Z',
     });
     // formatClock uses toLocaleTimeString, which emits either "16:51" (24h
-    // locales) or "4:51 PM" (12h locales). Match both shapes after the prefix.
-    expect(text(el)).toMatch(/^Manual · \d{1,2}:\d{2}(?:\s?[AP]M)?$/);
+    // locales) or "4:51 PM" (12h locales). Match both shapes; no prefix.
+    expect(text(el)).toMatch(/^\d{1,2}:\d{2}(?:\s?[AP]M)?$/);
     expect(kind(el)).toBe('manual');
   });
 

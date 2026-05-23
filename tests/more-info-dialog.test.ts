@@ -8,6 +8,7 @@ interface DialogLike extends HTMLElement {
   hass?: HomeAssistant;
   discovered?: DiscoveredEntities;
   open?: boolean;
+  showCompass?: boolean;
 }
 
 async function mount(props: Partial<DialogLike>): Promise<DialogLike> {
@@ -280,6 +281,32 @@ describe('acp-more-info-dialog: forecast strip', () => {
     };
     const el = await mount({ hass: h, discovered: d, open: true });
     expect(el.shadowRoot!.querySelector('acp-forecast-strip')).toBeNull();
+  });
+});
+
+describe('acp-more-info-dialog: sky compass', () => {
+  it('renders the compass in the advanced section by default when advanced is open', async () => {
+    const el = await mount({ hass: hass(), discovered: discovered(), open: true });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('.advanced acp-sky-compass')).toBeTruthy();
+  });
+
+  it('hides the compass when showCompass=false', async () => {
+    const el = await mount({
+      hass: hass(),
+      discovered: discovered(),
+      open: true,
+      showCompass: false,
+    });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('.advanced acp-sky-compass')).toBeNull();
+  });
+
+  it('does not render the compass while advanced is collapsed', async () => {
+    const el = await mount({ hass: hass(), discovered: discovered(), open: true });
+    expect(el.shadowRoot!.querySelector('acp-sky-compass')).toBeNull();
   });
 });
 
