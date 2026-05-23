@@ -38,6 +38,10 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   cover?: string;
   /** Render the cover's current position to the right of the title. */
   show_position?: boolean;
+  /** Render the cover's localized state ("Open" / "Closed" / "Opening" / …)
+   *  in the position slot. Combined with `show_position`, renders as
+   *  "Open · 12%". Defaults to true. */
+  show_state?: boolean;
   /** Render the plain-English decision-summary sentence under the title. */
   show_decision_summary?: boolean;
   /** Render the ↑■▼ controls row (default true). */

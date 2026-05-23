@@ -159,11 +159,30 @@ describe('adaptive-cover-pro-tile-card setConfig', () => {
 });
 
 describe('adaptive-cover-pro-tile-card render', () => {
-  it('renders the discovered title and current position', async () => {
+  it('renders state and position by default ("Open · 42%")', async () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
     const root = el.shadowRoot!;
-    // Position cell shows rounded percent of cover_position sensor state.
-    expect(root.querySelector('.position')?.textContent?.trim()).toBe('42%');
+    // cover.left has state 'open' in the fixture; no localizer is mocked so
+    // formatCoverState falls back to capitalizing the raw state.
+    expect(root.querySelector('.position')?.textContent?.trim()).toBe('Open · 42%');
+  });
+
+  it('renders only the percentage when show_state is false (legacy behavior)', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY, show_state: false }, makeHass());
+    expect(el.shadowRoot!.querySelector('.position')?.textContent?.trim()).toBe('42%');
+  });
+
+  it('renders only the state when show_position is false', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY, show_position: false }, makeHass());
+    expect(el.shadowRoot!.querySelector('.position')?.textContent?.trim()).toBe('Open');
+  });
+
+  it('hides the position cell entirely when both toggles are off', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, show_position: false, show_state: false },
+      makeHass(),
+    );
+    expect(el.shadowRoot!.querySelector('.position')).toBeFalsy();
   });
 
   it('renders the Auto badge by default and no inline Resume', async () => {

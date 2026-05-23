@@ -21,7 +21,7 @@ import type {
   DiscoveredEntities,
 } from './types';
 import { buildDecisionSentence, normalizeHandler } from './lib/decision-summary';
-import { formatPercent } from './lib/formatters';
+import { formatCoverState, formatPercent } from './lib/formatters';
 
 import './components/tile-badge';
 import './components/more-info-dialog';
@@ -169,6 +169,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const cover = this._resolvedCover(discovered);
     const icon = cfg.icon ?? pickCoverIcon(discovered.cover_type, this._liveCoverPosition(cover));
     const showPosition = cfg.show_position !== false;
+    const showState = cfg.show_state !== false;
     const showControls = cfg.show_controls !== false;
     const showBadge = cfg.show_badge !== false;
     const motionState = cfg.show_motion_icon !== false ? this._motionActiveState(discovered) : null;
@@ -190,10 +191,14 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const integrationEnabled = this._switchOn(discovered, 'integration_enabled_switch');
     const automaticControl = this._switchOn(discovered, 'automatic_control_switch');
     const renderBadge = showBadge && !(automaticControl === false && integrationEnabled === true);
+    const stateText = showState ? formatCoverState(this.hass, cover) : null;
+    const positionText = showPosition && position !== null ? formatPercent(position) : null;
+    const labelParts = [stateText, positionText].filter((p): p is string => !!p);
+    const hasStateLabel = !!stateText;
 
     return html`
       <div
-        class=${`tile-body${twoLine ? ' two-line' : ''}${hasBottomSummary ? ' has-summary' : ''}`}
+        class=${`tile-body${twoLine ? ' two-line' : ''}${hasBottomSummary ? ' has-summary' : ''}${hasStateLabel ? ' has-state-label' : ''}`}
         role=${inert ? 'group' : 'button'}
         tabindex=${inert ? -1 : 0}
         @pointerdown=${this._onPointerDown}
@@ -219,7 +224,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
             ? html`<div class="summary inline-summary" title=${summary}>${summary}</div>`
             : nothing}
         </div>
-        ${showPosition ? html`<div class="position">${formatPercent(position)}</div>` : nothing}
+        ${labelParts.length > 0
+          ? html`<div class="position">${labelParts.join(' · ')}</div>`
+          : nothing}
         ${showControls
           ? html`<div class="controls" @click=${this._stop} @pointerdown=${this._stop}>
               <button
@@ -494,6 +501,16 @@ export class AdaptiveCoverProTileCard extends LitElement {
         'icon label    label    label label'
         'icon position controls badge resume';
       row-gap: 4px;
+    }
+    /* When the state label is rendered ("Open · 12%") the position cell needs
+       to grow to fit variable-width text. Strict tile-to-tile alignment of the
+       ▲ ■ ▼ controls is impossible once the label is variable, so we let
+       the cell auto-size. */
+    .tile-body.has-state-label {
+      grid-template-columns: 24px minmax(0, 1fr) auto auto auto auto;
+    }
+    .tile-body.two-line.has-state-label {
+      grid-template-columns: 24px auto auto minmax(0, 1fr) auto;
     }
     .tile-body.two-line.has-summary .label {
       display: flex;

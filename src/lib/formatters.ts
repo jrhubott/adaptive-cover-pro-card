@@ -4,6 +4,38 @@ export function formatPercent(value: number | null | undefined): string {
   return `${Math.round(value)}%`;
 }
 
+interface HassLike {
+  states: Record<string, { state: string; attributes?: Record<string, unknown> } | undefined>;
+  localize?: (key: string, ...args: unknown[]) => string;
+  formatEntityState?: (stateObj: unknown) => string;
+}
+
+/**
+ * Localized cover state ("Open", "Closed", "Opening", …). Returns null when
+ * the entity is missing or has no state. Prefers `hass.formatEntityState`
+ * (modern HA frontend), falls back to `hass.localize` with the standard
+ * cover state translation key, and finally to a capitalized raw state.
+ */
+export function formatCoverState(
+  hass: HassLike | undefined,
+  entityId: string | undefined,
+): string | null {
+  if (!hass || !entityId) return null;
+  const stateObj = hass.states[entityId];
+  if (!stateObj?.state || stateObj.state === 'unknown' || stateObj.state === 'unavailable') {
+    return null;
+  }
+  if (typeof hass.formatEntityState === 'function') {
+    const formatted = hass.formatEntityState(stateObj);
+    if (formatted) return formatted;
+  }
+  if (typeof hass.localize === 'function') {
+    const localized = hass.localize(`component.cover.entity_component._.state.${stateObj.state}`);
+    if (localized) return localized;
+  }
+  return stateObj.state.charAt(0).toUpperCase() + stateObj.state.slice(1);
+}
+
 /** Format an angle in degrees with one decimal. */
 export function formatDegrees(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '—';

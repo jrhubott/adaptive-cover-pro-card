@@ -37,6 +37,7 @@ const LAYOUT_OPTIONS = [
 // editor toggles reflect actual behavior when a key is omitted from YAML.
 const FORM_DEFAULTS = {
   show_position: true,
+  show_state: true,
   show_decision_summary: false,
   show_controls: true,
   show_badge: true,
@@ -53,6 +54,7 @@ const LABELS: Record<string, string> = {
   cover: 'Cover entity',
   layout: 'Layout',
   show_position: 'Show position %',
+  show_state: 'Show state (Open/Closed)',
   show_decision_summary: 'Show decision summary',
   show_controls: 'Show ↑■▼ controls',
   show_badge: 'Show contextual badge',
@@ -253,6 +255,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
         selector: { select: { mode: 'list', options: LAYOUT_OPTIONS } },
       },
       { name: 'show_position', selector: { boolean: {} } },
+      { name: 'show_state', selector: { boolean: {} } },
       { name: 'show_decision_summary', selector: { boolean: {} } },
       { name: 'show_controls', selector: { boolean: {} } },
       { name: 'show_badge', selector: { boolean: {} } },
