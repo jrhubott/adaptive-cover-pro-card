@@ -47,6 +47,9 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   /** Render the sky compass inside the more-info dialog's Advanced section
    *  (default true). */
   show_compass?: boolean;
+  /** Render a small motion indicator overlaid on the cover icon when the
+   *  motion handler reports `motion_detected` (default true). */
+  show_motion_icon?: boolean;
   /** Resume-button visibility. `auto` keeps the original
    *  manual-override/custom-position rule; `always` shows whenever a
    *  reset_override_button exists; `never` hides it. */

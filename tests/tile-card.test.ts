@@ -422,6 +422,87 @@ describe('adaptive-cover-pro-tile-card new options', () => {
   });
 });
 
+describe('adaptive-cover-pro-tile-card motion indicator', () => {
+  const MOTION_REGISTRY: EntityRegistryEntry[] = [
+    ...REGISTRY,
+    {
+      entity_id: 'sensor.motion_status',
+      unique_id: `${ENTRY}_motion_status`,
+      config_entry_id: ENTRY,
+      platform: 'adaptive_cover_pro',
+      device_id: null,
+    },
+  ];
+
+  function makeMotionHass(motionState: string): HomeAssistant {
+    const hass = makeHass();
+    (hass.states as Record<string, unknown>)['sensor.motion_status'] = {
+      state: motionState,
+      attributes: {},
+    };
+    return hass;
+  }
+
+  async function mountWithMotion(
+    config: AdaptiveCoverProTileCardConfig,
+    motionState: string,
+  ): Promise<CardLike> {
+    const el = makeCard();
+    el.setConfig(config);
+    el.hass = makeMotionHass(motionState);
+    document.body.appendChild(el);
+    el._registry = MOTION_REGISTRY;
+    await el.updateComplete;
+    return el;
+  }
+
+  it('renders the overlay when motion_status is motion_detected', async () => {
+    const el = await mountWithMotion({ type: TYPE, entry_id: ENTRY }, 'motion_detected');
+    const overlay = el.shadowRoot!.querySelector('.motion-overlay');
+    expect(overlay).toBeTruthy();
+    expect(overlay!.getAttribute('title')).toBe('Motion detected');
+  });
+
+  it('renders the overlay when motion_status is timeout_pending', async () => {
+    const el = await mountWithMotion({ type: TYPE, entry_id: ENTRY }, 'timeout_pending');
+    const overlay = el.shadowRoot!.querySelector('.motion-overlay');
+    expect(overlay).toBeTruthy();
+    expect(overlay!.getAttribute('title')).toBe('Motion timeout pending');
+  });
+
+  it('hides the overlay when motion_status is no_motion', async () => {
+    const el = await mountWithMotion({ type: TYPE, entry_id: ENTRY }, 'no_motion');
+    expect(el.shadowRoot!.querySelector('.motion-overlay')).toBeFalsy();
+  });
+
+  it('hides the overlay when show_motion_icon is false even during motion', async () => {
+    const el = await mountWithMotion(
+      { type: TYPE, entry_id: ENTRY, show_motion_icon: false },
+      'motion_detected',
+    );
+    expect(el.shadowRoot!.querySelector('.motion-overlay')).toBeFalsy();
+  });
+
+  it('hides the overlay when show_motion_icon is false during timeout_pending', async () => {
+    const el = await mountWithMotion(
+      { type: TYPE, entry_id: ENTRY, show_motion_icon: false },
+      'timeout_pending',
+    );
+    expect(el.shadowRoot!.querySelector('.motion-overlay')).toBeFalsy();
+  });
+
+  it('hides the overlay when the motion_status sensor is not discovered', async () => {
+    // Reuse the default REGISTRY (no motion sensor) — overlay must not render.
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
+    expect(el.shadowRoot!.querySelector('.motion-overlay')).toBeFalsy();
+  });
+
+  it('still renders the cover icon when the motion overlay is shown', async () => {
+    const el = await mountWithMotion({ type: TYPE, entry_id: ENTRY }, 'motion_detected');
+    expect(el.shadowRoot!.querySelector('ha-icon.cover-icon')).toBeTruthy();
+  });
+});
+
 describe('adaptive-cover-pro-tile-card hold / double-tap actions', () => {
   it('hold_action fires via handleAction when pointer is held', async () => {
     vi.useFakeTimers();

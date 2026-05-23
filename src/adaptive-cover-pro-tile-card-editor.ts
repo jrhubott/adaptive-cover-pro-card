@@ -41,6 +41,7 @@ const FORM_DEFAULTS = {
   show_controls: true,
   show_badge: true,
   show_compass: true,
+  show_motion_icon: true,
   show_resume: 'auto',
   layout: 'one-line',
 } as const;
@@ -56,6 +57,7 @@ const LABELS: Record<string, string> = {
   show_controls: 'Show ↑■▼ controls',
   show_badge: 'Show contextual badge',
   show_compass: 'Show sun compass in dialog',
+  show_motion_icon: 'Show motion indicator',
   show_resume: 'Resume button',
   tap_action: 'Tap action',
   hold_action: 'Hold action',
@@ -254,6 +256,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       { name: 'show_decision_summary', selector: { boolean: {} } },
       { name: 'show_controls', selector: { boolean: {} } },
       { name: 'show_badge', selector: { boolean: {} } },
+      { name: 'show_motion_icon', selector: { boolean: {} } },
       { name: 'show_compass', selector: { boolean: {} } },
       {
         name: 'show_resume',

@@ -171,6 +171,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const showPosition = cfg.show_position !== false;
     const showControls = cfg.show_controls !== false;
     const showBadge = cfg.show_badge !== false;
+    const motionState = cfg.show_motion_icon !== false ? this._motionActiveState(discovered) : null;
+    const motionTitle =
+      motionState === 'timeout_pending' ? 'Motion timeout pending' : 'Motion detected';
     const twoLine = cfg.layout === 'two-line';
     const position = this._currentPosition(discovered);
     const winner = this._winner(discovered);
@@ -199,7 +202,16 @@ export class AdaptiveCoverProTileCard extends LitElement {
         @pointerleave=${this._onPointerCancel}
         @click=${this._onClick}
       >
-        <ha-icon class="cover-icon" icon=${icon}></ha-icon>
+        <div class="cover-icon-wrap">
+          <ha-icon class="cover-icon" icon=${icon}></ha-icon>
+          ${motionState
+            ? html`<ha-icon
+                class="motion-overlay ${motionState}"
+                icon="mdi:motion-sensor"
+                title=${motionTitle}
+              ></ha-icon>`
+            : nothing}
+        </div>
         <div class="label">
           <div class="title" title=${discovered.entry_title}>${title}</div>
           ${summary && !twoLine ? html`<div class="summary">${summary}</div>` : nothing}
@@ -298,6 +310,13 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const id = discovered.entities.decision_trace_sensor;
     if (!id) return undefined;
     return this.hass.states[id]?.attributes as unknown as DecisionTraceAttributes | undefined;
+  }
+
+  private _motionActiveState(discovered: DiscoveredEntities): string | null {
+    const id = discovered.entities.motion_status_sensor;
+    if (!id) return null;
+    const state = this.hass.states[id]?.state;
+    return state === 'motion_detected' || state === 'timeout_pending' ? state : null;
   }
 
   private _manualOverrideOn(discovered: DiscoveredEntities): boolean {
@@ -493,10 +512,29 @@ export class AdaptiveCoverProTileCard extends LitElement {
     .tile-body[role='group'] {
       cursor: default;
     }
-    .cover-icon {
+    .cover-icon-wrap {
       grid-area: icon;
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+    }
+    .cover-icon {
       --mdc-icon-size: 22px;
       color: var(--primary-text-color);
+    }
+    .motion-overlay {
+      position: absolute;
+      top: -4px;
+      right: -6px;
+      --mdc-icon-size: 12px;
+      color: var(--warning-color, #f1c232);
+      background: var(--card-background-color, white);
+      border-radius: 50%;
+      padding: 1px;
+      line-height: 0;
     }
     .label {
       grid-area: label;
