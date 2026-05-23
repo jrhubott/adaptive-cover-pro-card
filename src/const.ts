@@ -47,6 +47,25 @@ export const COVER_TYPE_ICONS: Record<string, string> = {
   cover_tilt: 'mdi:blinds',
 };
 
+export const COVER_TYPE_ICONS_OPEN: Record<string, string> = {
+  cover_blind: 'mdi:blinds-open',
+  cover_awning: 'mdi:awning-outline',
+  cover_tilt: 'mdi:blinds-open',
+};
+
+export const COVER_TYPE_ICONS_CLOSED: Record<string, string> = {
+  cover_blind: 'mdi:blinds-horizontal-closed',
+  cover_awning: 'mdi:window-closed-variant',
+  cover_tilt: 'mdi:blinds',
+};
+
+export const COVER_ICON_FALLBACK = 'mdi:window-shutter';
+export const COVER_ICON_FALLBACK_OPEN = 'mdi:window-shutter-open';
+export const COVER_ICON_FALLBACK_CLOSED = 'mdi:window-shutter';
+
+export const COVER_OPEN_THRESHOLD = 95;
+export const COVER_CLOSED_THRESHOLD = 5;
+
 /**
  * Badge kinds rendered on the tile card. Each ACP pipeline handler maps to one
  * kind; `auto` is the fallback for unknown / "default" winners.

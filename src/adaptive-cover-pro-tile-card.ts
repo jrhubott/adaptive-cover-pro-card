@@ -7,8 +7,9 @@ import {
   type HomeAssistant,
 } from 'custom-card-helpers';
 
-import { COVER_TYPE_ICONS, TILE_CARD_NAME, TILE_CARD_EDITOR_NAME, type HandlerName } from './const';
+import { TILE_CARD_NAME, TILE_CARD_EDITOR_NAME, type HandlerName } from './const';
 import { discoverEntities } from './lib/entity-discovery';
+import { pickCoverIcon } from './lib/icons';
 import {
   fetchEntityRegistry,
   subscribeEntityRegistry,
@@ -165,8 +166,8 @@ export class AdaptiveCoverProTileCard extends LitElement {
   private _renderTile(discovered: DiscoveredEntities): TemplateResult {
     const cfg = this._config!;
     const title = cfg.name ?? discovered.entry_title;
-    const icon = cfg.icon ?? COVER_TYPE_ICONS[discovered.cover_type] ?? 'mdi:window-shutter';
     const cover = this._resolvedCover(discovered);
+    const icon = cfg.icon ?? pickCoverIcon(discovered.cover_type, this._liveCoverPosition(cover));
     const showPosition = cfg.show_position !== false;
     const showControls = cfg.show_controls !== false;
     const showBadge = cfg.show_badge !== false;
@@ -279,6 +280,12 @@ export class AdaptiveCoverProTileCard extends LitElement {
     if (!st) return null;
     const v = parseFloat(st.state);
     return Number.isNaN(v) ? null : v;
+  }
+
+  private _liveCoverPosition(cover: string | undefined): number | null {
+    if (!cover) return null;
+    const v = this.hass.states[cover]?.attributes?.current_position;
+    return typeof v === 'number' && !Number.isNaN(v) ? v : null;
   }
 
   private _winner(discovered: DiscoveredEntities): string {
