@@ -220,12 +220,31 @@ describe('adaptive-cover-pro-tile-card tap action', () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
-  it('does not fire acp-tile-tap when tap_action is none', async () => {
+  it('does not fire acp-tile-tap when tap_action is none (legacy string normalized)', async () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY, tap_action: 'none' }, makeHass());
     const listener = vi.fn();
     el.addEventListener('acp-tile-tap', listener);
     (el.shadowRoot!.querySelector('.tile-body') as HTMLElement).click();
     expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('does not fire acp-tile-tap when tap_action is {action: none}', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, tap_action: { action: 'none' } },
+      makeHass(),
+    );
+    const listener = vi.fn();
+    el.addEventListener('acp-tile-tap', listener);
+    (el.shadowRoot!.querySelector('.tile-body') as HTMLElement).click();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('treats legacy tap_action "dialog" as the default (still opens ACP dialog)', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY, tap_action: 'dialog' }, makeHass());
+    const listener = vi.fn();
+    el.addEventListener('acp-tile-tap', listener);
+    (el.shadowRoot!.querySelector('.tile-body') as HTMLElement).click();
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 
   it('does not fire acp-tile-tap when ↑■↓ buttons are clicked (stopPropagation)', async () => {
@@ -257,5 +276,156 @@ describe('adaptive-cover-pro-tile-card tap action', () => {
     await el.updateComplete;
     await dialog.updateComplete;
     expect(dialog.open).toBe(false);
+  });
+});
+
+describe('adaptive-cover-pro-tile-card new options', () => {
+  it('show_controls: false hides the ↑■▼ row', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY, show_controls: false }, makeHass());
+    expect(el.shadowRoot!.querySelector('.controls')).toBeFalsy();
+  });
+
+  it('show_badge: false hides the contextual badge', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY, show_badge: false }, makeHass());
+    expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeFalsy();
+  });
+
+  it('icon overrides the cover_type default', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY, icon: 'mdi:test-icon' }, makeHass());
+    const icon = el.shadowRoot!.querySelector('ha-icon.cover-icon') as HTMLElement & {
+      icon?: string;
+    };
+    expect(icon.getAttribute('icon')).toBe('mdi:test-icon');
+  });
+
+  it('show_resume: never hides Resume even during manual override', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, show_resume: 'never' },
+      makeHass({ manualOverrideOn: true, decisionState: 'manual' }),
+    );
+    expect(el.shadowRoot!.querySelector('.resume')).toBeFalsy();
+  });
+
+  it('show_resume: always shows Resume even when no override is active', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, show_resume: 'always' },
+      makeHass({ decisionState: 'solar' }),
+    );
+    expect(el.shadowRoot!.querySelector('.resume')).toBeTruthy();
+  });
+
+  it('show_decision_summary renders the summary line under the title', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, show_decision_summary: true },
+      makeHass({
+        decisionState: 'solar',
+        decisionAttrs: {
+          trace: [{ handler: 'solar', matched: true, reason: '', position: 60 }],
+          reason: 'Solar tracking',
+        },
+      }),
+    );
+    const summary = el.shadowRoot!.querySelector('.summary');
+    expect(summary).toBeTruthy();
+    expect(summary!.textContent?.length ?? 0).toBeGreaterThan(0);
+  });
+
+  it('omits the summary line when show_decision_summary is unset', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
+    expect(el.shadowRoot!.querySelector('.summary')).toBeFalsy();
+  });
+});
+
+describe('adaptive-cover-pro-tile-card hold / double-tap actions', () => {
+  it('hold_action fires via handleAction when pointer is held', async () => {
+    vi.useFakeTimers();
+    try {
+      const callService = vi.fn();
+      const el = await mount(
+        {
+          type: TYPE,
+          entry_id: ENTRY,
+          hold_action: {
+            action: 'call-service',
+            service: 'cover.open_cover',
+            service_data: { entity_id: 'cover.left' },
+          },
+        },
+        makeHass({ callService }),
+      );
+      const body = el.shadowRoot!.querySelector('.tile-body') as HTMLElement;
+      body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      vi.advanceTimersByTime(600);
+      expect(callService).toHaveBeenCalledWith(
+        'cover',
+        'open_cover',
+        { entity_id: 'cover.left' },
+        undefined,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not fire hold_action when none is configured', async () => {
+    vi.useFakeTimers();
+    try {
+      const callService = vi.fn();
+      const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass({ callService }));
+      const body = el.shadowRoot!.querySelector('.tile-body') as HTMLElement;
+      body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      vi.advanceTimersByTime(600);
+      // No hold action, no service call — only ↑■▼ clicks would trigger one.
+      expect(callService).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('double_tap_action fires on a quick double-click', async () => {
+    const callService = vi.fn();
+    const el = await mount(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        double_tap_action: {
+          action: 'call-service',
+          service: 'cover.close_cover',
+          service_data: { entity_id: 'cover.left' },
+        },
+      },
+      makeHass({ callService }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body') as HTMLElement;
+    body.click();
+    body.click();
+    expect(callService).toHaveBeenCalledWith(
+      'cover',
+      'close_cover',
+      { entity_id: 'cover.left' },
+      undefined,
+    );
+  });
+
+  it('single click still opens the ACP dialog when double_tap_action is configured (after timeout)', async () => {
+    vi.useFakeTimers();
+    try {
+      const el = await mount(
+        {
+          type: TYPE,
+          entry_id: ENTRY,
+          double_tap_action: { action: 'call-service', service: 'cover.close_cover' },
+        },
+        makeHass(),
+      );
+      const listener = vi.fn();
+      el.addEventListener('acp-tile-tap', listener);
+      const body = el.shadowRoot!.querySelector('.tile-body') as HTMLElement;
+      body.click();
+      vi.advanceTimersByTime(300);
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

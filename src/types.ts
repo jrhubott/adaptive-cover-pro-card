@@ -1,4 +1,4 @@
-import type { HomeAssistant, LovelaceCardConfig } from 'custom-card-helpers';
+import type { ActionConfig, HomeAssistant, LovelaceCardConfig } from 'custom-card-helpers';
 import type { EntityRole, HandlerName } from './const';
 
 export type { HomeAssistant };
@@ -29,17 +29,33 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
 export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   type: string;
   entry_id: string;
-  /** Render the plain-English decision-summary sentence under the title. */
-  show_decision_summary?: boolean;
-  /** Render the cover's current position to the right of the title. */
-  show_position?: boolean;
-  /** What happens on tap — `dialog` opens the more-info dialog, `none` is inert. */
-  tap_action?: 'dialog' | 'none';
   /** Override the discovered instance title. */
   name?: string;
+  /** Override the auto-resolved cover icon (mdi:*). */
+  icon?: string;
   /** Explicit `cover.*` entity when an entry manages multiple covers
    *  (default: first key of the integration's `actual_positions`). */
   cover?: string;
+  /** Render the cover's current position to the right of the title. */
+  show_position?: boolean;
+  /** Render the plain-English decision-summary sentence under the title. */
+  show_decision_summary?: boolean;
+  /** Render the ↑■▼ controls row (default true). */
+  show_controls?: boolean;
+  /** Render the contextual badge (default true). */
+  show_badge?: boolean;
+  /** Resume-button visibility. `auto` keeps the original
+   *  manual-override/custom-position rule; `always` shows whenever a
+   *  reset_override_button exists; `never` hides it. */
+  show_resume?: 'auto' | 'always' | 'never';
+  /** Tap behavior. When undefined, opens the ACP more-info dialog (default).
+   *  Otherwise a standard HA `ActionConfig`. Legacy string values
+   *  `'dialog'` / `'none'` are still accepted and normalized in setConfig. */
+  tap_action?: ActionConfig | 'dialog' | 'none';
+  /** Long-press action. Standard HA `ActionConfig`. */
+  hold_action?: ActionConfig;
+  /** Double-tap action. Standard HA `ActionConfig`. */
+  double_tap_action?: ActionConfig;
 }
 
 export interface SkyCompassCardConfig extends LovelaceCardConfig {

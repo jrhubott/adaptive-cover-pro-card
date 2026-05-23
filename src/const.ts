@@ -4,6 +4,7 @@ export const CARD_EDITOR_NAME = 'adaptive-cover-pro-card-editor';
 export const SKY_COMPASS_CARD_NAME = 'adaptive-cover-pro-sky-compass-card';
 export const SKY_COMPASS_CARD_EDITOR_NAME = 'adaptive-cover-pro-sky-compass-card-editor';
 export const TILE_CARD_NAME = 'adaptive-cover-pro-tile-card';
+export const TILE_CARD_EDITOR_NAME = 'adaptive-cover-pro-tile-card-editor';
 
 export const INTEGRATION_DOMAIN = 'adaptive_cover_pro';
 
