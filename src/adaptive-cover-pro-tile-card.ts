@@ -18,6 +18,7 @@ import { normalizeHandler } from './lib/decision-summary';
 import { formatPercent } from './lib/formatters';
 
 import './components/tile-badge';
+import './components/more-info-dialog';
 
 @customElement(TILE_CARD_NAME)
 export class AdaptiveCoverProTileCard extends LitElement {
@@ -28,6 +29,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
   // skip the websocket fetch dance (mirrors the sky-compass card pattern).
   @state() public _registry: EntityRegistryEntry[] | null = null;
   @state() private _registryError: string | null = null;
+  @state() private _dialogOpen = false;
 
   private _unsubRegistry: (() => void) | null = null;
   private _fetchInFlight = false;
@@ -76,18 +78,25 @@ export class AdaptiveCoverProTileCard extends LitElement {
   private _fetchRegistry(): void {
     if (this._fetchInFlight) return;
     this._fetchInFlight = true;
+    // Capture a generation counter so a late-resolving stale fetch can't
+    // overwrite a newer registry value injected (or assigned) in the meantime.
+    const myGen = ++this._fetchGen;
     fetchEntityRegistry(this.hass)
       .then((entries) => {
+        if (myGen !== this._fetchGen) return;
         this._registry = entries;
         this._registryError = null;
       })
       .catch((err: Error) => {
+        if (myGen !== this._fetchGen) return;
         this._registryError = err?.message ?? 'entity registry fetch failed';
       })
       .finally(() => {
-        this._fetchInFlight = false;
+        if (myGen === this._fetchGen) this._fetchInFlight = false;
       });
   }
+
+  private _fetchGen = 0;
 
   protected render(): TemplateResult | typeof nothing {
     if (!this._config || !this.hass) return nothing;
@@ -117,8 +126,20 @@ export class AdaptiveCoverProTileCard extends LitElement {
       </ha-card>`;
     }
 
-    return html`<ha-card>${this._renderTile(discovered)}</ha-card>`;
+    return html`
+      <ha-card>${this._renderTile(discovered)}</ha-card>
+      <acp-more-info-dialog
+        .hass=${this.hass}
+        .discovered=${discovered}
+        .open=${this._dialogOpen}
+        @acp-dialog-close=${this._closeDialog}
+      ></acp-more-info-dialog>
+    `;
   }
+
+  private _closeDialog = (): void => {
+    this._dialogOpen = false;
+  };
 
   private _renderTile(discovered: DiscoveredEntities): TemplateResult {
     const cfg = this._config!;
@@ -256,6 +277,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
   private _onTileTap = (): void => {
     if (this._config?.tap_action === 'none') return;
+    this._dialogOpen = true;
     this.dispatchEvent(new CustomEvent('acp-tile-tap', { bubbles: true, composed: true }));
   };
 

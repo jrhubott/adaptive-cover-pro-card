@@ -92,7 +92,10 @@ function makeHass(
       'cover.right': { state: 'open', attributes: { friendly_name: 'Right blind' } },
     },
     callService: overrides.callService ?? vi.fn(),
-    callWS: vi.fn().mockResolvedValue([]),
+    // Resolve to the same fixture the tests inject directly, so the async
+    // background fetch can't race with the test and clobber the registry
+    // with an empty array.
+    callWS: vi.fn().mockResolvedValue(REGISTRY),
     // Mock connection.subscribeEvents so the tile-card's registry subscribe
     // dance does not crash on a missing websocket connection.
     connection: { subscribeEvents: vi.fn().mockResolvedValue(() => {}) },
@@ -233,5 +236,26 @@ describe('adaptive-cover-pro-tile-card tap action', () => {
     (el.shadowRoot!.querySelector('button.stop') as HTMLElement).click();
     (el.shadowRoot!.querySelector('button.down') as HTMLElement).click();
     expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('opens the more-info dialog on tile body click and closes via dialog close event', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
+    const dialog = el.shadowRoot!.querySelector('acp-more-info-dialog') as HTMLElement & {
+      open?: boolean;
+      updateComplete: Promise<boolean>;
+    };
+    expect(dialog).toBeTruthy();
+    expect(dialog.open).toBe(false);
+
+    (el.shadowRoot!.querySelector('.tile-body') as HTMLElement).click();
+    await el.updateComplete;
+    await dialog.updateComplete;
+    expect(dialog.open).toBe(true);
+
+    // Simulate the dialog firing its close event (e.g. user clicked ✕).
+    dialog.dispatchEvent(new CustomEvent('acp-dialog-close', { bubbles: true, composed: true }));
+    await el.updateComplete;
+    await dialog.updateComplete;
+    expect(dialog.open).toBe(false);
   });
 });
