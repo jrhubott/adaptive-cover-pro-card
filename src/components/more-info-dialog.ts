@@ -2,9 +2,14 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
-import { COVER_TYPE_ICONS, HANDLER_ORDER, type HandlerName } from '../const';
+import { COVER_TYPE_ICONS, HANDLER_ORDER, INTEGRATION_DOMAIN, type HandlerName } from '../const';
 import { buildDecisionSentence, normalizeHandler } from '../lib/decision-summary';
-import type { DecisionTraceAttributes, DecisionStep, DiscoveredEntities } from '../types';
+import type {
+  CustomPositionSlotSnapshot,
+  DecisionTraceAttributes,
+  DecisionStep,
+  DiscoveredEntities,
+} from '../types';
 import { formatPercent } from '../lib/formatters';
 
 import './tile-badge';
@@ -96,6 +101,7 @@ export class MoreInfoDialog extends LitElement {
           </button>
           ${this.advancedOpen
             ? html`<div class="advanced">
+                ${this._renderSlots(attrs?.custom_position_slots)}
                 <acp-decision-strip
                   .hass=${this.hass}
                   .discovered=${this.discovered}
@@ -159,6 +165,49 @@ export class MoreInfoDialog extends LitElement {
     if (!btn) return;
     this.hass.callService('button', 'press', { entity_id: btn });
   };
+
+  private _renderSlots(
+    slots: CustomPositionSlotSnapshot[] | undefined,
+  ): TemplateResult | typeof nothing {
+    if (!slots) return nothing;
+    const configured = slots.filter((s) => s.sensor !== null);
+    if (configured.length === 0) return nothing;
+    return html`<div class="slots-section">
+      <div class="slots-label">Custom positions</div>
+      ${configured.map((s) => this._renderSlotRow(s))}
+    </div>`;
+  }
+
+  private _renderSlotRow(slot: CustomPositionSlotSnapshot): TemplateResult {
+    const label = slot.sensor_name ?? `#${slot.slot}`;
+    return html`<div class="slot-row" data-slot=${slot.slot}>
+      <span class="slot-label">${label}</span>
+      <span class="slot-position">${formatPercent(slot.position)}</span>
+      ${slot.min_mode === true
+        ? html`<span class="slot-min-mode" title="Floor — slot raises position above raw calc">
+            floor
+          </span>`
+        : nothing}
+      <button
+        class="slot-toggle ${slot.enabled ? 'on' : 'off'}"
+        type="button"
+        aria-label=${slot.enabled ? `Disable slot ${slot.slot}` : `Enable slot ${slot.slot}`}
+        @click=${() => this._toggleSlot(slot)}
+      >
+        ${slot.enabled ? 'On' : 'Off'}
+      </button>
+    </div>`;
+  }
+
+  private _toggleSlot(slot: CustomPositionSlotSnapshot): void {
+    const target = this.discovered.managed_covers[0];
+    if (!target) return;
+    this.hass.callService(INTEGRATION_DOMAIN, 'set_custom_position', {
+      entity_id: target,
+      slot: slot.slot,
+      enabled: !slot.enabled,
+    });
+  }
 
   private _toggleAdvanced = (): void => {
     this.advancedOpen = !this.advancedOpen;
@@ -289,6 +338,58 @@ export class MoreInfoDialog extends LitElement {
       gap: 12px;
       padding-top: 4px;
       border-top: 1px solid var(--divider-color, rgba(0, 0, 0, 0.08));
+    }
+    .slots-section {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .slots-label {
+      font-size: 0.78rem;
+      color: var(--secondary-text-color);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .slot-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      gap: 8px;
+      align-items: center;
+      font-size: 0.85rem;
+      padding: 2px 4px;
+    }
+    .slot-label {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .slot-position {
+      font-variant-numeric: tabular-nums;
+      color: var(--secondary-text-color);
+    }
+    .slot-min-mode {
+      font-size: 0.7rem;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(156, 39, 176, 0.22);
+      color: #6a1b9a;
+    }
+    .slot-toggle {
+      padding: 2px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.16));
+      background: transparent;
+      cursor: pointer;
+      font-size: 0.75rem;
+      min-width: 40px;
+    }
+    .slot-toggle.on {
+      background: rgba(76, 175, 80, 0.22);
+      color: #1b5e20;
+      border-color: rgba(76, 175, 80, 0.5);
+    }
+    .slot-toggle.off {
+      color: var(--secondary-text-color);
     }
   `;
 }

@@ -122,6 +122,124 @@ describe('acp-more-info-dialog: header content', () => {
   });
 });
 
+describe('acp-more-info-dialog: slot management', () => {
+  const slots = [
+    {
+      slot: 1,
+      enabled: true,
+      sensor: 'binary_sensor.scene_a',
+      sensor_name: 'Table extension',
+      position: 60,
+      priority: 80,
+      min_mode: true,
+    },
+    {
+      slot: 2,
+      enabled: false,
+      sensor: 'binary_sensor.scene_b',
+      sensor_name: 'Movie',
+      position: 30,
+      priority: 70,
+      min_mode: false,
+    },
+    {
+      slot: 3,
+      enabled: false,
+      sensor: null,
+      sensor_name: null,
+      position: null,
+      priority: null,
+      min_mode: null,
+    },
+    {
+      slot: 4,
+      enabled: false,
+      sensor: null,
+      sensor_name: null,
+      position: null,
+      priority: null,
+      min_mode: null,
+    },
+  ];
+
+  it('renders one slot row per configured slot, hiding unconfigured ones', async () => {
+    const el = await mount({
+      hass: hass({ traceExtraAttrs: { custom_position_slots: slots } }),
+      discovered: discovered(),
+      open: true,
+    });
+    // Make the advanced section visible so slot rows render.
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    const rows = el.shadowRoot!.querySelectorAll('.slot-row');
+    expect(rows.length).toBe(2);
+  });
+
+  it('renders the slot label using sensor_name when present, falling back to #N', async () => {
+    const noNameSlots = [{ ...slots[0], sensor_name: null }, { ...slots[1] }, slots[2], slots[3]];
+    const el = await mount({
+      hass: hass({ traceExtraAttrs: { custom_position_slots: noNameSlots } }),
+      discovered: discovered(),
+      open: true,
+    });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    const labels = Array.from(el.shadowRoot!.querySelectorAll('.slot-row .slot-label')).map(
+      (el) => el.textContent?.trim() ?? '',
+    );
+    expect(labels[0]).toMatch(/^#1\b/);
+    expect(labels[1]).toContain('Movie');
+  });
+
+  it('shows the floor badge only when min_mode is true', async () => {
+    const el = await mount({
+      hass: hass({ traceExtraAttrs: { custom_position_slots: slots } }),
+      discovered: discovered(),
+      open: true,
+    });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    const minModeTags = el.shadowRoot!.querySelectorAll('.slot-row .slot-min-mode');
+    // Only the slot 1 row should have a floor marker.
+    expect(minModeTags.length).toBe(1);
+  });
+
+  it('toggle calls set_custom_position with {slot, enabled} for the row', async () => {
+    const callService = vi.fn();
+    const el = await mount({
+      hass: hass({
+        callService,
+        traceExtraAttrs: { custom_position_slots: slots },
+      }),
+      discovered: discovered(),
+      open: true,
+    });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    // First slot's toggle — clicking it should send enabled=false (it was true).
+    const toggle = el.shadowRoot!.querySelector(
+      '.slot-row[data-slot="1"] button.slot-toggle',
+    ) as HTMLElement;
+    toggle.click();
+    expect(callService).toHaveBeenCalledWith('adaptive_cover_pro', 'set_custom_position', {
+      entity_id: 'cover.left',
+      slot: 1,
+      enabled: false,
+    });
+  });
+
+  it('hides the slot section entirely when custom_position_slots is absent', async () => {
+    const el = await mount({
+      hass: hass(),
+      discovered: discovered(),
+      open: true,
+    });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('.slots-section')).toBeNull();
+  });
+});
+
 describe('acp-more-info-dialog: Resume Auto', () => {
   it('Resume button calls button.press on reset_override_button', async () => {
     const callService = vi.fn();

@@ -105,6 +105,20 @@ export interface DecisionTraceAttributes {
    *  human-readable slot label. Integration v2.22.1+; absent when the sensor
    *  has no friendly_name. */
   custom_position_active_slot_name?: string;
+  /** Snapshot of all 4 custom-position slots' configured state.
+   *  Stable 4-row list (one per slot); unconfigured slots read `sensor=null`.
+   *  Absent on integrations that pre-date the slot UI work. */
+  custom_position_slots?: CustomPositionSlotSnapshot[];
+}
+
+export interface CustomPositionSlotSnapshot {
+  slot: 1 | 2 | 3 | 4;
+  enabled: boolean;
+  sensor: string | null;
+  sensor_name: string | null;
+  position: number | null;
+  priority: number | null;
+  min_mode: boolean | null;
 }
 
 export interface SunPositionAttributes {
