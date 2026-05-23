@@ -182,9 +182,11 @@ export class AdaptiveCoverProTileCard extends LitElement {
         ? buildDecisionSentence(traceAttrs.trace ?? [], traceAttrs, winner)
         : '';
 
+    const hasBottomSummary = !!summary && twoLine;
+
     return html`
       <div
-        class=${`tile-body${twoLine ? ' two-line' : ''}`}
+        class=${`tile-body${twoLine ? ' two-line' : ''}${hasBottomSummary ? ' has-summary' : ''}`}
         role=${inert ? 'group' : 'button'}
         tabindex=${inert ? -1 : 0}
         @pointerdown=${this._onPointerDown}
@@ -196,7 +198,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
         <ha-icon class="cover-icon" icon=${icon}></ha-icon>
         <div class="label">
           <div class="title" title=${discovered.entry_title}>${title}</div>
-          ${summary ? html`<div class="summary">${summary}</div>` : nothing}
+          ${summary && !twoLine ? html`<div class="summary">${summary}</div>` : nothing}
         </div>
         ${showPosition ? html`<div class="position">${formatPercent(position)}</div>` : nothing}
         ${showControls
@@ -254,6 +256,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
               Resume
             </button>`
           : nothing}
+        ${hasBottomSummary ? html`<div class="summary">${summary}</div>` : nothing}
       </div>
     `;
   }
@@ -451,6 +454,13 @@ export class AdaptiveCoverProTileCard extends LitElement {
         'icon position controls badge resume';
       row-gap: 4px;
     }
+    .tile-body.two-line.has-summary {
+      grid-template-rows: auto auto auto;
+      grid-template-areas:
+        'icon label    label    label label'
+        'icon position controls badge resume'
+        'icon summary  summary  summary summary';
+    }
     .tile-body[role='group'] {
       cursor: default;
     }
@@ -470,6 +480,17 @@ export class AdaptiveCoverProTileCard extends LitElement {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+    .summary {
+      font-size: 0.78rem;
+      color: var(--secondary-text-color);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .tile-body.two-line .summary {
+      grid-area: summary;
     }
     .position {
       grid-area: position;

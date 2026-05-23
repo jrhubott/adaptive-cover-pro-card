@@ -334,6 +334,42 @@ describe('adaptive-cover-pro-tile-card new options', () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
     expect(el.shadowRoot!.querySelector('.summary')).toBeFalsy();
   });
+
+  it('one-line layout keeps the summary nested inside .label', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, show_decision_summary: true, layout: 'one-line' },
+      makeHass({
+        decisionState: 'solar',
+        decisionAttrs: {
+          trace: [{ handler: 'solar', matched: true, reason: '', position: 60 }],
+          reason: 'Solar tracking',
+        },
+      }),
+    );
+    const summary = el.shadowRoot!.querySelector('.summary');
+    expect(summary).toBeTruthy();
+    expect(summary!.parentElement?.classList.contains('label')).toBe(true);
+    expect(el.shadowRoot!.querySelector('.tile-body.has-summary')).toBeFalsy();
+  });
+
+  it('two-line layout moves the summary to the bottom row of the tile body', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, show_decision_summary: true, layout: 'two-line' },
+      makeHass({
+        decisionState: 'solar',
+        decisionAttrs: {
+          trace: [{ handler: 'solar', matched: true, reason: '', position: 60 }],
+          reason: 'Solar tracking',
+        },
+      }),
+    );
+    const summary = el.shadowRoot!.querySelector('.summary');
+    expect(summary).toBeTruthy();
+    // Summary is a direct child of .tile-body (sibling of .label), not nested in .label.
+    expect(summary!.parentElement?.classList.contains('label')).toBe(false);
+    expect(summary!.parentElement?.classList.contains('tile-body')).toBe(true);
+    expect(el.shadowRoot!.querySelector('.tile-body.two-line.has-summary')).toBeTruthy();
+  });
 });
 
 describe('adaptive-cover-pro-tile-card hold / double-tap actions', () => {
