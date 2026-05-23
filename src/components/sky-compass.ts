@@ -466,6 +466,8 @@ export class SkyCompass extends LitElement {
   public static styles = css`
     :host {
       display: block;
+      width: 100%;
+      container-type: inline-size;
     }
     .compass {
       display: flex;
@@ -484,6 +486,32 @@ export class SkyCompass extends LitElement {
     }
     :host([compact]) .legend {
       display: none;
+    }
+    @container (min-width: 320px) {
+      .compass {
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+      }
+      .compass svg {
+        max-width: none;
+        flex: 1 1 0;
+        min-width: 200px;
+      }
+      :host([compact]) .compass svg {
+        max-width: 280px;
+      }
+      .compass .legend,
+      .compass .stats {
+        flex: 0 0 auto;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+      }
+      .compass .stats-row {
+        justify-content: flex-start;
+      }
     }
     .grid {
       fill: none;

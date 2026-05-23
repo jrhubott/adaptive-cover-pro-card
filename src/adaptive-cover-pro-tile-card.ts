@@ -199,6 +199,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
         <div class="label">
           <div class="title" title=${discovered.entry_title}>${title}</div>
           ${summary && !twoLine ? html`<div class="summary">${summary}</div>` : nothing}
+          ${hasBottomSummary
+            ? html`<div class="summary inline-summary" title=${summary}>${summary}</div>`
+            : nothing}
         </div>
         ${showPosition ? html`<div class="position">${formatPercent(position)}</div>` : nothing}
         ${showControls
@@ -256,7 +259,6 @@ export class AdaptiveCoverProTileCard extends LitElement {
               Resume
             </button>`
           : nothing}
-        ${hasBottomSummary ? html`<div class="summary">${summary}</div>` : nothing}
       </div>
     `;
   }
@@ -454,12 +456,19 @@ export class AdaptiveCoverProTileCard extends LitElement {
         'icon position controls badge resume';
       row-gap: 4px;
     }
-    .tile-body.two-line.has-summary {
-      grid-template-rows: auto auto auto;
-      grid-template-areas:
-        'icon label    label    label label'
-        'icon position controls badge resume'
-        'icon summary  summary  summary summary';
+    .tile-body.two-line.has-summary .label {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      min-width: 0;
+    }
+    .tile-body.two-line.has-summary .label .title {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .tile-body.two-line.has-summary .label .inline-summary {
+      flex: 0 1 auto;
+      text-align: right;
     }
     .tile-body[role='group'] {
       cursor: default;
@@ -488,9 +497,6 @@ export class AdaptiveCoverProTileCard extends LitElement {
       overflow: hidden;
       text-overflow: ellipsis;
       min-width: 0;
-    }
-    .tile-body.two-line .summary {
-      grid-area: summary;
     }
     .position {
       grid-area: position;

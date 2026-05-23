@@ -352,7 +352,7 @@ describe('adaptive-cover-pro-tile-card new options', () => {
     expect(el.shadowRoot!.querySelector('.tile-body.has-summary')).toBeFalsy();
   });
 
-  it('two-line layout moves the summary to the bottom row of the tile body', async () => {
+  it('two-line layout shows the summary inline with the title, right-justified', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY, show_decision_summary: true, layout: 'two-line' },
       makeHass({
@@ -365,9 +365,8 @@ describe('adaptive-cover-pro-tile-card new options', () => {
     );
     const summary = el.shadowRoot!.querySelector('.summary');
     expect(summary).toBeTruthy();
-    // Summary is a direct child of .tile-body (sibling of .label), not nested in .label.
-    expect(summary!.parentElement?.classList.contains('label')).toBe(false);
-    expect(summary!.parentElement?.classList.contains('tile-body')).toBe(true);
+    expect(summary!.classList.contains('inline-summary')).toBe(true);
+    expect(summary!.parentElement?.classList.contains('label')).toBe(true);
     expect(el.shadowRoot!.querySelector('.tile-body.two-line.has-summary')).toBeTruthy();
   });
 });
