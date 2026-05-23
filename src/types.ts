@@ -15,6 +15,9 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
   show_moon?: boolean;
   show_version?: boolean;
   hide_inactive_handlers?: boolean;
+  /** Render a plain-English "Why this position?" sentence above the decision
+   *  strip's row grid. Defaults to true. */
+  show_decision_summary?: boolean;
   north_offset?: number;
   controls?: {
     integration_enabled?: boolean;
@@ -75,6 +78,17 @@ export interface DecisionTraceAttributes {
   in_blind_spot: boolean;
   sunset_window_active: boolean;
   direct_sun_valid: boolean;
+  /** 1-based slot number of the winning Custom Position handler.
+   *  Integration v2.22.1+; absent when any other handler wins. */
+  custom_position_active_slot?: 1 | 2 | 3 | 4;
+  /** True when the configured floor is actively raising position above the raw
+   *  autonomous calculation. False when the floor is configured but is a no-op
+   *  this cycle. Absent in exact mode or when any non-custom handler wins. */
+  custom_position_minimum_mode?: boolean;
+  /** Friendly name of the winning slot's bound sensor — surfaces as the
+   *  human-readable slot label. Integration v2.22.1+; absent when the sensor
+   *  has no friendly_name. */
+  custom_position_active_slot_name?: string;
 }
 
 export interface SunPositionAttributes {

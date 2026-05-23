@@ -310,6 +310,7 @@ export class AdaptiveCoverProCard extends LitElement {
                 .discovered=${discovered}
                 ?compact=${!!this._config.compact}
                 ?hide-inactive=${!!this._config.hide_inactive_handlers || !!this._config.compact}
+                ?show-summary=${this._config.show_decision_summary !== false}
               ></acp-decision-strip>`
             : nothing}
           ${sections.includes('covers')

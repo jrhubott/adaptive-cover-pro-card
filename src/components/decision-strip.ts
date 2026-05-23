@@ -5,6 +5,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import { HANDLER_LABELS, HANDLER_ORDER, type HandlerName } from '../const';
 import type { DecisionTraceAttributes, DiscoveredEntities } from '../types';
 import { formatPercent } from '../lib/formatters';
+import { buildDecisionSentence, normalizeHandler } from '../lib/decision-summary';
 
 @customElement('acp-decision-strip')
 export class DecisionStrip extends LitElement {
@@ -12,11 +13,14 @@ export class DecisionStrip extends LitElement {
   @property({ attribute: false }) public discovered!: DiscoveredEntities;
   @property({ type: Boolean, reflect: true }) public compact = false;
 
+  @property({ type: Boolean, reflect: true, attribute: 'show-summary' }) public showSummary = true;
+
   private _trace(): {
     winner: string;
     reason: string;
     steps: Map<string, TraceRow>;
     enabledHandlers: string[] | undefined;
+    summary: string;
   } | null {
     const id = this.discovered.entities.decision_trace_sensor;
     if (!id) return null;
@@ -37,6 +41,7 @@ export class DecisionStrip extends LitElement {
       reason: attrs.reason ?? '',
       steps,
       enabledHandlers: attrs.enabled_handlers,
+      summary: buildDecisionSentence(attrs.trace, attrs, st.state),
     };
   }
 
@@ -61,6 +66,9 @@ export class DecisionStrip extends LitElement {
           <span class="label">Pipeline</span>
           <span class="winner">Winner: ${t.winner}</span>
         </div>
+        ${this.showSummary && t.summary
+          ? html`<div class="summary" title="Why this position?">${t.summary}</div>`
+          : nothing}
         <div class="rows">${visible.map((h) => this._row(h, t.steps.get(h), t.winner === h))}</div>
         <div class="reason dim">${t.reason}</div>
       </div>
@@ -168,6 +176,16 @@ export class DecisionStrip extends LitElement {
       font-style: italic;
       margin-top: 2px;
     }
+    .summary {
+      font-size: 0.85rem;
+      line-height: 1.3;
+      padding: 2px 4px 4px;
+      color: var(--primary-text-color);
+    }
+    :host([compact]) .summary {
+      font-size: 0.75rem;
+      padding: 0 2px 2px;
+    }
     .dim {
       color: var(--secondary-text-color);
     }
@@ -211,16 +229,7 @@ interface TraceRow {
   position: number | null;
 }
 
-/** Integration sometimes emits handler names with title case or class names;
- *  normalize to the ControlMethod-style lowercase snake used in HANDLER_ORDER. */
-function normalizeHandler(raw: string): string {
-  return raw
-    .replace(/Handler$/, '')
-    .replace(/([a-z])([A-Z])/g, '$1_$2')
-    .toLowerCase()
-    .replace(/^force_override$/, 'force')
-    .replace(/^weather_override$/, 'weather')
-    .replace(/^manual_override$/, 'manual')
-    .replace(/^motion_timeout$/, 'motion')
-    .replace(/^cloud_suppression$/, 'cloud');
-}
+// normalizeHandler lives in src/lib/decision-summary.ts so the helper and the
+// strip share one implementation; re-export so external callers that imported
+// it from this module before the extract keep working.
+export { normalizeHandler };
