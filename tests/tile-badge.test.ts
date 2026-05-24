@@ -122,7 +122,7 @@ describe('acp-tile-badge', () => {
       pct: 60,
       minimumMode: true,
     });
-    expect(text(el)).toBe('Custom · Table extension · 60% floor');
+    expect(text(el)).toBe('Table extension · 60% floor');
     expect(kind(el)).toBe('custom_position');
   });
 
