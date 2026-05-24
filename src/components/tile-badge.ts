@@ -69,7 +69,10 @@ export class TileBadge extends LitElement {
     }
     if (kind === 'custom_position') {
       const slotPart = this.slotName
-        ? `${base} · ${this.slotName}`
+        ? // The purple custom_position color already signals the kind — drop the
+          // "Custom · " prefix so the named-slot badge stays narrow, symmetric
+          // with how the manual badge drops "Manual · " when a clock is shown.
+          this.slotName
         : this.slotNumber !== undefined
           ? `${base} #${this.slotNumber}`
           : base;

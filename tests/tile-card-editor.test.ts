@@ -147,6 +147,79 @@ describe('adaptive-cover-pro-tile-card editor — value-changed', () => {
   });
 });
 
+describe('adaptive-cover-pro-tile-card editor — cover pre-fill', () => {
+  // Build a registry + hass that makes discoverEntities return exactly one managed cover.
+  function makeEditorSingleCover(): EditorLike {
+    const el = document.createElement('adaptive-cover-pro-tile-card-editor') as EditorLike;
+    el.hass = {
+      states: {
+        'sensor.cover_position': {
+          state: '50',
+          attributes: { actual_positions: { 'cover.left': 50 } },
+        },
+      },
+      callWS: vi.fn().mockResolvedValue([]),
+      connection: { subscribeEvents: vi.fn().mockResolvedValue(() => {}) },
+    } as unknown as HomeAssistant;
+    return el;
+  }
+
+  it('(a) pre-fills cover when single managed cover resolves after registry load', async () => {
+    const el = makeEditorSingleCover();
+    el._registry = REGISTRY; // REGISTRY maps sensor.cover_position → target_position_sensor
+    el.setConfig({ type: TYPE, entry_id: ENTRY });
+    document.body.appendChild(el);
+
+    const emitted: AdaptiveCoverProTileCardConfig[] = [];
+    el.addEventListener('config-changed', (e: Event) => {
+      emitted.push((e as CustomEvent).detail.config as AdaptiveCoverProTileCardConfig);
+    });
+
+    await el.updateComplete;
+
+    // The pre-fill should have fired config-changed with cover set to the single managed cover.
+    const prefilled = emitted.find((c) => c.cover === 'cover.left');
+    expect(prefilled).toBeDefined();
+    expect(prefilled!.cover).toBe('cover.left');
+  });
+
+  it('(b) does NOT pre-fill when managed_covers.length > 1', async () => {
+    const el = makeEditor(); // default hass has cover.left + cover.right (2 covers)
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY });
+    document.body.appendChild(el);
+
+    const emitted: AdaptiveCoverProTileCardConfig[] = [];
+    el.addEventListener('config-changed', (e: Event) => {
+      emitted.push((e as CustomEvent).detail.config as AdaptiveCoverProTileCardConfig);
+    });
+
+    await el.updateComplete;
+
+    // With 2 managed covers, no cover pre-fill should be emitted.
+    const prefilled = emitted.find((c) => c.cover !== undefined);
+    expect(prefilled).toBeUndefined();
+  });
+
+  it('(c) does NOT overwrite an already-set cover', async () => {
+    const el = makeEditorSingleCover();
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY, cover: 'cover.existing' });
+    document.body.appendChild(el);
+
+    const emitted: AdaptiveCoverProTileCardConfig[] = [];
+    el.addEventListener('config-changed', (e: Event) => {
+      emitted.push((e as CustomEvent).detail.config as AdaptiveCoverProTileCardConfig);
+    });
+
+    await el.updateComplete;
+
+    // Pre-fill must not fire when cover is already set.
+    const wrongPrefill = emitted.find((c) => c.cover === 'cover.left');
+    expect(wrongPrefill).toBeUndefined();
+  });
+});
+
 describe('adaptive-cover-pro-tile-card editor — schema', () => {
   it('builds an ha-form schema that includes all expected fields', async () => {
     const el = makeEditor();

@@ -76,6 +76,30 @@ describe('acp-forecast-strip', () => {
     expect(pairs.length).toBe(2);
   });
 
+  it('renders axis labels: 100% top label and time boundary labels for left and right edges', async () => {
+    const samples = [sample(0, 0), sample(120, 100)];
+    const el = await mount(samples, []);
+    const svgEl = el.shadowRoot!.querySelector('svg')!;
+
+    // happy-dom doesn't support querySelector with class selectors on SVG <text>
+    // so we inspect innerHTML for the axis-label class attribute.
+    const inner = svgEl.innerHTML;
+
+    // At least 3 axis-label elements expected (100%, left time, right time)
+    const axisLabelMatches = (inner.match(/class="axis-label"/g) ?? []).length;
+    expect(axisLabelMatches).toBeGreaterThanOrEqual(3);
+
+    // The 100% label must appear in the SVG
+    expect(inner).toContain('100%');
+
+    // Both boundary time labels must contain at least one time-like pattern (digit:digit)
+    const textContents = Array.from(svgEl.querySelectorAll('[class="axis-label"]')).map(
+      (n) => n.textContent ?? '',
+    );
+    const timeLike = textContents.filter((t) => /\d{1,2}:\d{2}/.test(t));
+    expect(timeLike.length).toBeGreaterThanOrEqual(2);
+  });
+
   it('wraps each event in a hoverable group with a richer tooltip', async () => {
     const samples = [sample(0, 0), sample(120, 100)];
     const events = [
