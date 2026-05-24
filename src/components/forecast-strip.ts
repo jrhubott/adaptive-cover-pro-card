@@ -102,6 +102,9 @@ export class ForecastStrip extends LitElement {
         </div>`
       : nothing;
 
+    const leftTime = formatClock(this.samples[0].t);
+    const rightTime = formatClock(this.samples[this.samples.length - 1].t);
+
     return html`
       <div class="wrap">
         <svg
@@ -117,6 +120,11 @@ export class ForecastStrip extends LitElement {
           </title>
           <line class="baseline" x1="0" y1=${VIEW_H - 0.5} x2=${VIEW_W} y2=${VIEW_H - 0.5}></line>
           <polyline class="curve" points=${points} fill="none"></polyline>
+          <text class="axis-label" x="4" y=${TOP_PAD + 8} text-anchor="start">100%</text>
+          <text class="axis-label" x="4" y=${VIEW_H - 3} text-anchor="start">${leftTime}</text>
+          <text class="axis-label" x=${VIEW_W - 4} y=${VIEW_H - 3} text-anchor="end">
+            ${rightTime}
+          </text>
           ${eventGroups} ${hoverGuide}
         </svg>
         ${hoverLabel}
@@ -243,6 +251,13 @@ export class ForecastStrip extends LitElement {
       white-space: nowrap;
       pointer-events: none;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+    .axis-label {
+      font-size: 9px;
+      fill: var(--secondary-text-color, #888);
+      pointer-events: none;
+      vector-effect: non-scaling-stroke;
+      user-select: none;
     }
   `;
 }
