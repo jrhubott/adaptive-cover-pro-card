@@ -175,7 +175,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const motionState = cfg.show_motion_icon !== false ? this._motionActiveState(discovered) : null;
     const motionTitle =
       motionState === 'timeout_pending' ? 'Motion timeout pending' : 'Motion detected';
-    const twoLine = cfg.layout === 'two-line';
+    const detailed = cfg.layout === 'detailed';
     const position = this._currentPosition(discovered);
     const winner = this._winner(discovered);
     const traceAttrs = this._traceAttrs(discovered);
@@ -187,7 +187,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
         ? buildDecisionSentence(traceAttrs.trace ?? [], traceAttrs, winner)
         : '';
 
-    const hasBottomSummary = !!summary && twoLine;
+    const hasBottomSummary = !!summary && detailed;
     const integrationEnabled = this._switchOn(discovered, 'integration_enabled_switch');
     const automaticControl = this._switchOn(discovered, 'automatic_control_switch');
     const renderBadge = showBadge && !(automaticControl === false && integrationEnabled === true);
@@ -195,10 +195,11 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const positionText = showPosition && position !== null ? formatPercent(position) : null;
     const labelParts = [stateText, positionText].filter((p): p is string => !!p);
     const hasStateLabel = !!stateText;
+    const hasRow3 = detailed && (renderBadge || showResume);
 
     return html`
       <div
-        class=${`tile-body${twoLine ? ' two-line' : ''}${hasBottomSummary ? ' has-summary' : ''}${hasStateLabel ? ' has-state-label' : ''}`}
+        class=${`tile-body${detailed ? ' detailed' : ''}${hasBottomSummary ? ' has-summary' : ''}${hasStateLabel ? ' has-state-label' : ''}${hasRow3 ? ' has-row3' : ''}`}
         role=${inert ? 'group' : 'button'}
         tabindex=${inert ? -1 : 0}
         @pointerdown=${this._onPointerDown}
@@ -219,7 +220,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
         </div>
         <div class="label">
           <div class="title" title=${discovered.entry_title}>${title}</div>
-          ${summary && !twoLine ? html`<div class="summary">${summary}</div>` : nothing}
+          ${summary && !detailed ? html`<div class="summary">${summary}</div>` : nothing}
           ${hasBottomSummary
             ? html`<div class="summary inline-summary" title=${summary}>${summary}</div>`
             : nothing}
@@ -236,7 +237,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 ?disabled=${!cover}
                 @click=${() => this._command(cover, 'open_cover')}
               >
-                ▲
+                <ha-icon icon="mdi:arrow-up"></ha-icon>
               </button>
               <button
                 class="stop"
@@ -245,7 +246,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 ?disabled=${!cover}
                 @click=${() => this._command(cover, 'stop_cover')}
               >
-                ■
+                <ha-icon icon="mdi:stop"></ha-icon>
               </button>
               <button
                 class="down"
@@ -254,7 +255,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 ?disabled=${!cover}
                 @click=${() => this._command(cover, 'close_cover')}
               >
-                ▼
+                <ha-icon icon="mdi:arrow-down"></ha-icon>
               </button>
             </div>`
           : nothing}
@@ -494,14 +495,6 @@ export class AdaptiveCoverProTileCard extends LitElement {
       user-select: none;
       min-width: 0;
     }
-    .tile-body.two-line {
-      grid-template-columns: 24px 3rem auto minmax(0, 1fr) auto;
-      grid-template-rows: auto auto;
-      grid-template-areas:
-        'icon label    label    label label'
-        'icon position controls badge resume';
-      row-gap: 4px;
-    }
     /* When the state label is rendered ("Open · 12%") the position cell needs
        to grow to fit variable-width text. Strict tile-to-tile alignment of the
        ▲ ■ ▼ controls is impossible once the label is variable, so we let
@@ -509,22 +502,70 @@ export class AdaptiveCoverProTileCard extends LitElement {
     .tile-body.has-state-label {
       grid-template-columns: 24px minmax(0, 1fr) auto auto auto auto;
     }
-    .tile-body.two-line.has-state-label {
-      grid-template-columns: 24px auto auto minmax(0, 1fr) auto;
+    /* Detailed layout: title row, state row, optional badge/resume row.
+       Icon spans every row so it's vertically centered against the whole
+       tile; controls float to the right of rows 1-2 (HA tile-card style);
+       resume sits below controls on row 3 when shown. */
+    .tile-body.detailed {
+      grid-template-columns: 24px minmax(0, 1fr) auto;
+      grid-template-rows: auto auto;
+      grid-template-areas:
+        'icon label    controls'
+        'icon position controls';
+      row-gap: 4px;
     }
-    .tile-body.two-line.has-summary .label {
+    .tile-body.detailed.has-row3 {
+      grid-template-rows: auto auto auto;
+      grid-template-areas:
+        'icon label    controls'
+        'icon position controls'
+        'icon badge    resume';
+    }
+    .tile-body.detailed.has-state-label {
+      grid-template-columns: 24px minmax(0, 1fr) auto;
+    }
+    .tile-body.detailed.has-summary .label {
       display: flex;
       align-items: baseline;
       gap: 8px;
       min-width: 0;
     }
-    .tile-body.two-line.has-summary .label .title {
+    .tile-body.detailed.has-summary .label .title {
       flex: 1 1 auto;
       min-width: 0;
     }
-    .tile-body.two-line.has-summary .label .inline-summary {
+    .tile-body.detailed.has-summary .label .inline-summary {
       flex: 0 1 auto;
       text-align: right;
+    }
+    .tile-body.detailed .position {
+      text-align: left;
+      padding: 0;
+    }
+    .tile-body.detailed .controls {
+      align-self: center;
+      gap: 6px;
+    }
+    .tile-body.detailed .controls button {
+      width: 56px;
+      height: 44px;
+      border-radius: 12px;
+      border: none;
+      background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
+    }
+    .tile-body.detailed .controls button ha-icon {
+      --mdc-icon-size: 22px;
+      color: var(--primary-text-color);
+    }
+    .tile-body.detailed .controls button:hover {
+      background: var(--divider-color, rgba(127, 127, 127, 0.25));
+    }
+    .tile-body.detailed .cover-icon-wrap {
+      place-self: center;
+    }
+    .tile-body.detailed acp-tile-badge {
+      justify-self: start;
+      margin-top: 2px;
     }
     .tile-body[role='group'] {
       cursor: default;
@@ -600,6 +641,14 @@ export class AdaptiveCoverProTileCard extends LitElement {
       font-size: 0.8rem;
       line-height: 1;
       padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .controls button ha-icon {
+      --mdc-icon-size: 16px;
+      color: var(--primary-text-color);
+      line-height: 0;
     }
     .controls button:hover {
       background: var(--secondary-background-color);

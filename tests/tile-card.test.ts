@@ -422,9 +422,9 @@ describe('adaptive-cover-pro-tile-card new options', () => {
     expect(el.shadowRoot!.querySelector('.tile-body.has-summary')).toBeFalsy();
   });
 
-  it('two-line layout shows the summary inline with the title, right-justified', async () => {
+  it('detailed layout shows the summary inline with the title, right-justified', async () => {
     const el = await mount(
-      { type: TYPE, entry_id: ENTRY, show_decision_summary: true, layout: 'two-line' },
+      { type: TYPE, entry_id: ENTRY, show_decision_summary: true, layout: 'detailed' },
       makeHass({
         decisionState: 'solar',
         decisionAttrs: {
@@ -437,7 +437,36 @@ describe('adaptive-cover-pro-tile-card new options', () => {
     expect(summary).toBeTruthy();
     expect(summary!.classList.contains('inline-summary')).toBe(true);
     expect(summary!.parentElement?.classList.contains('label')).toBe(true);
-    expect(el.shadowRoot!.querySelector('.tile-body.two-line.has-summary')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('.tile-body.detailed.has-summary')).toBeTruthy();
+  });
+
+  it('detailed layout renders the badge on its own row beneath the controls', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed' },
+      makeHass({
+        decisionState: 'solar',
+        decisionAttrs: {
+          trace: [{ handler: 'solar', matched: true, reason: '', position: 60 }],
+          reason: 'Solar tracking',
+        },
+      }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed.has-row3');
+    expect(body).toBeTruthy();
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    expect(body!.contains(badge!)).toBe(true);
+  });
+
+  it('detailed layout collapses the third row when no badge and no resume', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', show_badge: false },
+      makeHass(),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed');
+    expect(body).toBeTruthy();
+    expect(body!.classList.contains('has-row3')).toBe(false);
+    expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeFalsy();
   });
 });
 

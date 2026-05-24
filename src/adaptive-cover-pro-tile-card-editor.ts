@@ -30,7 +30,7 @@ const RESUME_OPTIONS = [
 
 const LAYOUT_OPTIONS = [
   { value: 'one-line', label: 'One line (compact)' },
-  { value: 'two-line', label: 'Two lines (title on top)' },
+  { value: 'detailed', label: 'Detailed (title, state, indicators)' },
 ];
 
 // Mirror the runtime defaults applied in adaptive-cover-pro-tile-card.ts so the

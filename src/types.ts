@@ -59,9 +59,9 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
    *  reset_override_button exists; `never` hides it. */
   show_resume?: 'auto' | 'always' | 'never';
   /** Tile layout. `one-line` (default) is the compact single-row layout;
-   *  `two-line` stacks title + position on top and controls + badge +
-   *  resume below, giving the title more room on narrow tiles. */
-  layout?: 'one-line' | 'two-line';
+   *  `detailed` stacks title on row 1, state · position + controls on row 2,
+   *  and the contextual badge on its own row 3 beneath. */
+  layout?: 'one-line' | 'detailed';
   /** Tap behavior. When undefined, opens the ACP more-info dialog (default).
    *  Otherwise a standard HA `ActionConfig`. Legacy string values
    *  `'dialog'` / `'none'` are still accepted and normalized in setConfig. */
