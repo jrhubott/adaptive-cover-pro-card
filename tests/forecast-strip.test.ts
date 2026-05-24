@@ -75,4 +75,28 @@ describe('acp-forecast-strip', () => {
     const pairs = points.trim().split(/\s+/);
     expect(pairs.length).toBe(2);
   });
+
+  it('wraps each event in a hoverable group with a richer tooltip', async () => {
+    const samples = [sample(0, 0), sample(120, 100)];
+    const events = [
+      event(30, 'sunrise', 'Sunrise'),
+      event(60, 'fov_enter', 'Sun enters FOV'),
+      event(90, 'unknown_kind', 'Mystery'),
+    ];
+    const el = await mount(samples, events);
+    const groups = el.shadowRoot!.querySelectorAll('g.event-group');
+    expect(groups.length).toBe(3);
+
+    // Each group has a wide hit-area line + a visible marker line.
+    for (const g of Array.from(groups)) {
+      expect(g.querySelector('line.event-hit')).toBeTruthy();
+      expect(g.querySelector('line.event-marker')).toBeTruthy();
+    }
+
+    const tooltips = Array.from(groups).map((g) => g.getAttribute('data-tooltip') ?? '');
+    expect(tooltips[0]).toMatch(/^Sunrise — \d{1,2}:\d{2}/);
+    expect(tooltips[1]).toMatch(/^Sun enters window field of view — \d{1,2}:\d{2}/);
+    // Unknown kind falls back to the integration-supplied label.
+    expect(tooltips[2]).toMatch(/^Mystery — \d{1,2}:\d{2}/);
+  });
 });
