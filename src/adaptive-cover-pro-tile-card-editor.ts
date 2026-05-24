@@ -74,6 +74,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
   @state() private _entries: AcpConfigEntry[] | null = null;
   @state() private _entriesError: string | null = null;
   @state() public _registry: EntityRegistryEntry[] | null = null;
+  @state() private _managedCovers: string[] = [];
 
   private _entriesFetchInFlight = false;
   private _registryFetchInFlight = false;
@@ -96,6 +97,9 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       this._ensureEntries();
       this._ensureRegistry();
     }
+    if (changed.has('_registry') && this._registry !== null) {
+      this._maybePrefillCover();
+    }
   }
 
   private _ensureEntries(): void {
@@ -111,6 +115,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
             entry_id: entries[0].entry_id,
           });
         }
+        this._maybePrefillCover();
       })
       .catch((err: Error) => {
         this._entriesError = err?.message ?? 'failed to load config entries';
@@ -126,6 +131,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       fetchEntityRegistry(this.hass)
         .then((entries) => {
           this._registry = entries;
+          this._maybePrefillCover();
         })
         .catch(() => {
           // Cover picker just falls back to the unfiltered cover domain.
@@ -161,6 +167,19 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
         composed: true,
       }),
     );
+  }
+
+  private _maybePrefillCover(): void {
+    if (!this._config?.entry_id || this._config?.cover || !this._registry || !this.hass) return;
+    const discovered = discoverEntities(
+      this.hass,
+      { type: this._config.type, entry_id: this._config.entry_id },
+      this._registry,
+    );
+    this._managedCovers = discovered?.managed_covers ?? [];
+    if (discovered?.managed_covers.length === 1) {
+      this._emit({ ...this._config, cover: discovered.managed_covers[0] });
+    }
   }
 
   private _computeLabel = (schema: HaFormSchemaItem): string => LABELS[schema.name] ?? schema.name;
@@ -218,6 +237,14 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
         .computeLabel=${this._computeLabel}
         @value-changed=${this._valueChanged}
       ></ha-form>
+      ${this._managedCovers.length > 1 && !this._config?.cover
+        ? html`<div class="hint">
+            ${
+              // TODO(i18n): #64
+              'Leave blank to use the first managed cover automatically.'
+            }
+          </div>`
+        : nothing}
     `;
   }
 
@@ -299,6 +326,11 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     .error {
       font-size: 0.82rem;
       color: var(--error-color, crimson);
+    }
+    .hint {
+      font-size: 0.8rem;
+      color: var(--secondary-text-color, #888);
+      padding: 4px 0 0;
     }
   `;
 }
