@@ -24,6 +24,7 @@ Custom Lovelace card for the [Adaptive Cover Pro](https://github.com/jrhubott/ad
 | Card | Type | Summary |
 |------|------|---------|
 | [Adaptive Cover Pro](https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card) | `custom:adaptive-cover-pro-card` | The full card — pick one integration entry, get every section (sky, decisions, covers, overrides, climate). |
+| [Adaptive Cover Pro — Tile](https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card#tile-card) | `custom:adaptive-cover-pro-tile-card` | Compact chip-style row for dense dashboards: icon + name + position + ↑■▼ + contextual badge. Tap opens the ACP more-info dialog. |
 | [Adaptive Cover Pro — Sky Compass](https://github.com/jrhubott/adaptive-cover-pro/wiki/Sky-Compass-Card) | `custom:adaptive-cover-pro-sky-compass-card` | Sky compass only. Accepts **multiple** integration entries; overlays each window's FOV, blind spot, and cover-closure wedge on a single compass with a shared sun dot. |
 
 ## Quick install
@@ -55,6 +56,21 @@ show_sections: [sky, decision, covers, overrides]
 compact: false
 ```
 
+**Tile card** (one per ACP instance, stack many for a dense dashboard):
+```yaml
+type: custom:adaptive-cover-pro-tile-card
+entry_id: YOUR_CONFIG_ENTRY_ID
+# optional — every field is exposed in the visual editor:
+# name: Patio Right
+# icon: mdi:blinds-horizontal
+# cover: cover.patio_right_shade
+# show_position: true
+# show_controls: true
+# show_badge: true
+# show_resume: auto                # 'auto' | 'always' | 'never'
+# tap_action: { action: more-info }   # default opens the ACP more-info dialog
+```
+
 **Standalone Sky Compass** (one or more entries):
 ```yaml
 type: custom:adaptive-cover-pro-sky-compass-card
@@ -77,6 +93,16 @@ show_cardinals: true
 
 Find your `entry_id` on the integration's URL:
 `/config/integrations/integration/adaptive_cover_pro` → click the entry → the URL bar shows `entry_id=...`.
+
+## Screenshots
+
+**Tile card — five configurations stacked.** Same `custom:adaptive-cover-pro-tile-card` type; each tile reflects a different combination of `show_position`, `show_controls`, `show_badge`, and `show_resume`, plus the live winner-driven badge state (Auto / Manual countdown / etc.):
+
+![Tile card configurations](https://raw.githubusercontent.com/jrhubott/adaptive-cover-pro-card/main/images/tile-card-variants.png)
+
+**More-info dialog.** Tapping a tile (or the full card's chrome) opens an ACP-specific dialog with the target, per-cover bars, today's forecast strip, controls, and a collapsible advanced section with the sky compass, pipeline trace, and overrides panel:
+
+![More-info dialog](https://raw.githubusercontent.com/jrhubott/adaptive-cover-pro-card/main/images/more-info-dialog.png)
 
 ## For developers
 
