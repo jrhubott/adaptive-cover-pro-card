@@ -1,4 +1,4 @@
-export const CARD_VERSION = '2.0.0-beta.5';
+export const CARD_VERSION = '2.0.0-beta.6';
 export const CARD_NAME = 'adaptive-cover-pro-card';
 export const CARD_EDITOR_NAME = 'adaptive-cover-pro-card-editor';
 export const SKY_COMPASS_CARD_NAME = 'adaptive-cover-pro-sky-compass-card';
