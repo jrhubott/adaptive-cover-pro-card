@@ -1,8 +1,10 @@
 import { LitElement, html, svg, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { ForecastEvent, ForecastSample } from '../types';
 import { formatClock } from '../lib/formatters';
+import { t } from '../lib/i18n';
 
 /**
  * Hand-written SVG strip rendering today's forecast curve + boundary events.
@@ -21,6 +23,7 @@ import { formatClock } from '../lib/formatters';
  */
 @customElement('acp-forecast-strip')
 export class ForecastStrip extends LitElement {
+  @property({ attribute: false }) public hass?: HomeAssistant;
   @property({ attribute: false }) public samples: ForecastSample[] = [];
   @property({ attribute: false }) public events: ForecastEvent[] = [];
 
@@ -56,11 +59,11 @@ export class ForecastStrip extends LitElement {
 
     const eventGroups = (this.events ?? [])
       .map((e) => {
-        const t = Date.parse(e.t);
-        if (Number.isNaN(t) || t < start || t > end) return null;
-        const x = ((t - start) / span) * VIEW_W;
+        const eventTime = Date.parse(e.t);
+        if (Number.isNaN(eventTime) || eventTime < start || eventTime > end) return null;
+        const x = ((eventTime - start) / span) * VIEW_W;
         const colorClass = `evt-${e.kind}`;
-        const tooltip = describeEvent(e);
+        const tooltip = describeEvent(e, this.hass);
         return svg`<g class="event-group" data-tooltip=${tooltip}>
           <title>${tooltip}</title>
           <line
@@ -114,10 +117,7 @@ export class ForecastStrip extends LitElement {
           @pointermove=${this._onPointerMove}
           @pointerleave=${this._onPointerLeave}
         >
-          <title>
-            Hover the curve for time + forecast position; hover a colored line for the event it
-            marks.
-          </title>
+          <title>${t('forecast.hover_hint', this.hass)}</title>
           <line class="baseline" x1="0" y1=${VIEW_H - 0.5} x2=${VIEW_W} y2=${VIEW_H - 0.5}></line>
           <polyline class="curve" points=${points} fill="none"></polyline>
           <text class="axis-label" x="4" y=${TOP_PAD + 8} text-anchor="start">100%</text>
@@ -269,15 +269,11 @@ function clampPercent(value: number): number {
   return value;
 }
 
-const EVENT_KIND_MEANINGS: Record<string, string> = {
-  sunrise: 'Sunrise',
-  sunset: 'Sunset',
-  fov_enter: 'Sun enters window field of view',
-  fov_exit: 'Sun leaves window field of view',
-};
-
-function describeEvent(e: ForecastEvent): string {
-  const meaning = EVENT_KIND_MEANINGS[e.kind] ?? e.label ?? e.kind;
+function describeEvent(e: ForecastEvent, hass: HomeAssistant | undefined): string {
+  const key = `forecast.event.${e.kind}`;
+  const translated = t(key, hass);
+  // `t()` echoes the key when missing — treat that as "no translation found".
+  const meaning = translated === key ? (e.label ?? e.kind) : translated;
   const time = formatClock(e.t);
   return time === '—' ? meaning : `${meaning} — ${time}`;
 }

@@ -1,3 +1,5 @@
+import { t } from './i18n';
+
 /** Format a 0-100 integer as "42%". Returns "—" when null/undefined. */
 export function formatPercent(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '—';
@@ -64,12 +66,17 @@ export function formatDuration(seconds: number | null | undefined): string {
   return `${h}h ${m % 60}m`;
 }
 
-/** Human-readable seconds until a future ISO datetime, or "now" / "past". */
-export function countdownTo(iso: string | null | undefined): string {
+/** Human-readable seconds until a future ISO datetime, or "now" / "past".
+ *  Pass `hass` to localize the "expired" sentinel; without it, the EN value
+ *  is returned so pure-helper callers remain locale-agnostic. */
+export function countdownTo(
+  iso: string | null | undefined,
+  hass?: Parameters<typeof t>[1],
+): string {
   if (!iso) return '—';
   const target = new Date(iso).getTime();
   if (Number.isNaN(target)) return '—';
   const delta = Math.round((target - Date.now()) / 1000);
-  if (delta <= 0) return 'expired';
+  if (delta <= 0) return hass ? t('formatters.expired', hass) : 'expired';
   return formatDuration(delta);
 }

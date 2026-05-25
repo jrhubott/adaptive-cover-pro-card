@@ -2,10 +2,11 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
-import { HANDLER_LABELS, HANDLER_ORDER, type HandlerName } from '../const';
+import { HANDLER_I18N_KEYS, HANDLER_ORDER, type HandlerName } from '../const';
 import type { DecisionTraceAttributes, DiscoveredEntities } from '../types';
 import { formatPercent } from '../lib/formatters';
 import { buildDecisionSentence, normalizeHandler } from '../lib/decision-summary';
+import { t } from '../lib/i18n';
 
 @customElement('acp-decision-strip')
 export class DecisionStrip extends LitElement {
@@ -36,12 +37,16 @@ export class DecisionStrip extends LitElement {
         position: row.position,
       });
     }
+    const labels: Record<string, string> = {};
+    for (const [key, dotted] of Object.entries(HANDLER_I18N_KEYS)) {
+      labels[key] = t(dotted, this.hass);
+    }
     return {
       winner: st.state,
       reason: attrs.reason ?? '',
       steps,
       enabledHandlers: attrs.enabled_handlers,
-      summary: buildDecisionSentence(attrs.trace, attrs, st.state),
+      summary: buildDecisionSentence(attrs.trace, attrs, st.state, labels),
     };
   }
 
@@ -50,38 +55,42 @@ export class DecisionStrip extends LitElement {
 
   protected render(): TemplateResult | typeof nothing {
     if (!this.hass || !this.discovered) return nothing;
-    const t = this._trace();
-    if (!t) return html`<div class="placeholder">Decision trace not yet populated.</div>`;
-    const disabled = computeDisabledHandlers(t.enabledHandlers);
+    const trace = this._trace();
+    if (!trace) return html`<div class="placeholder">${t('decision.placeholder', this.hass)}</div>`;
+    const disabled = computeDisabledHandlers(trace.enabledHandlers);
     const visible = selectVisibleHandlers(
       HANDLER_ORDER,
-      t.steps,
-      t.winner,
+      trace.steps,
+      trace.winner,
       this.hideInactive,
       disabled,
     );
     return html`
       <div class="wrap">
         <div class="head">
-          <span class="label">Pipeline</span>
-          <span class="winner">Winner: ${t.winner}</span>
+          <span class="label">${t('decision.pipeline', this.hass)}</span>
+          <span class="winner">${t('decision.winner', this.hass, { name: trace.winner })}</span>
         </div>
-        ${this.showSummary && t.summary
-          ? html`<div class="summary" title="Why this position?">${t.summary}</div>`
+        ${this.showSummary && trace.summary
+          ? html`<div class="summary" title=${t('decision.summary_tooltip', this.hass)}>
+              ${trace.summary}
+            </div>`
           : nothing}
-        <div class="rows">${visible.map((h) => this._row(h, t.steps.get(h), t.winner === h))}</div>
-        <div class="reason dim">${t.reason}</div>
+        <div class="rows">
+          ${visible.map((h) => this._row(h, trace.steps.get(h), trace.winner === h))}
+        </div>
+        <div class="reason dim">${trace.reason}</div>
       </div>
     `;
   }
 
   private _row(h: HandlerName, row: TraceRow | undefined, isWinner: boolean): TemplateResult {
     const matched = row?.matched ?? false;
-    const reason = row?.reason ?? 'not evaluated';
+    const reason = row?.reason ?? t('decision.not_evaluated', this.hass);
     const pos = row?.position;
     return html`
       <div class="row ${isWinner ? 'winner' : matched ? 'match' : 'skip'}">
-        <span class="name">${HANDLER_LABELS[h]}</span>
+        <span class="name">${t(HANDLER_I18N_KEYS[h], this.hass)}</span>
         <span class="dots" aria-hidden="true">${matched ? '████' : '────'}</span>
         <span class="pos">${pos !== null && pos !== undefined ? formatPercent(pos) : ''}</span>
         <span class="reason-inline dim">${reason}</span>

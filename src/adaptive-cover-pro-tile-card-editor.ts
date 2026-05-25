@@ -10,6 +10,7 @@ import {
   type EntityRegistryEntry,
 } from './lib/entity-registry';
 import { discoverEntities } from './lib/entity-discovery';
+import { t } from './lib/i18n';
 import type { AdaptiveCoverProTileCardConfig } from './types';
 
 interface ValueChangedEvent extends CustomEvent {
@@ -21,17 +22,6 @@ interface HaFormSchemaItem {
   required?: boolean;
   selector: Record<string, unknown>;
 }
-
-const RESUME_OPTIONS = [
-  { value: 'auto', label: 'Auto (manual override or custom position)' },
-  { value: 'always', label: 'Always (when reset button is available)' },
-  { value: 'never', label: 'Never' },
-];
-
-const LAYOUT_OPTIONS = [
-  { value: 'one-line', label: 'One line (compact)' },
-  { value: 'detailed', label: 'Detailed (title, state, indicators)' },
-];
 
 // Mirror the runtime defaults applied in adaptive-cover-pro-tile-card.ts so the
 // editor toggles reflect actual behavior when a key is omitted from YAML.
@@ -47,23 +37,23 @@ const FORM_DEFAULTS = {
   layout: 'one-line',
 } as const;
 
-const LABELS: Record<string, string> = {
-  entry_id: 'Adaptive Cover Pro instance',
-  name: 'Title override',
-  icon: 'Icon override',
-  cover: 'Cover entity',
-  layout: 'Layout',
-  show_position: 'Show position %',
-  show_state: 'Show state (Open/Closed)',
-  show_decision_summary: 'Show decision summary',
-  show_controls: 'Show ↑■▼ controls',
-  show_badge: 'Show contextual badge',
-  show_compass: 'Show sun compass in dialog',
-  show_motion_icon: 'Show motion indicator',
-  show_resume: 'Resume button',
-  tap_action: 'Tap action',
-  hold_action: 'Hold action',
-  double_tap_action: 'Double-tap action',
+const LABEL_KEYS: Record<string, string> = {
+  entry_id: 'editor.common.entry_id',
+  name: 'editor.tile.name',
+  icon: 'editor.tile.icon',
+  cover: 'editor.tile.cover',
+  layout: 'editor.tile.layout',
+  show_position: 'editor.tile.show_position',
+  show_state: 'editor.tile.show_state',
+  show_decision_summary: 'editor.tile.show_decision_summary',
+  show_controls: 'editor.tile.show_controls',
+  show_badge: 'editor.tile.show_badge',
+  show_compass: 'editor.tile.show_compass',
+  show_motion_icon: 'editor.tile.show_motion_icon',
+  show_resume: 'editor.tile.show_resume',
+  tap_action: 'editor.tile.tap_action',
+  hold_action: 'editor.tile.hold_action',
+  double_tap_action: 'editor.tile.double_tap_action',
 };
 
 @customElement(TILE_CARD_EDITOR_NAME)
@@ -182,7 +172,10 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     }
   }
 
-  private _computeLabel = (schema: HaFormSchemaItem): string => LABELS[schema.name] ?? schema.name;
+  private _computeLabel = (schema: HaFormSchemaItem): string => {
+    const key = LABEL_KEYS[schema.name];
+    return key ? t(key, this.hass) : schema.name;
+  };
 
   private _valueChanged = (e: ValueChangedEvent): void => {
     e.stopPropagation();
@@ -208,14 +201,18 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       // Fall back to the same manual-entry input the main editor uses.
       return html`
         <div class="form">
-          <div class="error">Failed to load config entries: ${this._entriesError}</div>
-          <label class="field-label" for="entry-id-fallback">Entry ID</label>
+          <div class="error">
+            ${t('editor.common.load_failed', this.hass, { error: this._entriesError })}
+          </div>
+          <label class="field-label" for="entry-id-fallback"
+            >${t('editor.common.entry_id_fallback_label', this.hass)}</label
+          >
           <input
             id="entry-id-fallback"
             type="text"
             class="text-input"
             .value=${this._config.entry_id ?? ''}
-            placeholder="Enter config entry ID manually"
+            placeholder=${t('editor.common.entry_id_manual_placeholder', this.hass)}
             @change=${(e: Event) =>
               this._emit({
                 ...(this._config ?? { type: '', entry_id: '' }),
@@ -238,18 +235,24 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
         @value-changed=${this._valueChanged}
       ></ha-form>
       ${this._managedCovers.length > 1 && !this._config?.cover
-        ? html`<div class="hint">
-            ${
-              // TODO(i18n): #64
-              'Leave blank to use the first managed cover automatically.'
-            }
-          </div>`
+        ? html`<div class="hint">${t('editor.tile.cover_blank_hint', this.hass)}</div>`
         : nothing}
     `;
   }
 
   private _schema(): HaFormSchemaItem[] {
     const entryOptions = this._entries?.map((e) => ({ value: e.entry_id, label: e.title })) ?? [];
+
+    const resumeOptions = [
+      { value: 'auto', label: t('editor.tile.resume_option_auto', this.hass) },
+      { value: 'always', label: t('editor.tile.resume_option_always', this.hass) },
+      { value: 'never', label: t('editor.tile.resume_option_never', this.hass) },
+    ];
+
+    const layoutOptions = [
+      { value: 'one-line', label: t('editor.tile.layout_option_one_line', this.hass) },
+      { value: 'detailed', label: t('editor.tile.layout_option_detailed', this.hass) },
+    ];
 
     // Filter the cover picker to the entry's managed covers once we have
     // registry + entry_id. Without those, fall back to any cover.* so the
@@ -279,7 +282,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       { name: 'cover', selector: coverSelector },
       {
         name: 'layout',
-        selector: { select: { mode: 'list', options: LAYOUT_OPTIONS } },
+        selector: { select: { mode: 'list', options: layoutOptions } },
       },
       { name: 'show_position', selector: { boolean: {} } },
       { name: 'show_state', selector: { boolean: {} } },
@@ -290,7 +293,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       { name: 'show_compass', selector: { boolean: {} } },
       {
         name: 'show_resume',
-        selector: { select: { mode: 'list', options: RESUME_OPTIONS } },
+        selector: { select: { mode: 'list', options: resumeOptions } },
       },
       { name: 'tap_action', selector: { ui_action: {} } },
       { name: 'hold_action', selector: { ui_action: {} } },

@@ -5,6 +5,7 @@ import type { HomeAssistant, LovelaceCardEditor } from 'custom-card-helpers';
 import { SKY_COMPASS_CARD_EDITOR_NAME, SKY_COMPASS_CARD_NAME } from './const';
 import { fetchAcpConfigEntries, type AcpConfigEntry } from './lib/config-entries';
 import { colorForIndex } from './lib/palette';
+import { t } from './lib/i18n';
 import type { SkyCompassCardConfig } from './types';
 
 type ToggleKey =
@@ -21,70 +22,70 @@ type ToggleKey =
 
 interface ToggleRow {
   key: ToggleKey;
-  label: string;
-  description: string;
+  labelKey: string;
+  descKey: string;
   defaultOn: boolean;
 }
 
 const TOGGLE_ROWS: ToggleRow[] = [
   {
     key: 'compact',
-    label: 'Compact mode',
-    description: 'Smaller SVG, legend hidden.',
+    labelKey: 'editor.compass.toggle_compact_label',
+    descKey: 'editor.compass.toggle_compact_desc',
     defaultOn: false,
   },
   {
     key: 'show_legend',
-    label: 'Legend',
-    description: 'Color swatches + entry labels below compass.',
+    labelKey: 'editor.compass.toggle_legend_label',
+    descKey: 'editor.compass.toggle_legend_desc',
     defaultOn: true,
   },
   {
     key: 'show_stats',
-    label: 'Stats',
-    description: 'Sun + per-window numeric rows.',
+    labelKey: 'editor.compass.toggle_stats_label',
+    descKey: 'editor.compass.toggle_stats_desc',
     defaultOn: true,
   },
   {
     key: 'show_moon',
-    label: 'Moon',
-    description: 'Render moon position and phase.',
+    labelKey: 'editor.compass.toggle_moon_label',
+    descKey: 'editor.compass.toggle_moon_desc',
     defaultOn: false,
   },
   {
     key: 'show_cardinals',
-    label: 'Cardinal labels',
-    description: 'N/E/S/W letters around the compass.',
+    labelKey: 'editor.compass.toggle_cardinals_label',
+    descKey: 'editor.compass.toggle_cardinals_desc',
     defaultOn: true,
   },
   {
     key: 'show_blind_spot',
-    label: 'Blind spots',
-    description: 'Hatched wedges for each window’s blind range.',
+    labelKey: 'editor.compass.toggle_blind_spot_label',
+    descKey: 'editor.compass.toggle_blind_spot_desc',
     defaultOn: true,
   },
   {
     key: 'show_sun_path',
-    label: 'Sun path',
-    description: 'Today’s sun arc across the sky.',
+    labelKey: 'editor.compass.toggle_sun_path_label',
+    descKey: 'editor.compass.toggle_sun_path_desc',
     defaultOn: true,
   },
   {
     key: 'show_sunrise_sunset',
-    label: 'Sunrise / sunset markers',
-    description: 'Small dots at rise and set azimuths.',
+    labelKey: 'editor.compass.toggle_sunrise_sunset_label',
+    descKey: 'editor.compass.toggle_sunrise_sunset_desc',
     defaultOn: true,
   },
   {
     key: 'show_cover_fill',
-    label: 'Cover closure fill',
-    description: 'Inner wedge showing how closed each cover is.',
+    labelKey: 'editor.compass.toggle_cover_fill_label',
+    descKey: 'editor.compass.toggle_cover_fill_desc',
     defaultOn: true,
   },
   {
     key: 'show_window_arrow',
-    label: 'Window-normal arrow',
-    description: 'Line from center toward each window’s azimuth.',
+    labelKey: 'editor.compass.toggle_window_arrow_label',
+    descKey: 'editor.compass.toggle_window_arrow_desc',
     defaultOn: true,
   },
 ];
@@ -212,20 +213,18 @@ export class AdaptiveCoverProSkyCompassCardEditor extends LitElement implements 
     return html`
       <div class="form">
         <div class="section">
-          <label class="field-label">Adaptive Cover Pro instances</label>
-          <div class="hint">
-            Pick one or more. Each selected entry adds an overlay to the compass.
-          </div>
+          <label class="field-label">${t('editor.compass.instances', this.hass)}</label>
+          <div class="hint">${t('editor.compass.instances_hint', this.hass)}</div>
           ${this._renderEntryPicker(selected)}
         </div>
 
         <div class="section">
-          <label class="field-label">Title (optional)</label>
+          <label class="field-label">${t('editor.common.title_optional', this.hass)}</label>
           <input
             type="text"
             class="text-input"
             .value=${this._config.title ?? ''}
-            placeholder="e.g. West-facing windows"
+            placeholder=${t('editor.common.title_placeholder', this.hass)}
             @change=${this._onTitleChange}
           />
         </div>
@@ -233,8 +232,8 @@ export class AdaptiveCoverProSkyCompassCardEditor extends LitElement implements 
         ${this._config.entry_ids.length > 0
           ? html`
               <div class="section">
-                <label class="field-label">Cover colors</label>
-                <div class="hint">Override the default palette color for each overlay.</div>
+                <label class="field-label">${t('editor.compass.cover_colors', this.hass)}</label>
+                <div class="hint">${t('editor.compass.cover_colors_hint', this.hass)}</div>
                 ${this._config.entry_ids.map((id, i) => {
                   const override = this._config!.cover_colors?.[i] ?? null;
                   const resolved = override ?? colorForIndex(i);
@@ -249,7 +248,11 @@ export class AdaptiveCoverProSkyCompassCardEditor extends LitElement implements 
                       />
                       <span class="toggle-text">
                         <span class="toggle-label">${entry?.title ?? id}</span>
-                        <span class="toggle-desc">${override ? override : 'default'}</span>
+                        <span class="toggle-desc"
+                          >${override
+                            ? override
+                            : t('editor.compass.default_color', this.hass)}</span
+                        >
                       </span>
                       <button
                         type="button"
@@ -257,7 +260,7 @@ export class AdaptiveCoverProSkyCompassCardEditor extends LitElement implements 
                         ?disabled=${!override}
                         @click=${() => this._onCoverColorReset(i)}
                       >
-                        Reset
+                        ${t('editor.common.reset', this.hass)}
                       </button>
                     </div>
                   `;
@@ -267,7 +270,7 @@ export class AdaptiveCoverProSkyCompassCardEditor extends LitElement implements 
           : nothing}
 
         <div class="section">
-          <label class="field-label">Display</label>
+          <label class="field-label">${t('editor.compass.display', this.hass)}</label>
           ${TOGGLE_ROWS.map(
             (row) => html`
               <label class="toggle-row">
@@ -279,8 +282,8 @@ export class AdaptiveCoverProSkyCompassCardEditor extends LitElement implements 
                     this._onToggle(row.key, (e.target as HTMLInputElement).checked)}
                 />
                 <span class="toggle-text">
-                  <span class="toggle-label">${row.label}</span>
-                  <span class="toggle-desc">${row.description}</span>
+                  <span class="toggle-label">${t(row.labelKey, this.hass)}</span>
+                  <span class="toggle-desc">${t(row.descKey, this.hass)}</span>
                 </span>
               </label>
             `,
@@ -288,8 +291,8 @@ export class AdaptiveCoverProSkyCompassCardEditor extends LitElement implements 
         </div>
 
         <div class="section">
-          <label class="field-label">Compass north offset (°)</label>
-          <div class="hint">Rotate the compass clockwise so "up" matches your map. Default: 0.</div>
+          <label class="field-label">${t('editor.common.north_offset', this.hass)}</label>
+          <div class="hint">${t('editor.common.north_offset_hint', this.hass)}</div>
           <input
             type="number"
             class="text-input"
@@ -305,16 +308,21 @@ export class AdaptiveCoverProSkyCompassCardEditor extends LitElement implements 
 
   private _renderEntryPicker(selected: Set<string>): TemplateResult {
     if (this._entriesError) {
-      return html`<div class="error">Failed to load config entries: ${this._entriesError}</div>`;
+      return html`<div class="error">
+        ${t('editor.common.load_failed', this.hass, { error: this._entriesError })}
+      </div>`;
     }
     if (!this._entries) {
-      return html`<div class="hint">Loading Adaptive Cover Pro config entries…</div>`;
+      return html`<div class="hint">${t('editor.common.loading_entries', this.hass)}</div>`;
     }
     if (this._entries.length === 0) {
       return html`
         <div class="error">
-          No Adaptive Cover Pro config entries found. Add an instance under
-          <code>Settings → Devices &amp; Services</code>, then come back.
+          ${t('editor.common.no_entries', this.hass)}
+          <code>${t('editor.common.no_entries_path', this.hass)}</code>${t(
+            'editor.common.no_entries_then',
+            this.hass,
+          )}
         </div>
       `;
     }

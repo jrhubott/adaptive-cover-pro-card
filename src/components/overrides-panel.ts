@@ -4,6 +4,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { DiscoveredEntities } from '../types';
 import { countdownTo } from '../lib/formatters';
+import { t } from '../lib/i18n';
 
 @customElement('acp-overrides-panel')
 export class OverridesPanel extends LitElement {
@@ -48,37 +49,64 @@ export class OverridesPanel extends LitElement {
     this.hass.callService('button', 'press', { entity_id: id });
   }
 
+  private _motionStateLabel(stateId: string | undefined, raw: string): string {
+    if (stateId) {
+      const stateObj = this.hass.states[stateId];
+      const fmt = (this.hass as unknown as { formatEntityState?: (s: unknown) => string })
+        .formatEntityState;
+      if (stateObj && typeof fmt === 'function') {
+        const formatted = fmt(stateObj);
+        if (formatted) return formatted;
+      }
+    }
+    return raw.replace(/_/g, ' ');
+  }
+
   protected render(): TemplateResult | typeof nothing {
     if (!this.hass || !this.discovered) return nothing;
     const manualActive = this._manualActive();
     const manualEnd = this._manualEndIso();
     const motion = this._motionStatus();
+    const motionId = this.discovered.entities.motion_status_sensor;
     const forceCount = this._forceActive();
     const resetId = this.discovered.entities.reset_override_button;
+    const resetLabel = t('overrides.reset_manual', this.hass);
 
     return html`
       <div class="wrap">
-        <div class="label dim">Overrides</div>
+        <div class="label dim">${t('overrides.title', this.hass)}</div>
         <div class="grid">
           <div class="tile ${manualActive ? 'active' : ''}">
-            <div class="tile-label">Manual</div>
-            <div class="tile-value">${manualActive ? 'Active' : 'Off'}</div>
+            <div class="tile-label">${t('overrides.manual', this.hass)}</div>
+            <div class="tile-value">
+              ${manualActive ? t('overrides.active', this.hass) : t('overrides.off', this.hass)}
+            </div>
             ${manualEnd
-              ? html`<div class="tile-sub dim">ends in ${countdownTo(manualEnd)}</div>`
+              ? html`<div class="tile-sub dim">
+                  ${t('overrides.ends_in', this.hass, { time: countdownTo(manualEnd, this.hass) })}
+                </div>`
               : nothing}
           </div>
 
           <div class="tile ${forceCount > 0 ? 'active warning' : ''}">
-            <div class="tile-label">Force</div>
-            <div class="tile-value">${forceCount > 0 ? `${forceCount} active` : 'Off'}</div>
+            <div class="tile-label">${t('overrides.force', this.hass)}</div>
+            <div class="tile-value">
+              ${forceCount > 0
+                ? t('overrides.active_count', this.hass, { count: forceCount })
+                : t('overrides.off', this.hass)}
+            </div>
           </div>
 
           ${motion
             ? html`<div class="tile ${motion.state === 'motion_detected' ? 'active' : ''}">
-                <div class="tile-label">Motion</div>
-                <div class="tile-value">${motion.state.replace(/_/g, ' ')}</div>
+                <div class="tile-label">${t('overrides.motion', this.hass)}</div>
+                <div class="tile-value">${this._motionStateLabel(motionId, motion.state)}</div>
                 ${motion.endIso
-                  ? html`<div class="tile-sub dim">timeout ${countdownTo(motion.endIso)}</div>`
+                  ? html`<div class="tile-sub dim">
+                      ${t('overrides.timeout', this.hass, {
+                        time: countdownTo(motion.endIso, this.hass),
+                      })}
+                    </div>`
                   : nothing}
               </div>`
             : nothing}
@@ -86,11 +114,11 @@ export class OverridesPanel extends LitElement {
             ? this.resetEnabled
               ? html`<button class="tile action" @click=${this._resetManual}>
                   <ha-icon icon="mdi:restore"></ha-icon>
-                  <div class="tile-value">Reset Manual</div>
+                  <div class="tile-value">${resetLabel}</div>
                 </button>`
               : html`<button class="tile action readonly" aria-disabled="true" tabindex="-1">
                   <ha-icon icon="mdi:restore"></ha-icon>
-                  <div class="tile-value">Reset Manual</div>
+                  <div class="tile-value">${resetLabel}</div>
                 </button>`
             : nothing}
         </div>

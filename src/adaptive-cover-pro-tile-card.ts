@@ -7,7 +7,12 @@ import {
   type HomeAssistant,
 } from 'custom-card-helpers';
 
-import { TILE_CARD_NAME, TILE_CARD_EDITOR_NAME, type HandlerName } from './const';
+import {
+  HANDLER_I18N_KEYS,
+  TILE_CARD_NAME,
+  TILE_CARD_EDITOR_NAME,
+  type HandlerName,
+} from './const';
 import { discoverEntities } from './lib/entity-discovery';
 import { pickCoverIcon } from './lib/icons';
 import {
@@ -22,6 +27,7 @@ import type {
 } from './types';
 import { buildDecisionSentence, normalizeHandler } from './lib/decision-summary';
 import { formatCoverState, formatPercent } from './lib/formatters';
+import { t } from './lib/i18n';
 
 import './components/tile-badge';
 import './components/more-info-dialog';
@@ -126,7 +132,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
       return html`<ha-card>
         <div class="empty">
           <p class="dim">
-            ${this._registryError ? `Registry fetch failed: ${this._registryError}` : 'Loading…'}
+            ${this._registryError
+              ? t('tile.registry_failed', this.hass, { error: this._registryError })
+              : t('tile.loading', this.hass)}
           </p>
         </div>
       </ha-card>`;
@@ -141,7 +149,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
       return html`<ha-card>
         <div class="empty">
           <p class="dim">
-            Adaptive Cover Pro entry <code>${this._config.entry_id}</code> not found.
+            ${t('tile.entry_not_found', this.hass, {
+              entry: this._config.entry_id,
+            })}
           </p>
         </div>
       </ha-card>`;
@@ -163,6 +173,14 @@ export class AdaptiveCoverProTileCard extends LitElement {
     this._dialogOpen = false;
   };
 
+  private _buildHandlerLabels(): Record<string, string> {
+    const labels: Record<string, string> = {};
+    for (const [key, dotted] of Object.entries(HANDLER_I18N_KEYS)) {
+      labels[key] = t(dotted, this.hass);
+    }
+    return labels;
+  }
+
   private _renderTile(discovered: DiscoveredEntities): TemplateResult {
     const cfg = this._config!;
     const title = cfg.name ?? discovered.entry_title;
@@ -174,7 +192,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const showBadge = cfg.show_badge !== false;
     const motionState = cfg.show_motion_icon !== false ? this._motionActiveState(discovered) : null;
     const motionTitle =
-      motionState === 'timeout_pending' ? 'Motion timeout pending' : 'Motion detected';
+      motionState === 'timeout_pending'
+        ? t('tile.motion_pending', this.hass)
+        : t('tile.motion_detected', this.hass);
     const detailed = cfg.layout === 'detailed';
     const position = this._currentPosition(discovered);
     const winner = this._winner(discovered);
@@ -184,7 +204,12 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const inert = this._isFullyInert(cfg);
     const summary =
       cfg.show_decision_summary === true && traceAttrs
-        ? buildDecisionSentence(traceAttrs.trace ?? [], traceAttrs, winner)
+        ? buildDecisionSentence(
+            traceAttrs.trace ?? [],
+            traceAttrs,
+            winner,
+            this._buildHandlerLabels(),
+          )
         : '';
 
     const hasBottomSummary = !!summary && detailed;
@@ -233,7 +258,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
               <button
                 class="up"
                 type="button"
-                aria-label="Open"
+                aria-label=${t('tile.open', this.hass)}
                 ?disabled=${!cover}
                 @click=${() => this._command(cover, 'open_cover')}
               >
@@ -242,7 +267,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
               <button
                 class="stop"
                 type="button"
-                aria-label="Stop"
+                aria-label=${t('tile.stop', this.hass)}
                 ?disabled=${!cover}
                 @click=${() => this._command(cover, 'stop_cover')}
               >
@@ -251,7 +276,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
               <button
                 class="down"
                 type="button"
-                aria-label="Close"
+                aria-label=${t('tile.close', this.hass)}
                 ?disabled=${!cover}
                 @click=${() => this._command(cover, 'close_cover')}
               >
@@ -261,6 +286,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
           : nothing}
         ${renderBadge
           ? html`<acp-tile-badge
+              .hass=${this.hass}
               .winner=${winner}
               .integrationEnabled=${integrationEnabled}
               .slotNumber=${traceAttrs?.custom_position_active_slot}
@@ -274,14 +300,14 @@ export class AdaptiveCoverProTileCard extends LitElement {
           ? html`<button
               class="resume"
               type="button"
-              aria-label="Resume automatic control"
+              aria-label=${t('tile.resume_aria', this.hass)}
               @click=${(e: Event) => {
                 e.stopPropagation();
                 this._resume(discovered);
               }}
               @pointerdown=${this._stop}
             >
-              Resume
+              ${t('tile.resume', this.hass)}
             </button>`
           : nothing}
       </div>

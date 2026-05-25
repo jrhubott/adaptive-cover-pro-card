@@ -3,6 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { DiscoveredEntities } from '../types';
+import { t } from '../lib/i18n';
 
 interface ClimateAttrs {
   active_temperature?: number;
@@ -16,10 +17,13 @@ interface ClimateAttrs {
   irradiance_active?: boolean;
 }
 
+// Keyed by slug states emitted by the integration's `climate_status` sensor
+// (adaptive-cover-pro#453). The visible strategy label is sourced from
+// `hass.formatEntityState`, which goes through the integration's translations.
 const STRATEGY_ICONS: Record<string, string> = {
-  'Summer Mode': 'mdi:weather-sunny',
-  'Winter Mode': 'mdi:snowflake',
-  Intermediate: 'mdi:weather-partly-cloudy',
+  summer_mode: 'mdi:weather-sunny',
+  winter_mode: 'mdi:snowflake',
+  intermediate: 'mdi:weather-partly-cloudy',
 };
 
 @customElement('acp-climate-panel')
@@ -39,46 +43,60 @@ export class ClimatePanel extends LitElement {
     const attrs = (st.attributes as unknown as ClimateAttrs) ?? {};
     const icon = STRATEGY_ICONS[strategy] ?? 'mdi:thermostat';
     const unit = attrs.temperature_unit ?? '°';
+    const fmt = (this.hass as unknown as { formatEntityState?: (s: unknown) => string })
+      .formatEntityState;
+    const strategyLabel = typeof fmt === 'function' ? (fmt(st) ?? strategy) : strategy;
+    const activeValue =
+      attrs.active_temperature !== undefined
+        ? `${attrs.active_temperature.toFixed(1)}${unit}`
+        : '—';
 
     const temps = [
       attrs.indoor_temperature !== undefined
-        ? { label: 'Indoor', value: attrs.indoor_temperature, unit }
+        ? { label: t('climate.indoor', this.hass), value: attrs.indoor_temperature, unit }
         : null,
       attrs.outdoor_temperature !== undefined
-        ? { label: 'Outdoor', value: attrs.outdoor_temperature, unit }
+        ? { label: t('climate.outdoor', this.hass), value: attrs.outdoor_temperature, unit }
         : null,
-    ].filter((t): t is { label: string; value: number; unit: string } => t !== null);
+    ].filter((row): row is { label: string; value: number; unit: string } => row !== null);
 
     const conditions: Array<{ label: string; value: boolean | undefined; icon: string }> = [
-      { label: 'Presence', value: attrs.is_presence, icon: 'mdi:account-check' },
-      { label: 'Sunny', value: attrs.is_sunny, icon: 'mdi:white-balance-sunny' },
-      { label: 'Lux', value: attrs.lux_active, icon: 'mdi:brightness-7' },
-      { label: 'Irradiance', value: attrs.irradiance_active, icon: 'mdi:solar-power' },
+      {
+        label: t('climate.presence', this.hass),
+        value: attrs.is_presence,
+        icon: 'mdi:account-check',
+      },
+      {
+        label: t('climate.sunny', this.hass),
+        value: attrs.is_sunny,
+        icon: 'mdi:white-balance-sunny',
+      },
+      { label: t('climate.lux', this.hass), value: attrs.lux_active, icon: 'mdi:brightness-7' },
+      {
+        label: t('climate.irradiance', this.hass),
+        value: attrs.irradiance_active,
+        icon: 'mdi:solar-power',
+      },
     ].filter((c) => c.value !== undefined);
 
     return html`
       <div class="wrap">
         <div class="head">
-          <span class="label">Climate</span>
-          <span class="dim"
-            >Active:
-            ${attrs.active_temperature !== undefined
-              ? `${attrs.active_temperature.toFixed(1)}${unit}`
-              : '—'}</span
-          >
+          <span class="label">${t('climate.title', this.hass)}</span>
+          <span class="dim">${t('climate.active', this.hass, { strategy: activeValue })}</span>
         </div>
         <div class="strategy">
           <ha-icon icon=${icon}></ha-icon>
-          <span class="strategy-name">${strategy}</span>
+          <span class="strategy-name">${strategyLabel}</span>
         </div>
         ${temps.length
           ? html`
               <div class="temps">
                 ${temps.map(
-                  (t) => html`
+                  (row) => html`
                     <div class="temp">
-                      <span class="temp-label dim">${t.label}</span>
-                      <span class="temp-value">${t.value.toFixed(1)}${t.unit}</span>
+                      <span class="temp-label dim">${row.label}</span>
+                      <span class="temp-value">${row.value.toFixed(1)}${row.unit}</span>
                     </div>
                   `,
                 )}
