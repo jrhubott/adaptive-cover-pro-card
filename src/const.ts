@@ -41,6 +41,24 @@ export const HANDLER_LABELS: Record<HandlerName, string> = {
   default: 'Default',
 };
 
+/**
+ * i18n dotted keys for each pipeline handler. Callers with access to `hass`
+ * resolve labels via `t(HANDLER_I18N_KEYS[handler], hass)`; callers without
+ * `hass` fall back to `HANDLER_LABELS` for the EN string.
+ */
+export const HANDLER_I18N_KEYS: Record<HandlerName, string> = {
+  force: 'handler.force',
+  weather: 'handler.weather',
+  manual: 'handler.manual',
+  custom_position: 'handler.custom_position',
+  motion: 'handler.motion',
+  cloud: 'handler.cloud',
+  climate: 'handler.climate',
+  glare_zone: 'handler.glare_zone',
+  solar: 'handler.solar',
+  default: 'handler.default',
+};
+
 export const COVER_TYPE_ICONS: Record<string, string> = {
   cover_blind: 'mdi:blinds-horizontal',
   cover_awning: 'mdi:awning-outline',
@@ -122,6 +140,26 @@ export const BADGE_TOKENS: Record<BadgeKind, BadgeTokens> = {
   solar: { label: 'Sun tracking', bg: 'rgba(76, 175, 80, 0.22)', fg: '#1b5e20' },
   motion: { label: 'Motion', bg: 'rgba(255, 235, 59, 0.22)', fg: '#827717' },
   off: { label: 'Off', bg: 'rgba(97, 97, 97, 0.28)', fg: '#212121' },
+};
+
+/**
+ * i18n dotted keys for each badge kind. Callers with access to `hass`
+ * resolve labels via `t(BADGE_I18N_KEYS[kind], hass)`; the EN values in
+ * `BADGE_TOKENS[kind].label` are kept as a fallback when `hass` is missing
+ * (e.g. unit tests, isolated component renders).
+ */
+export const BADGE_I18N_KEYS: Record<BadgeKind, string> = {
+  auto: 'badge.auto',
+  manual: 'badge.manual',
+  force: 'badge.force',
+  weather: 'badge.weather',
+  glare_zone: 'badge.glare_zone',
+  climate: 'badge.climate',
+  cloud: 'badge.cloud',
+  custom_position: 'badge.custom_position',
+  solar: 'badge.solar',
+  motion: 'badge.motion',
+  off: 'badge.off',
 };
 
 /** Logical slots the card binds to. */

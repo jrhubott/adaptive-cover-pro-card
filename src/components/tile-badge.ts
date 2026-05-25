@@ -1,9 +1,17 @@
 import { LitElement, html, css, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import type { HomeAssistant } from 'custom-card-helpers';
 
-import { BADGE_KINDS_BY_HANDLER, BADGE_TOKENS, type BadgeKind, type HandlerName } from '../const';
+import {
+  BADGE_I18N_KEYS,
+  BADGE_KINDS_BY_HANDLER,
+  BADGE_TOKENS,
+  type BadgeKind,
+  type HandlerName,
+} from '../const';
 import { normalizeHandler } from '../lib/decision-summary';
 import { formatClock } from '../lib/formatters';
+import { t } from '../lib/i18n';
 
 /**
  * Compact contextual badge for the tile card.
@@ -17,6 +25,7 @@ import { formatClock } from '../lib/formatters';
  */
 @customElement('acp-tile-badge')
 export class TileBadge extends LitElement {
+  @property({ attribute: false }) public hass?: HomeAssistant;
   @property() public winner: string = 'default';
 
   /** Manual override end time (ISO) — drives the "Manual · HH:MM" suffix. */
@@ -44,7 +53,8 @@ export class TileBadge extends LitElement {
   protected render(): TemplateResult {
     const kind = this._kind();
     const tokens = BADGE_TOKENS[kind];
-    const label = this._label(kind, tokens.label);
+    const base = this.hass ? t(BADGE_I18N_KEYS[kind], this.hass) : tokens.label;
+    const label = this._label(kind, base);
     return html`<span
       class="badge kind-${kind}"
       style="background:${tokens.bg};color:${tokens.fg};"

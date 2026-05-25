@@ -5,6 +5,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import { SKY_COMPASS_CARD_EDITOR_NAME, SKY_COMPASS_CARD_NAME } from './const';
 import { discoverEntities } from './lib/entity-discovery';
 import { normalizeAzimuth } from './lib/geometry';
+import { t } from './lib/i18n';
 import {
   fetchEntityRegistry,
   subscribeEntityRegistry,
@@ -103,8 +104,8 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
         <div class="empty">
           <p class="dim">
             ${this._registryError
-              ? `Registry fetch failed: ${this._registryError}`
-              : 'Loading Adaptive Cover Pro registry…'}
+              ? t('tile.registry_failed', this.hass, { error: this._registryError })
+              : t('root.loading_registry', this.hass)}
           </p>
         </div>
       </ha-card>`;
@@ -125,8 +126,12 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
     if (discoveredList.length === 0) {
       return html`<ha-card>
         <div class="empty">
-          <p><strong>No matching Adaptive Cover Pro entities</strong></p>
-          <p class="dim">Configured entries: ${this._config.entry_ids.join(', ')}</p>
+          <p><strong>${t('root.compass_no_match', this.hass)}</strong></p>
+          <p class="dim">
+            ${t('root.compass_configured', this.hass, {
+              entries: this._config.entry_ids.join(', '),
+            })}
+          </p>
         </div>
       </ha-card>`;
     }
@@ -152,7 +157,9 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
           .northOffsetDeg=${normalizeAzimuth(cfg.north_offset ?? 0)}
         ></acp-sky-compass>
         ${missing.length > 0
-          ? html`<div class="warn dim">Entries not found: ${missing.join(', ')}</div>`
+          ? html`<div class="warn dim">
+              ${t('root.compass_not_found', this.hass, { entries: missing.join(', ') })}
+            </div>`
           : nothing}
       </ha-card>
     `;

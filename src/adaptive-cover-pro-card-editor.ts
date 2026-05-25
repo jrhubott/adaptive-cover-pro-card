@@ -5,40 +5,45 @@ import type { HomeAssistant, LovelaceCardEditor } from 'custom-card-helpers';
 import { CARD_EDITOR_NAME } from './const';
 import type { ControlFlags } from './const';
 import { fetchAcpConfigEntries, type AcpConfigEntry } from './lib/config-entries';
+import { t } from './lib/i18n';
 import type { AdaptiveCoverProCardConfig, CardSection } from './types';
 
 interface SectionRow {
   key: CardSection;
-  label: string;
-  description: string;
+  labelKey: string;
+  descKey: string;
 }
 
 const SECTION_ROWS: SectionRow[] = [
-  { key: 'sky', label: 'Sky compass', description: 'Sun vs. window FOV, polar plot' },
+  {
+    key: 'sky',
+    labelKey: 'editor.main.section_sky_label',
+    descKey: 'editor.main.section_sky_desc',
+  },
   {
     key: 'elevation',
-    label: 'Sun today',
-    description: 'Elevation-vs-time chart with FOV band and current-time cursor',
+    labelKey: 'editor.main.section_elevation_label',
+    descKey: 'editor.main.section_elevation_desc',
   },
   {
     key: 'decision',
-    label: 'Decision strip',
-    description: 'All 10 pipeline handlers with the winning row highlighted',
+    labelKey: 'editor.main.section_decision_label',
+    descKey: 'editor.main.section_decision_desc',
   },
   {
     key: 'covers',
-    label: 'Cover positions',
-    description: 'Per-cover live vs. target bars; click to set position',
+    labelKey: 'editor.main.section_covers_label',
+    descKey: 'editor.main.section_covers_desc',
   },
   {
     key: 'overrides',
-    label: 'Overrides panel',
-    description: 'Manual, force, motion tiles + reset button',
+    labelKey: 'editor.main.section_overrides_label',
+    descKey: 'editor.main.section_overrides_desc',
   },
   {
     key: 'climate',
-    label: 'Climate panel',
-    description: 'Summer/winter/intermediate strategy (auto-hidden if climate mode is off)',
+    labelKey: 'editor.main.section_climate_label',
+    descKey: 'editor.main.section_climate_desc',
   },
 ];
 
@@ -154,13 +159,13 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
     return html`
       <div class="form">
         <div class="section">
-          <label class="field-label">Adaptive Cover Pro instance</label>
+          <label class="field-label">${t('editor.common.entry_id', this.hass)}</label>
           ${this._renderEntryPicker()}
         </div>
 
         <div class="section">
-          <label class="field-label">Sections</label>
-          <div class="hint">Toggle which parts of the card are shown.</div>
+          <label class="field-label">${t('editor.main.sections', this.hass)}</label>
+          <div class="hint">${t('editor.main.sections_hint', this.hass)}</div>
           ${SECTION_ROWS.map(
             (row) => html`
               <label class="toggle-row">
@@ -171,8 +176,8 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
                     this._onSectionToggle(row.key, (e.target as HTMLInputElement).checked)}
                 />
                 <span class="toggle-text">
-                  <span class="toggle-label">${row.label}</span>
-                  <span class="toggle-desc">${row.description}</span>
+                  <span class="toggle-label">${t(row.labelKey, this.hass)}</span>
+                  <span class="toggle-desc">${t(row.descKey, this.hass)}</span>
                 </span>
               </label>
             `,
@@ -180,8 +185,8 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
         </div>
 
         <div class="section">
-          <label class="field-label">Controls</label>
-          <div class="hint">Render as read-only (visible but not clickable).</div>
+          <label class="field-label">${t('editor.main.controls', this.hass)}</label>
+          <div class="hint">${t('editor.main.controls_hint', this.hass)}</div>
           <label class="toggle-row">
             <input
               type="checkbox"
@@ -193,8 +198,10 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
                 )}
             />
             <span class="toggle-text">
-              <span class="toggle-label">Integration ON/OFF pill</span>
-              <span class="toggle-desc">Allow toggling the integration from the card header.</span>
+              <span class="toggle-label"
+                >${t('editor.main.integration_pill_label', this.hass)}</span
+              >
+              <span class="toggle-desc">${t('editor.main.integration_pill_desc', this.hass)}</span>
             </span>
           </label>
           <label class="toggle-row">
@@ -205,10 +212,8 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
                 this._onControlToggle('automatic_control', (e.target as HTMLInputElement).checked)}
             />
             <span class="toggle-text">
-              <span class="toggle-label">Automatic Control pill</span>
-              <span class="toggle-desc"
-                >Allow toggling automatic control from the card header.</span
-              >
+              <span class="toggle-label">${t('editor.main.automatic_pill_label', this.hass)}</span>
+              <span class="toggle-desc">${t('editor.main.automatic_pill_desc', this.hass)}</span>
             </span>
           </label>
           <label class="toggle-row">
@@ -222,14 +227,14 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
                 )}
             />
             <span class="toggle-text">
-              <span class="toggle-label">Reset Manual Override button</span>
-              <span class="toggle-desc">Allow pressing the reset tile in the overrides panel.</span>
+              <span class="toggle-label">${t('editor.main.reset_button_label', this.hass)}</span>
+              <span class="toggle-desc">${t('editor.main.reset_button_desc', this.hass)}</span>
             </span>
           </label>
         </div>
 
         <div class="section">
-          <label class="field-label">Display</label>
+          <label class="field-label">${t('editor.main.display', this.hass)}</label>
           <label class="toggle-row">
             <input
               type="checkbox"
@@ -237,8 +242,8 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
               @change=${(e: Event) => this._onCompactToggle((e.target as HTMLInputElement).checked)}
             />
             <span class="toggle-text">
-              <span class="toggle-label">Compact mode</span>
-              <span class="toggle-desc">Tighter spacing between sections.</span>
+              <span class="toggle-label">${t('editor.main.compact_label', this.hass)}</span>
+              <span class="toggle-desc">${t('editor.main.compact_desc', this.hass)}</span>
             </span>
           </label>
           <label class="toggle-row">
@@ -249,8 +254,12 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
                 this._onCompassStatsToggle((e.target as HTMLInputElement).checked)}
             />
             <span class="toggle-text">
-              <span class="toggle-label">Show compass stats</span>
-              <span class="toggle-desc">Azi, Elev, ∠, and Window angle below the sky compass.</span>
+              <span class="toggle-label"
+                >${t('editor.main.show_compass_stats_label', this.hass)}</span
+              >
+              <span class="toggle-desc"
+                >${t('editor.main.show_compass_stats_desc', this.hass)}</span
+              >
             </span>
           </label>
           <label class="toggle-row">
@@ -261,8 +270,12 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
                 this._onCompassLegendToggle((e.target as HTMLInputElement).checked)}
             />
             <span class="toggle-text">
-              <span class="toggle-label">Show compass legend</span>
-              <span class="toggle-desc">Color key below the sky compass.</span>
+              <span class="toggle-label"
+                >${t('editor.main.show_compass_legend_label', this.hass)}</span
+              >
+              <span class="toggle-desc"
+                >${t('editor.main.show_compass_legend_desc', this.hass)}</span
+              >
             </span>
           </label>
           <label class="toggle-row">
@@ -272,8 +285,8 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
               @change=${(e: Event) => this._onMoonToggle((e.target as HTMLInputElement).checked)}
             />
             <span class="toggle-text">
-              <span class="toggle-label">Show moon on compass</span>
-              <span class="toggle-desc">Moon position and phase overlay on the sky compass.</span>
+              <span class="toggle-label">${t('editor.main.show_moon_label', this.hass)}</span>
+              <span class="toggle-desc">${t('editor.main.show_moon_desc', this.hass)}</span>
             </span>
           </label>
           <label class="toggle-row">
@@ -284,10 +297,8 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
                 this._onHideInactiveToggle((e.target as HTMLInputElement).checked)}
             />
             <span class="toggle-text">
-              <span class="toggle-label">Hide inactive handlers</span>
-              <span class="toggle-desc"
-                >Show only the winner and actively matched pipeline handlers.</span
-              >
+              <span class="toggle-label">${t('editor.main.hide_inactive_label', this.hass)}</span>
+              <span class="toggle-desc">${t('editor.main.hide_inactive_desc', this.hass)}</span>
             </span>
           </label>
           <label class="toggle-row">
@@ -297,15 +308,15 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
               @change=${(e: Event) => this._onVersionToggle((e.target as HTMLInputElement).checked)}
             />
             <span class="toggle-text">
-              <span class="toggle-label">Show version tag</span>
-              <span class="toggle-desc">Display card version at the bottom.</span>
+              <span class="toggle-label">${t('editor.main.show_version_label', this.hass)}</span>
+              <span class="toggle-desc">${t('editor.main.show_version_desc', this.hass)}</span>
             </span>
           </label>
         </div>
 
         <div class="section">
-          <label class="field-label">Compass north offset (°)</label>
-          <div class="hint">Rotate the compass clockwise so "up" matches your map. Default: 0.</div>
+          <label class="field-label">${t('editor.common.north_offset', this.hass)}</label>
+          <div class="hint">${t('editor.common.north_offset_hint', this.hass)}</div>
           <input
             type="number"
             class="text-input"
@@ -322,24 +333,29 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
   private _renderEntryPicker(): TemplateResult {
     if (this._entriesError) {
       return html`
-        <div class="error">Failed to load config entries: ${this._entriesError}</div>
+        <div class="error">
+          ${t('editor.common.load_failed', this.hass, { error: this._entriesError })}
+        </div>
         <input
           type="text"
           .value=${this._config?.entry_id ?? ''}
-          placeholder="Enter config entry ID manually"
+          placeholder=${t('editor.common.entry_id_manual_placeholder', this.hass)}
           @change=${this._onEntryChange}
           class="text-input"
         />
       `;
     }
     if (!this._entries) {
-      return html`<div class="hint">Loading Adaptive Cover Pro config entries…</div>`;
+      return html`<div class="hint">${t('editor.common.loading_entries', this.hass)}</div>`;
     }
     if (this._entries.length === 0) {
       return html`
         <div class="error">
-          No Adaptive Cover Pro config entries found. Add an instance under
-          <code>Settings → Devices &amp; Services</code>, then come back.
+          ${t('editor.common.no_entries', this.hass)}
+          <code>${t('editor.common.no_entries_path', this.hass)}</code>${t(
+            'editor.common.no_entries_then',
+            this.hass,
+          )}
         </div>
       `;
     }
@@ -348,7 +364,7 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
         ${this._config?.entry_id &&
         !this._entries.some((e) => e.entry_id === this._config!.entry_id)
           ? html`<option value=${this._config.entry_id}>
-              (unknown: ${this._config.entry_id})
+              ${t('editor.common.unknown_entry', this.hass, { entry: this._config.entry_id })}
             </option>`
           : nothing}
         ${this._entries.map(
