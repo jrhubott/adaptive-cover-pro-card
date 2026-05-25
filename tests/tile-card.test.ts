@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import '../src/adaptive-cover-pro-tile-card';
+import { INTEGRATION_DOMAIN } from '../src/const';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { AdaptiveCoverProTileCardConfig } from '../src/types';
 import type { EntityRegistryEntry } from '../src/lib/entity-registry';
@@ -237,11 +238,14 @@ describe('adaptive-cover-pro-tile-card render', () => {
 });
 
 describe('adaptive-cover-pro-tile-card service calls', () => {
-  it('↑ calls cover.open_cover against the first managed cover', async () => {
+  it('↑ calls adaptive_cover_pro.set_position(100) against the first managed cover', async () => {
     const callService = vi.fn();
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass({ callService }));
     (el.shadowRoot!.querySelector('button.up') as HTMLElement).click();
-    expect(callService).toHaveBeenCalledWith('cover', 'open_cover', { entity_id: 'cover.left' });
+    expect(callService).toHaveBeenCalledWith(INTEGRATION_DOMAIN, 'set_position', {
+      entity_id: 'cover.left',
+      position: 100,
+    });
   });
 
   it('■ calls cover.stop_cover', async () => {
@@ -251,11 +255,14 @@ describe('adaptive-cover-pro-tile-card service calls', () => {
     expect(callService).toHaveBeenCalledWith('cover', 'stop_cover', { entity_id: 'cover.left' });
   });
 
-  it('↓ calls cover.close_cover', async () => {
+  it('↓ calls adaptive_cover_pro.set_position(0) against the first managed cover', async () => {
     const callService = vi.fn();
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass({ callService }));
     (el.shadowRoot!.querySelector('button.down') as HTMLElement).click();
-    expect(callService).toHaveBeenCalledWith('cover', 'close_cover', { entity_id: 'cover.left' });
+    expect(callService).toHaveBeenCalledWith(INTEGRATION_DOMAIN, 'set_position', {
+      entity_id: 'cover.left',
+      position: 0,
+    });
   });
 
   it('uses config.cover override when provided', async () => {
@@ -265,7 +272,10 @@ describe('adaptive-cover-pro-tile-card service calls', () => {
       makeHass({ callService }),
     );
     (el.shadowRoot!.querySelector('button.up') as HTMLElement).click();
-    expect(callService).toHaveBeenCalledWith('cover', 'open_cover', { entity_id: 'cover.right' });
+    expect(callService).toHaveBeenCalledWith(INTEGRATION_DOMAIN, 'set_position', {
+      entity_id: 'cover.right',
+      position: 100,
+    });
   });
 
   it('inline Resume calls button.press on reset_override_button', async () => {
