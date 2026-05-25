@@ -294,11 +294,11 @@ describe('adaptive-cover-pro-tile-card service calls', () => {
     });
   });
 
-  it('■ calls cover.stop_cover', async () => {
+  it('■ calls adaptive_cover_pro.stop', async () => {
     const callService = vi.fn();
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass({ callService }));
     (el.shadowRoot!.querySelector('button.stop') as HTMLElement).click();
-    expect(callService).toHaveBeenCalledWith('cover', 'stop_cover', { entity_id: 'cover.left' });
+    expect(callService).toHaveBeenCalledWith(INTEGRATION_DOMAIN, 'stop', { entity_id: 'cover.left' });
   });
 
   it('↓ calls adaptive_cover_pro.set_position(0) against the first managed cover', async () => {
