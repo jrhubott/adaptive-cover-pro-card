@@ -394,7 +394,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
   private _stopCover(cover: string | undefined): void {
     if (!cover) return;
-    this.hass.callService('cover', 'stop_cover', { entity_id: cover });
+    this.hass.callService(INTEGRATION_DOMAIN, 'stop', { entity_id: cover });
   }
 
   private _resume(discovered: DiscoveredEntities): void {
