@@ -50,6 +50,10 @@ export class TileBadge extends LitElement {
   @property({ type: Boolean, attribute: 'integration-enabled' })
   public integrationEnabled = true;
 
+  /** When true, the badge renders "Manual" regardless of `winner` (unless force handler wins). */
+  @property({ type: Boolean, attribute: 'manual-active' })
+  public manualActive = false;
+
   protected render(): TemplateResult {
     const kind = this._kind();
     const tokens = BADGE_TOKENS[kind];
@@ -66,6 +70,7 @@ export class TileBadge extends LitElement {
   private _kind(): BadgeKind {
     if (this.integrationEnabled === false) return 'off';
     const normalized = normalizeHandler(this.winner) as HandlerName;
+    if (this.manualActive && normalized !== 'force') return 'manual';
     return BADGE_KINDS_BY_HANDLER[normalized] ?? 'auto';
   }
 

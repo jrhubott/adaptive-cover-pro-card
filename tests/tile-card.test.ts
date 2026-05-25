@@ -82,6 +82,7 @@ function makeHass(
     integrationEnabled: boolean;
     automaticControl: boolean;
     callService: (...args: unknown[]) => unknown;
+    coverLeftCurrentPosition: number | undefined;
   }> = {},
 ): HomeAssistant {
   return {
@@ -113,7 +114,15 @@ function makeHass(
         state: overrides.automaticControl === false ? 'off' : 'on',
         attributes: {},
       },
-      'cover.left': { state: 'open', attributes: { friendly_name: 'Left blind' } },
+      'cover.left': {
+        state: 'open',
+        attributes: {
+          friendly_name: 'Left blind',
+          ...(overrides.coverLeftCurrentPosition !== undefined
+            ? { current_position: overrides.coverLeftCurrentPosition }
+            : {}),
+        },
+      },
       'cover.right': { state: 'open', attributes: { friendly_name: 'Right blind' } },
     },
     callService: overrides.callService ?? vi.fn(),
@@ -234,6 +243,43 @@ describe('adaptive-cover-pro-tile-card render', () => {
     expect(badge).toBeTruthy();
     const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
     expect(text).toBe('Off');
+  });
+
+  it('displays the live cover current_position, not the calculated sensor value', async () => {
+    // Symptom 3: sensor state = 100 (calculated target) but actual cover is at 16.
+    // The label should show 16%, not 100%.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({
+        coverPositionSensorAttrs: { actual_positions: { 'cover.left': 16, 'cover.right': 45 } },
+        coverLeftCurrentPosition: 16,
+      }),
+    );
+    // Override the sensor state to 100 to make calculated vs live differ clearly.
+    (el.hass!.states['sensor.cover_position'] as { state: string }).state = '100';
+    el.hass = { ...el.hass! };
+    await el.updateComplete;
+    const text = el.shadowRoot!.querySelector('.position')?.textContent?.trim();
+    expect(text).toBe('Open · 16%');
+  });
+
+  it('shows Manual badge when manual_override is on even if pipeline winner is not manual', async () => {
+    // Symptom 3b: winner = solar but manual_override binary = on → badge must say "Manual".
+    // Use a registry without the end-time sensor so manualEndIso is undefined and the
+    // badge renders "Manual" text rather than a clock time.
+    const registryNoEndTime = REGISTRY.filter(
+      (e) => e.entity_id !== 'sensor.manual_override_end_time',
+    );
+    const el = makeCard();
+    el.setConfig({ type: TYPE, entry_id: ENTRY });
+    el.hass = makeHass({ manualOverrideOn: true, decisionState: 'solar' });
+    document.body.appendChild(el);
+    el._registry = registryNoEndTime;
+    await el.updateComplete;
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).toMatch(/manual/i);
   });
 });
 
