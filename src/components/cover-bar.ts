@@ -4,6 +4,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { CoverPositionAttributes, DiscoveredEntities } from '../types';
 import { formatPercent } from '../lib/formatters';
+import { INTEGRATION_DOMAIN } from '../const';
 import { t } from '../lib/i18n';
 
 @customElement('acp-cover-bar')
@@ -41,7 +42,7 @@ export class CoverBar extends LitElement {
   }
 
   private _setPosition(entityId: string, position: number): void {
-    this.hass.callService('cover', 'set_cover_position', { entity_id: entityId, position });
+    this.hass.callService(INTEGRATION_DOMAIN, 'set_position', { entity_id: entityId, position });
   }
 
   protected render(): TemplateResult | typeof nothing {

@@ -9,6 +9,7 @@ import {
 
 import {
   HANDLER_I18N_KEYS,
+  INTEGRATION_DOMAIN,
   TILE_CARD_NAME,
   TILE_CARD_EDITOR_NAME,
   type HandlerName,
@@ -260,7 +261,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 type="button"
                 aria-label=${t('tile.open', this.hass)}
                 ?disabled=${!cover}
-                @click=${() => this._command(cover, 'open_cover')}
+                @click=${() => this._setCoverPosition(cover, 100)}
               >
                 <ha-icon icon="mdi:arrow-up"></ha-icon>
               </button>
@@ -269,7 +270,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 type="button"
                 aria-label=${t('tile.stop', this.hass)}
                 ?disabled=${!cover}
-                @click=${() => this._command(cover, 'stop_cover')}
+                @click=${() => this._stopCover(cover)}
               >
                 <ha-icon icon="mdi:stop"></ha-icon>
               </button>
@@ -278,7 +279,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 type="button"
                 aria-label=${t('tile.close', this.hass)}
                 ?disabled=${!cover}
-                @click=${() => this._command(cover, 'close_cover')}
+                @click=${() => this._setCoverPosition(cover, 0)}
               >
                 <ha-icon icon="mdi:arrow-down"></ha-icon>
               </button>
@@ -384,9 +385,14 @@ export class AdaptiveCoverProTileCard extends LitElement {
     return (normalizeHandler(winner) as HandlerName) === 'custom_position';
   }
 
-  private _command(cover: string | undefined, service: string): void {
+  private _setCoverPosition(cover: string | undefined, position: number): void {
     if (!cover) return;
-    this.hass.callService('cover', service, { entity_id: cover });
+    this.hass.callService(INTEGRATION_DOMAIN, 'set_position', { entity_id: cover, position });
+  }
+
+  private _stopCover(cover: string | undefined): void {
+    if (!cover) return;
+    this.hass.callService('cover', 'stop_cover', { entity_id: cover });
   }
 
   private _resume(discovered: DiscoveredEntities): void {
