@@ -197,7 +197,8 @@ export class AdaptiveCoverProTileCard extends LitElement {
         ? t('tile.motion_pending', this.hass)
         : t('tile.motion_detected', this.hass);
     const detailed = cfg.layout === 'detailed';
-    const position = this._currentPosition(discovered);
+    const calculatedPosition = this._currentPosition(discovered);
+    const livePosition = this._liveCoverPosition(cover) ?? calculatedPosition;
     const winner = this._winner(discovered);
     const traceAttrs = this._traceAttrs(discovered);
     const manualEndIso = this._manualEndIso(discovered);
@@ -218,7 +219,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const automaticControl = this._switchOn(discovered, 'automatic_control_switch');
     const renderBadge = showBadge && !(automaticControl === false && integrationEnabled === true);
     const stateText = showState ? formatCoverState(this.hass, cover) : null;
-    const positionText = showPosition && position !== null ? formatPercent(position) : null;
+    const positionText = showPosition && livePosition !== null ? formatPercent(livePosition) : null;
     const labelParts = [stateText, positionText].filter((p): p is string => !!p);
     const hasStateLabel = !!stateText;
     const hasRow3 = detailed && (renderBadge || showResume);
@@ -292,9 +293,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
               .integrationEnabled=${integrationEnabled}
               .slotNumber=${traceAttrs?.custom_position_active_slot}
               .slotName=${traceAttrs?.custom_position_active_slot_name}
-              .pct=${position ?? undefined}
+              .pct=${calculatedPosition ?? undefined}
               .minimumMode=${traceAttrs?.custom_position_minimum_mode}
               .manualEndIso=${manualEndIso}
+              .manualActive=${this._manualOverrideOn(discovered)}
             ></acp-tile-badge>`
           : nothing}
         ${showResume
