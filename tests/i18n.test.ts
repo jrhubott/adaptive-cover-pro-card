@@ -43,8 +43,8 @@ describe('t', () => {
     expect(t('handler.solar', { locale: { language: 'en' } })).toBe('Solar Tracking');
   });
 
-  it('returns the FR table value (currently mirroring EN) for fr locale', () => {
-    expect(t('handler.solar', { locale: { language: 'fr' } })).toBe('Solar Tracking');
+  it('returns the FR table value for fr locale', () => {
+    expect(t('handler.solar', { locale: { language: 'fr' } })).toBe('Suivi solaire');
   });
 
   it('returns the key name when neither table has the entry for fr locale', () => {
