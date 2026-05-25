@@ -5,6 +5,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities, SunPositionAttributes } from '../types';
 import { findFovWindow, sampleDay, startOfDay, type SunSample } from '../lib/sun-model';
 import { formatClock } from '../lib/formatters';
+import { t } from '../lib/i18n';
 
 const VIEWBOX_W = 400;
 const VIEWBOX_H = 160;
@@ -35,7 +36,7 @@ export class ElevationChart extends LitElement {
       longitude?: number;
     };
     if (latitude === undefined || longitude === undefined || !attrs) {
-      return html`<div class="placeholder">Sun elevation chart unavailable.</div>`;
+      return html`<div class="placeholder">${t('elevation.placeholder', this.hass)}</div>`;
     }
 
     const day = startOfDay();
@@ -73,13 +74,15 @@ export class ElevationChart extends LitElement {
     return html`
       <div class="wrap">
         <div class="head">
-          <span class="label">Sun today</span>
+          <span class="label">${t('elevation.title', this.hass)}</span>
           ${fovStart && fovEnd
             ? html`<span class="dim"
-                >FOV: ${formatClock(fovStart.toISOString())} →
-                ${formatClock(fovEnd.toISOString())}</span
+                >${t('elevation.fov_window', this.hass, {
+                  from: formatClock(fovStart.toISOString()),
+                  to: formatClock(fovEnd.toISOString()),
+                })}</span
               >`
-            : html`<span class="dim">Sun does not enter FOV today</span>`}
+            : html`<span class="dim">${t('elevation.no_fov_today', this.hass)}</span>`}
         </div>
         <svg viewBox="0 0 ${VIEWBOX_W} ${VIEWBOX_H}" preserveAspectRatio="none">
           ${svg`

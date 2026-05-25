@@ -161,6 +161,7 @@ describe('discoverEntities (unique_id based)', () => {
     );
     expect(d!.managed_covers).toEqual(['cover.living_room_left', 'cover.living_room_right']);
     expect(d!.cover_type).toBe('cover_blind');
+    expect(d!.device_id).toBe('acp_device_living');
   });
 
   it('disambiguates manual_override binary vs Manual Override switch by platform', () => {

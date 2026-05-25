@@ -1,4 +1,4 @@
-import type { HomeAssistant, LovelaceCardConfig } from 'custom-card-helpers';
+import type { ActionConfig, HomeAssistant, LovelaceCardConfig } from 'custom-card-helpers';
 import type { EntityRole, HandlerName } from './const';
 
 export type { HomeAssistant };
@@ -15,12 +15,61 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
   show_moon?: boolean;
   show_version?: boolean;
   hide_inactive_handlers?: boolean;
+  /** Render a plain-English "Why this position?" sentence above the decision
+   *  strip's row grid. Defaults to true. */
+  show_decision_summary?: boolean;
   north_offset?: number;
   controls?: {
     integration_enabled?: boolean;
     automatic_control?: boolean;
     reset_manual_override?: boolean;
   };
+}
+
+export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
+  type: string;
+  entry_id: string;
+  /** Override the discovered instance title. */
+  name?: string;
+  /** Override the auto-resolved cover icon (mdi:*). */
+  icon?: string;
+  /** Explicit `cover.*` entity when an entry manages multiple covers
+   *  (default: first key of the integration's `actual_positions`). */
+  cover?: string;
+  /** Render the cover's current position to the right of the title. */
+  show_position?: boolean;
+  /** Render the cover's localized state ("Open" / "Closed" / "Opening" / …)
+   *  in the position slot. Combined with `show_position`, renders as
+   *  "Open · 12%". Defaults to true. */
+  show_state?: boolean;
+  /** Render the plain-English decision-summary sentence under the title. */
+  show_decision_summary?: boolean;
+  /** Render the ↑■▼ controls row (default true). */
+  show_controls?: boolean;
+  /** Render the contextual badge (default true). */
+  show_badge?: boolean;
+  /** Render the sky compass inside the more-info dialog's Advanced section
+   *  (default true). */
+  show_compass?: boolean;
+  /** Render a small motion indicator overlaid on the cover icon when the
+   *  motion handler reports `motion_detected` (default true). */
+  show_motion_icon?: boolean;
+  /** Resume-button visibility. `auto` keeps the original
+   *  manual-override/custom-position rule; `always` shows whenever a
+   *  reset_override_button exists; `never` hides it. */
+  show_resume?: 'auto' | 'always' | 'never';
+  /** Tile layout. `one-line` (default) is the compact single-row layout;
+   *  `detailed` stacks title on row 1, state · position + controls on row 2,
+   *  and the contextual badge on its own row 3 beneath. */
+  layout?: 'one-line' | 'detailed';
+  /** Tap behavior. When undefined, opens the ACP more-info dialog (default).
+   *  Otherwise a standard HA `ActionConfig`. Legacy string values
+   *  `'dialog'` / `'none'` are still accepted and normalized in setConfig. */
+  tap_action?: ActionConfig | 'dialog' | 'none';
+  /** Long-press action. Standard HA `ActionConfig`. */
+  hold_action?: ActionConfig;
+  /** Double-tap action. Standard HA `ActionConfig`. */
+  double_tap_action?: ActionConfig;
 }
 
 export interface SkyCompassCardConfig extends LovelaceCardConfig {
@@ -48,6 +97,9 @@ export interface DiscoveredEntities {
   entities: Partial<Record<EntityRole, string>>;
   /** Underlying HA cover entity_ids the integration controls. */
   managed_covers: string[];
+  /** HA device the integration's entities are attached to. Used to deep-link
+   *  into `/config/devices/device/<id>` from the more-info dialog. */
+  device_id?: string;
 }
 
 export interface DecisionStep {
@@ -75,6 +127,48 @@ export interface DecisionTraceAttributes {
   in_blind_spot: boolean;
   sunset_window_active: boolean;
   direct_sun_valid: boolean;
+  /** 1-based slot number of the winning Custom Position handler.
+   *  Integration v2.22.1+; absent when any other handler wins. */
+  custom_position_active_slot?: 1 | 2 | 3 | 4;
+  /** True when the configured floor is actively raising position above the raw
+   *  autonomous calculation. False when the floor is configured but is a no-op
+   *  this cycle. Absent in exact mode or when any non-custom handler wins. */
+  custom_position_minimum_mode?: boolean;
+  /** Friendly name of the winning slot's bound sensor — surfaces as the
+   *  human-readable slot label. Integration v2.22.1+; absent when the sensor
+   *  has no friendly_name. */
+  custom_position_active_slot_name?: string;
+  /** Snapshot of all 4 custom-position slots' configured state.
+   *  Stable 4-row list (one per slot); unconfigured slots read `sensor=null`.
+   *  Absent on integrations that pre-date the slot UI work. */
+  custom_position_slots?: CustomPositionSlotSnapshot[];
+}
+
+export interface ForecastSample {
+  t: string;
+  position: number;
+  handler: 'solar' | 'default' | string;
+}
+
+export interface ForecastEvent {
+  t: string;
+  kind: 'sunrise' | 'sunset' | 'fov_enter' | 'fov_exit' | string;
+  label: string;
+}
+
+export interface PositionForecastAttributes {
+  forecast: ForecastSample[];
+  events: ForecastEvent[];
+}
+
+export interface CustomPositionSlotSnapshot {
+  slot: 1 | 2 | 3 | 4;
+  enabled: boolean;
+  sensor: string | null;
+  sensor_name: string | null;
+  position: number | null;
+  priority: number | null;
+  min_mode: boolean | null;
 }
 
 export interface SunPositionAttributes {

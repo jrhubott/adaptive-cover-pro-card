@@ -4,6 +4,8 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { CoverPositionAttributes, DiscoveredEntities } from '../types';
 import { formatPercent } from '../lib/formatters';
+import { INTEGRATION_DOMAIN } from '../const';
+import { t } from '../lib/i18n';
 
 @customElement('acp-cover-bar')
 export class CoverBar extends LitElement {
@@ -40,7 +42,7 @@ export class CoverBar extends LitElement {
   }
 
   private _setPosition(entityId: string, position: number): void {
-    this.hass.callService('cover', 'set_cover_position', { entity_id: entityId, position });
+    this.hass.callService(INTEGRATION_DOMAIN, 'set_position', { entity_id: entityId, position });
   }
 
   protected render(): TemplateResult | typeof nothing {
@@ -49,13 +51,15 @@ export class CoverBar extends LitElement {
     const mismatched = this._mismatched();
     const entries = Object.entries(covers);
     if (entries.length === 0) {
-      return html`<div class="placeholder">No covers reported by the integration.</div>`;
+      return html`<div class="placeholder">${t('covers.placeholder', this.hass)}</div>`;
     }
     return html`
       <div class="wrap">
         <div class="head">
-          <span class="label">Covers</span>
-          <span class="target">Target: ${formatPercent(target)}</span>
+          <span class="label">${t('covers.title', this.hass)}</span>
+          <span class="target"
+            >${t('covers.target', this.hass, { pct: formatPercent(target) })}</span
+          >
         </div>
         ${entries.map(([id, actual]) => this._bar(id, actual, target, mismatched.has(id)))}
       </div>
@@ -78,14 +82,14 @@ export class CoverBar extends LitElement {
         <div
           class="track"
           @click=${(e: MouseEvent) => this._handleTrackClick(e, entityId)}
-          title="Click to set position"
+          title=${t('covers.click_to_set', this.hass)}
         >
           <div class="fill" style="width:${actualPct}%"></div>
           ${target !== null
             ? html`<div
                 class="marker"
                 style="left:${targetPct}%"
-                title="Target ${targetPct}%"
+                title=${t('covers.target_tooltip', this.hass, { pct: targetPct })}
               ></div>`
             : nothing}
         </div>

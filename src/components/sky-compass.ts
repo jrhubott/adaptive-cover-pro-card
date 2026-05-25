@@ -15,6 +15,7 @@ import {
 import { sampleDay, startOfDay, sunriseSetAzimuths, getMoonData } from '../lib/sun-model';
 import { formatDegrees } from '../lib/formatters';
 import { resolveCoverColor } from '../lib/palette';
+import { t } from '../lib/i18n';
 
 // viewBox must have ~30 px of padding beyond OUTER_R so cardinal labels
 // (positioned at OUTER_R + 6..14) don't clip when rendered with
@@ -124,12 +125,12 @@ export class SkyCompass extends LitElement {
   protected render(): TemplateResult | typeof nothing {
     if (!this.hass) return nothing;
     if (!this.discovered_list || this.discovered_list.length === 0) {
-      return html`<div class="placeholder">No Adaptive Cover Pro entries selected.</div>`;
+      return html`<div class="placeholder">${t('compass.placeholder_no_entries', this.hass)}</div>`;
     }
 
     const overlays = this._buildOverlays();
     if (overlays.length === 0) {
-      return html`<div class="placeholder">Sun sensor not yet populated.</div>`;
+      return html`<div class="placeholder">${t('compass.placeholder_no_sun', this.hass)}</div>`;
     }
 
     // Filter at render boundary so stats and legend still see all entries
@@ -197,11 +198,26 @@ export class SkyCompass extends LitElement {
     const gridEW0 = azimuthToCartesian(90, OUTER_R, o);
     const gridEW1 = azimuthToCartesian(270, OUTER_R, o);
 
-    const ttSun = `Sun: ${formatDegrees(sunAzi)} az / ${formatDegrees(sunElev)} el`;
-    const ttRise = riseAzimuth !== null ? `Sunrise: ${formatDegrees(riseAzimuth)}` : '';
-    const ttSet = setAzimuth !== null ? `Sunset: ${formatDegrees(setAzimuth)}` : '';
+    const ttSun = t('compass.sun_tooltip', this.hass, {
+      az: formatDegrees(sunAzi),
+      el: formatDegrees(sunElev),
+    });
+    const ttRise =
+      riseAzimuth !== null
+        ? t('compass.sunrise_tooltip', this.hass, { time: formatDegrees(riseAzimuth) })
+        : '';
+    const ttSet =
+      setAzimuth !== null
+        ? t('compass.sunset_tooltip', this.hass, { time: formatDegrees(setAzimuth) })
+        : '';
     const ttMoon =
-      moon !== null ? `Moon: ${moon.phaseName} (${Math.round(moon.fraction * 100)}%)` : '';
+      moon !== null
+        ? t('compass.moon_tooltip', this.hass, {
+            phase: moon.phaseName,
+            pct: Math.round(moon.fraction * 100),
+          })
+        : '';
+    const ttSunPath = t('compass.sun_path_tooltip', this.hass);
 
     return html`
       <div class="compass">
@@ -230,7 +246,7 @@ export class SkyCompass extends LitElement {
 
             ${
               this.showSunPath && pathPoints
-                ? svg`<g data-tooltip="Sun path (today)"><title>Sun path (today)</title><polyline class="sun-path" points=${pathPoints}></polyline></g>`
+                ? svg`<g data-tooltip=${ttSunPath}><title>${ttSunPath}</title><polyline class="sun-path" points=${pathPoints}></polyline></g>`
                 : nothing
             }
 
@@ -314,20 +330,36 @@ export class SkyCompass extends LitElement {
     const label = multi ? `${o.d.entry_title}: ` : '';
     const hasElevLimit = o.sun.min_elevation !== undefined || o.sun.max_elevation !== undefined;
     const elevSuffix = hasElevLimit
-      ? ` · elev ${formatDegrees(o.sun.min_elevation ?? 0)}–${formatDegrees(o.sun.max_elevation ?? 90)}`
+      ? t('compass.elev_suffix', this.hass, {
+          min: formatDegrees(o.sun.min_elevation ?? 0),
+          max: formatDegrees(o.sun.max_elevation ?? 90),
+        })
       : '';
     const ttFov = useActive
-      ? `${label}Active sun arc ${formatDegrees(wedgeStart)} – ${formatDegrees(wedgeEnd)}${elevSuffix}`
-      : `${label}FOV ${formatDegrees(o.sun.fov_left)} left / ${formatDegrees(o.sun.fov_right)} right${elevSuffix}`;
-    const ttWindow = `${label}Window normal: ${formatDegrees(windowAzi)}`;
+      ? `${label}${t('compass.active_sun_arc', this.hass, {
+          from: formatDegrees(wedgeStart),
+          to: formatDegrees(wedgeEnd),
+          elev: elevSuffix,
+        })}`
+      : `${label}${t('compass.fov_arc', this.hass, {
+          left: formatDegrees(o.sun.fov_left),
+          right: formatDegrees(o.sun.fov_right),
+          elev: elevSuffix,
+        })}`;
+    const ttWindow = `${label}${t('compass.window_normal_tooltip', this.hass, {
+      bearing: formatDegrees(windowAzi),
+    })}`;
     const ttCoverFill =
       o.coverPos !== null
         ? o.coverType === 'cover_awning'
-          ? `${label}Cover extended: ${o.coverPos}%`
-          : `${label}Cover closed: ${o.coverPos}%`
+          ? `${label}${t('compass.cover_extended', this.hass, { pct: o.coverPos })}`
+          : `${label}${t('compass.cover_closed_tooltip', this.hass, { pct: o.coverPos })}`
         : '';
     const ttBlindSpot = bsBearings
-      ? `${label}Blind spot: ${formatDegrees(bsBearings[0])} – ${formatDegrees(bsBearings[1])}`
+      ? `${label}${t('compass.blind_spot', this.hass, {
+          from: formatDegrees(bsBearings[0]),
+          to: formatDegrees(bsBearings[1]),
+        })}`
       : '';
 
     const inlineColor = multi || o.isOverride;
@@ -382,36 +414,46 @@ export class SkyCompass extends LitElement {
                 <span class="swatch entry" style="background: ${o.color}"></span>
                 ${o.d.entry_title}
                 ${o.sunInfront
-                  ? html`<span class="status valid">✓ in FOV</span>`
+                  ? html`<span class="status valid">${t('compass.in_fov_check', this.hass)}</span>`
                   : o.sun.in_fov
-                    ? html`<span class="status in-fov">in FOV</span>`
-                    : html`<span class="status">—</span>`}
+                    ? html`<span class="status in-fov">${t('compass.in_fov', this.hass)}</span>`
+                    : html`<span class="status">${t('compass.none', this.hass)}</span>`}
               </button>
             `,
           )}
-          <div><span class="dot sun valid"></span> Sun</div>
-          ${this.showMoon ? html`<div><span class="dot moon-dot"></span> Moon</div>` : nothing}
+          <div><span class="dot sun valid"></span> ${t('compass.sun', this.hass)}</div>
+          ${this.showMoon
+            ? html`<div><span class="dot moon-dot"></span> ${t('compass.moon', this.hass)}</div>`
+            : nothing}
         </div>
       `;
     }
     return html`<div class="legend">
-      <div><span class="dot sun valid"></span> Sun (hitting window)</div>
-      <div><span class="dot sun in-fov"></span> Sun (in FOV, not valid)</div>
-      <div><span class="dot sun"></span> Sun (outside FOV)</div>
-      ${this.showMoon ? html`<div><span class="dot moon-dot"></span> Moon</div>` : nothing}
-      <div><span class="swatch fov"></span> Window FOV</div>
+      <div><span class="dot sun valid"></span> ${t('compass.sun_hitting', this.hass)}</div>
+      <div><span class="dot sun in-fov"></span> ${t('compass.sun_in_fov_invalid', this.hass)}</div>
+      <div><span class="dot sun"></span> ${t('compass.sun_outside_fov', this.hass)}</div>
+      ${this.showMoon
+        ? html`<div><span class="dot moon-dot"></span> ${t('compass.moon', this.hass)}</div>`
+        : nothing}
+      <div><span class="swatch fov"></span> ${t('compass.window_fov', this.hass)}</div>
       ${this.showSunPath
-        ? html`<div><span class="swatch sun-path-swatch"></span> Sun path</div>`
+        ? html`<div>
+            <span class="swatch sun-path-swatch"></span> ${t('compass.sun_path', this.hass)}
+          </div>`
         : nothing}
       ${this.showSunriseSunset
-        ? html`<div><span class="dot rise-dot"></span> Sunrise</div>
-            <div><span class="dot set-dot"></span> Sunset</div>`
+        ? html`<div><span class="dot rise-dot"></span> ${t('compass.sunrise', this.hass)}</div>
+            <div><span class="dot set-dot"></span> ${t('compass.sunset', this.hass)}</div>`
         : nothing}
       ${this.showCoverFill
-        ? html`<div><span class="swatch cover-fill-swatch"></span> Cover closed</div>`
+        ? html`<div>
+            <span class="swatch cover-fill-swatch"></span> ${t('compass.cover_closed', this.hass)}
+          </div>`
         : nothing}
       ${this.showWindowArrow
-        ? html`<div><span class="swatch window-swatch"></span> Window normal</div>`
+        ? html`<div>
+            <span class="swatch window-swatch"></span> ${t('compass.window_normal', this.hass)}
+          </div>`
         : nothing}
     </div>`;
   }
@@ -433,7 +475,10 @@ export class SkyCompass extends LitElement {
       return html`
         <div class="stats dim">
           <div class="stats-row">
-            <span>Sun: ${formatDegrees(sunAzi)} / ${formatDegrees(sunElev)}</span>
+            <span
+              >${t('compass.stat_sun', this.hass)}${formatDegrees(sunAzi)} /
+              ${formatDegrees(sunElev)}</span
+            >
             ${this.showMoon && moon
               ? html`<span>${moon.phaseName} ${Math.round(moon.fraction * 100)}%</span>`
               : nothing}
@@ -453,10 +498,14 @@ export class SkyCompass extends LitElement {
       `;
     }
     return html`<div class="stats dim">
-      <span>Azi: ${formatDegrees(sunAzi)}</span>
-      <span>Elev: ${formatDegrees(sunElev)}</span>
+      <span>${t('compass.stat_azi', this.hass)}${formatDegrees(sunAzi)}</span>
+      <span>${t('compass.stat_elev', this.hass)}${formatDegrees(sunElev)}</span>
       <span>∠: ${formatDegrees(first.sun.gamma)}</span>
-      <span>Window: ${formatDegrees(normalizeAzimuth(first.sun.window_azimuth))}</span>
+      <span
+        >${t('compass.stat_window', this.hass)}${formatDegrees(
+          normalizeAzimuth(first.sun.window_azimuth),
+        )}</span
+      >
       ${this.showMoon && moon
         ? html`<span>${moon.phaseName} ${Math.round(moon.fraction * 100)}%</span>`
         : nothing}
@@ -466,6 +515,8 @@ export class SkyCompass extends LitElement {
   public static styles = css`
     :host {
       display: block;
+      width: 100%;
+      container-type: inline-size;
     }
     .compass {
       display: flex;
@@ -484,6 +535,32 @@ export class SkyCompass extends LitElement {
     }
     :host([compact]) .legend {
       display: none;
+    }
+    @container (min-width: 320px) {
+      .compass {
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+      }
+      .compass svg {
+        max-width: none;
+        flex: 1 1 0;
+        min-width: 200px;
+      }
+      :host([compact]) .compass svg {
+        max-width: 280px;
+      }
+      .compass .legend,
+      .compass .stats {
+        flex: 0 0 auto;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+      }
+      .compass .stats-row {
+        justify-content: flex-start;
+      }
     }
     .grid {
       fill: none;

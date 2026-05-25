@@ -15,6 +15,11 @@ export default {
     sourcemap: dev,
     banner: `/*! adaptive-cover-pro-card v${pkg.version} | MIT License | https://github.com/jrhubott/adaptive-cover-pro-card */`,
   },
+  // @formatjs/intl-utils (pulled in by custom-card-helpers) ships UMD with
+  // top-level `this`; rollup rewrites it to `undefined` and warns. Declare the
+  // module context as `window` so the TS `__extends`/`__assign` helpers resolve
+  // correctly and the warning goes away.
+  moduleContext: (id) => (id.includes('@formatjs/intl-utils') ? 'window' : undefined),
   plugins: [
     resolve({ browser: true }),
     commonjs(),

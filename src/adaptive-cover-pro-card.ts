@@ -9,6 +9,7 @@ import {
   COVER_TYPE_ICONS,
   resolveControlFlags,
 } from './const';
+import { t } from './lib/i18n';
 import { createDiscoveryMemo } from './lib/entity-discovery';
 import { normalizeAzimuth } from './lib/geometry';
 import {
@@ -24,6 +25,7 @@ import './components/header-pill';
 import './components/sky-compass';
 import './components/elevation-chart';
 import './components/decision-strip';
+import './adaptive-cover-pro-tile-card';
 import './components/cover-bar';
 import './components/overrides-panel';
 import './components/climate-panel';
@@ -206,8 +208,8 @@ export class AdaptiveCoverProCard extends LitElement {
           ? html`<acp-header-pill
               .on=${enabledOn}
               .readonly=${!flags.integration_enabled}
-              .label=${enabledOn ? 'ON' : 'OFF'}
-              title="Integration Enabled"
+              .label=${enabledOn ? t('header.on', this.hass) : t('header.off', this.hass)}
+              title=${t('header.integration_enabled', this.hass)}
               @pill-click=${() => this._toggle(enabledId)}
             ></acp-header-pill>`
           : nothing}
@@ -215,8 +217,8 @@ export class AdaptiveCoverProCard extends LitElement {
           ? html`<acp-header-pill
               .on=${autoOn}
               .readonly=${!flags.automatic_control}
-              label="Auto"
-              title="Automatic Control"
+              .label=${t('header.auto', this.hass)}
+              title=${t('header.automatic_control', this.hass)}
               @pill-click=${() => this._toggle(autoId)}
             ></acp-header-pill>`
           : nothing}
@@ -233,7 +235,7 @@ export class AdaptiveCoverProCard extends LitElement {
     return html`
       <ha-card>
         <div class="empty">
-          <p class="dim">Loading Adaptive Cover Pro registry…</p>
+          <p class="dim">${t('root.loading_registry', this.hass)}</p>
         </div>
       </ha-card>
     `;
@@ -248,7 +250,7 @@ export class AdaptiveCoverProCard extends LitElement {
     return html`
       <ha-card>
         <div class="empty">
-          <p><strong>No Adaptive Cover Pro entities found</strong></p>
+          <p><strong>${t('root.no_entities_title', this.hass)}</strong></p>
           <p class="dim">Configured <code>entry_id</code>: <code>${entryId}</code></p>
           <ul class="diag">
             <li>Reason: <code>${reason}</code></li>
@@ -310,6 +312,7 @@ export class AdaptiveCoverProCard extends LitElement {
                 .discovered=${discovered}
                 ?compact=${!!this._config.compact}
                 ?hide-inactive=${!!this._config.hide_inactive_handlers || !!this._config.compact}
+                ?show-summary=${this._config.show_decision_summary !== false}
               ></acp-decision-strip>`
             : nothing}
           ${sections.includes('covers')
@@ -336,7 +339,9 @@ export class AdaptiveCoverProCard extends LitElement {
             : nothing}
         </div>
         ${this._config.show_version
-          ? html`<div class="footer dim">adaptive-cover-pro-card v${CARD_VERSION}</div>`
+          ? html`<div class="footer dim">
+              ${t('root.footer_version', this.hass, { version: CARD_VERSION })}
+            </div>`
           : nothing}
       </ha-card>
     `;

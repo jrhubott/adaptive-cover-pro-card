@@ -70,11 +70,13 @@ export function discoverEntities(
   const entities: DiscoveredEntities['entities'] = {};
   const prefix = `${entryId}_`;
   let anyEntryMatched = false;
+  let deviceId: string | undefined;
 
   for (const entry of registry) {
     if (entry.config_entry_id !== entryId) continue;
     if (entry.platform !== INTEGRATION_DOMAIN) continue;
     anyEntryMatched = true;
+    if (!deviceId && entry.device_id) deviceId = entry.device_id;
 
     if (!entry.unique_id.startsWith(prefix)) continue;
     const suffix = entry.unique_id.slice(prefix.length);
@@ -118,5 +120,6 @@ export function discoverEntities(
     cover_type: coverType,
     entities,
     managed_covers: managedCovers,
+    device_id: deviceId,
   };
 }

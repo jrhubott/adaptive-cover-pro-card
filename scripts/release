@@ -8,7 +8,8 @@
 #   scripts/release major        # 0.1.0 -> 1.0.0
 #   scripts/release beta         # 0.1.0 -> 0.1.1-beta.1 (or bump -beta.N)
 #   scripts/release 0.2.0        # explicit
-#   scripts/release --dry-run ...
+#   scripts/release --dry-run beta
+#   scripts/release beta --dry-run
 #
 # Requires `release_notes/vX.Y.Z.md` to exist for the target version — matches
 # the publish-release.yml workflow's body_path expectation. Author notes first.
@@ -17,10 +18,15 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 DRY_RUN=0
-if [[ "${1:-}" == "--dry-run" ]]; then
-  DRY_RUN=1
-  shift
-fi
+positional=()
+for arg in "$@"; do
+  if [[ "$arg" == "--dry-run" ]]; then
+    DRY_RUN=1
+  else
+    positional+=("$arg")
+  fi
+done
+set -- "${positional[@]:+${positional[@]}}"
 
 BUMP="${1:-}"
 if [[ -z "$BUMP" ]]; then

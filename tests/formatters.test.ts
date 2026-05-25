@@ -5,6 +5,7 @@ import {
   formatClock,
   formatDuration,
   countdownTo,
+  formatCoverState,
 } from '../src/lib/formatters';
 
 describe('formatters', () => {
@@ -49,5 +50,47 @@ describe('formatters', () => {
   it('countdownTo future returns a duration', () => {
     const future = new Date(Date.now() + 90_000).toISOString();
     expect(countdownTo(future)).toMatch(/^(1m|89s|90s)/);
+  });
+
+  describe('formatCoverState', () => {
+    it('prefers hass.formatEntityState when present', () => {
+      const hass = {
+        states: { 'cover.x': { state: 'open' } },
+        formatEntityState: (s: unknown): string => `FMT:${(s as { state: string }).state}`,
+      };
+      expect(formatCoverState(hass, 'cover.x')).toBe('FMT:open');
+    });
+
+    it('falls back to hass.localize with the cover state translation key', () => {
+      const calls: string[] = [];
+      const hass = {
+        states: { 'cover.x': { state: 'opening' } },
+        localize: (key: string): string => {
+          calls.push(key);
+          return key.endsWith('opening') ? 'Opening' : '';
+        },
+      };
+      expect(formatCoverState(hass, 'cover.x')).toBe('Opening');
+      expect(calls[0]).toBe('component.cover.entity_component._.state.opening');
+    });
+
+    it('falls back to capitalizing the raw state when no localizer is present', () => {
+      const hass = { states: { 'cover.x': { state: 'closed' } } };
+      expect(formatCoverState(hass, 'cover.x')).toBe('Closed');
+    });
+
+    it('returns null for missing entity, missing state, unknown or unavailable', () => {
+      const hass = {
+        states: {
+          'cover.unknown': { state: 'unknown' },
+          'cover.unavailable': { state: 'unavailable' },
+        },
+      };
+      expect(formatCoverState(hass, undefined)).toBeNull();
+      expect(formatCoverState(undefined, 'cover.x')).toBeNull();
+      expect(formatCoverState(hass, 'cover.missing')).toBeNull();
+      expect(formatCoverState(hass, 'cover.unknown')).toBeNull();
+      expect(formatCoverState(hass, 'cover.unavailable')).toBeNull();
+    });
   });
 });
