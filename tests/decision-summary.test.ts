@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { buildDecisionSentence, normalizeHandler } from '../src/lib/decision-summary';
+import {
+  buildDecisionSentence,
+  normalizeHandler,
+  resolveCustomPositionPct,
+} from '../src/lib/decision-summary';
 import type { DecisionStep, DecisionTraceAttributes } from '../src/types';
 
 const step = (
@@ -164,5 +168,61 @@ describe('buildDecisionSentence', () => {
         'solar',
       ),
     ).toBe('Solar Tracking 100%');
+  });
+});
+
+describe('resolveCustomPositionPct', () => {
+  const slots = [
+    { slot: 1 as const, enabled: true, sensor: 's', sensor_name: 'S', position: 60, priority: 1, min_mode: true },
+    { slot: 2 as const, enabled: false, sensor: null, sensor_name: null, position: null, priority: null, min_mode: null },
+  ];
+
+  it('returns the slot position when minimum_mode is true and slot matches', () => {
+    expect(
+      resolveCustomPositionPct(
+        { custom_position_minimum_mode: true, custom_position_slots: slots, custom_position_active_slot: 1 },
+        100,
+      ),
+    ).toBe(60);
+  });
+
+  it('returns the fallback when minimum_mode is false', () => {
+    expect(
+      resolveCustomPositionPct(
+        { custom_position_minimum_mode: false, custom_position_slots: slots, custom_position_active_slot: 1 },
+        100,
+      ),
+    ).toBe(100);
+  });
+
+  it('returns the fallback when custom_position_slots is missing', () => {
+    expect(
+      resolveCustomPositionPct(
+        { custom_position_minimum_mode: true, custom_position_active_slot: 1 },
+        42,
+      ),
+    ).toBe(42);
+  });
+
+  it('returns the fallback when custom_position_active_slot is undefined', () => {
+    expect(
+      resolveCustomPositionPct(
+        { custom_position_minimum_mode: true, custom_position_slots: slots },
+        42,
+      ),
+    ).toBe(42);
+  });
+
+  it('returns the fallback when the matching slot has a null position', () => {
+    expect(
+      resolveCustomPositionPct(
+        { custom_position_minimum_mode: true, custom_position_slots: slots, custom_position_active_slot: 2 },
+        42,
+      ),
+    ).toBe(42);
+  });
+
+  it('returns the fallback when attrs is undefined', () => {
+    expect(resolveCustomPositionPct(undefined, 55)).toBe(55);
   });
 });

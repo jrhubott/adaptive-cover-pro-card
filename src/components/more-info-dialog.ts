@@ -9,7 +9,11 @@ import {
   INTEGRATION_DOMAIN,
   type HandlerName,
 } from '../const';
-import { buildDecisionSentence, normalizeHandler } from '../lib/decision-summary';
+import {
+  buildDecisionSentence,
+  normalizeHandler,
+  resolveCustomPositionPct,
+} from '../lib/decision-summary';
 import type {
   CustomPositionSlotSnapshot,
   DecisionTraceAttributes,
@@ -102,7 +106,9 @@ export class MoreInfoDialog extends LitElement {
                           .slotName=${h === 'custom_position'
                             ? attrs?.custom_position_active_slot_name
                             : undefined}
-                          .pct=${h === 'custom_position' ? (target ?? undefined) : undefined}
+                          .pct=${h === 'custom_position'
+                            ? (resolveCustomPositionPct(attrs, target) ?? undefined)
+                            : undefined}
                           .minimumMode=${h === 'custom_position'
                             ? attrs?.custom_position_minimum_mode
                             : undefined}
