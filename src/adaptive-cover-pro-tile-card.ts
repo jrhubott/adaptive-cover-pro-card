@@ -389,12 +389,12 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
   private _setCoverPosition(cover: string | undefined, position: number): void {
     if (!cover) return;
-    this.hass.callService(INTEGRATION_DOMAIN, 'set_position', { entity_id: cover, position });
+    this.hass.callService(INTEGRATION_DOMAIN, 'set_position', { position }, { entity_id: cover });
   }
 
   private _stopCover(cover: string | undefined): void {
     if (!cover) return;
-    this.hass.callService(INTEGRATION_DOMAIN, 'stop', { entity_id: cover });
+    this.hass.callService(INTEGRATION_DOMAIN, 'stop', {}, { entity_id: cover });
   }
 
   private _resume(discovered: DiscoveredEntities): void {

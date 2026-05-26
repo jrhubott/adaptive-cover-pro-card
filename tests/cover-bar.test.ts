@@ -55,9 +55,11 @@ describe('acp-cover-bar track-click → set_position', () => {
     });
     track.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 50 }));
 
-    expect(callService).toHaveBeenCalledWith(INTEGRATION_DOMAIN, 'set_position', {
-      entity_id: 'cover.left',
-      position: 50,
-    });
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_position',
+      { position: 50 },
+      { entity_id: 'cover.left' },
+    );
   });
 });
