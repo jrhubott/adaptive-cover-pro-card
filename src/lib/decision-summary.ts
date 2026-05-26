@@ -3,6 +3,38 @@ import type { DecisionStep, DecisionTraceAttributes } from '../types';
 import { formatPercent } from './formatters';
 
 /**
+ * Return the configured floor/exact position for a custom_position slot when
+ * minimum_mode is active, or the fallback (effective sensor position) otherwise.
+ *
+ * The badge should display the rule's configured value (e.g. 60%), not the
+ * effective output written to the cover (e.g. 100% when solar overrides the
+ * floor) — that difference is the whole point of minimum_mode.
+ */
+export function resolveCustomPositionPct(
+  attrs:
+    | Pick<
+        DecisionTraceAttributes,
+        'custom_position_minimum_mode' | 'custom_position_slots' | 'custom_position_active_slot'
+      >
+    | undefined,
+  fallback: number | null,
+): number | null {
+  if (
+    attrs?.custom_position_minimum_mode === true &&
+    Array.isArray(attrs.custom_position_slots) &&
+    attrs.custom_position_active_slot !== undefined
+  ) {
+    const slot = attrs.custom_position_slots.find(
+      (s) => s.slot === attrs!.custom_position_active_slot,
+    );
+    if (slot !== undefined && slot.position !== null && slot.position !== undefined) {
+      return slot.position;
+    }
+  }
+  return fallback;
+}
+
+/**
  * Normalize a handler name as emitted by the integration's decision_trace
  * (PascalCase like "SolarHandler", snake forms like "force_override",
  * per-slot names like "custom_position_1") to the keys used in HANDLER_ORDER.

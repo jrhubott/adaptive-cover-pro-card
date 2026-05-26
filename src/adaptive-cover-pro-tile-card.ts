@@ -26,7 +26,11 @@ import type {
   DecisionTraceAttributes,
   DiscoveredEntities,
 } from './types';
-import { buildDecisionSentence, normalizeHandler } from './lib/decision-summary';
+import {
+  buildDecisionSentence,
+  normalizeHandler,
+  resolveCustomPositionPct,
+} from './lib/decision-summary';
 import { formatCoverState, formatPercent } from './lib/formatters';
 import { t } from './lib/i18n';
 
@@ -293,7 +297,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
               .integrationEnabled=${integrationEnabled}
               .slotNumber=${traceAttrs?.custom_position_active_slot}
               .slotName=${traceAttrs?.custom_position_active_slot_name}
-              .pct=${calculatedPosition ?? undefined}
+              .pct=${resolveCustomPositionPct(traceAttrs, calculatedPosition) ?? undefined}
               .minimumMode=${traceAttrs?.custom_position_minimum_mode}
               .manualEndIso=${manualEndIso}
               .manualActive=${this._manualOverrideOn(discovered)}
