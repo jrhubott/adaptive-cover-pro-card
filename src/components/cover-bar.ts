@@ -42,7 +42,12 @@ export class CoverBar extends LitElement {
   }
 
   private _setPosition(entityId: string, position: number): void {
-    this.hass.callService(INTEGRATION_DOMAIN, 'set_position', { position }, { entity_id: entityId });
+    this.hass.callService(
+      INTEGRATION_DOMAIN,
+      'set_position',
+      { position },
+      { entity_id: entityId },
+    );
   }
 
   protected render(): TemplateResult | typeof nothing {
