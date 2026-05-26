@@ -210,10 +210,21 @@ describe('adaptive-cover-pro-tile-card render', () => {
     expect(el.shadowRoot!.querySelector('.resume')).toBeTruthy();
   });
 
-  it('shows inline Resume when the winner is a custom_position slot', async () => {
+  it('hides Resume when winner is custom_position but no override is active', async () => {
+    // Regression for issue #81: after clicking Reprendre, manual_override clears but
+    // winner stays custom_position_1. Resume must disappear.
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
-      makeHass({ decisionState: 'custom_position_1' }),
+      makeHass({ decisionState: 'custom_position_1', manualOverrideOn: false }),
+    );
+    expect(el.shadowRoot!.querySelector('.resume')).toBeFalsy();
+  });
+
+  it('shows Resume when manual_override is on AND winner is custom_position', async () => {
+    // Override active + custom_position winner simultaneously → Resume must appear.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ decisionState: 'custom_position_1', manualOverrideOn: true }),
     );
     expect(el.shadowRoot!.querySelector('.resume')).toBeTruthy();
   });
