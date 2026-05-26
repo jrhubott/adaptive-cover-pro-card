@@ -39,6 +39,27 @@ if [[ -n "$(git status --porcelain)" ]]; then
   exit 1
 fi
 
+# Branch policy (soft warnings — never block):
+#   stable bumps (patch/minor/major) expect main; beta expects develop.
+# Cutting off-policy is allowed for hotfix work or shipping a beta off a
+# feature branch for a tester — confirm interactively.
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+confirm_off_policy() {
+  local expected="$1"
+  local kind="$2"
+  echo "⚠️  $kind releases normally run from '$expected' (currently on '$current_branch')."
+  read -rp "Continue anyway? [y/N] " ans
+  [[ "$ans" == "y" || "$ans" == "Y" ]] || { echo "Aborted."; exit 1; }
+}
+case "$BUMP" in
+  patch|minor|major)
+    [[ "$current_branch" == "main" ]] || confirm_off_policy "main" "Stable"
+    ;;
+  beta)
+    [[ "$current_branch" == "develop" ]] || confirm_off_policy "develop" "Beta"
+    ;;
+esac
+
 current=$(node -p "require('./package.json').version")
 echo "→ Current version: $current"
 
