@@ -332,6 +332,64 @@ describe('adaptive-cover-pro-tile-card render', () => {
     expect(text).toBe('Table terrasse · 60% floor');
   });
 
+  it('badge shows custom-floor label, not timer, when manual_override is on and winner is custom_position', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({
+        decisionState: 'custom_position_1',
+        manualOverrideOn: true,
+        decisionAttrs: {
+          trace: [{ handler: 'custom_position_1', matched: true, reason: '', position: 100 }],
+          custom_position_active_slot: 1,
+          custom_position_active_slot_name: 'Table terrasse',
+          custom_position_minimum_mode: true,
+          custom_position_slots: [
+            {
+              slot: 1,
+              enabled: true,
+              sensor: 'input_number.table',
+              sensor_name: 'Table terrasse',
+              position: 60,
+              priority: 1,
+              min_mode: true,
+            },
+            {
+              slot: 2,
+              enabled: false,
+              sensor: null,
+              sensor_name: null,
+              position: null,
+              priority: null,
+              min_mode: null,
+            },
+            {
+              slot: 3,
+              enabled: false,
+              sensor: null,
+              sensor_name: null,
+              position: null,
+              priority: null,
+              min_mode: null,
+            },
+            {
+              slot: 4,
+              enabled: false,
+              sensor: null,
+              sensor_name: null,
+              position: null,
+              priority: null,
+              min_mode: null,
+            },
+          ],
+        },
+      }),
+    );
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).toBe('Table terrasse · 60% floor');
+  });
+
   it('shows Manual badge when manual_override is on even if pipeline winner is not manual', async () => {
     // Symptom 3b: winner = solar but manual_override binary = on → badge must say "Manual".
     // Use a registry without the end-time sensor so manualEndIso is undefined and the
