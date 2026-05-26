@@ -12,7 +12,6 @@ import {
   INTEGRATION_DOMAIN,
   TILE_CARD_NAME,
   TILE_CARD_EDITOR_NAME,
-  type HandlerName,
 } from './const';
 import { discoverEntities } from './lib/entity-discovery';
 import { pickCoverIcon } from './lib/icons';
@@ -26,11 +25,7 @@ import type {
   DecisionTraceAttributes,
   DiscoveredEntities,
 } from './types';
-import {
-  buildDecisionSentence,
-  normalizeHandler,
-  resolveCustomPositionPct,
-} from './lib/decision-summary';
+import { buildDecisionSentence, resolveCustomPositionPct } from './lib/decision-summary';
 import { formatCoverState, formatPercent } from './lib/formatters';
 import { t } from './lib/i18n';
 
@@ -206,7 +201,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const winner = this._winner(discovered);
     const traceAttrs = this._traceAttrs(discovered);
     const manualEndIso = this._manualEndIso(discovered);
-    const showResume = this._shouldShowResume(discovered, winner);
+    const showResume = this._shouldShowResume(discovered);
     const inert = this._isFullyInert(cfg);
     const summary =
       cfg.show_decision_summary === true && traceAttrs
@@ -382,13 +377,12 @@ export class AdaptiveCoverProTileCard extends LitElement {
     return this.hass.states[id]?.state;
   }
 
-  private _shouldShowResume(discovered: DiscoveredEntities, winner: string): boolean {
+  private _shouldShowResume(discovered: DiscoveredEntities): boolean {
     if (!discovered.entities.reset_override_button) return false;
     const mode = this._config?.show_resume ?? 'auto';
     if (mode === 'never') return false;
     if (mode === 'always') return true;
-    if (this._manualOverrideOn(discovered)) return true;
-    return (normalizeHandler(winner) as HandlerName) === 'custom_position';
+    return this._manualOverrideOn(discovered);
   }
 
   private _setCoverPosition(cover: string | undefined, position: number): void {

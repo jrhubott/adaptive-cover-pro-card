@@ -70,7 +70,8 @@ export class TileBadge extends LitElement {
   private _kind(): BadgeKind {
     if (this.integrationEnabled === false) return 'off';
     const normalized = normalizeHandler(this.winner) as HandlerName;
-    if (this.manualActive && normalized !== 'force') return 'manual';
+    if (this.manualActive && normalized !== 'force' && normalized !== 'custom_position')
+      return 'manual';
     return BADGE_KINDS_BY_HANDLER[normalized] ?? 'auto';
   }
 

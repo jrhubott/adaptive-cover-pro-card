@@ -210,10 +210,21 @@ describe('adaptive-cover-pro-tile-card render', () => {
     expect(el.shadowRoot!.querySelector('.resume')).toBeTruthy();
   });
 
-  it('shows inline Resume when the winner is a custom_position slot', async () => {
+  it('hides Resume when winner is custom_position but no override is active', async () => {
+    // Regression for issue #81: after clicking Reprendre, manual_override clears but
+    // winner stays custom_position_1. Resume must disappear.
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
-      makeHass({ decisionState: 'custom_position_1' }),
+      makeHass({ decisionState: 'custom_position_1', manualOverrideOn: false }),
+    );
+    expect(el.shadowRoot!.querySelector('.resume')).toBeFalsy();
+  });
+
+  it('shows Resume when manual_override is on AND winner is custom_position', async () => {
+    // Override active + custom_position winner simultaneously → Resume must appear.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ decisionState: 'custom_position_1', manualOverrideOn: true }),
     );
     expect(el.shadowRoot!.querySelector('.resume')).toBeTruthy();
   });
@@ -317,6 +328,64 @@ describe('adaptive-cover-pro-tile-card render', () => {
     const badge = el.shadowRoot!.querySelector('acp-tile-badge');
     expect(badge).toBeTruthy();
     // Should show floor value 60%, NOT computed position 42%
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).toBe('Table terrasse · 60% floor');
+  });
+
+  it('badge shows custom-floor label, not timer, when manual_override is on and winner is custom_position', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({
+        decisionState: 'custom_position_1',
+        manualOverrideOn: true,
+        decisionAttrs: {
+          trace: [{ handler: 'custom_position_1', matched: true, reason: '', position: 100 }],
+          custom_position_active_slot: 1,
+          custom_position_active_slot_name: 'Table terrasse',
+          custom_position_minimum_mode: true,
+          custom_position_slots: [
+            {
+              slot: 1,
+              enabled: true,
+              sensor: 'input_number.table',
+              sensor_name: 'Table terrasse',
+              position: 60,
+              priority: 1,
+              min_mode: true,
+            },
+            {
+              slot: 2,
+              enabled: false,
+              sensor: null,
+              sensor_name: null,
+              position: null,
+              priority: null,
+              min_mode: null,
+            },
+            {
+              slot: 3,
+              enabled: false,
+              sensor: null,
+              sensor_name: null,
+              position: null,
+              priority: null,
+              min_mode: null,
+            },
+            {
+              slot: 4,
+              enabled: false,
+              sensor: null,
+              sensor_name: null,
+              position: null,
+              priority: null,
+              min_mode: null,
+            },
+          ],
+        },
+      }),
+    );
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
     const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
     expect(text).toBe('Table terrasse · 60% floor');
   });
