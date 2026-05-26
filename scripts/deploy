@@ -105,6 +105,9 @@ cleanup() {
     if [[ -n "${ORIGINAL_CONST:-}" ]]; then
         echo "$ORIGINAL_CONST" > src/const.ts
     fi
+    # Reset the dev-version-stamped build so the working tree stays clean —
+    # otherwise the next `git checkout` / `gh pr merge` trips on dirty dist.
+    git checkout -- dist/adaptive-cover-pro-card.js 2>/dev/null || true
     if $MOUNTED_BY_US && [[ -n "${MOUNT_POINT:-}" ]]; then
         if mount | grep -q "on ${MOUNT_POINT} "; then
             echo "==> Unmounting ${MOUNT_POINT}..."
