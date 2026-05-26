@@ -288,17 +288,19 @@ describe('adaptive-cover-pro-tile-card service calls', () => {
     const callService = vi.fn();
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass({ callService }));
     (el.shadowRoot!.querySelector('button.up') as HTMLElement).click();
-    expect(callService).toHaveBeenCalledWith(INTEGRATION_DOMAIN, 'set_position', {
-      entity_id: 'cover.left',
-      position: 100,
-    });
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_position',
+      { position: 100 },
+      { entity_id: 'cover.left' },
+    );
   });
 
   it('■ calls adaptive_cover_pro.stop', async () => {
     const callService = vi.fn();
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass({ callService }));
     (el.shadowRoot!.querySelector('button.stop') as HTMLElement).click();
-    expect(callService).toHaveBeenCalledWith(INTEGRATION_DOMAIN, 'stop', {
+    expect(callService).toHaveBeenCalledWith(INTEGRATION_DOMAIN, 'stop', {}, {
       entity_id: 'cover.left',
     });
   });
@@ -307,10 +309,12 @@ describe('adaptive-cover-pro-tile-card service calls', () => {
     const callService = vi.fn();
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass({ callService }));
     (el.shadowRoot!.querySelector('button.down') as HTMLElement).click();
-    expect(callService).toHaveBeenCalledWith(INTEGRATION_DOMAIN, 'set_position', {
-      entity_id: 'cover.left',
-      position: 0,
-    });
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_position',
+      { position: 0 },
+      { entity_id: 'cover.left' },
+    );
   });
 
   it('uses config.cover override when provided', async () => {
@@ -320,10 +324,12 @@ describe('adaptive-cover-pro-tile-card service calls', () => {
       makeHass({ callService }),
     );
     (el.shadowRoot!.querySelector('button.up') as HTMLElement).click();
-    expect(callService).toHaveBeenCalledWith(INTEGRATION_DOMAIN, 'set_position', {
-      entity_id: 'cover.right',
-      position: 100,
-    });
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_position',
+      { position: 100 },
+      { entity_id: 'cover.right' },
+    );
   });
 
   it('inline Resume calls button.press on reset_override_button', async () => {
