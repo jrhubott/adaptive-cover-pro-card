@@ -104,6 +104,53 @@ export function fovBandRadii(
 }
 
 /**
+ * Project rawStart/rawEnd onto the configured FOV envelope
+ * [windowAzi − fovLeft, windowAzi + fovRight] (CW). Returns the absolute
+ * (wedgeStart, wedgeEnd) bounds for the active sun wedge, always a subset of
+ * the envelope. If either raw value lies outside the envelope it is clamped to
+ * the nearest envelope edge. If both project to the same point (zero sweep),
+ * falls back to the full envelope.
+ *
+ * Invariant enforced: the active sun arc is always a sub-arc of the FOV
+ * envelope — issues #85 (N-wrap) and #89 (interior/disjoint pair from
+ * elevation clipping) are both covered by this approach.
+ */
+export function clampActiveArcToFov(
+  rawStart: number,
+  rawEnd: number,
+  windowAzi: number,
+  fovLeft: number,
+  fovRight: number,
+): { wedgeStart: number; wedgeEnd: number } {
+  const fovStart = (((windowAzi - fovLeft) % 360) + 360) % 360;
+  const fovSweep = fovLeft + fovRight;
+  // Project rawStart / rawEnd onto [0, fovSweep] offset from fovStart (CW).
+  const offS = (((rawStart - fovStart) % 360) + 360) % 360;
+  const offE = (((rawEnd - fovStart) % 360) + 360) % 360;
+  // If outside the envelope (offset > fovSweep), snap to nearest edge (0 or fovSweep).
+  const clampOffset = (off: number): number => {
+    if (off <= fovSweep) return off;
+    // off is in (fovSweep, 360). Distance to fovSweep edge vs wraparound to 0.
+    return off - fovSweep < 360 - off ? fovSweep : 0;
+  };
+  const clampedS = clampOffset(offS);
+  const clampedE = clampOffset(offE);
+  // If both collapsed to the same offset, fall back to full envelope.
+  if (clampedS === clampedE) {
+    return {
+      wedgeStart: fovStart,
+      wedgeEnd: (((fovStart + fovSweep) % 360) + 360) % 360,
+    };
+  }
+  const lo = Math.min(clampedS, clampedE);
+  const hi = Math.max(clampedS, clampedE);
+  return {
+    wedgeStart: (((fovStart + lo) % 360) + 360) % 360,
+    wedgeEnd: (((fovStart + hi) % 360) + 360) % 360,
+  };
+}
+
+/**
  * Convert the integration's blind_spot_range (FOV-left-relative offsets,
  * [fov_left − blind_spot_right, fov_left − blind_spot_left]) into absolute
  * compass bearings [startAzi, endAzi] suitable for wedgePath.
