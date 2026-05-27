@@ -48,6 +48,8 @@ function makeHass(
   entries: {
     sensorId: string;
     windowAzimuth: number;
+    fovLeft?: number;
+    fovRight?: number;
     blindSpot?: [number, number];
     minElevation?: number;
     maxElevation?: number;
@@ -65,16 +67,18 @@ function makeHass(
 ): HomeAssistant {
   const states: Record<string, { state: string; attributes: Record<string, unknown> }> = {};
   for (const e of entries) {
+    const fovLeft = e.fovLeft ?? 45;
+    const fovRight = e.fovRight ?? 45;
     states[e.sensorId] = {
       state: '180',
       attributes: {
         elevation: 30,
         gamma: 0,
         window_azimuth: e.windowAzimuth,
-        fov_left: 45,
-        fov_right: 45,
-        azimuth_min: e.windowAzimuth - 45,
-        azimuth_max: e.windowAzimuth + 45,
+        fov_left: fovLeft,
+        fov_right: fovRight,
+        azimuth_min: e.windowAzimuth - fovLeft,
+        azimuth_max: e.windowAzimuth + fovRight,
         in_fov: true,
         blind_spot_range: e.blindSpot ?? null,
         ...(e.minElevation !== undefined ? { min_elevation: e.minElevation } : {}),
@@ -779,6 +783,8 @@ describe('acp-sky-compass active sun arc (start/end sensor azimuths)', () => {
       {
         sensorId,
         windowAzimuth: 342,
+        fovLeft: 90,
+        fovRight: 90,
         startSensorId: startId,
         startAzimuth: 72,
         startElevation: 10,
@@ -788,7 +794,8 @@ describe('acp-sky-compass active sun arc (start/end sensor azimuths)', () => {
       },
     ]);
     const el = await mountCompass([d], hass);
-    // wedgeStart=endAzi=252, wedgeEnd=startAzi=72: CW sweep crosses N and contains 342°
+    // clampActiveArcToFov: fovStart=252, fovSweep=180; offS=(72-252+360)%360=180=fovSweep → clamped to 180;
+    // offE=(252-252+360)%360=0; lo=0, hi=180 → wedgeStart=252, wedgeEnd=normalize(252+180)=72. ✓
     const expected = wedgePath(normalizeAzimuth(252), normalizeAzimuth(72), 110, 0, 0);
     expect(el.shadowRoot!.querySelector('path.fov')?.getAttribute('d')).toBe(expected);
   });
@@ -885,6 +892,51 @@ describe('acp-sky-compass active sun arc (start/end sensor azimuths)', () => {
     const el = await mountCompass([d], hass);
     const { outer } = fovBandRadii(10, undefined, 110);
     const expected = wedgePath(normalizeAzimuth(150), normalizeAzimuth(210), outer, 0, 0);
+    expect(el.shadowRoot!.querySelector('path.fov')?.getAttribute('d')).toBe(expected);
+  });
+
+  it('clamps active arc to FOV envelope when start/end sensors report interior pair (#89 regression)', async () => {
+    // Disjoint-FOV bug: windowAzi=180, fov_left=60, fov_right=60 → envelope [120°..240°], sweep=120°.
+    // Integration emits interior pair startAzimuth=130, endAzimuth=170 due to elevation clipping
+    // (max_elevation forces two disjoint daily intervals; both azimuths sit on the CCW/left side
+    // of the window normal and are NOT straddling it).
+    //
+    // Old heuristic (v2.0.1): fwdSweep = (170-130+360)%360 = 40°;
+    //   fwdContainsWindow = (180-130+360)%360 = 50 <= 40 → false
+    //   → picks wedgeStart=170, wedgeEnd=130 (320° inverted arc — THE BUG).
+    //
+    // clampActiveArcToFov: offS=(130-120)=10, offE=(170-120)=50; lo=10, hi=50
+    //   → wedgeStart=130, wedgeEnd=170 (correct 40° arc inside envelope).
+    const { wedgePath, normalizeAzimuth, fovBandRadii } = await import('../src/lib/geometry');
+    const d = makeDiscovered('entry1', 'Kitchen', {
+      startSensorId: startId,
+      endSensorId: endId,
+    });
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 180,
+        fovLeft: 60,
+        fovRight: 60,
+        minElevation: 17,
+        maxElevation: 50,
+        startSensorId: startId,
+        startAzimuth: 130,
+        startElevation: 30,
+        endSensorId: endId,
+        endAzimuth: 170,
+        endElevation: 30,
+      },
+    ]);
+    const el = await mountCompass([d], hass);
+    const { outer: fovOuterR, inner: fovInnerR } = fovBandRadii(17, 50, 110);
+    const expected = wedgePath(
+      normalizeAzimuth(130),
+      normalizeAzimuth(170),
+      fovOuterR,
+      fovInnerR,
+      0,
+    );
     expect(el.shadowRoot!.querySelector('path.fov')?.getAttribute('d')).toBe(expected);
   });
 });
