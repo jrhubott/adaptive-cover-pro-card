@@ -840,3 +840,185 @@ describe('adaptive-cover-pro-tile-card hold / double-tap actions', () => {
     }
   });
 });
+
+describe('adaptive-cover-pro-tile-card floor chip', () => {
+  // A fixture with one armed min-mode slot (sensor = on, position = 25).
+  function makeFloorHass(
+    opts: {
+      winner?: string;
+      sensorOn?: boolean;
+      targetPosition?: number;
+      integrationEnabled?: boolean;
+      customPositionMinimumMode?: boolean;
+    } = {},
+  ): HomeAssistant {
+    const {
+      winner = 'solar',
+      sensorOn = true,
+      targetPosition = 42,
+      integrationEnabled = true,
+      customPositionMinimumMode = false,
+    } = opts;
+    const hass = makeHass({
+      decisionState: winner,
+      integrationEnabled,
+      decisionAttrs: {
+        trace: [{ handler: winner, matched: true, reason: '', position: targetPosition }],
+        custom_position_minimum_mode: customPositionMinimumMode,
+        custom_position_slots: [
+          {
+            slot: 1,
+            enabled: true,
+            sensor: 'input_boolean.floor_sensor',
+            sensor_name: 'Aeration',
+            position: 25,
+            priority: 1,
+            min_mode: true,
+          },
+          {
+            slot: 2,
+            enabled: false,
+            sensor: null,
+            sensor_name: null,
+            position: null,
+            priority: null,
+            min_mode: null,
+          },
+          {
+            slot: 3,
+            enabled: false,
+            sensor: null,
+            sensor_name: null,
+            position: null,
+            priority: null,
+            min_mode: null,
+          },
+          {
+            slot: 4,
+            enabled: false,
+            sensor: null,
+            sensor_name: null,
+            position: null,
+            priority: null,
+            min_mode: null,
+          },
+        ],
+      },
+    });
+    // Set the cover-position sensor state to targetPosition so
+    // _currentPosition() (which reads .state) feeds the correct calculatedPosition
+    // into resolveActiveMinModeFloor.
+    (hass.states['sensor.cover_position'] as { state: string }).state = String(targetPosition);
+    // Add the floor sensor to hass.states
+    (hass.states as Record<string, unknown>)['input_boolean.floor_sensor'] = {
+      state: sensorOn ? 'on' : 'off',
+      attributes: {},
+    };
+    return hass;
+  }
+
+  it('renders floor chip with correct text when an armed min-mode floor exists', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeFloorHass());
+    const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
+    expect(chip).toBeTruthy();
+    expect(chip!.textContent?.trim()).toMatch(/floor.*25%|25%.*floor/i);
+  });
+
+  it('floor chip has is-armed class when floor position <= target (not clamping)', async () => {
+    // target = 42, floor = 25 → target >= floor → armed but not clamping
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeFloorHass({ targetPosition: 42 }));
+    const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
+    expect(chip).toBeTruthy();
+    expect(chip!.classList.contains('is-armed')).toBe(true);
+  });
+
+  it('floor chip does not have is-armed class when floor > target (clamping)', async () => {
+    // target = 10, floor = 25 → floor > target → clamping → full-color, no is-armed
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeFloorHass({ targetPosition: 10 }));
+    const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
+    expect(chip).toBeTruthy();
+    expect(chip!.classList.contains('is-armed')).toBe(false);
+  });
+
+  it('suppresses floor chip when winner is custom_position with minimum_mode true', async () => {
+    // The badge already says "… floor" — no redundant chip needed
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeFloorHass({ winner: 'custom_position_1', customPositionMinimumMode: true }),
+    );
+    expect(el.shadowRoot!.querySelector('.acp-floor-chip')).toBeFalsy();
+  });
+
+  it('suppresses floor chip when floor sensor is off', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeFloorHass({ sensorOn: false }));
+    expect(el.shadowRoot!.querySelector('.acp-floor-chip')).toBeFalsy();
+  });
+
+  it('suppresses floor chip when integration is disabled', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeFloorHass({ integrationEnabled: false }),
+    );
+    expect(el.shadowRoot!.querySelector('.acp-floor-chip')).toBeFalsy();
+  });
+
+  it('shows highest-position floor chip when two slots are both armed', async () => {
+    const hass = makeHass({
+      decisionState: 'solar',
+      decisionAttrs: {
+        trace: [{ handler: 'solar', matched: true, reason: '', position: 30 }],
+        custom_position_slots: [
+          {
+            slot: 1,
+            enabled: true,
+            sensor: 'input_boolean.slot1',
+            sensor_name: 'Low floor',
+            position: 20,
+            priority: 1,
+            min_mode: true,
+          },
+          {
+            slot: 2,
+            enabled: true,
+            sensor: 'input_boolean.slot2',
+            sensor_name: 'High floor',
+            position: 45,
+            priority: 2,
+            min_mode: true,
+          },
+          {
+            slot: 3,
+            enabled: false,
+            sensor: null,
+            sensor_name: null,
+            position: null,
+            priority: null,
+            min_mode: null,
+          },
+          {
+            slot: 4,
+            enabled: false,
+            sensor: null,
+            sensor_name: null,
+            position: null,
+            priority: null,
+            min_mode: null,
+          },
+        ],
+      },
+    });
+    (hass.states as Record<string, unknown>)['input_boolean.slot1'] = {
+      state: 'on',
+      attributes: {},
+    };
+    (hass.states as Record<string, unknown>)['input_boolean.slot2'] = {
+      state: 'on',
+      attributes: {},
+    };
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, hass);
+    const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
+    expect(chip).toBeTruthy();
+    // Should show the highest floor (45%), not the lower one (20%)
+    expect(chip!.textContent?.trim()).toMatch(/45%/);
+  });
+});

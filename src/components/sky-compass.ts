@@ -303,8 +303,15 @@ export class SkyCompass extends LitElement {
     const startAzi = this._readActiveAzimuth(o.d.entities.start_sensor);
     const endAzi = this._readActiveAzimuth(o.d.entities.end_sensor);
     const useActive = startAzi !== null && endAzi !== null;
-    const wedgeStart = useActive ? normalizeAzimuth(startAzi!) : fovStart;
-    const wedgeEnd = useActive ? normalizeAzimuth(endAzi!) : fovEnd;
+    // Choose the CW arc (startAzi→endAzi or endAzi→startAzi) that passes through the window
+    // normal. The temporal "start" (sunrise-side) may be on either the CW or CCW edge of the
+    // window depending on orientation, so we pick whichever arc contains the window normal.
+    const rawS = useActive ? normalizeAzimuth(startAzi!) : fovStart;
+    const rawE = useActive ? normalizeAzimuth(endAzi!) : fovEnd;
+    const fwdSweep = ((rawE - rawS) % 360 + 360) % 360;
+    const fwdContainsWindow = ((windowAzi - rawS + 360) % 360) <= fwdSweep;
+    const wedgeStart = fwdContainsWindow ? rawS : rawE;
+    const wedgeEnd = fwdContainsWindow ? rawE : rawS;
     const windowArrow = azimuthToCartesian(windowAzi, OUTER_R, northOffsetDeg);
     const { outer: fovOuterR, inner: fovInnerR } = fovBandRadii(
       o.sun.min_elevation,

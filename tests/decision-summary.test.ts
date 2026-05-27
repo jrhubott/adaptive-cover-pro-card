@@ -3,6 +3,7 @@ import {
   buildDecisionSentence,
   normalizeHandler,
   resolveCustomPositionPct,
+  resolveActiveMinModeFloor,
 } from '../src/lib/decision-summary';
 import type { DecisionStep, DecisionTraceAttributes } from '../src/types';
 
@@ -252,5 +253,141 @@ describe('resolveCustomPositionPct', () => {
 
   it('returns the fallback when attrs is undefined', () => {
     expect(resolveCustomPositionPct(undefined, 55)).toBe(55);
+  });
+});
+
+describe('resolveActiveMinModeFloor', () => {
+  // Helpers to make mock hass states. Cast through unknown to avoid the full
+  // HassEntity shape requirement — tests only need the `state` field.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function hassStates(entries: Record<string, string>): any {
+    return Object.fromEntries(
+      entries && Object.entries(entries).map(([id, state]) => [id, { state }]),
+    );
+  }
+
+  const slot1On = {
+    slot: 1 as const,
+    enabled: true,
+    sensor: 'input_boolean.slot1',
+    sensor_name: 'Slot 1',
+    position: 30,
+    priority: 1,
+    min_mode: true as boolean | null,
+  };
+
+  const slot2On = {
+    slot: 2 as const,
+    enabled: true,
+    sensor: 'input_boolean.slot2',
+    sensor_name: 'Slot 2',
+    position: 50,
+    priority: 2,
+    min_mode: true as boolean | null,
+  };
+
+  it('returns null when attrs is undefined', () => {
+    expect(resolveActiveMinModeFloor(undefined, hassStates({}), 40)).toBeNull();
+  });
+
+  it('returns null when custom_position_slots is absent', () => {
+    expect(resolveActiveMinModeFloor({}, hassStates({}), 40)).toBeNull();
+  });
+
+  it('returns null when no slots have min_mode true', () => {
+    const slots = [
+      { ...slot1On, min_mode: false },
+      { ...slot2On, min_mode: null },
+    ];
+    expect(
+      resolveActiveMinModeFloor(
+        { custom_position_slots: slots },
+        hassStates({ 'input_boolean.slot1': 'on', 'input_boolean.slot2': 'on' }),
+        40,
+      ),
+    ).toBeNull();
+  });
+
+  it('returns null when the only min_mode slot is disabled', () => {
+    const slots = [{ ...slot1On, enabled: false }];
+    expect(
+      resolveActiveMinModeFloor(
+        { custom_position_slots: slots },
+        hassStates({ 'input_boolean.slot1': 'on' }),
+        40,
+      ),
+    ).toBeNull();
+  });
+
+  it('returns null when the only min_mode slot sensor is off', () => {
+    const slots = [slot1On];
+    expect(
+      resolveActiveMinModeFloor(
+        { custom_position_slots: slots },
+        hassStates({ 'input_boolean.slot1': 'off' }),
+        40,
+      ),
+    ).toBeNull();
+  });
+
+  it('returns null when the only min_mode slot sensor entity is missing from states', () => {
+    const slots = [slot1On];
+    expect(
+      resolveActiveMinModeFloor(
+        { custom_position_slots: slots },
+        hassStates({}), // sensor not present
+        40,
+      ),
+    ).toBeNull();
+  });
+
+  it('returns the active floor when one slot qualifies', () => {
+    const result = resolveActiveMinModeFloor(
+      { custom_position_slots: [slot1On] },
+      hassStates({ 'input_boolean.slot1': 'on' }),
+      40,
+    );
+    expect(result).not.toBeNull();
+    expect(result!.position).toBe(30);
+    expect(result!.slot).toBe(1);
+  });
+
+  it('returns the highest-position floor when multiple slots qualify', () => {
+    const slots = [slot1On, slot2On]; // slot2 has position 50 (higher)
+    const result = resolveActiveMinModeFloor(
+      { custom_position_slots: slots },
+      hassStates({ 'input_boolean.slot1': 'on', 'input_boolean.slot2': 'on' }),
+      40,
+    );
+    expect(result).not.toBeNull();
+    expect(result!.position).toBe(50); // slot2 wins
+    expect(result!.slot).toBe(2);
+  });
+
+  it('sets clamping true when floor position > targetPosition', () => {
+    const result = resolveActiveMinModeFloor(
+      { custom_position_slots: [slot1On] }, // position 30
+      hassStates({ 'input_boolean.slot1': 'on' }),
+      20, // target 20 < floor 30 → clamping
+    );
+    expect(result!.clamping).toBe(true);
+  });
+
+  it('sets clamping false when floor position <= targetPosition', () => {
+    const result = resolveActiveMinModeFloor(
+      { custom_position_slots: [slot1On] }, // position 30
+      hassStates({ 'input_boolean.slot1': 'on' }),
+      40, // target 40 >= floor 30 → not clamping
+    );
+    expect(result!.clamping).toBe(false);
+  });
+
+  it('sets clamping false when targetPosition is null', () => {
+    const result = resolveActiveMinModeFloor(
+      { custom_position_slots: [slot1On] },
+      hassStates({ 'input_boolean.slot1': 'on' }),
+      null,
+    );
+    expect(result!.clamping).toBe(false);
   });
 });

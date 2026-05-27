@@ -87,7 +87,7 @@ describe('acp-decision-strip', () => {
     };
     await flush(el);
     const rows = el.shadowRoot!.querySelectorAll('.row');
-    expect(rows.length).toBe(10);
+    expect(rows.length).toBe(11);
     expect(el.shadowRoot!.querySelector('.row.winner')).toBeTruthy();
     expect(el.shadowRoot!.querySelector('.row.winner')!.textContent).toContain('Solar');
   });

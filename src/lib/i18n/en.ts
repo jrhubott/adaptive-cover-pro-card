@@ -10,6 +10,7 @@ export const en = {
     glare_zone: 'Glare Zone',
     solar: 'Solar Tracking',
     default: 'Default',
+    floor_clamp: 'Min Floor',
   },
   badge: {
     auto: 'Auto',

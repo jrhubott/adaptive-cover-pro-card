@@ -25,7 +25,12 @@ import type {
   DecisionTraceAttributes,
   DiscoveredEntities,
 } from './types';
-import { buildDecisionSentence, resolveCustomPositionPct } from './lib/decision-summary';
+import {
+  buildDecisionSentence,
+  normalizeHandler,
+  resolveCustomPositionPct,
+  resolveActiveMinModeFloor,
+} from './lib/decision-summary';
 import { formatCoverState, formatPercent } from './lib/formatters';
 import { t } from './lib/i18n';
 
@@ -221,11 +226,21 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const positionText = showPosition && livePosition !== null ? formatPercent(livePosition) : null;
     const labelParts = [stateText, positionText].filter((p): p is string => !!p);
     const hasStateLabel = !!stateText;
+
+    const activeFloor = resolveActiveMinModeFloor(traceAttrs, this.hass.states, calculatedPosition);
+    const winnerNormalized = normalizeHandler(winner);
+    const showFloorChip =
+      !!activeFloor &&
+      !(
+        winnerNormalized === 'custom_position' && traceAttrs?.custom_position_minimum_mode === true
+      ) &&
+      integrationEnabled;
+
     const hasRow3 = detailed && (renderBadge || showResume);
 
     return html`
       <div
-        class=${`tile-body${detailed ? ' detailed' : ''}${hasBottomSummary ? ' has-summary' : ''}${hasStateLabel ? ' has-state-label' : ''}${hasRow3 ? ' has-row3' : ''}`}
+        class=${`tile-body${detailed ? ' detailed' : ''}${hasBottomSummary ? ' has-summary' : ''}${hasStateLabel ? ' has-state-label' : ''}${hasRow3 ? ' has-row3' : ''}${showFloorChip ? ' has-floor-chip' : ''}`}
         role=${inert ? 'group' : 'button'}
         tabindex=${inert ? -1 : 0}
         @pointerdown=${this._onPointerDown}
@@ -253,6 +268,13 @@ export class AdaptiveCoverProTileCard extends LitElement {
         </div>
         ${labelParts.length > 0
           ? html`<div class="position">${labelParts.join(' · ')}</div>`
+          : nothing}
+        ${showFloorChip
+          ? html`<span
+              class=${`acp-floor-chip${activeFloor!.clamping ? '' : ' is-armed'}`}
+              title=${t('dialog.floor_tooltip', this.hass)}
+              >${t('dialog.floor', this.hass)} ${formatPercent(activeFloor!.position)}</span
+            >`
           : nothing}
         ${showControls
           ? html`<div class="controls" @click=${this._stop} @pointerdown=${this._stop}>
@@ -706,6 +728,48 @@ export class AdaptiveCoverProTileCard extends LitElement {
     }
     .resume:hover {
       background: rgba(var(--rgb-primary-color, 33, 150, 243), 0.08);
+    }
+    .acp-floor-chip {
+      grid-area: floor-chip;
+      font-size: 0.7rem;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(156, 39, 176, 0.22);
+      color: #6a1b9a;
+      white-space: nowrap;
+      align-self: center;
+    }
+    .acp-floor-chip.is-armed {
+      opacity: 0.6;
+    }
+    /* One-line layout: add a second row for the floor chip under the position cell */
+    .tile-body.has-floor-chip {
+      grid-template-rows: auto auto;
+      grid-template-areas:
+        'icon label     position  controls badge resume'
+        'icon label     floor-chip .        .     .';
+    }
+    .tile-body.has-state-label.has-floor-chip {
+      grid-template-rows: auto auto;
+      grid-template-areas:
+        'icon label     position  controls badge resume'
+        'icon label     floor-chip .        .     .';
+    }
+    /* Detailed layout: floor chip stacks below the position row */
+    .tile-body.detailed.has-floor-chip {
+      grid-template-areas:
+        'icon label    controls'
+        'icon position controls'
+        'icon floor-chip controls';
+      grid-template-rows: auto auto auto;
+    }
+    .tile-body.detailed.has-row3.has-floor-chip {
+      grid-template-rows: auto auto auto auto;
+      grid-template-areas:
+        'icon label      controls'
+        'icon position   controls'
+        'icon floor-chip controls'
+        'icon badge      resume';
     }
     .empty {
       padding: 12px;
