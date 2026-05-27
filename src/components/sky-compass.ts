@@ -308,8 +308,8 @@ export class SkyCompass extends LitElement {
     // window depending on orientation, so we pick whichever arc contains the window normal.
     const rawS = useActive ? normalizeAzimuth(startAzi!) : fovStart;
     const rawE = useActive ? normalizeAzimuth(endAzi!) : fovEnd;
-    const fwdSweep = ((rawE - rawS) % 360 + 360) % 360;
-    const fwdContainsWindow = ((windowAzi - rawS + 360) % 360) <= fwdSweep;
+    const fwdSweep = (((rawE - rawS) % 360) + 360) % 360;
+    const fwdContainsWindow = (windowAzi - rawS + 360) % 360 <= fwdSweep;
     const wedgeStart = fwdContainsWindow ? rawS : rawE;
     const wedgeEnd = fwdContainsWindow ? rawE : rawS;
     const windowArrow = azimuthToCartesian(windowAzi, OUTER_R, northOffsetDeg);
