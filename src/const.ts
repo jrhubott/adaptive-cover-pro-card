@@ -9,9 +9,11 @@ export const TILE_CARD_EDITOR_NAME = 'adaptive-cover-pro-tile-card-editor';
 export const INTEGRATION_DOMAIN = 'adaptive_cover_pro';
 
 /**
- * The 10 Adaptive Cover Pro pipeline handlers in priority order (highest first).
+ * The 11 Adaptive Cover Pro pipeline handlers in priority order (highest first).
  * Must match `control_method` enum values emitted by the integration.
  * Keep the ordering in lock-step with `custom_components/adaptive_cover_pro/pipeline/registry.py`.
+ * `floor_clamp` is a post-processing step that raises the output above the raw
+ * calculation; it follows all handler decisions in priority.
  */
 export const HANDLER_ORDER = [
   'force',
@@ -24,6 +26,7 @@ export const HANDLER_ORDER = [
   'glare_zone',
   'solar',
   'default',
+  'floor_clamp',
 ] as const;
 
 export type HandlerName = (typeof HANDLER_ORDER)[number];
@@ -39,6 +42,7 @@ export const HANDLER_LABELS: Record<HandlerName, string> = {
   glare_zone: 'Glare Zone',
   solar: 'Solar Tracking',
   default: 'Default',
+  floor_clamp: 'Min Floor',
 };
 
 /**
@@ -57,6 +61,7 @@ export const HANDLER_I18N_KEYS: Record<HandlerName, string> = {
   glare_zone: 'handler.glare_zone',
   solar: 'handler.solar',
   default: 'handler.default',
+  floor_clamp: 'handler.floor_clamp',
 };
 
 export const COVER_TYPE_ICONS: Record<string, string> = {

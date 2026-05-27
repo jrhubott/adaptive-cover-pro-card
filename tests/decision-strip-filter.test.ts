@@ -188,6 +188,23 @@ describe('integration: enabled_handlers attribute → visible list', () => {
   });
 });
 
+describe('floor_clamp handler registration', () => {
+  it('floor_clamp step is visible when matched=true (hideInactive=true)', () => {
+    const steps = new Map<string, { matched: boolean }>([
+      ['manual', { matched: true }],
+      ['floor_clamp', { matched: true }],
+    ]);
+    const result = selectVisibleHandlers(HANDLER_ORDER, steps, 'manual', true);
+    expect(result).toContain('floor_clamp');
+  });
+
+  it('floor_clamp appears in full pipeline list when hideInactive=false', () => {
+    const steps = new Map<string, { matched: boolean }>([['floor_clamp', { matched: true }]]);
+    const result = selectVisibleHandlers(HANDLER_ORDER, steps, 'manual', false);
+    expect(result).toContain('floor_clamp');
+  });
+});
+
 describe('config typing', () => {
   it('accepts hide_inactive_handlers on AdaptiveCoverProCardConfig', () => {
     // This is a compile-time test; if types.ts lacks the field, tsc will fail.
