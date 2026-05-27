@@ -7,6 +7,7 @@ import type { DiscoveredEntities, SunPositionAttributes } from '../types';
 import {
   azimuthToCartesian,
   blindSpotBearings,
+  clampActiveArcToFov,
   fovBandRadii,
   normalizeAzimuth,
   sunDotPosition,
@@ -303,15 +304,21 @@ export class SkyCompass extends LitElement {
     const startAzi = this._readActiveAzimuth(o.d.entities.start_sensor);
     const endAzi = this._readActiveAzimuth(o.d.entities.end_sensor);
     const useActive = startAzi !== null && endAzi !== null;
-    // Choose the CW arc (startAzi→endAzi or endAzi→startAzi) that passes through the window
-    // normal. The temporal "start" (sunrise-side) may be on either the CW or CCW edge of the
-    // window depending on orientation, so we pick whichever arc contains the window normal.
-    const rawS = useActive ? normalizeAzimuth(startAzi!) : fovStart;
-    const rawE = useActive ? normalizeAzimuth(endAzi!) : fovEnd;
-    const fwdSweep = (((rawE - rawS) % 360) + 360) % 360;
-    const fwdContainsWindow = (windowAzi - rawS + 360) % 360 <= fwdSweep;
-    const wedgeStart = fwdContainsWindow ? rawS : rawE;
-    const wedgeEnd = fwdContainsWindow ? rawE : rawS;
+    // Enforce invariant: the active sun arc is always a sub-arc of the configured FOV envelope
+    // [windowAzi − fov_left, windowAzi + fov_right] (CW). When the integration reports an
+    // interior start/end pair (e.g. from elevation-clipped disjoint daily intervals — issues #85,
+    // #89), the "which arc contains the window normal" heuristic can pick the wrong ~270° inverse.
+    // clampActiveArcToFov projects both values onto the envelope and picks the sub-arc; it
+    // naturally handles the N-wrap case and falls back to the full envelope when sensors are absent.
+    const { wedgeStart, wedgeEnd } = useActive
+      ? clampActiveArcToFov(
+          normalizeAzimuth(startAzi!),
+          normalizeAzimuth(endAzi!),
+          windowAzi,
+          o.sun.fov_left,
+          o.sun.fov_right,
+        )
+      : { wedgeStart: fovStart, wedgeEnd: fovEnd };
     const windowArrow = azimuthToCartesian(windowAzi, OUTER_R, northOffsetDeg);
     const { outer: fovOuterR, inner: fovInnerR } = fovBandRadii(
       o.sun.min_elevation,

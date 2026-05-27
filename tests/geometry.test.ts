@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   azimuthToCartesian,
   blindSpotBearings,
+  clampActiveArcToFov,
   elevationToRadius,
   fovBandRadii,
   normalizeAzimuth,
@@ -169,6 +170,57 @@ describe('geometry — fovBandRadii', () => {
     const { outer, inner } = fovBandRadii(-5, 95, R);
     expect(outer).toBeCloseTo(R * elevationToRadius(-5)); // clamps to R*1 = R
     expect(inner).toBeCloseTo(R * elevationToRadius(95)); // clamps to R*0 = 0
+  });
+});
+
+describe('geometry — clampActiveArcToFov', () => {
+  // windowAzi=180, fov_left=45, fov_right=45 → fovStart=135, fovEnd=225, fovSweep=90
+
+  it('identity inside envelope: inputs on envelope edges pass through unchanged', () => {
+    // rawS=150, rawE=210 both inside [135..225]; offS=15, offE=75; lo=15, hi=75
+    // wedgeStart=135+15=150, wedgeEnd=135+75=210
+    const result = clampActiveArcToFov(150, 210, 180, 45, 45);
+    expect(result.wedgeStart).toBeCloseTo(150);
+    expect(result.wedgeEnd).toBeCloseTo(210);
+  });
+
+  it('N-wrap envelope (PR #85 case): window at 342°, FOV ±90°, inputs straddle N', () => {
+    // fovStart = normalize(342-90) = 252, fovSweep=180
+    // rawS=72: offS = (72-252+360)%360 = 180 — exactly at fovSweep edge → clamped to 180
+    // rawE=252: offE = (252-252+360)%360 = 0
+    // lo=0, hi=180 → wedgeStart=252+0=252, wedgeEnd=normalize(252+180)=72
+    const result = clampActiveArcToFov(72, 252, 342, 90, 90);
+    expect(result.wedgeStart).toBeCloseTo(252);
+    expect(result.wedgeEnd).toBeCloseTo(72);
+  });
+
+  it("reporter's interior-pair (issue #89): windowAzi=150, fov 84+86, inputs=(180,120)", () => {
+    // fovStart = normalize(150-84) = 66, fovSweep = 84+86 = 170
+    // rawS=180: offS = (180-66+360)%360 = 114; inside [0,170] → clampedS=114
+    // rawE=120: offE = (120-66+360)%360 = 54;  inside [0,170] → clampedE=54
+    // lo=54, hi=114 → wedgeStart=normalize(66+54)=120, wedgeEnd=normalize(66+114)=180
+    const result = clampActiveArcToFov(180, 120, 150, 84, 86);
+    expect(result.wedgeStart).toBeCloseTo(120);
+    expect(result.wedgeEnd).toBeCloseTo(180);
+  });
+
+  it('one value outside envelope: rawS=50 clamps to fovStart=135, rawE=210 inside', () => {
+    // fovStart=135, fovSweep=90
+    // offS = (50-135+360)%360 = 275; >90 → distance to 90 edge = 185, to 0 edge = 85 → clamp to 0
+    // offE = (210-135+360)%360 = 75; inside → clampedE=75
+    // lo=0, hi=75 → wedgeStart=135, wedgeEnd=135+75=210
+    const result = clampActiveArcToFov(50, 210, 180, 45, 45);
+    expect(result.wedgeStart).toBeCloseTo(135);
+    expect(result.wedgeEnd).toBeCloseTo(210);
+  });
+
+  it('both values outside/coincident → fallback to full envelope [135, 225]', () => {
+    // rawS=50: offS = (50-135+360)%360 = 275; >90 → clamp to 0
+    // rawE=60: offE = (60-135+360)%360 = 285; >90 → clamp to 0
+    // clampedS === clampedE → fallback: wedgeStart=135, wedgeEnd=225
+    const result = clampActiveArcToFov(50, 60, 180, 45, 45);
+    expect(result.wedgeStart).toBeCloseTo(135);
+    expect(result.wedgeEnd).toBeCloseTo(225);
   });
 });
 
