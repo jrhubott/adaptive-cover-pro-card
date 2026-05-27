@@ -1,6 +1,58 @@
 import { HANDLER_LABELS, HANDLER_ORDER, type HandlerName } from '../const';
 import type { DecisionStep, DecisionTraceAttributes } from '../types';
+import type { HomeAssistant } from 'custom-card-helpers';
 import { formatPercent } from './formatters';
+
+export interface ActiveFloor {
+  slot: 1 | 2 | 3 | 4;
+  position: number;
+  label: string;
+  clamping: boolean;
+  sensorOn: boolean;
+}
+
+/**
+ * Return the highest-position min-mode floor that is currently armed (enabled,
+ * sensor is "on"), or null when no such floor exists.
+ *
+ * "Highest" means the floor with the largest position value — the one that is
+ * currently the effective constraint. When multiple slots qualify, only the
+ * dominant one is returned so the tile chip stays compact.
+ *
+ * `clamping` is true when the floor is actively raising the cover above the
+ * target (i.e. `position > targetPosition`). When `targetPosition` is null
+ * (position unavailable), clamping is conservatively false.
+ */
+export function resolveActiveMinModeFloor(
+  attrs: Pick<DecisionTraceAttributes, 'custom_position_slots'> | undefined,
+  hassStates: HomeAssistant['states'],
+  targetPosition: number | null,
+): ActiveFloor | null {
+  if (!Array.isArray(attrs?.custom_position_slots)) return null;
+
+  const candidates = attrs.custom_position_slots.filter(
+    (s) =>
+      s.min_mode === true &&
+      s.enabled === true &&
+      s.sensor !== null &&
+      s.position !== null &&
+      hassStates[s.sensor!]?.state === 'on',
+  );
+
+  if (candidates.length === 0) return null;
+
+  // Pick the slot with the highest position (effective floor).
+  const best = candidates.reduce((a, b) => ((b.position ?? 0) > (a.position ?? 0) ? b : a));
+
+  const position = best.position!;
+  return {
+    slot: best.slot,
+    position,
+    label: best.sensor_name ?? `#${best.slot}`,
+    clamping: targetPosition !== null && position > targetPosition,
+    sensorOn: true,
+  };
+}
 
 /**
  * Return the configured floor/exact position for a custom_position slot when

@@ -18,6 +18,7 @@ export const fr: EnDict = {
     glare_zone: "Zone d'éblouissement",
     solar: 'Suivi solaire',
     default: 'Par défaut',
+    floor_clamp: 'Plancher',
   },
   badge: {
     auto: 'Auto',

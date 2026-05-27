@@ -763,6 +763,36 @@ describe('acp-sky-compass active sun arc (start/end sensor azimuths)', () => {
     expect(el.shadowRoot!.querySelector('path.fov')?.getAttribute('d')).toBe(expected);
   });
 
+  it('wraps wedge around N when active sensors straddle window normal (#85 regression)', async () => {
+    // Reporter case: N-facing window at 342°, FOV ±90°.
+    // startAzimuth=72° (ENE, sun ENTERS FOV — CW/right edge of the arc).
+    // endAzimuth=252° (WSW, sun EXITS FOV — CCW/left edge of the arc).
+    // The forward arc 72°→252° (CW, 180° through S) does NOT contain 342°.
+    // The fix must pick the reverse arc: wedgeStart=endAzi=252, wedgeEnd=startAzi=72
+    // (CW 180° through N, passing through 342°).
+    const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
+    const d = makeDiscovered('entry1', 'Kitchen', {
+      startSensorId: startId,
+      endSensorId: endId,
+    });
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 342,
+        startSensorId: startId,
+        startAzimuth: 72,
+        startElevation: 10,
+        endSensorId: endId,
+        endAzimuth: 252,
+        endElevation: 10,
+      },
+    ]);
+    const el = await mountCompass([d], hass);
+    // wedgeStart=endAzi=252, wedgeEnd=startAzi=72: CW sweep crosses N and contains 342°
+    const expected = wedgePath(normalizeAzimuth(252), normalizeAzimuth(72), 110, 0, 0);
+    expect(el.shadowRoot!.querySelector('path.fov')?.getAttribute('d')).toBe(expected);
+  });
+
   it('falls back to fov_left/fov_right when start/end sensors absent from discovery', async () => {
     const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
     const d = makeDiscovered('entry1', 'Kitchen');
