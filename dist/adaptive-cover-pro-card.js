@@ -1619,9 +1619,9 @@ function e(e,t,s,o){var i,n=arguments.length,r=n<3?t:null===o?o=Object.getOwnPro
             ${De("tile.entry_not_found",this.hass,{entry:this._config.entry_id})}
           </p>
         </div>
-      </ha-card>`}_buildHandlerLabels(){const e={};for(const[t,s]of Object.entries(Ae))e[t]=De(s,this.hass);return e}_renderTile(e){const t=this._config,s=t.name??e.entry_title,o=this._resolvedCover(e),i=t.icon??function(e,t){if(null!==t&&!Number.isNaN(t)){if(t>=95)return Ee[e]??"mdi:window-shutter-open";if(t<=5)return Pe[e]??"mdi:window-shutter"}return Se[e]??"mdi:window-shutter"}(e.cover_type,this._liveCoverPosition(o)),n=!1!==t.show_position,r=!1!==t.show_state,a=!1!==t.show_controls,l=!1!==t.show_badge,c=!1!==t.show_motion_icon?this._motionActiveState(e):null,d=De("timeout_pending"===c?"tile.motion_pending":"tile.motion_detected",this.hass),h="detailed"===t.layout,p=this._currentPosition(e),u=this._liveCoverPosition(o)??p,_=this._winner(e),m=this._traceAttrs(e),g=this._manualEndIso(e),v=this._shouldShowResume(e),f=this._isFullyInert(t),y=!0===t.show_decision_summary&&m?bt(m.trace??[],m,0,this._buildHandlerLabels()):"",b=!!y&&h,$=this._switchOn(e,"integration_enabled_switch"),w=this._switchOn(e,"automatic_control_switch"),x=l&&!(!1===w&&!0===$),k=r?function(e,t){if(!e||!t)return null;const s=e.states[t];if(!s?.state||"unknown"===s.state||"unavailable"===s.state)return null;if("function"==typeof e.formatEntityState){const t=e.formatEntityState(s);if(t)return t}if("function"==typeof e.localize){const t=e.localize(`component.cover.entity_component._.state.${s.state}`);if(t)return t}return s.state.charAt(0).toUpperCase()+s.state.slice(1)}(this.hass,o):null,C=[k,n&&null!==u?ct(u):null].filter(e=>!!e);return B`
+      </ha-card>`}_buildHandlerLabels(){const e={};for(const[t,s]of Object.entries(Ae))e[t]=De(s,this.hass);return e}_renderTile(e){const t=this._config,s=t.name??e.entry_title,o=this._resolvedCover(e),i=t.icon??function(e,t){if(null!==t&&!Number.isNaN(t)){if(t>=95)return Ee[e]??"mdi:window-shutter-open";if(t<=5)return Pe[e]??"mdi:window-shutter"}return Se[e]??"mdi:window-shutter"}(e.cover_type,this._liveCoverPosition(o)),n=!1!==t.show_position,r=!1!==t.show_state,a=!1!==t.show_controls,l=!1!==t.show_badge,c=!1!==t.show_motion_icon?this._motionActiveState(e):null,d=De("timeout_pending"===c?"tile.motion_pending":"tile.motion_detected",this.hass),h="detailed"===t.layout,p=this._currentPosition(e),u=this._liveCoverPosition(o)??p,_=this._winner(e),m=this._traceAttrs(e),g=this._manualEndIso(e),v=this._shouldShowResume(e),f=this._isFullyInert(t),y=!0===t.show_decision_summary&&m?bt(m.trace??[],m,0,this._buildHandlerLabels()):"",b=!!y&&h,$=this._switchOn(e,"integration_enabled_switch"),w=this._switchOn(e,"automatic_control_switch"),x=l&&!(!1===w&&!0===$),k=r?function(e,t){if(!e||!t)return null;const s=e.states[t];if(!s?.state||"unknown"===s.state||"unavailable"===s.state)return null;if("function"==typeof e.formatEntityState){const t=e.formatEntityState(s);if(t)return t}if("function"==typeof e.localize){const t=e.localize(`component.cover.entity_component._.state.${s.state}`);if(t)return t}return s.state.charAt(0).toUpperCase()+s.state.slice(1)}(this.hass,o):null,C=[k,n&&null!==u?ct(u):null].filter(e=>!!e),A=!!k,S=function(e,t,s){if(!Array.isArray(e?.custom_position_slots))return null;const o=e.custom_position_slots.filter(e=>!0===e.min_mode&&!0===e.enabled&&null!==e.sensor&&null!==e.position&&"on"===t[e.sensor]?.state);if(0===o.length)return null;const i=o.reduce((e,t)=>(t.position??0)>(e.position??0)?t:e),n=i.position;return{slot:i.slot,position:n,label:i.sensor_name??`#${i.slot}`,clamping:null!==s&&n>s,sensorOn:!0}}(m,this.hass.states,p),E=yt(_),P=!!S&&!("custom_position"===E&&!0===m?.custom_position_minimum_mode)&&$;return B`
       <div
-        class=${`tile-body${h?" detailed":""}${b?" has-summary":""}${k?" has-state-label":""}${h&&(x||v)?" has-row3":""}`}
+        class=${`tile-body${h?" detailed":""}${b?" has-summary":""}${A?" has-state-label":""}${h&&(x||v)?" has-row3":""}${P?" has-floor-chip":""}`}
         role=${f?"group":"button"}
         tabindex=${f?-1:0}
         @pointerdown=${this._onPointerDown}
@@ -1644,6 +1644,11 @@ function e(e,t,s,o){var i,n=arguments.length,r=n<3?t:null===o?o=Object.getOwnPro
           ${b?B`<div class="summary inline-summary" title=${y}>${y}</div>`:K}
         </div>
         ${C.length>0?B`<div class="position">${C.join(" · ")}</div>`:K}
+        ${P?B`<span
+              class=${"acp-floor-chip"+(S.clamping?"":" is-armed")}
+              title=${De("dialog.floor_tooltip",this.hass)}
+              >${De("dialog.floor",this.hass)} ${ct(S.position)}</span
+            >`:K}
         ${a?B`<div class="controls" @click=${this._stop} @pointerdown=${this._stop}>
               <button
                 class="up"
@@ -1894,6 +1899,48 @@ function e(e,t,s,o){var i,n=arguments.length,r=n<3?t:null===o?o=Object.getOwnPro
     }
     .resume:hover {
       background: rgba(var(--rgb-primary-color, 33, 150, 243), 0.08);
+    }
+    .acp-floor-chip {
+      grid-area: floor-chip;
+      font-size: 0.7rem;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(156, 39, 176, 0.22);
+      color: #6a1b9a;
+      white-space: nowrap;
+      align-self: center;
+    }
+    .acp-floor-chip.is-armed {
+      opacity: 0.6;
+    }
+    /* One-line layout: add a second row for the floor chip under the position cell */
+    .tile-body.has-floor-chip {
+      grid-template-rows: auto auto;
+      grid-template-areas:
+        'icon label     position  controls badge resume'
+        'icon label     floor-chip .        .     .';
+    }
+    .tile-body.has-state-label.has-floor-chip {
+      grid-template-rows: auto auto;
+      grid-template-areas:
+        'icon label     position  controls badge resume'
+        'icon label     floor-chip .        .     .';
+    }
+    /* Detailed layout: floor chip stacks below the position row */
+    .tile-body.detailed.has-floor-chip {
+      grid-template-areas:
+        'icon label    controls'
+        'icon position controls'
+        'icon floor-chip controls';
+      grid-template-rows: auto auto auto;
+    }
+    .tile-body.detailed.has-row3.has-floor-chip {
+      grid-template-rows: auto auto auto auto;
+      grid-template-areas:
+        'icon label      controls'
+        'icon position   controls'
+        'icon floor-chip controls'
+        'icon badge      resume';
     }
     .empty {
       padding: 12px;
