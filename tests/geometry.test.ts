@@ -3,6 +3,7 @@ import {
   azimuthToCartesian,
   blindSpotBearings,
   clampActiveArcToFov,
+  elevationGatedFovBounds,
   elevationToRadius,
   fovBandRadii,
   normalizeAzimuth,
@@ -241,5 +242,91 @@ describe('geometry — blindSpotBearings', () => {
     const [start, end] = blindSpotBearings(0, [0, 0]);
     expect(start).toBeCloseTo(0);
     expect(end).toBeCloseTo(0);
+  });
+});
+
+describe('geometry — elevationGatedFovBounds', () => {
+  // Helper: build a sample array with given azimuth/elevation pairs
+  function mkSamples(
+    pairs: Array<[number, number]>,
+  ): Array<{ azimuth: number; elevation: number }> {
+    return pairs.map(([azimuth, elevation]) => ({ azimuth, elevation }));
+  }
+
+  // Case (a): All samples above min_elevation within FOV → returns first/last azimuth
+  it('all samples above threshold inside FOV → bounds match first/last qualifying azimuth', () => {
+    // windowAzi=180, fov_left=45, fov_right=45 → fovStart=135, fovSweep=90
+    // All samples 140°–220° are within FOV; all elevation > 10
+    const samples = mkSamples([
+      [140, 15],
+      [160, 20],
+      [180, 25],
+      [200, 18],
+      [220, 12],
+    ]);
+    const result = elevationGatedFovBounds(samples, 180, 45, 45, 10);
+    expect(result).not.toBeNull();
+    expect(result!.wedgeStart).toBe(140);
+    expect(result!.wedgeEnd).toBe(220);
+  });
+
+  // Case (b): Only some samples above min_elevation → bounds of the above-threshold subset
+  it('partially above threshold → bounds of qualifying subset only', () => {
+    // windowAzi=180, fov_left=45, fov_right=45 → fovStart=135, fovSweep=90
+    // samples at 140° (elev=5, below threshold), 160° (elev=15, OK), 200° (elev=20, OK), 220° (elev=3, below)
+    const samples = mkSamples([
+      [140, 5],
+      [160, 15],
+      [200, 20],
+      [220, 3],
+    ]);
+    const result = elevationGatedFovBounds(samples, 180, 45, 45, 10);
+    expect(result).not.toBeNull();
+    expect(result!.wedgeStart).toBe(160);
+    expect(result!.wedgeEnd).toBe(200);
+  });
+
+  // Case (c): No samples above min_elevation within FOV → returns null
+  it('no samples above threshold in FOV → null', () => {
+    // windowAzi=180, fov_left=45, fov_right=45 → fovStart=135, fovSweep=90
+    const samples = mkSamples([
+      [140, 3],
+      [160, 5],
+      [180, 2],
+    ]);
+    const result = elevationGatedFovBounds(samples, 180, 45, 45, 10);
+    expect(result).toBeNull();
+  });
+
+  // Case (d): N-wrap FOV (windowAzi=342, fov_left=90, fov_right=90) spanning 252°→72° through N
+  it('N-wrap FOV: samples spanning through North are correctly filtered', () => {
+    // fovStart = normalizeAzimuth(342-90) = 252, fovSweep = 180
+    // FOV covers 252°→72° (through N=0°/360°)
+    // Samples: 260° (in FOV, above threshold), 10° (in FOV, above threshold),
+    //          60° (in FOV, above threshold), 180° (outside FOV, ignored),
+    //          250° (outside FOV — offset=(250-252+360)%360=358 > 180, ignored)
+    const samples = mkSamples([
+      [260, 20],
+      [10, 15],
+      [60, 12],
+      [180, 25], // outside FOV
+      [250, 18], // outside FOV (just past fovStart edge)
+    ]);
+    const result = elevationGatedFovBounds(samples, 342, 90, 90, 10);
+    expect(result).not.toBeNull();
+    // first qualifying in FOV = 260°, last = 60°
+    expect(result!.wedgeStart).toBe(260);
+    expect(result!.wedgeEnd).toBe(60);
+  });
+
+  // Case (e): min_elevation === undefined → returns null (no gate; caller falls back to raw envelope)
+  it('min_elevation undefined → returns null (no gate)', () => {
+    const samples = mkSamples([
+      [140, 15],
+      [160, 20],
+      [180, 25],
+    ]);
+    const result = elevationGatedFovBounds(samples, 180, 45, 45, undefined);
+    expect(result).toBeNull();
   });
 });

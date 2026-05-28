@@ -151,6 +151,40 @@ export function clampActiveArcToFov(
 }
 
 /**
+ * Compute the azimuth bounds of the static FOV arc clipped by an elevation gate.
+ *
+ * Scans the day's sun samples, filters to those that are:
+ *   (a) inside the configured FOV azimuth envelope
+ *       [windowAzi − fovLeft, windowAzi + fovRight] (CW), and
+ *   (b) strictly above `minElevDeg`.
+ *
+ * Returns the first and last (chronological) qualifying sample azimuths as
+ * { wedgeStart, wedgeEnd }, or `null` when:
+ *   - `minElevDeg === undefined` (no gate; caller falls back to raw envelope), or
+ *   - no qualifying samples exist in the FOV.
+ */
+export function elevationGatedFovBounds(
+  samples: Array<{ azimuth: number; elevation: number }>,
+  windowAzi: number,
+  fovLeft: number,
+  fovRight: number,
+  minElevDeg: number | undefined,
+): { wedgeStart: number; wedgeEnd: number } | null {
+  if (minElevDeg === undefined) return null;
+  const fovStart = normalizeAzimuth(windowAzi - fovLeft);
+  const fovSweep = fovLeft + fovRight;
+  const filtered = samples.filter((s) => {
+    const offset = (((s.azimuth - fovStart) % 360) + 360) % 360;
+    return offset <= fovSweep && s.elevation > minElevDeg;
+  });
+  if (filtered.length === 0) return null;
+  return {
+    wedgeStart: filtered[0].azimuth,
+    wedgeEnd: filtered[filtered.length - 1].azimuth,
+  };
+}
+
+/**
  * Convert the integration's blind_spot_range (FOV-left-relative offsets,
  * [fov_left − blind_spot_right, fov_left − blind_spot_left]) into absolute
  * compass bearings [startAzi, endAzi] suitable for wedgePath.
