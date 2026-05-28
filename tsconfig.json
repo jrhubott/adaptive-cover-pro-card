@@ -22,6 +22,6 @@
     "isolatedModules": true,
     "allowSyntheticDefaultImports": true
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*.ts", "tests/**/*.ts", "harness/**/*.ts"],
+  "exclude": ["node_modules", "dist", "harness/dist"]
 }

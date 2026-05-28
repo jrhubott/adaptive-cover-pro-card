@@ -37,6 +37,12 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Build harness
+        # Sanity-build the developer test harness so the mock layer stays in
+        # sync with src/. Output (harness/dist/) is .gitignored — this step
+        # only verifies the build succeeds.
+        run: npm run build:harness
+
       - name: Verify dist/ is up to date
         run: |
           if [ -n "$(git status --porcelain dist/)" ]; then

@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Boot the web-based card test harness.
+#
+# Watch-builds harness/dist/harness.js from harness/harness.ts and serves the
+# harness/ directory at http://localhost:8080 (no Home Assistant required).
+# Source edits under src/ also trigger a rebuild — the harness imports the
+# cards directly from src/.
+#
+# Stop with Ctrl-C (or run `scripts/stop`).
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+PORT="${PORT:-8080}"
+URL="http://localhost:${PORT}"
+
+# Sanity: deps installed?
+if [ ! -d node_modules ]; then
+  echo "› node_modules missing — running scripts/setup first"
+  ./scripts/setup
+fi
+
+# Sanity: rollup-plugin-serve present (in case someone bumped deps without
+# reinstalling).
+if [ ! -d node_modules/rollup-plugin-serve ]; then
+  echo "› rollup-plugin-serve missing — running npm install"
+  npm install
+fi
+
+echo "› Harness will be at ${URL}"
+echo "› Edits under harness/ and src/ trigger a live rebuild."
+
+# Open the URL in the default browser once the server is up.
+# (Best-effort: silently skip if no opener is available, e.g. headless CI.)
+(
+  for _ in $(seq 1 60); do
+    if curl -sf "${URL}/index.html" >/dev/null 2>&1; then
+      if command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "${URL}" >/dev/null 2>&1 || true
+      elif command -v open >/dev/null 2>&1; then
+        open "${URL}" >/dev/null 2>&1 || true
+      fi
+      break
+    fi
+    sleep 0.5
+  done
+) &
+
+# Forward the trap so Ctrl-C cleans up the backgrounded opener too.
+trap 'kill %1 2>/dev/null || true' EXIT
+
+PORT="${PORT}" exec npm run harness
