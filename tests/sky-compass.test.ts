@@ -907,6 +907,34 @@ describe('acp-sky-compass active sun arc (start/end sensor azimuths)', () => {
     expect(el.shadowRoot!.querySelector('path.fov')?.getAttribute('d')).toBe(expected);
   });
 
+  it('renders narrow N-arc for N-wrap envelope with interior sunrise/sunset pair (#89 follow-up)', async () => {
+    // @an0Nym0us63: windowAzi=340, fov 90/90 → envelope [250..70] through N.
+    // sunrise az≈58 and sunset az≈302 both inside envelope; naïve arc would go through South.
+    // clampActiveArcToFov produces wedgeStart=302, wedgeEnd=58 — a 116° arc through North.
+    const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
+    const d = makeDiscovered('entry1', 'Kitchen', {
+      startSensorId: startId,
+      endSensorId: endId,
+    });
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 340,
+        fovLeft: 90,
+        fovRight: 90,
+        startSensorId: startId,
+        startAzimuth: 58,
+        startElevation: 4,
+        endSensorId: endId,
+        endAzimuth: 302,
+        endElevation: 2,
+      },
+    ]);
+    const el = await mountCompass([d], hass);
+    const expected = wedgePath(normalizeAzimuth(302), normalizeAzimuth(58), 110, 0, 0);
+    expect(el.shadowRoot!.querySelector('path.fov')?.getAttribute('d')).toBe(expected);
+  });
+
   it('clamps active arc to FOV envelope when start/end sensors report interior pair (#89 regression)', async () => {
     // Disjoint-FOV bug: windowAzi=180, fov_left=60, fov_right=60 → envelope [120°..240°], sweep=120°.
     // Integration emits interior pair startAzimuth=130, endAzimuth=170 due to elevation clipping
