@@ -64,6 +64,7 @@ function makeHass(
     endElevation?: number;
     endState?: string;
   }[],
+  opts: { omitLocation?: boolean } = {},
 ): HomeAssistant {
   const states: Record<string, { state: string; attributes: Record<string, unknown> }> = {};
   for (const e of entries) {
@@ -109,7 +110,7 @@ function makeHass(
   }
   return {
     states,
-    config: { latitude: 47.6, longitude: -122.3 },
+    config: opts.omitLocation ? {} : { latitude: 47.6, longitude: -122.3 },
   } as unknown as HomeAssistant;
 }
 
@@ -444,7 +445,11 @@ describe('acp-sky-compass FOV elevation limits', () => {
 
   it('min_elevation clips outer radius (horizon side)', async () => {
     const { wedgePath, normalizeAzimuth, fovBandRadii } = await import('../src/lib/geometry');
-    const hass = makeHass([{ sensorId, windowAzimuth: 180, minElevation: 10 }]);
+    // omitLocation: no sun samples → azimuth gating falls back to full FOV envelope;
+    // this test focuses on the radial clipping behavior only.
+    const hass = makeHass([{ sensorId, windowAzimuth: 180, minElevation: 10 }], {
+      omitLocation: true,
+    });
     const el = await mountCompass([d()], hass);
     const { outer } = fovBandRadii(10, undefined, 110);
     const expected = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), outer, 0, 0);
@@ -466,7 +471,11 @@ describe('acp-sky-compass FOV elevation limits', () => {
 
   it('both limits → annular sector', async () => {
     const { wedgePath, normalizeAzimuth, fovBandRadii } = await import('../src/lib/geometry');
-    const hass = makeHass([{ sensorId, windowAzimuth: 180, minElevation: 10, maxElevation: 60 }]);
+    // omitLocation: no sun samples → azimuth gating falls back to full FOV envelope;
+    // this test focuses on the annular-sector (both radial limits) behavior only.
+    const hass = makeHass([{ sensorId, windowAzimuth: 180, minElevation: 10, maxElevation: 60 }], {
+      omitLocation: true,
+    });
     const el = await mountCompass([d()], hass);
     const { outer, inner } = fovBandRadii(10, 60, 110);
     const expected = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), outer, inner, 0);
@@ -487,9 +496,12 @@ describe('acp-sky-compass FOV elevation limits', () => {
     const disc = makeDiscovered('entry1', 'Kitchen', { targetSensorId });
     // coverPos=5 (5% closed) → rawCoverR = 110 * (1 - 5/100) = 104.5
     // minElevation=10 → fovOuterR ≈ 97.78  (104.5 > 97.78, so clamp applies)
-    const hass = makeHass([
-      { sensorId, windowAzimuth: 180, minElevation: 10, coverPos: 5, targetSensorId },
-    ]);
+    // omitLocation: no sun samples → azimuth gating falls back to full FOV envelope;
+    // this test focuses on the cover-fill radial-clamp behavior only.
+    const hass = makeHass(
+      [{ sensorId, windowAzimuth: 180, minElevation: 10, coverPos: 5, targetSensorId }],
+      { omitLocation: true },
+    );
     const el = await mountCompass([disc], hass);
     const { outer: fovOuter } = fovBandRadii(10, undefined, 110);
     const expected = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), fovOuter, 0, 0);
