@@ -223,6 +223,22 @@ describe('geometry — clampActiveArcToFov', () => {
     expect(result.wedgeStart).toBeCloseTo(135);
     expect(result.wedgeEnd).toBeCloseTo(225);
   });
+
+  it('#89 follow-up: N-wrap envelope with interior sunrise/sunset pair', () => {
+    // windowAzi=340 (NNW), fov_left=fov_right=90 → envelope [250..70] (through N), sweep=180°.
+    // Integration emits sunrise az (~58, INSIDE envelope) and sunset az (~302, INSIDE envelope).
+    // Naïve wedgePath(58, 302) draws a 244° arc through South (the reported inverse).
+    // The clamp must produce {wedgeStart: 302, wedgeEnd: 58} — a 116° arc through North.
+    const result = clampActiveArcToFov(58, 302, 340, 90, 90);
+    expect(result.wedgeStart).toBeCloseTo(302);
+    expect(result.wedgeEnd).toBeCloseTo(58);
+  });
+
+  it('#89 follow-up: clamp is order-independent for N-wrap interior pair', () => {
+    const a = clampActiveArcToFov(58, 302, 340, 90, 90);
+    const b = clampActiveArcToFov(302, 58, 340, 90, 90);
+    expect(a).toEqual(b);
+  });
 });
 
 describe('geometry — blindSpotBearings', () => {

@@ -86,23 +86,27 @@ function e(e,t,s,o){var i,n=arguments.length,r=n<3?t:null===o?o=Object.getOwnPro
         ${this.showLegend?this._renderLegend(e,o):K}
         ${this.showStats?this._renderStats(e,o):K}
       </div>
-    `}_renderEntryLayers(e,t,s=0,o=[]){const i=Be(e.sun.window_azimuth),n=Be(i-e.sun.fov_left),r=Be(i+e.sun.fov_right),a=this._readActiveAzimuth(e.d.entities.start_sensor),l=this._readActiveAzimuth(e.d.entities.end_sensor),c=null!==a&&null!==l;let d,h;if(c)({wedgeStart:d,wedgeEnd:h}=function(e,t,s,o,i){const n=((s-o)%360+360)%360,r=o+i,a=((t-n)%360+360)%360,l=e=>e<=r?e:e-r<360-e?r:0,c=l(((e-n)%360+360)%360),d=l(a);return c===d?{wedgeStart:n,wedgeEnd:((n+r)%360+360)%360}:{wedgeStart:((n+Math.min(c,d))%360+360)%360,wedgeEnd:((n+Math.max(c,d))%360+360)%360}}(Be(a),Be(l),i,e.sun.fov_left,e.sun.fov_right));else{const t=function(e,t,s,o,i){if(void 0===i)return null;const n=Be(t-s),r=s+o,a=e.filter(e=>((e.azimuth-n)%360+360)%360<=r&&e.elevation>i);return 0===a.length?null:{wedgeStart:a[0].azimuth,wedgeEnd:a[a.length-1].azimuth}}(o,i,e.sun.fov_left,e.sun.fov_right,e.sun.min_elevation);d=t?t.wedgeStart:n,h=t?t.wedgeEnd:r}const p=je(i,ft,s),{outer:u,inner:_}=(m=e.sun.min_elevation,g=e.sun.max_elevation,v=ft,void 0!==m&&void 0!==g&&m>g?{outer:v,inner:0}:{outer:void 0!==m?v*He(m):v,inner:void 0!==g?v*He(g):0});var m,g,v;const f="cover_awning"===e.coverType?e.coverPos/100:1-e.coverPos/100,y=null!==e.coverPos?ft*f:null,b=null!==y?Math.min(y,u):null,$=e.sun.blind_spot_range?[Be((w=i)-(x=e.sun.blind_spot_range)[1]),Be(w-x[0])]:null;var w,x;const k=$?qe($[0],$[1],ft,0,s):null,C=qe(d,h,u,_,s),S=null!==b&&b>_?qe(d,h,b,_,s):"",A=t?`${e.d.entry_title}: `:"",E=void 0!==e.sun.min_elevation||void 0!==e.sun.max_elevation?De("compass.elev_suffix",this.hass,{min:ut(e.sun.min_elevation??0),max:ut(e.sun.max_elevation??90)}):"",z=c?`${A}${De("compass.active_sun_arc",this.hass,{from:ut(d),to:ut(h),elev:E})}`:`${A}${De("compass.fov_arc",this.hass,{left:ut(e.sun.fov_left),right:ut(e.sun.fov_right),elev:E})}`,P=`${A}${De("compass.window_normal_tooltip",this.hass,{bearing:ut(i)})}`,O=null!==e.coverPos?"cover_awning"===e.coverType?`${A}${De("compass.cover_extended",this.hass,{pct:e.coverPos})}`:`${A}${De("compass.cover_closed_tooltip",this.hass,{pct:e.coverPos})}`:"",T=$?`${A}${De("compass.blind_spot",this.hass,{from:ut($[0]),to:ut($[1])})}`:"",M=t||e.isOverride,I=M?`fill: ${e.color}; stroke: ${e.color};`:"",F=M?`fill: ${e.color}; stroke: ${e.color};`:"",N=M?`fill: ${e.color}; stroke: ${e.color};`:"",R=M?`stroke: ${e.color};`:"",D=M?`fill: ${e.color};`:"",L=this.showCoverFill&&""!==S,j=this.showBlindSpot&&!!k,H=this.showWindowArrow,q=`M 0 0 L ${p.x} ${p.y}`,U="display: none;";return W`<g class="entry-overlay">
-      <g data-tooltip=${z}>
-        <title>${z}</title>
-        <path class="fov" style=${I} d=${C}></path>
-      </g>
-      <g class="arrow-group" data-tooltip=${P} style=${H?"":U}>
-        <title>${P}</title>
-        <path class="window" style=${R} d=${q}></path>
-        <circle class="window-base" style=${D} cx="0" cy="0" r="4"></circle>
-      </g>
-      <g class="cover-group" data-tooltip=${O} style=${L?"":U}>
+    `}_renderEntryLayers(e,t,s=0,o=[]){const i=Be(e.sun.window_azimuth),n=Be(i-e.sun.fov_left),r=Be(i+e.sun.fov_right),a=this._readActiveAzimuth(e.d.entities.start_sensor),l=this._readActiveAzimuth(e.d.entities.end_sensor),c=null!==a&&null!==l;let d,h;if(c)({wedgeStart:d,wedgeEnd:h}=function(e,t,s,o,i){const n=((s-o)%360+360)%360,r=o+i,a=((t-n)%360+360)%360,l=e=>e<=r?e:e-r<360-e?r:0,c=l(((e-n)%360+360)%360),d=l(a);return c===d?{wedgeStart:n,wedgeEnd:((n+r)%360+360)%360}:{wedgeStart:((n+Math.min(c,d))%360+360)%360,wedgeEnd:((n+Math.max(c,d))%360+360)%360}}(Be(a),Be(l),i,e.sun.fov_left,e.sun.fov_right));else{const t=function(e,t,s,o,i){if(void 0===i)return null;const n=Be(t-s),r=s+o,a=e.filter(e=>((e.azimuth-n)%360+360)%360<=r&&e.elevation>i);return 0===a.length?null:{wedgeStart:a[0].azimuth,wedgeEnd:a[a.length-1].azimuth}}(o,i,e.sun.fov_left,e.sun.fov_right,e.sun.min_elevation);d=t?t.wedgeStart:n,h=t?t.wedgeEnd:r}const p=je(i,ft,s),{outer:u,inner:_}=(m=e.sun.min_elevation,g=e.sun.max_elevation,v=ft,void 0!==m&&void 0!==g&&m>g?{outer:v,inner:0}:{outer:void 0!==m?v*He(m):v,inner:void 0!==g?v*He(g):0});var m,g,v;const f="cover_awning"===e.coverType?e.coverPos/100:1-e.coverPos/100,y=null!==e.coverPos?ft*f:null,b=null!==y?Math.min(y,u):null,$=e.sun.blind_spot_range?[Be((w=i)-(x=e.sun.blind_spot_range)[1]),Be(w-x[0])]:null;var w,x;const k=$?qe($[0],$[1],ft,0,s):null,C=qe(d,h,u,_,s),S=c&&(d!==n||h!==r),A=S?qe(n,r,u,_,s):"",E=null!==b&&b>_?qe(d,h,b,_,s):"",z=t?`${e.d.entry_title}: `:"",P=void 0!==e.sun.min_elevation||void 0!==e.sun.max_elevation?De("compass.elev_suffix",this.hass,{min:ut(e.sun.min_elevation??0),max:ut(e.sun.max_elevation??90)}):"",O=c?`${z}${De("compass.active_sun_arc",this.hass,{from:ut(d),to:ut(h),elev:P})}`:`${z}${De("compass.fov_arc",this.hass,{left:ut(e.sun.fov_left),right:ut(e.sun.fov_right),elev:P})}`,T=`${z}${De("compass.window_normal_tooltip",this.hass,{bearing:ut(i)})}`,M=null!==e.coverPos?"cover_awning"===e.coverType?`${z}${De("compass.cover_extended",this.hass,{pct:e.coverPos})}`:`${z}${De("compass.cover_closed_tooltip",this.hass,{pct:e.coverPos})}`:"",I=$?`${z}${De("compass.blind_spot",this.hass,{from:ut($[0]),to:ut($[1])})}`:"",F=t||e.isOverride,N=F?`fill: ${e.color}; stroke: ${e.color};`:"",R=F?`fill: ${e.color}; stroke: ${e.color};`:"",D=F?`fill: ${e.color}; stroke: ${e.color};`:"",L=F?`stroke: ${e.color};`:"",j=F?`fill: ${e.color};`:"",H=this.showCoverFill&&""!==E,q=this.showBlindSpot&&!!k,U=this.showWindowArrow,B=`M 0 0 L ${p.x} ${p.y}`,V="display: none;",G=`${z}${De("compass.fov_arc",this.hass,{left:ut(e.sun.fov_left),right:ut(e.sun.fov_right),elev:P})}`;return W`<g class="entry-overlay">
+      ${S?W`<g data-tooltip=${G}>
+              <title>${G}</title>
+              <path class="fov fov-static" style=${N} d=${A}></path>
+            </g>`:K}
+      <g data-tooltip=${O}>
         <title>${O}</title>
-        <path class="cover-fill" style=${F} d=${S}></path>
+        <path class="fov" style=${N} d=${C}></path>
       </g>
-      <g class="blind-group" data-tooltip=${T} style=${j?"":U}>
+      <g class="arrow-group" data-tooltip=${T} style=${U?"":V}>
         <title>${T}</title>
-        <path class="blind-spot" style=${N} d=${k??""}></path>
+        <path class="window" style=${L} d=${B}></path>
+        <circle class="window-base" style=${j} cx="0" cy="0" r="4"></circle>
+      </g>
+      <g class="cover-group" data-tooltip=${M} style=${H?"":V}>
+        <title>${M}</title>
+        <path class="cover-fill" style=${R} d=${E}></path>
+      </g>
+      <g class="blind-group" data-tooltip=${I} style=${q?"":V}>
+        <title>${I}</title>
+        <path class="blind-spot" style=${D} d=${k??""}></path>
       </g>
     </g>`}_renderLegend(e,t){return t?B`
         <div class="legend">
@@ -231,6 +235,14 @@ function e(e,t,s,o){var i,n=arguments.length,r=n<3?t:null===o?o=Object.getOwnPro
       stroke-width: 1;
       stroke-opacity: 0.7;
       transition: all 0.3s ease;
+    }
+    /* Static FOV envelope shown dim beneath the active sun arc — lets the
+       reader see the configured ±fov_left/right span at the same time as
+       today's reachable sub-arc. */
+    .fov.fov-static {
+      fill-opacity: 0.07;
+      stroke-opacity: 0.25;
+      stroke-dasharray: 4 3;
     }
     .cover-fill {
       fill: var(--primary-color);
