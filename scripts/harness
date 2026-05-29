@@ -14,6 +14,23 @@ cd "$(dirname "$0")/.."
 PORT="${PORT:-8080}"
 URL="http://localhost:${PORT}"
 
+# Preflight: a stale harness watcher from a previous session (terminal closed
+# without Ctrl-C) keeps holding the serve port and the LiveReload port (35729).
+# A fresh run then can't bind them, so the browser silently keeps talking to the
+# dead process and never reloads on edits. Clear any orphan before starting.
+if pkill -f "rollup -c harness/rollup.config.mjs" 2>/dev/null; then
+  echo "› Cleared a stale harness watcher from a previous session"
+  sleep 1
+fi
+for p in "${PORT}" 35729; do
+  held="$(lsof -nP -tiTCP:"${p}" -sTCP:LISTEN 2>/dev/null || true)"
+  if [ -n "${held}" ]; then
+    echo "› Port ${p} still held by PID ${held} — freeing it"
+    kill ${held} 2>/dev/null || true
+    sleep 1
+  fi
+done
+
 # Sanity: deps installed?
 if [ ! -d node_modules ]; then
   echo "› node_modules missing — running scripts/setup first"

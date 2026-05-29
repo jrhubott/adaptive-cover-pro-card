@@ -3,4 +3,12 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+
+# Preflight: clear a stale `rollup -c -w` watcher from a previous session so
+# this run owns the build and a second watcher isn't fighting over dist/.
+if pkill -f "rollup -c -w" 2>/dev/null; then
+  echo "› Cleared a stale dev watcher from a previous session"
+  sleep 1
+fi
+
 exec npm run dev
