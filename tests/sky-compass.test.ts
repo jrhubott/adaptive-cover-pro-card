@@ -64,6 +64,7 @@ function makeHass(
     endElevation?: number;
     endState?: string;
   }[],
+  opts: { omitLocation?: boolean } = {},
 ): HomeAssistant {
   const states: Record<string, { state: string; attributes: Record<string, unknown> }> = {};
   for (const e of entries) {
@@ -109,7 +110,7 @@ function makeHass(
   }
   return {
     states,
-    config: { latitude: 47.6, longitude: -122.3 },
+    config: opts.omitLocation ? {} : { latitude: 47.6, longitude: -122.3 },
   } as unknown as HomeAssistant;
 }
 
@@ -444,7 +445,11 @@ describe('acp-sky-compass FOV elevation limits', () => {
 
   it('min_elevation clips outer radius (horizon side)', async () => {
     const { wedgePath, normalizeAzimuth, fovBandRadii } = await import('../src/lib/geometry');
-    const hass = makeHass([{ sensorId, windowAzimuth: 180, minElevation: 10 }]);
+    // omitLocation: no sun samples → azimuth gating falls back to full FOV envelope;
+    // this test focuses on the radial clipping behavior only.
+    const hass = makeHass([{ sensorId, windowAzimuth: 180, minElevation: 10 }], {
+      omitLocation: true,
+    });
     const el = await mountCompass([d()], hass);
     const { outer } = fovBandRadii(10, undefined, 110);
     const expected = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), outer, 0, 0);
@@ -466,7 +471,11 @@ describe('acp-sky-compass FOV elevation limits', () => {
 
   it('both limits → annular sector', async () => {
     const { wedgePath, normalizeAzimuth, fovBandRadii } = await import('../src/lib/geometry');
-    const hass = makeHass([{ sensorId, windowAzimuth: 180, minElevation: 10, maxElevation: 60 }]);
+    // omitLocation: no sun samples → azimuth gating falls back to full FOV envelope;
+    // this test focuses on the annular-sector (both radial limits) behavior only.
+    const hass = makeHass([{ sensorId, windowAzimuth: 180, minElevation: 10, maxElevation: 60 }], {
+      omitLocation: true,
+    });
     const el = await mountCompass([d()], hass);
     const { outer, inner } = fovBandRadii(10, 60, 110);
     const expected = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), outer, inner, 0);
@@ -487,9 +496,12 @@ describe('acp-sky-compass FOV elevation limits', () => {
     const disc = makeDiscovered('entry1', 'Kitchen', { targetSensorId });
     // coverPos=5 (5% closed) → rawCoverR = 110 * (1 - 5/100) = 104.5
     // minElevation=10 → fovOuterR ≈ 97.78  (104.5 > 97.78, so clamp applies)
-    const hass = makeHass([
-      { sensorId, windowAzimuth: 180, minElevation: 10, coverPos: 5, targetSensorId },
-    ]);
+    // omitLocation: no sun samples → azimuth gating falls back to full FOV envelope;
+    // this test focuses on the cover-fill radial-clamp behavior only.
+    const hass = makeHass(
+      [{ sensorId, windowAzimuth: 180, minElevation: 10, coverPos: 5, targetSensorId }],
+      { omitLocation: true },
+    );
     const el = await mountCompass([disc], hass);
     const { outer: fovOuter } = fovBandRadii(10, undefined, 110);
     const expected = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), fovOuter, 0, 0);
@@ -764,7 +776,9 @@ describe('acp-sky-compass active sun arc (start/end sensor azimuths)', () => {
     ]);
     const el = await mountCompass([d], hass);
     const expected = wedgePath(normalizeAzimuth(150), normalizeAzimuth(210), 110, 0, 0);
-    expect(el.shadowRoot!.querySelector('path.fov')?.getAttribute('d')).toBe(expected);
+    expect(el.shadowRoot!.querySelector('path.fov:not(.fov-static)')?.getAttribute('d')).toBe(
+      expected,
+    );
   });
 
   it('wraps wedge around N when active sensors straddle window normal (#85 regression)', async () => {
@@ -863,7 +877,7 @@ describe('acp-sky-compass active sun arc (start/end sensor azimuths)', () => {
       },
     ]);
     const el = await mountCompass([d], hass);
-    const fovGroup = el.shadowRoot!.querySelector('path.fov')?.parentElement;
+    const fovGroup = el.shadowRoot!.querySelector('path.fov:not(.fov-static)')?.parentElement;
     const titleText = fovGroup?.querySelector('title')?.textContent ?? '';
     expect(titleText).toContain('Active sun arc');
     expect(titleText).toMatch(/150/);
@@ -892,7 +906,39 @@ describe('acp-sky-compass active sun arc (start/end sensor azimuths)', () => {
     const el = await mountCompass([d], hass);
     const { outer } = fovBandRadii(10, undefined, 110);
     const expected = wedgePath(normalizeAzimuth(150), normalizeAzimuth(210), outer, 0, 0);
-    expect(el.shadowRoot!.querySelector('path.fov')?.getAttribute('d')).toBe(expected);
+    expect(el.shadowRoot!.querySelector('path.fov:not(.fov-static)')?.getAttribute('d')).toBe(
+      expected,
+    );
+  });
+
+  it('renders narrow N-arc for N-wrap envelope with interior sunrise/sunset pair (#89 follow-up)', async () => {
+    // @an0Nym0us63: windowAzi=340, fov 90/90 → envelope [250..70] through N.
+    // sunrise az≈58 and sunset az≈302 both inside envelope; naïve arc would go through South.
+    // clampActiveArcToFov produces wedgeStart=302, wedgeEnd=58 — a 116° arc through North.
+    const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
+    const d = makeDiscovered('entry1', 'Kitchen', {
+      startSensorId: startId,
+      endSensorId: endId,
+    });
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 340,
+        fovLeft: 90,
+        fovRight: 90,
+        startSensorId: startId,
+        startAzimuth: 58,
+        startElevation: 4,
+        endSensorId: endId,
+        endAzimuth: 302,
+        endElevation: 2,
+      },
+    ]);
+    const el = await mountCompass([d], hass);
+    const expected = wedgePath(normalizeAzimuth(302), normalizeAzimuth(58), 110, 0, 0);
+    expect(el.shadowRoot!.querySelector('path.fov:not(.fov-static)')?.getAttribute('d')).toBe(
+      expected,
+    );
   });
 
   it('clamps active arc to FOV envelope when start/end sensors report interior pair (#89 regression)', async () => {
@@ -937,6 +983,43 @@ describe('acp-sky-compass active sun arc (start/end sensor azimuths)', () => {
       fovInnerR,
       0,
     );
-    expect(el.shadowRoot!.querySelector('path.fov')?.getAttribute('d')).toBe(expected);
+    expect(el.shadowRoot!.querySelector('path.fov:not(.fov-static)')?.getAttribute('d')).toBe(
+      expected,
+    );
+  });
+
+  it('renders dimmed static-FOV underlay when active arc clips the configured envelope', async () => {
+    const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
+    const d = makeDiscovered('entry1', 'Kitchen', {
+      startSensorId: startId,
+      endSensorId: endId,
+    });
+    // windowAzi=180, fov ±45 → static envelope 135..225 (sweep 90).
+    // start/end sensors clip to 150..210 (sweep 60) — underlay should appear.
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 180,
+        startSensorId: startId,
+        startAzimuth: 150,
+        startElevation: 12,
+        endSensorId: endId,
+        endAzimuth: 210,
+        endElevation: 18,
+      },
+    ]);
+    const el = await mountCompass([d], hass);
+    const staticPath = el.shadowRoot!.querySelector('path.fov.fov-static') as SVGPathElement | null;
+    expect(staticPath).not.toBeNull();
+    const expectedStatic = wedgePath(normalizeAzimuth(135), normalizeAzimuth(225), 110, 0, 0);
+    expect(staticPath?.getAttribute('d')).toBe(expectedStatic);
+  });
+
+  it('does not render static underlay when active arc covers the full envelope', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    // No start/end sensors at all → useActive=false → no underlay.
+    const hass = makeHass([{ sensorId, windowAzimuth: 180 }]);
+    const el = await mountCompass([d], hass);
+    expect(el.shadowRoot!.querySelector('path.fov.fov-static')).toBeNull();
   });
 });

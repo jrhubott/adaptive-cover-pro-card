@@ -8,12 +8,19 @@ import {
   azimuthToCartesian,
   blindSpotBearings,
   clampActiveArcToFov,
+  elevationGatedFovBounds,
   fovBandRadii,
   normalizeAzimuth,
   sunDotPosition,
   wedgePath,
 } from '../lib/geometry';
-import { sampleDay, startOfDay, sunriseSetAzimuths, getMoonData } from '../lib/sun-model';
+import {
+  sampleDay,
+  startOfDay,
+  sunriseSetAzimuths,
+  getMoonData,
+  type SunSample,
+} from '../lib/sun-model';
 import { formatDegrees } from '../lib/formatters';
 import { resolveCoverColor } from '../lib/palette';
 import { t } from '../lib/i18n';
@@ -243,7 +250,7 @@ export class SkyCompass extends LitElement {
             <line class="grid thin" x1=${gridNS0.x} y1=${gridNS0.y} x2=${gridNS1.x} y2=${gridNS1.y}></line>
             <line class="grid thin" x1=${gridEW0.x} y1=${gridEW0.y} x2=${gridEW1.x} y2=${gridEW1.y}></line>
 
-            ${visibleOverlays.map((ov) => this._renderEntryLayers(ov, multi, o))}
+            ${visibleOverlays.map((ov) => this._renderEntryLayers(ov, multi, o, samples))}
 
             ${
               this.showSunPath && pathPoints
@@ -297,7 +304,12 @@ export class SkyCompass extends LitElement {
     `;
   }
 
-  private _renderEntryLayers(o: EntryOverlay, multi: boolean, northOffsetDeg = 0) {
+  private _renderEntryLayers(
+    o: EntryOverlay,
+    multi: boolean,
+    northOffsetDeg = 0,
+    samples: SunSample[] = [],
+  ) {
     const windowAzi = normalizeAzimuth(o.sun.window_azimuth);
     const fovStart = normalizeAzimuth(windowAzi - o.sun.fov_left);
     const fovEnd = normalizeAzimuth(windowAzi + o.sun.fov_right);
@@ -310,15 +322,30 @@ export class SkyCompass extends LitElement {
     // #89), the "which arc contains the window normal" heuristic can pick the wrong ~270° inverse.
     // clampActiveArcToFov projects both values onto the envelope and picks the sub-arc; it
     // naturally handles the N-wrap case and falls back to the full envelope when sensors are absent.
-    const { wedgeStart, wedgeEnd } = useActive
-      ? clampActiveArcToFov(
-          normalizeAzimuth(startAzi!),
-          normalizeAzimuth(endAzi!),
-          windowAzi,
-          o.sun.fov_left,
-          o.sun.fov_right,
-        )
-      : { wedgeStart: fovStart, wedgeEnd: fovEnd };
+    //
+    // When sensors are absent (static FOV arc) and min_elevation is defined, narrow the azimuth
+    // span to the portion of today's sun path that actually clears the elevation threshold (#92).
+    let wedgeStart: number;
+    let wedgeEnd: number;
+    if (useActive) {
+      ({ wedgeStart, wedgeEnd } = clampActiveArcToFov(
+        normalizeAzimuth(startAzi!),
+        normalizeAzimuth(endAzi!),
+        windowAzi,
+        o.sun.fov_left,
+        o.sun.fov_right,
+      ));
+    } else {
+      const gated = elevationGatedFovBounds(
+        samples,
+        windowAzi,
+        o.sun.fov_left,
+        o.sun.fov_right,
+        o.sun.min_elevation,
+      );
+      wedgeStart = gated ? gated.wedgeStart : fovStart;
+      wedgeEnd = gated ? gated.wedgeEnd : fovEnd;
+    }
     const windowArrow = azimuthToCartesian(windowAzi, OUTER_R, northOffsetDeg);
     const { outer: fovOuterR, inner: fovInnerR } = fovBandRadii(
       o.sun.min_elevation,
@@ -336,6 +363,15 @@ export class SkyCompass extends LitElement {
       ? wedgePath(bsBearings[0], bsBearings[1], OUTER_R, 0, northOffsetDeg)
       : null;
     const fovPath = wedgePath(wedgeStart, wedgeEnd, fovOuterR, fovInnerR, northOffsetDeg);
+    // Static FOV underlay: the configured `windowAzi ± fov_left/right` envelope.
+    // Shown dim beneath the active arc so the developer can see the "configured
+    // FOV" vs "today's reachable arc" together. We skip it when the active arc
+    // already covers the full envelope (would be a redundant draw at full
+    // opacity).
+    const showStaticUnderlay = useActive && (wedgeStart !== fovStart || wedgeEnd !== fovEnd);
+    const fovStaticPath = showStaticUnderlay
+      ? wedgePath(fovStart, fovEnd, fovOuterR, fovInnerR, northOffsetDeg)
+      : '';
     const coverPath =
       coverOuter !== null && coverOuter > fovInnerR
         ? wedgePath(wedgeStart, wedgeEnd, coverOuter, fovInnerR, northOffsetDeg)
@@ -389,7 +425,20 @@ export class SkyCompass extends LitElement {
     const arrowPath = `M 0 0 L ${windowArrow.x} ${windowArrow.y}`;
     const hideStyle = 'display: none;';
 
+    const ttFovStatic = `${label}${t('compass.fov_arc', this.hass, {
+      left: formatDegrees(o.sun.fov_left),
+      right: formatDegrees(o.sun.fov_right),
+      elev: elevSuffix,
+    })}`;
     return svg`<g class="entry-overlay">
+      ${
+        showStaticUnderlay
+          ? svg`<g data-tooltip=${ttFovStatic}>
+              <title>${ttFovStatic}</title>
+              <path class="fov fov-static" style=${fovStyle} d=${fovStaticPath}></path>
+            </g>`
+          : nothing
+      }
       <g data-tooltip=${ttFov}>
         <title>${ttFov}</title>
         <path class="fov" style=${fovStyle} d=${fovPath}></path>
@@ -592,6 +641,14 @@ export class SkyCompass extends LitElement {
       stroke-width: 1;
       stroke-opacity: 0.7;
       transition: all 0.3s ease;
+    }
+    /* Static FOV envelope shown dim beneath the active sun arc — lets the
+       reader see the configured ±fov_left/right span at the same time as
+       today's reachable sub-arc. */
+    .fov.fov-static {
+      fill-opacity: 0.07;
+      stroke-opacity: 0.25;
+      stroke-dasharray: 4 3;
     }
     .cover-fill {
       fill: var(--primary-color);
