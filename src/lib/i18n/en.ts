@@ -155,6 +155,7 @@ export const en = {
   elevation: {
     title: 'Sun today',
     fov_window: 'FOV: {from} → {to}',
+    fov_windows: 'FOV: {windows}',
     no_fov_today: 'Sun does not enter FOV today',
     placeholder: 'Sun elevation chart unavailable.',
   },

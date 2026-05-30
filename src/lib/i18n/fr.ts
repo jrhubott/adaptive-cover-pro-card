@@ -164,6 +164,7 @@ export const fr: EnDict = {
   elevation: {
     title: "Soleil aujourd'hui",
     fov_window: 'Champ de vision : {from} → {to}',
+    fov_windows: 'Champ de vision : {windows}',
     no_fov_today: "Pas de soleil dans le champ de vision aujourd'hui",
     placeholder: "Graphique d'élévation solaire indisponible.",
   },

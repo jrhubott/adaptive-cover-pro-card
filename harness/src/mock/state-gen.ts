@@ -1,9 +1,15 @@
 import SunCalc from 'suncalc';
-import { findFovWindow, sampleDay, startOfDay, type SunSample } from '../../../src/lib/sun-model';
+import {
+  findFovWindow,
+  sampleDay,
+  startOfDayInZone,
+  type SunSample,
+} from '../../../src/lib/sun-model';
 import { decide, scriptedDecision, type DecisionResult } from './decider';
 import { buildForecast } from './forecast';
 import { entityIdFor } from './registry';
 import type { HarnessConfig, HarnessEntry } from '../types';
+import { zoneForLongitude, zonedNowMs } from '../zone';
 
 export interface HassState {
   entity_id: string;
@@ -51,8 +57,9 @@ function nearestSample(samples: SunSample[], now: Date): SunSample {
 }
 
 export function buildStates(cfg: HarnessConfig): GeneratedStates {
-  const dayStart = startOfDay(new Date(`${cfg.date}T00:00:00`));
-  const now = new Date(dayStart.getTime() + cfg.timeOfDayMinutes * 60_000);
+  const tz = zoneForLongitude(cfg.longitude);
+  const now = new Date(zonedNowMs(cfg.date, cfg.timeOfDayMinutes, tz));
+  const dayStart = startOfDayInZone(tz, now);
   const states: Record<string, HassState> = {};
   const decisions = new Map<string, DecisionResult>();
   const samplesByEntry = new Map<string, SunSample[]>();

@@ -2,9 +2,11 @@ import { describe, it, expect } from 'vitest';
 import {
   azimuthInFov,
   findFovWindow,
+  findFovWindows,
   getMoonData,
   sampleDay,
   startOfDay,
+  startOfDayInZone,
   sunriseSetAzimuths,
 } from '../src/lib/sun-model';
 
@@ -87,6 +89,57 @@ describe('findFovWindow', () => {
     // Make sure both endpoints are above horizon
     expect(samples[win!.startIdx].elevation).toBeGreaterThan(0);
     expect(samples[win!.endIdx].elevation).toBeGreaterThan(0);
+  });
+});
+
+describe('findFovWindows', () => {
+  it('returns two disjoint runs for a high-latitude north-facing window in summer', () => {
+    // Oslo-ish (60°N) midsummer: a wide north window catches the sun at NE
+    // sunrise and again at NW sunset — two separate runs.
+    const samples = sampleDay(60.0, 10.75, new Date('2026-06-21T00:00:00Z'));
+    const runs = findFovWindows(samples, 0, 80, 80);
+    expect(runs.length).toBe(2);
+    // disjoint and chronologically ordered
+    expect(runs[0].endIdx).toBeLessThan(runs[1].startIdx);
+    // morning run sits on the E side of N, evening run on the W side
+    expect(samples[runs[0].startIdx].azimuth).toBeLessThan(90);
+    expect(samples[runs[1].endIdx].azimuth).toBeGreaterThan(270);
+  });
+
+  it('returns a single run for a south-facing window, matching findFovWindow', () => {
+    const samples = sampleDay(45.5, -73.6, new Date('2026-06-21T00:00:00'));
+    const runs = findFovWindows(samples, 180, 60, 60);
+    expect(runs.length).toBe(1);
+    expect(runs[0]).toEqual(findFovWindow(samples, 180, 60, 60));
+  });
+
+  it('returns an empty array when the sun never enters the FOV', () => {
+    const samples = sampleDay(45.5, -73.6, new Date('2026-06-21T00:00:00'));
+    expect(findFovWindows(samples, 0, 45, 45)).toEqual([]);
+  });
+});
+
+describe('startOfDayInZone', () => {
+  it('returns local midnight in a DST zone as an absolute instant', () => {
+    // 2026-06-21 is PDT (UTC-7); local midnight = 07:00 UTC.
+    const ref = new Date('2026-06-21T19:00:00Z'); // noon PDT
+    const start = startOfDayInZone('America/Los_Angeles', ref);
+    expect(start.toISOString()).toBe('2026-06-21T07:00:00.000Z');
+  });
+
+  it('handles a fixed-offset Etc zone (the harness path)', () => {
+    // Etc/GMT-1 is UTC+1; local midnight = 23:00 UTC the previous day.
+    const ref = new Date('2026-06-21T12:00:00Z');
+    const start = startOfDayInZone('Etc/GMT-1', ref);
+    expect(start.toISOString()).toBe('2026-06-20T23:00:00.000Z');
+  });
+
+  it('falls back to browser-local startOfDay when timezone is missing', () => {
+    const ref = new Date('2026-06-21T17:34:22.123');
+    const start = startOfDayInZone(undefined, ref);
+    expect(start.getHours()).toBe(0);
+    expect(start.getMinutes()).toBe(0);
+    expect(start.getTime()).toBe(startOfDay(ref).getTime());
   });
 });
 
@@ -186,5 +239,28 @@ describe('sunriseSetAzimuths', () => {
     const { riseAzimuth, setAzimuth } = sunriseSetAzimuths(oneSun);
     expect(riseAzimuth).toBe(90);
     expect(setAzimuth).toBe(90);
+  });
+
+  it('returns null when the sun never crosses the horizon (polar day)', () => {
+    // Every sample above horizon — no below→above or above→below transition.
+    const polarDay = [
+      { t: new Date(), elevation: 5, azimuth: 10 },
+      { t: new Date(), elevation: 8, azimuth: 90 },
+      { t: new Date(), elevation: 6, azimuth: 170 },
+    ];
+    expect(sunriseSetAzimuths(polarDay)).toEqual({ riseAzimuth: null, setAzimuth: null });
+  });
+
+  it('does not report a window-edge sample as a false sunrise/sunset', () => {
+    // Window starts already above horizon, then sets. Only sunset should be
+    // reported; the open start is not a real sunrise.
+    const samples = [
+      { t: new Date(), elevation: 12, azimuth: 70 },
+      { t: new Date(), elevation: 4, azimuth: 110 },
+      { t: new Date(), elevation: -3, azimuth: 130 },
+    ];
+    const { riseAzimuth, setAzimuth } = sunriseSetAzimuths(samples);
+    expect(riseAzimuth).toBeNull();
+    expect(setAzimuth).toBe(110);
   });
 });

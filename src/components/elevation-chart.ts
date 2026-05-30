@@ -3,7 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { DiscoveredEntities, SunPositionAttributes } from '../types';
-import { findFovWindow, sampleDay, startOfDay, type SunSample } from '../lib/sun-model';
+import { findFovWindows, sampleDay, startOfDayInZone, type SunSample } from '../lib/sun-model';
 import { formatClock } from '../lib/formatters';
 import { t } from '../lib/i18n';
 
@@ -31,18 +31,24 @@ export class ElevationChart extends LitElement {
   protected render(): TemplateResult | typeof nothing {
     if (!this.hass || !this.discovered) return nothing;
     const attrs = this._sunAttrs();
-    const { latitude, longitude } = this.hass.config as unknown as {
+    const { latitude, longitude, time_zone } = this.hass.config as unknown as {
       latitude?: number;
       longitude?: number;
+      time_zone?: string;
     };
     if (latitude === undefined || longitude === undefined || !attrs) {
       return html`<div class="placeholder">${t('elevation.placeholder', this.hass)}</div>`;
     }
 
-    const day = startOfDay();
+    const day = startOfDayInZone(time_zone);
     const samples = sampleDay(latitude, longitude, day);
     const now = new Date();
-    const fov = findFovWindow(samples, attrs.window_azimuth, attrs.fov_left, attrs.fov_right);
+    const fovWindows = findFovWindows(
+      samples,
+      attrs.window_azimuth,
+      attrs.fov_left,
+      attrs.fov_right,
+    );
 
     const maxElev = 90;
     const minElev = -10; // small negative so dawn/dusk renders below horizon
@@ -66,21 +72,26 @@ export class ElevationChart extends LitElement {
     const currentSample = this._interpAt(samples, now);
     const currentY = currentSample ? yAt(currentSample.elevation) : null;
 
-    const fovStart = fov ? samples[fov.startIdx].t : null;
-    const fovEnd = fov ? samples[fov.endIdx].t : null;
-    const fovX0 = fovStart ? xAt(fovStart) : null;
-    const fovX1 = fovEnd ? xAt(fovEnd) : null;
+    const fovBands = fovWindows.map((w) => ({
+      x0: xAt(samples[w.startIdx].t),
+      x1: xAt(samples[w.endIdx].t),
+    }));
+    const fovLabel = fovWindows
+      .map(
+        (w) =>
+          `${formatClock(samples[w.startIdx].t.toISOString())} → ${formatClock(
+            samples[w.endIdx].t.toISOString(),
+          )}`,
+      )
+      .join(', ');
 
     return html`
       <div class="wrap">
         <div class="head">
           <span class="label">${t('elevation.title', this.hass)}</span>
-          ${fovStart && fovEnd
+          ${fovWindows.length
             ? html`<span class="dim"
-                >${t('elevation.fov_window', this.hass, {
-                  from: formatClock(fovStart.toISOString()),
-                  to: formatClock(fovEnd.toISOString()),
-                })}</span
+                >${t('elevation.fov_windows', this.hass, { windows: fovLabel })}</span
               >`
             : html`<span class="dim">${t('elevation.no_fov_today', this.hass)}</span>`}
         </div>
@@ -106,18 +117,16 @@ export class ElevationChart extends LitElement {
             <!-- horizon -->
             <line class="horizon" x1=${PAD_L} y1=${horizonY} x2=${VIEWBOX_W - PAD_R} y2=${horizonY} />
 
-            <!-- FOV shaded band (only the time the sun is actually in FOV + above horizon) -->
-            ${
-              fovX0 !== null && fovX1 !== null
-                ? svg`<rect
+            <!-- FOV shaded bands (each time the sun is actually in FOV + above horizon) -->
+            ${fovBands.map(
+              (b) => svg`<rect
                   class="fov-band"
-                  x=${fovX0}
+                  x=${b.x0}
                   y=${PAD_T}
-                  width=${fovX1 - fovX0}
+                  width=${b.x1 - b.x0}
                   height=${VIEWBOX_H - PAD_T - PAD_B}
-                />`
-                : nothing
-            }
+                />`,
+            )}
 
             <!-- elevation curve -->
             <polyline class="curve" points=${curvePoints} />

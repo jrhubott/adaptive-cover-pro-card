@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import '../src/components/sky-compass';
 import { SkyCompass } from '../src/components/sky-compass';
 import type { HomeAssistant } from 'custom-card-helpers';
@@ -1038,5 +1038,58 @@ describe('acp-sky-compass active sun arc (start/end sensor azimuths)', () => {
     const hass = makeHass([{ sensorId, windowAzimuth: 180 }]);
     const el = await mountCompass([d], hass);
     expect(el.shadowRoot!.querySelector('path.fov.fov-static')).toBeNull();
+  });
+});
+
+describe('acp-sky-compass (multiple FOV crossings)', () => {
+  // A high-latitude north-facing window catches the sun twice; the active
+  // sensors describe only the evening arc, so the morning crossing must be
+  // drawn as a separate `fov-extra` wedge. Freeze the clock + pin the zone so
+  // the sampled day is the location's, regardless of the machine timezone.
+  beforeAll(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-21T10:00:00Z'));
+  });
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
+  function northHass(): HomeAssistant {
+    return {
+      states: {
+        'sensor.sun_pos_loft': {
+          state: '20',
+          attributes: {
+            elevation: 10,
+            gamma: 0,
+            window_azimuth: 0,
+            fov_left: 80,
+            fov_right: 80,
+            azimuth_min: -80,
+            azimuth_max: 80,
+            in_fov: true,
+            blind_spot_range: null,
+          },
+        },
+        'sensor.start_loft': { state: 'x', attributes: { azimuth: 300, elevation: 5 } },
+        'sensor.end_loft': { state: 'x', attributes: { azimuth: 340, elevation: 3 } },
+      },
+      config: { latitude: 60, longitude: 10.75, time_zone: 'Etc/GMT-1' },
+    } as unknown as HomeAssistant;
+  }
+
+  it('draws a second wedge for the morning crossing of a north window', async () => {
+    const d = makeDiscovered('loft', 'Loft', {
+      startSensorId: 'sensor.start_loft',
+      endSensorId: 'sensor.end_loft',
+    });
+    const el = await mountCompass([d], northHass());
+    const extras = el.shadowRoot!.querySelectorAll('path.fov-extra');
+    expect(extras.length).toBeGreaterThanOrEqual(1);
+    // there is still exactly one primary active-arc wedge (plus its static underlay)
+    expect(el.shadowRoot!.querySelectorAll('path.fov:not(.fov-static)').length).toBe(1);
+    // each extra crossing reuses the active-sun-arc tooltip
+    const titleText = extras[0].parentElement?.querySelector('title')?.textContent ?? '';
+    expect(titleText).toContain('Active sun arc');
   });
 });
