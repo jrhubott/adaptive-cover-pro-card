@@ -89,7 +89,8 @@ export class TileBadge extends LitElement {
           : base;
       const pctPart =
         this.pct !== undefined && this.pct !== null ? ` · ${Math.round(this.pct)}%` : '';
-      const floorPart = this.minimumMode === true ? ' floor' : '';
+      const floorPart =
+        this.minimumMode === true ? (this.hass ? t('badge.floor_suffix', this.hass) : ' ↥') : '';
       return `${slotPart}${pctPart}${floorPart}`;
     }
     return base;

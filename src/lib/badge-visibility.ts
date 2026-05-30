@@ -5,35 +5,21 @@ import type { AdaptiveCoverProTileCardConfig, DecisionStep } from '../types';
 /** Per-kind opt-in flags. Omitted/undefined = on; only `=== false` hides. */
 export type BadgesConfig = AdaptiveCoverProTileCardConfig['badges'];
 
-/** Inputs that decide whether the inverted "Solar tracking active" badge shows. */
+/** Inputs that decide whether the "Solar tracking active" badge shows. */
 export interface SolarActiveContext {
   /** The solar trace row matched this cycle. */
   solarMatched: boolean;
   /** The cloud-suppression handler is the winner (tracking is suppressed). */
   cloudIsWinner: boolean;
-  /** Cloud suppression is configured on the integration (fail-open if unknown). */
-  cloudConfigured: boolean;
 }
 
 /**
- * Detect whether the cloud-suppression handler is configured from the
- * decision_trace `enabled_handlers` attribute. Fail-open: when the attribute is
- * absent (older integrations) we assume cloud may be configured so the inverted
- * solar badge is allowed to show. Mirrors `computeDisabledHandlers`.
- */
-export function isCloudConfigured(enabledHandlers: readonly string[] | undefined): boolean {
-  if (!enabledHandlers) return true;
-  return enabledHandlers.includes('cloud');
-}
-
-/**
- * The inverted semantics: the `solar` badge ("Solar tracking active") shows only
- * when the solar handler is actively contributing, cloud is NOT suppressing, and
- * cloud suppression is configured (so the active/suppressed distinction means
- * something).
+ * The `solar` badge ("Solar tracking active") shows whenever the solar handler
+ * is actively contributing and cloud suppression is NOT the winner. When cloud
+ * wins, tracking is suppressed and the badge is hidden.
  */
 export function isSolarActive(ctx: SolarActiveContext): boolean {
-  return ctx.solarMatched && !ctx.cloudIsWinner && ctx.cloudConfigured;
+  return ctx.solarMatched && !ctx.cloudIsWinner;
 }
 
 /**
@@ -42,7 +28,8 @@ export function isSolarActive(ctx: SolarActiveContext): boolean {
  * dialog's matched-badge list.
  *
  * - `cloud` is always dropped (never rendered as a badge).
- * - `solar` survives only when `isSolarActive(ctx)` AND `config.solar !== false`.
+ * - `solar` survives only when `isSolarActive(ctx)` (solar contributing, cloud
+ *   not winning) AND `config.solar !== false`.
  * - the other 7 configurable kinds survive unless their flag is `=== false`.
  * - `auto` and `off` are state-fallbacks and are never filtered.
  */
@@ -92,11 +79,9 @@ export function winnerBadgeKind(opts: {
 export function buildSolarActiveContext(
   trace: readonly DecisionStep[] | undefined,
   winner: string,
-  enabledHandlers: readonly string[] | undefined,
 ): SolarActiveContext {
   return {
     solarMatched: solarTraceMatched(trace),
     cloudIsWinner: isCloudWinner(winner),
-    cloudConfigured: isCloudConfigured(enabledHandlers),
   };
 }

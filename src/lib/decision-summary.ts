@@ -1,4 +1,9 @@
-import { HANDLER_LABELS, HANDLER_ORDER, type HandlerName } from '../const';
+import {
+  HANDLER_LABELS,
+  HANDLER_ORDER,
+  MANUAL_OVERRIDE_PRIORITY,
+  type HandlerName,
+} from '../const';
 import type { DecisionStep, DecisionTraceAttributes } from '../types';
 import type { HomeAssistant } from 'custom-card-helpers';
 import { formatPercent } from './formatters';
@@ -7,8 +12,21 @@ export interface ActiveFloor {
   slot: 1 | 2 | 3 | 4;
   position: number;
   label: string;
+  /**
+   * True when the floor is actively raising the cover above target right now.
+   * No longer drives the chip's emphasis (that is `resistsManual`); it now
+   * drives the chip's fill-vs-outline cue (solid = clamping, outline = armed).
+   */
   clamping: boolean;
   sensorOn: boolean;
+  /** The slot's configured 1–99 priority, or null when the integration omits it. */
+  priority: number | null;
+  /**
+   * True when the floor's priority strictly exceeds the manual-override
+   * priority — i.e. a manual ↓ will NOT bypass this floor. Null priority is
+   * treated as bypassable (false).
+   */
+  resistsManual: boolean;
 }
 
 /**
@@ -45,12 +63,15 @@ export function resolveActiveMinModeFloor(
   const best = candidates.reduce((a, b) => ((b.position ?? 0) > (a.position ?? 0) ? b : a));
 
   const position = best.position!;
+  const priority = best.priority ?? null;
   return {
     slot: best.slot,
     position,
     label: best.sensor_name ?? `#${best.slot}`,
     clamping: targetPosition !== null && position > targetPosition,
     sensorOn: true,
+    priority,
+    resistsManual: priority != null && priority > MANUAL_OVERRIDE_PRIORITY,
   };
 }
 

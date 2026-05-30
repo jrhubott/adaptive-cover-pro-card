@@ -231,11 +231,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // Filter the single winner badge through the same inversion + per-badge
     // opt-in used by the dialog. When cloud wins, the badge is dropped (blank).
     const winnerKind = winnerBadgeKind({ winner, integrationEnabled, manualActive });
-    const solarCtx = buildSolarActiveContext(
-      traceAttrs?.trace,
-      winner,
-      traceAttrs?.enabled_handlers,
-    );
+    const solarCtx = buildSolarActiveContext(traceAttrs?.trace, winner);
     const winnerVisible =
       selectVisibleBadges([winnerKind], this._config!.badges, solarCtx).length > 0;
     const renderBadge =
@@ -289,7 +285,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
           : nothing}
         ${showFloorChip
           ? html`<span
-              class=${`acp-floor-chip${activeFloor!.clamping ? '' : ' is-armed'}`}
+              class=${`acp-floor-chip${activeFloor!.clamping ? '' : ' is-armed'}${
+                activeFloor!.resistsManual ? ' resists-manual' : ' is-bypassable'
+              }`}
               title=${t('dialog.floor_tooltip', this.hass)}
               >${t('dialog.floor', this.hass)} ${formatPercent(activeFloor!.position)}</span
             >`
@@ -754,11 +752,23 @@ export class AdaptiveCoverProTileCard extends LitElement {
       border-radius: 999px;
       background: rgba(156, 39, 176, 0.22);
       color: #6a1b9a;
+      /* Reserve the border so the outline (is-armed) state doesn't shift layout. */
+      border: 1px solid transparent;
       white-space: nowrap;
       align-self: center;
     }
+    /* Clamping axis: not-clamping → hollow/outline (transparent fill + purple border). */
     .acp-floor-chip.is-armed {
+      background: transparent;
+      border-color: rgba(156, 39, 176, 0.5);
+    }
+    /* Priority axis: bypassable (priority ≤ 80) → subdued. */
+    .acp-floor-chip.is-bypassable {
       opacity: 0.6;
+    }
+    /* Priority axis: resists manual ↓ (priority > 80) → emphasized. */
+    .acp-floor-chip.resists-manual {
+      font-weight: 600;
     }
     /* One-line layout: add a second row for the floor chip under the position cell */
     .tile-body.has-floor-chip {

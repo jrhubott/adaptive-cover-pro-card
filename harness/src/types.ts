@@ -12,6 +12,8 @@ export interface CustomPositionSlotCfg {
   position: number;
   name: string;
   min_mode: boolean;
+  /** Slot priority 1–99 (mirrors the integration). >80 resists a manual ↓. */
+  priority: number;
 }
 
 export interface ManagedCoverCfg {

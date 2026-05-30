@@ -5,7 +5,14 @@ import {
   resolveCustomPositionPct,
   resolveActiveMinModeFloor,
 } from '../src/lib/decision-summary';
+import { MANUAL_OVERRIDE_PRIORITY } from '../src/const';
 import type { DecisionStep, DecisionTraceAttributes } from '../src/types';
+
+describe('MANUAL_OVERRIDE_PRIORITY', () => {
+  it('mirrors the integration manual-override handler priority (80)', () => {
+    expect(MANUAL_OVERRIDE_PRIORITY).toBe(80);
+  });
+});
 
 const step = (
   handler: string,
@@ -389,5 +396,59 @@ describe('resolveActiveMinModeFloor', () => {
       null,
     );
     expect(result!.clamping).toBe(false);
+  });
+
+  it('forwards the winning slot priority', () => {
+    const result = resolveActiveMinModeFloor(
+      { custom_position_slots: [{ ...slot1On, priority: 90 }] },
+      hassStates({ 'input_boolean.slot1': 'on' }),
+      40,
+    );
+    expect(result!.priority).toBe(90);
+  });
+
+  it('sets priority null when the slot priority is null', () => {
+    const result = resolveActiveMinModeFloor(
+      { custom_position_slots: [{ ...slot1On, priority: null }] },
+      hassStates({ 'input_boolean.slot1': 'on' }),
+      40,
+    );
+    expect(result!.priority).toBeNull();
+  });
+
+  it('sets resistsManual true when priority exceeds MANUAL_OVERRIDE_PRIORITY', () => {
+    const result = resolveActiveMinModeFloor(
+      { custom_position_slots: [{ ...slot1On, priority: 90 }] },
+      hassStates({ 'input_boolean.slot1': 'on' }),
+      40,
+    );
+    expect(result!.resistsManual).toBe(true);
+  });
+
+  it('sets resistsManual false at the priority boundary (80)', () => {
+    const result = resolveActiveMinModeFloor(
+      { custom_position_slots: [{ ...slot1On, priority: 80 }] },
+      hassStates({ 'input_boolean.slot1': 'on' }),
+      40,
+    );
+    expect(result!.resistsManual).toBe(false);
+  });
+
+  it('sets resistsManual true just above the boundary (81)', () => {
+    const result = resolveActiveMinModeFloor(
+      { custom_position_slots: [{ ...slot1On, priority: 81 }] },
+      hassStates({ 'input_boolean.slot1': 'on' }),
+      40,
+    );
+    expect(result!.resistsManual).toBe(true);
+  });
+
+  it('sets resistsManual false when priority is null', () => {
+    const result = resolveActiveMinModeFloor(
+      { custom_position_slots: [{ ...slot1On, priority: null }] },
+      hassStates({ 'input_boolean.slot1': 'on' }),
+      40,
+    );
+    expect(result!.resistsManual).toBe(false);
   });
 });

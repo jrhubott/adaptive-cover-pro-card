@@ -202,7 +202,7 @@ describe('acp-more-info-dialog: badge inversion + opt-in', () => {
     ];
   }
 
-  it('shows the solar badge when enabled_handlers is absent (fail-open) + solar matched + cloud not winner', async () => {
+  it('shows the solar badge when solar matched and cloud is not the winner', async () => {
     const el = await mount({
       hass: hass({ winner: 'solar', trace: solarTrace() }),
       discovered: discovered(),
@@ -211,7 +211,7 @@ describe('acp-more-info-dialog: badge inversion + opt-in', () => {
     expect(badgeKinds(el)).toContain('solar');
   });
 
-  it('hides the solar badge when enabled_handlers is present without cloud (not configured)', async () => {
+  it('shows the solar badge even when cloud is not configured (enabled_handlers omits cloud)', async () => {
     const el = await mount({
       hass: hass({
         winner: 'solar',
@@ -221,8 +221,7 @@ describe('acp-more-info-dialog: badge inversion + opt-in', () => {
       discovered: discovered(),
       open: true,
     });
-    expect(badgeKinds(el)).not.toContain('solar');
-    expect(el.shadowRoot!.querySelectorAll('.header acp-tile-badge').length).toBe(0);
+    expect(badgeKinds(el)).toContain('solar');
   });
 
   it('drops the solar badge when badges.solar is false even though it is active', async () => {
@@ -350,6 +349,44 @@ describe('acp-more-info-dialog: slot management', () => {
     const minModeTags = el.shadowRoot!.querySelectorAll('.slot-row .slot-min-mode');
     // Only the slot 1 row should have a floor marker.
     expect(minModeTags.length).toBe(1);
+  });
+
+  it('floor pill is the ↥ glyph', async () => {
+    const el = await mount({
+      hass: hass({ traceExtraAttrs: { custom_position_slots: slots } }),
+      discovered: discovered(),
+      open: true,
+    });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    const pill = el.shadowRoot!.querySelector('.slot-row .slot-min-mode');
+    expect(pill!.textContent?.trim()).toBe('↥');
+  });
+
+  it('floor pill is subdued (is-bypassable) when slot priority <= MANUAL_OVERRIDE_PRIORITY', async () => {
+    // slot 1 has priority 80 ≤ 80 → bypassable
+    const el = await mount({
+      hass: hass({ traceExtraAttrs: { custom_position_slots: slots } }),
+      discovered: discovered(),
+      open: true,
+    });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    const pill = el.shadowRoot!.querySelector('.slot-row .slot-min-mode');
+    expect(pill!.classList.contains('is-bypassable')).toBe(true);
+  });
+
+  it('floor pill is emphasized (not is-bypassable) when slot priority > MANUAL_OVERRIDE_PRIORITY', async () => {
+    const highPrioritySlots = [{ ...slots[0], priority: 90 }, slots[1], slots[2], slots[3]];
+    const el = await mount({
+      hass: hass({ traceExtraAttrs: { custom_position_slots: highPrioritySlots } }),
+      discovered: discovered(),
+      open: true,
+    });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    const pill = el.shadowRoot!.querySelector('.slot-row .slot-min-mode');
+    expect(pill!.classList.contains('is-bypassable')).toBe(false);
   });
 
   it('toggle calls set_custom_position with {slot, enabled} for the row', async () => {

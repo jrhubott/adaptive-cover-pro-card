@@ -70,6 +70,18 @@ describe('t', () => {
   });
 });
 
+describe('floor glyph (↥) i18n', () => {
+  it('dialog.floor is the ↥ glyph in EN and FR (language-neutral)', () => {
+    expect(en.dialog.floor).toBe('↥');
+    expect(fr.dialog.floor).toBe('↥');
+  });
+
+  it('badge.floor_suffix is " ↥" (leading space) in EN and FR', () => {
+    expect((en.badge as Record<string, string>).floor_suffix).toBe(' ↥');
+    expect((fr.badge as Record<string, string>).floor_suffix).toBe(' ↥');
+  });
+});
+
 describe('locale-table parity', () => {
   // Compile-time parity comes from `const fr: typeof en = {...}` in fr.ts. Runtime check is defense-in-depth.
   it('FR has exactly the same key paths as EN', () => {

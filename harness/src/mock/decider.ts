@@ -88,7 +88,7 @@ export function decide(input: DecisionInput): DecisionResult {
       sensor: `sensor.custom_${entry.entry_id}_slot${s.slot}`,
       sensor_name: s.name,
       position: s.position,
-      priority: s.slot,
+      priority: s.priority,
       min_mode: s.min_mode,
     })),
   };
@@ -291,7 +291,7 @@ export function scriptedDecision(
         sensor: `sensor.custom_${entry.entry_id}_slot${s.slot}`,
         sensor_name: s.name,
         position: s.position,
-        priority: s.slot,
+        priority: s.priority,
         min_mode: s.min_mode,
       })),
     },

@@ -9,6 +9,15 @@ export const TILE_CARD_EDITOR_NAME = 'adaptive-cover-pro-tile-card-editor';
 export const INTEGRATION_DOMAIN = 'adaptive_cover_pro';
 
 /**
+ * Mirrors the integration's `ManualOverrideHandler.priority` (manual_override.py).
+ * A min-mode slot floor resists a manual ↓ only when its slot priority strictly
+ * exceeds this value; at or below it, the manual button bypasses the floor.
+ * The integration does not expose this threshold in the decision trace, so it is
+ * hardcoded here. Keep it in lock-step with the integration handler.
+ */
+export const MANUAL_OVERRIDE_PRIORITY = 80;
+
+/**
  * The 11 Adaptive Cover Pro pipeline handlers in priority order (highest first).
  * Must match `control_method` enum values emitted by the integration.
  * Keep the ordering in lock-step with `custom_components/adaptive_cover_pro/pipeline/registry.py`.
