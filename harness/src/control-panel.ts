@@ -259,10 +259,24 @@ export class AcpHarnessControlPanel extends LitElement {
       ],
       color: ['#ff7043', '#7e57c2', '#42a5f5', '#26a69a'][n] ?? '#ff7043',
       slots: [
-        { slot: 1, enabled: false, position: 75, name: 'Movie time', min_mode: false },
-        { slot: 2, enabled: false, position: 20, name: 'Privacy', min_mode: false },
-        { slot: 3, enabled: false, position: 100, name: 'Welcome home', min_mode: false },
-        { slot: 4, enabled: false, position: 50, name: 'Floor', min_mode: true },
+        {
+          slot: 1,
+          enabled: false,
+          position: 75,
+          name: 'Movie time',
+          min_mode: false,
+          priority: 60,
+        },
+        { slot: 2, enabled: false, position: 20, name: 'Privacy', min_mode: false, priority: 70 },
+        {
+          slot: 3,
+          enabled: false,
+          position: 100,
+          name: 'Welcome home',
+          min_mode: false,
+          priority: 50,
+        },
+        { slot: 4, enabled: false, position: 50, name: 'Floor', min_mode: true, priority: 90 },
       ],
       flags: {
         integration_enabled: true,
@@ -626,6 +640,28 @@ export class AcpHarnessControlPanel extends LitElement {
                       this._patchEntry(idx, { slots });
                     }}
                   />
+                  <label class="inline">
+                    <input
+                      type="number"
+                      min="1"
+                      max="99"
+                      step="1"
+                      title="Slot priority (1–99); >80 resists a manual ↓"
+                      .value=${String(s.priority)}
+                      @change=${(ev: Event) => {
+                        const slots = e.slots.map((ss, i) =>
+                          i === si
+                            ? {
+                                ...ss,
+                                priority: parseInt((ev.target as HTMLInputElement).value, 10),
+                              }
+                            : ss,
+                        );
+                        this._patchEntry(idx, { slots });
+                      }}
+                    />
+                    prio
+                  </label>
                   <label class="inline">
                     <input
                       type="checkbox"

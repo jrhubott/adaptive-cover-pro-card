@@ -92,10 +92,17 @@ function makeEntry(
     ],
     color: overrides.color ?? '#ff7043',
     slots: overrides.slots ?? [
-      { slot: 1, enabled: false, position: 75, name: 'Movie time', min_mode: false },
-      { slot: 2, enabled: false, position: 20, name: 'Privacy', min_mode: false },
-      { slot: 3, enabled: false, position: 100, name: 'Welcome home', min_mode: false },
-      { slot: 4, enabled: false, position: 50, name: 'Floor', min_mode: true },
+      { slot: 1, enabled: false, position: 75, name: 'Movie time', min_mode: false, priority: 60 },
+      { slot: 2, enabled: false, position: 20, name: 'Privacy', min_mode: false, priority: 70 },
+      {
+        slot: 3,
+        enabled: false,
+        position: 100,
+        name: 'Welcome home',
+        min_mode: false,
+        priority: 50,
+      },
+      { slot: 4, enabled: false, position: 50, name: 'Floor', min_mode: true, priority: 90 },
     ],
     flags: {
       integration_enabled: true,
@@ -260,6 +267,73 @@ export const SCENARIOS: Scenario[] = [
           fov_right: 80,
           color: '#26a69a',
         }),
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'floor-bypassable',
+    label: 'Floor chip — bypassable (priority 75)',
+    description:
+      'An armed min-mode floor at 50% with priority 75 (≤ 80). The floor chip renders subdued/normal-weight because a manual ↓ would bypass it.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'floor-bypassable';
+      c.decisionMode = 'derived';
+      // Solar wins; a separate enabled min-mode floor slot arms the chip.
+      c.entries[0].target_position = 80;
+      c.entries[0].slots = [
+        {
+          slot: 1,
+          enabled: true,
+          position: 50,
+          name: 'Aeration floor',
+          min_mode: true,
+          priority: 75,
+        },
+        { slot: 2, enabled: false, position: 20, name: 'Privacy', min_mode: false, priority: 70 },
+        {
+          slot: 3,
+          enabled: false,
+          position: 100,
+          name: 'Welcome home',
+          min_mode: false,
+          priority: 50,
+        },
+        { slot: 4, enabled: false, position: 50, name: 'Floor', min_mode: true, priority: 90 },
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'floor-resists-manual',
+    label: 'Floor chip — resists manual (priority 90)',
+    description:
+      'An armed min-mode floor at 50% with priority 90 (> 80). The floor chip renders emphasized/bold because a manual ↓ will NOT bypass it.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'floor-resists-manual';
+      c.decisionMode = 'derived';
+      c.entries[0].target_position = 80;
+      c.entries[0].slots = [
+        {
+          slot: 1,
+          enabled: true,
+          position: 50,
+          name: 'Aeration floor',
+          min_mode: true,
+          priority: 90,
+        },
+        { slot: 2, enabled: false, position: 20, name: 'Privacy', min_mode: false, priority: 70 },
+        {
+          slot: 3,
+          enabled: false,
+          position: 100,
+          name: 'Welcome home',
+          min_mode: false,
+          priority: 50,
+        },
+        { slot: 4, enabled: false, position: 50, name: 'Floor', min_mode: true, priority: 60 },
       ];
       return c;
     },

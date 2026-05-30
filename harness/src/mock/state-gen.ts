@@ -304,6 +304,16 @@ function addEntryStates(
   states[id('reset_override_button')] = mkState(id('reset_override_button'), 'unknown', {
     friendly_name: `${entry.title} Reset Manual Override`,
   });
+
+  // Per-slot custom-position sensors. The card's resolveActiveMinModeFloor reads
+  // `hassStates[slot.sensor].state === 'on'` to decide whether a floor is armed,
+  // so enabled slots must surface an "on" sensor for the floor chip to render.
+  for (const s of entry.slots) {
+    const sensorId = `sensor.custom_${entry.entry_id}_slot${s.slot}`;
+    states[sensorId] = mkState(sensorId, s.enabled ? 'on' : 'off', {
+      friendly_name: `${entry.title} ${s.name}`,
+    });
+  }
 }
 
 function addCoverStates(states: Record<string, HassState>, entry: HarnessEntry): void {

@@ -8,6 +8,7 @@ import {
   HANDLER_I18N_KEYS,
   HANDLER_ORDER,
   INTEGRATION_DOMAIN,
+  MANUAL_OVERRIDE_PRIORITY,
   type BadgeKind,
   type HandlerName,
 } from '../const';
@@ -295,7 +296,12 @@ export class MoreInfoDialog extends LitElement {
       <span class="slot-label">${label}</span>
       <span class="slot-position">${formatPercent(slot.position)}</span>
       ${slot.min_mode === true
-        ? html`<span class="slot-min-mode" title=${t('dialog.floor_tooltip', this.hass)}>
+        ? html`<span
+            class="slot-min-mode${slot.priority != null && slot.priority > MANUAL_OVERRIDE_PRIORITY
+              ? ''
+              : ' is-bypassable'}"
+            title=${t('dialog.floor_tooltip', this.hass)}
+          >
             ${t('dialog.floor', this.hass)}
           </span>`
         : nothing}
@@ -577,6 +583,11 @@ export class MoreInfoDialog extends LitElement {
       border-radius: 999px;
       background: rgba(156, 39, 176, 0.22);
       color: #6a1b9a;
+    }
+    /* Priority axis: floor whose priority ≤ manual-override is bypassable by a
+       manual ↓ → subdued. Per-slot rows have no clamping notion, so no fill/outline. */
+    .slot-min-mode.is-bypassable {
+      opacity: 0.6;
     }
     .slot-toggle {
       padding: 2px 10px;

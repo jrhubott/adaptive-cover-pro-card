@@ -32,6 +32,7 @@ export const fr: EnDict = {
     solar: 'Suivi solaire actif',
     motion: 'Inactivité',
     off: 'Off',
+    floor_suffix: ' ↥',
   },
   forecast: {
     event: {
@@ -54,7 +55,7 @@ export const fr: EnDict = {
     custom_positions: 'Positions personnalisées',
     floor_tooltip:
       'Plancher — cette valeur force une position minimale au-dessus du calcul automatique',
-    floor: 'plancher',
+    floor: '↥',
     disable_slot: 'Désactiver le créneau {slot}',
     enable_slot: 'Activer le créneau {slot}',
     on: 'Activé',

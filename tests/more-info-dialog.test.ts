@@ -351,6 +351,44 @@ describe('acp-more-info-dialog: slot management', () => {
     expect(minModeTags.length).toBe(1);
   });
 
+  it('floor pill is the ↥ glyph', async () => {
+    const el = await mount({
+      hass: hass({ traceExtraAttrs: { custom_position_slots: slots } }),
+      discovered: discovered(),
+      open: true,
+    });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    const pill = el.shadowRoot!.querySelector('.slot-row .slot-min-mode');
+    expect(pill!.textContent?.trim()).toBe('↥');
+  });
+
+  it('floor pill is subdued (is-bypassable) when slot priority <= MANUAL_OVERRIDE_PRIORITY', async () => {
+    // slot 1 has priority 80 ≤ 80 → bypassable
+    const el = await mount({
+      hass: hass({ traceExtraAttrs: { custom_position_slots: slots } }),
+      discovered: discovered(),
+      open: true,
+    });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    const pill = el.shadowRoot!.querySelector('.slot-row .slot-min-mode');
+    expect(pill!.classList.contains('is-bypassable')).toBe(true);
+  });
+
+  it('floor pill is emphasized (not is-bypassable) when slot priority > MANUAL_OVERRIDE_PRIORITY', async () => {
+    const highPrioritySlots = [{ ...slots[0], priority: 90 }, slots[1], slots[2], slots[3]];
+    const el = await mount({
+      hass: hass({ traceExtraAttrs: { custom_position_slots: highPrioritySlots } }),
+      discovered: discovered(),
+      open: true,
+    });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    const pill = el.shadowRoot!.querySelector('.slot-row .slot-min-mode');
+    expect(pill!.classList.contains('is-bypassable')).toBe(false);
+  });
+
   it('toggle calls set_custom_position with {slot, enabled} for the row', async () => {
     const callService = vi.fn();
     const el = await mount({

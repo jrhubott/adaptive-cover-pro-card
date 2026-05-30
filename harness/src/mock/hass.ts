@@ -48,8 +48,9 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'tile.resume_aria': 'Resume automation',
   'tile.motion_detected': 'Motion detected',
   'tile.motion_pending': 'Motion timeout',
-  'dialog.floor': 'Floor',
+  'dialog.floor': '↥',
   'dialog.floor_tooltip': 'Custom position floor is raising the calculated value.',
+  'badge.floor_suffix': ' ↥',
 };
 
 for (const h of Object.keys(HANDLER_LABELS)) {
