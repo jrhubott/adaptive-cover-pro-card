@@ -150,11 +150,9 @@ export class SkyCompass extends LitElement {
     const sunAzi = first.sunAzi;
     const sunElev = first.sun.elevation;
     const sunPt = sunDotPosition(sunAzi, sunElev, o);
-    const anyInFov = overlays.some((ov) => ov.sun.in_fov);
     const anyValid = overlays.some((ov) => ov.sunInfront);
     const belowHorizon = sunElev <= 0;
-    const sunDotClass =
-      !belowHorizon && anyValid ? 'sun valid' : !belowHorizon && anyInFov ? 'sun in-fov' : 'sun';
+    const sunDotClass = belowHorizon ? 'sun' : anyValid ? 'sun valid' : 'sun up';
 
     const { latitude, longitude } = this.hass.config as unknown as {
       latitude?: number;
@@ -493,8 +491,8 @@ export class SkyCompass extends LitElement {
     }
     return html`<div class="legend">
       <div><span class="dot sun valid"></span> ${t('compass.sun_hitting', this.hass)}</div>
-      <div><span class="dot sun in-fov"></span> ${t('compass.sun_in_fov_invalid', this.hass)}</div>
-      <div><span class="dot sun"></span> ${t('compass.sun_outside_fov', this.hass)}</div>
+      <div><span class="dot sun up"></span> ${t('compass.sun_up_not_hitting', this.hass)}</div>
+      <div><span class="dot sun"></span> ${t('compass.sun_below_horizon', this.hass)}</div>
       ${this.showMoon
         ? html`<div><span class="dot moon-dot"></span> ${t('compass.moon', this.hass)}</div>`
         : nothing}
@@ -685,8 +683,8 @@ export class SkyCompass extends LitElement {
         cy 0.3s ease,
         fill 0.3s ease;
     }
-    .sun.in-fov {
-      fill: var(--state-active-color, orange);
+    .sun.up {
+      fill: #ffe680;
     }
     .sun.valid {
       fill: var(--warning-color, gold);
@@ -748,8 +746,8 @@ export class SkyCompass extends LitElement {
     .dot.sun.valid {
       background: var(--warning-color, gold);
     }
-    .dot.sun.in-fov {
-      background: var(--state-active-color, orange);
+    .dot.sun.up {
+      background: #ffe680;
     }
     .swatch.cover-fill-swatch {
       background: var(--primary-color);

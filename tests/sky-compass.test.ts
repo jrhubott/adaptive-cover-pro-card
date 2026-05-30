@@ -700,12 +700,10 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     const dots = Array.from(el.shadowRoot!.querySelectorAll('.legend .dot.sun'));
     expect(dots.length).toBe(3);
     const valid = dots.filter((d) => d.classList.contains('valid'));
-    const inFov = dots.filter((d) => d.classList.contains('in-fov'));
-    const bare = dots.filter(
-      (d) => !d.classList.contains('valid') && !d.classList.contains('in-fov'),
-    );
+    const up = dots.filter((d) => d.classList.contains('up'));
+    const bare = dots.filter((d) => !d.classList.contains('valid') && !d.classList.contains('up'));
     expect(valid.length).toBe(1);
-    expect(inFov.length).toBe(1);
+    expect(up.length).toBe(1);
     expect(bare.length).toBe(1);
   });
 
@@ -715,8 +713,8 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     const el = await mountCompass([d], hass);
     const text = el.shadowRoot!.textContent ?? '';
     expect(text).toContain('Sun (hitting window)');
-    expect(text).toContain('Sun (in FOV, not valid)');
-    expect(text).toContain('Sun (outside FOV)');
+    expect(text).toContain('Sun (up, not hitting)');
+    expect(text).toContain('Sun (below horizon)');
   });
 
   it('FOV swatch shares its theme token with the FOV path', () => {
@@ -742,11 +740,11 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     expect(dotValid).toMatch(/var\(--warning-color/);
   });
 
-  it('in-FOV sun dot and SVG .sun.in-fov share the same theme token', () => {
-    const svgInFov = cssBlock('.sun.in-fov ');
-    const dotInFov = cssBlock('.dot.sun.in-fov ');
-    expect(svgInFov).toMatch(/var\(--state-active-color/);
-    expect(dotInFov).toMatch(/var\(--state-active-color/);
+  it('up (not hitting) sun dot and SVG .sun.up share the same light-gold value', () => {
+    const svgUp = cssBlock('.sun.up ');
+    const dotUp = cssBlock('.dot.sun.up ');
+    expect(svgUp).toContain('#ffe680');
+    expect(dotUp).toContain('#ffe680');
   });
 });
 
