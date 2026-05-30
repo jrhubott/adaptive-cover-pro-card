@@ -244,6 +244,27 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'summer-north-highlat',
+    label: 'Summer — north window (two FOV crossings)',
+    description:
+      'High-latitude north-facing window: the sun enters the FOV at NE sunrise and again at NW sunset — two separate windows, two wedges.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 20 * 60, 60.0, 10.75); // Oslo-ish
+      c.scenario = 'summer-north-highlat';
+      c.entries = [
+        makeEntry({
+          entry_id: 'north_window',
+          title: 'Loft',
+          window_azimuth: 0,
+          fov_left: 80,
+          fov_right: 80,
+          color: '#26a69a',
+        }),
+      ];
+      return c;
+    },
+  },
+  {
     id: 'multi-window',
     label: 'Multi-window — south + west',
     description: 'Two entries with overlapping FOV wedges.',

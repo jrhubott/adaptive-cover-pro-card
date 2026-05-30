@@ -185,6 +185,48 @@ export function elevationGatedFovBounds(
 }
 
 /**
+ * Azimuth bounds of a single FOV run (a contiguous index range from
+ * `findFovWindows`), narrowed to the samples that clear `minElevDeg`. Returns
+ * the first and last qualifying sample azimuths as { wedgeStart, wedgeEnd }, or
+ * null when no sample in the run clears the elevation gate.
+ */
+export function fovRunBounds(
+  samples: Array<{ azimuth: number; elevation: number }>,
+  startIdx: number,
+  endIdx: number,
+  minElevDeg: number | undefined,
+): { wedgeStart: number; wedgeEnd: number } | null {
+  const gate = minElevDeg ?? 0;
+  let first = -1;
+  let last = -1;
+  for (let i = startIdx; i <= endIdx && i < samples.length; i++) {
+    if (samples[i].elevation > gate) {
+      if (first === -1) first = i;
+      last = i;
+    }
+  }
+  if (first === -1) return null;
+  return { wedgeStart: samples[first].azimuth, wedgeEnd: samples[last].azimuth };
+}
+
+/** True when azimuth `x` lies on the CW arc from `start` to `end`. */
+function azimuthInArc(x: number, start: number, end: number): boolean {
+  const sweep = (((end - start) % 360) + 360) % 360;
+  const delta = (((x - start) % 360) + 360) % 360;
+  return delta <= sweep;
+}
+
+/** True when two CW azimuth arcs [s1,e1] and [s2,e2] overlap at all. */
+export function arcsOverlap(s1: number, e1: number, s2: number, e2: number): boolean {
+  return (
+    azimuthInArc(s2, s1, e1) ||
+    azimuthInArc(e2, s1, e1) ||
+    azimuthInArc(s1, s2, e2) ||
+    azimuthInArc(e1, s2, e2)
+  );
+}
+
+/**
  * Convert the integration's blind_spot_range (FOV-left-relative offsets,
  * [fov_left − blind_spot_right, fov_left − blind_spot_left]) into absolute
  * compass bearings [startAzi, endAzi] suitable for wedgePath.

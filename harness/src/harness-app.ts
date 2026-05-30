@@ -7,6 +7,7 @@ import { applyService, type ServiceCall } from './mock/services';
 import { defaultScenarioConfig, normalizeConfig } from './scenarios';
 import { loadConfig, saveConfig } from './persistence';
 import { setFakeNow } from './fake-clock';
+import { zoneForLongitude, zonedNowMs } from './zone';
 import {
   clearStateFromUrl,
   copyToClipboard,
@@ -66,11 +67,14 @@ export class AcpHarnessApp extends LitElement {
   }
 
   private _harnessNowMs(): number {
-    // Parse the harness date in local time (matches what state-gen does), then
-    // add the time-of-day slider.
-    const dayStart = new Date(`${this._config.date}T00:00:00`);
-    dayStart.setHours(0, 0, 0, 0);
-    return dayStart.getTime() + this._config.timeOfDayMinutes * 60_000;
+    // Interpret the date + time-of-day slider as wall time in the *location's*
+    // zone (derived from longitude), matching what state-gen and the card do —
+    // otherwise the slider would mean the dev machine's local time.
+    return zonedNowMs(
+      this._config.date,
+      this._config.timeOfDayMinutes,
+      zoneForLongitude(this._config.longitude),
+    );
   }
 
   private _applyTheme(): void {
