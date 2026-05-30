@@ -120,7 +120,7 @@ describe('acp-tile-badge', () => {
       pct: 60,
       minimumMode: true,
     });
-    expect(text(el)).toBe('Custom #1 · 60% floor');
+    expect(text(el)).toBe('Custom #1 · 60% ↥');
     expect(kind(el)).toBe('custom_position');
   });
 
@@ -132,7 +132,7 @@ describe('acp-tile-badge', () => {
       pct: 60,
       minimumMode: true,
     });
-    expect(text(el)).toBe('Table extension · 60% floor');
+    expect(text(el)).toBe('Table extension · 60% ↥');
     expect(kind(el)).toBe('custom_position');
   });
 

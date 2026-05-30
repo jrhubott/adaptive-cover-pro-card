@@ -355,7 +355,7 @@ describe('adaptive-cover-pro-tile-card render', () => {
     expect(badge).toBeTruthy();
     // Should show floor value 60%, NOT computed position 42%
     const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
-    expect(text).toBe('Table terrasse · 60% floor');
+    expect(text).toBe('Table terrasse · 60% ↥');
   });
 
   it('badge shows custom-floor label, not timer, when manual_override is on and winner is custom_position', async () => {
@@ -413,7 +413,7 @@ describe('adaptive-cover-pro-tile-card render', () => {
     const badge = el.shadowRoot!.querySelector('acp-tile-badge');
     expect(badge).toBeTruthy();
     const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
-    expect(text).toBe('Table terrasse · 60% floor');
+    expect(text).toBe('Table terrasse · 60% ↥');
   });
 
   it('shows Manual badge when manual_override is on even if pipeline winner is not manual', async () => {
@@ -916,6 +916,7 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
       targetPosition?: number;
       integrationEnabled?: boolean;
       customPositionMinimumMode?: boolean;
+      priority?: number | null;
     } = {},
   ): HomeAssistant {
     const {
@@ -924,6 +925,7 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
       targetPosition = 42,
       integrationEnabled = true,
       customPositionMinimumMode = false,
+      priority = 1,
     } = opts;
     const hass = makeHass({
       decisionState: winner,
@@ -938,7 +940,7 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
             sensor: 'input_boolean.floor_sensor',
             sensor_name: 'Aeration',
             position: 25,
-            priority: 1,
+            priority,
             min_mode: true,
           },
           {
@@ -987,7 +989,7 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeFloorHass());
     const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
     expect(chip).toBeTruthy();
-    expect(chip!.textContent?.trim()).toMatch(/floor.*25%|25%.*floor/i);
+    expect(chip!.textContent?.trim()).toMatch(/↥\s*25%/);
   });
 
   it('floor chip has is-armed class when floor position <= target (not clamping)', async () => {
@@ -1004,6 +1006,24 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
     const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
     expect(chip).toBeTruthy();
     expect(chip!.classList.contains('is-armed')).toBe(false);
+  });
+
+  it('floor chip has is-bypassable class when priority <= MANUAL_OVERRIDE_PRIORITY', async () => {
+    // priority 75 ≤ 80 → manual ↓ bypasses → subdued
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeFloorHass({ priority: 75 }));
+    const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
+    expect(chip).toBeTruthy();
+    expect(chip!.classList.contains('is-bypassable')).toBe(true);
+    expect(chip!.classList.contains('resists-manual')).toBe(false);
+  });
+
+  it('floor chip has resists-manual class when priority > MANUAL_OVERRIDE_PRIORITY', async () => {
+    // priority 90 > 80 → resists manual ↓ → emphasized
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeFloorHass({ priority: 90 }));
+    const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
+    expect(chip).toBeTruthy();
+    expect(chip!.classList.contains('resists-manual')).toBe(true);
+    expect(chip!.classList.contains('is-bypassable')).toBe(false);
   });
 
   it('suppresses floor chip when winner is custom_position with minimum_mode true', async () => {

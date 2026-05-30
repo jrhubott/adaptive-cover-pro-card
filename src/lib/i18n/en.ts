@@ -24,6 +24,7 @@ export const en = {
     solar: 'Solar tracking active',
     motion: 'Motion idle',
     off: 'Off',
+    floor_suffix: ' ↥',
   },
   forecast: {
     event: {
@@ -45,7 +46,7 @@ export const en = {
     show_advanced: '▶ Advanced',
     custom_positions: 'Custom positions',
     floor_tooltip: 'Floor — slot raises position above raw calc',
-    floor: 'floor',
+    floor: '↥',
     disable_slot: 'Disable slot {slot}',
     enable_slot: 'Enable slot {slot}',
     on: 'On',
