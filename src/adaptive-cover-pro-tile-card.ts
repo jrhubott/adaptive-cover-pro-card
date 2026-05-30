@@ -231,11 +231,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // Filter the single winner badge through the same inversion + per-badge
     // opt-in used by the dialog. When cloud wins, the badge is dropped (blank).
     const winnerKind = winnerBadgeKind({ winner, integrationEnabled, manualActive });
-    const solarCtx = buildSolarActiveContext(
-      traceAttrs?.trace,
-      winner,
-      traceAttrs?.enabled_handlers,
-    );
+    const solarCtx = buildSolarActiveContext(traceAttrs?.trace, winner);
     const winnerVisible =
       selectVisibleBadges([winnerKind], this._config!.badges, solarCtx).length > 0;
     const renderBadge =

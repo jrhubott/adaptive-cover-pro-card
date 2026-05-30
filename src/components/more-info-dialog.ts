@@ -234,7 +234,7 @@ export class MoreInfoDialog extends LitElement {
     const kinds = HANDLER_ORDER.filter((h) => matched.has(h))
       .map((h) => BADGE_KINDS_BY_HANDLER[h])
       .filter((k): k is BadgeKind => k !== undefined);
-    const ctx = buildSolarActiveContext(attrs.trace, winner, attrs.enabled_handlers);
+    const ctx = buildSolarActiveContext(attrs.trace, winner);
     return selectVisibleBadges(kinds, this.badges, ctx);
   }
 

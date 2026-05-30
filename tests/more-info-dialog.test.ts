@@ -202,7 +202,7 @@ describe('acp-more-info-dialog: badge inversion + opt-in', () => {
     ];
   }
 
-  it('shows the solar badge when enabled_handlers is absent (fail-open) + solar matched + cloud not winner', async () => {
+  it('shows the solar badge when solar matched and cloud is not the winner', async () => {
     const el = await mount({
       hass: hass({ winner: 'solar', trace: solarTrace() }),
       discovered: discovered(),
@@ -211,7 +211,7 @@ describe('acp-more-info-dialog: badge inversion + opt-in', () => {
     expect(badgeKinds(el)).toContain('solar');
   });
 
-  it('hides the solar badge when enabled_handlers is present without cloud (not configured)', async () => {
+  it('shows the solar badge even when cloud is not configured (enabled_handlers omits cloud)', async () => {
     const el = await mount({
       hass: hass({
         winner: 'solar',
@@ -221,8 +221,7 @@ describe('acp-more-info-dialog: badge inversion + opt-in', () => {
       discovered: discovered(),
       open: true,
     });
-    expect(badgeKinds(el)).not.toContain('solar');
-    expect(el.shadowRoot!.querySelectorAll('.header acp-tile-badge').length).toBe(0);
+    expect(badgeKinds(el)).toContain('solar');
   });
 
   it('drops the solar badge when badges.solar is false even though it is active', async () => {
