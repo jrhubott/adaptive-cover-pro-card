@@ -44,10 +44,17 @@ describe('acp-tile-badge', () => {
     expect(kind(el)).toBe('auto');
   });
 
-  it('renders Sun tracking for solar winner', async () => {
+  it('renders Solar tracking active for solar winner', async () => {
     const el = await mountBadge({ winner: 'solar' });
-    expect(text(el)).toBe('Sun tracking');
+    expect(text(el)).toBe('Solar tracking active');
     expect(kind(el)).toBe('solar');
+  });
+
+  it('renders a leading ha-icon for the solar badge', async () => {
+    const el = await mountBadge({ winner: 'solar' });
+    const icon = el.shadowRoot!.querySelector('ha-icon');
+    expect(icon).toBeTruthy();
+    expect(icon!.getAttribute('icon')).toBe('mdi:white-balance-sunny');
   });
 
   it('renders just the countdown clock when manualEndIso is set (the manual color signals the kind)', async () => {
@@ -91,10 +98,13 @@ describe('acp-tile-badge', () => {
     expect(kind(el)).toBe('climate');
   });
 
-  it('renders Cloudy for cloud winner', async () => {
-    const el = await mountBadge({ winner: 'cloud' });
-    expect(text(el)).toBe('Cloudy');
-    expect(kind(el)).toBe('cloud');
+  it('renders the inverted "Solar tracking active" label for the cloud_suppression winner string', async () => {
+    // The cloud kind is dropped from the visible badge set; surfaces filter it
+    // out. The user-facing positive indicator is the solar badge instead, so the
+    // "Cloudy" label is no longer surfaced anywhere.
+    const el = await mountBadge({ winner: 'solar' });
+    expect(text(el)).toBe('Solar tracking active');
+    expect(kind(el)).toBe('solar');
   });
 
   it('renders Motion for motion winner', async () => {
@@ -151,7 +161,7 @@ describe('acp-tile-badge', () => {
 
   it('accepts CamelCase ControlMethod-style winner names', async () => {
     const el = await mountBadge({ winner: 'SolarHandler' });
-    expect(text(el)).toBe('Sun tracking');
+    expect(text(el)).toBe('Solar tracking active');
     expect(kind(el)).toBe('solar');
   });
 

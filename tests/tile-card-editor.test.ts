@@ -147,6 +147,94 @@ describe('adaptive-cover-pro-tile-card editor — value-changed', () => {
   });
 });
 
+describe('adaptive-cover-pro-tile-card editor — badge opt-in', () => {
+  it('maps nested config.badges down to flat badge_* fields for the form data', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY, badges: { motion: false } });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement & {
+      data?: Record<string, unknown>;
+    };
+    expect(haForm.data!.badge_motion).toBe(false);
+    // Omitted kinds default to on.
+    expect(haForm.data!.badge_solar).toBe(true);
+  });
+
+  it('reassembles a nested badges object on emit when one badge is toggled off', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    let emitted: AdaptiveCoverProTileCardConfig | null = null;
+    el.addEventListener('config-changed', (e: Event) => {
+      emitted = (e as CustomEvent).detail.config;
+    });
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement;
+    haForm.dispatchEvent(
+      new CustomEvent('value-changed', {
+        bubbles: true,
+        composed: true,
+        detail: {
+          value: { type: TYPE, entry_id: ENTRY, badge_motion: false, badge_solar: true },
+        },
+      }),
+    );
+
+    expect(emitted).not.toBeNull();
+    expect(emitted!.badges).toEqual({ motion: false });
+    // The flat keys must not leak into the emitted config.
+    expect((emitted as unknown as Record<string, unknown>).badge_motion).toBeUndefined();
+    expect((emitted as unknown as Record<string, unknown>).badge_solar).toBeUndefined();
+  });
+
+  it('prunes the badges object entirely when all eight badges are on', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY, badges: { motion: false } });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    let emitted: AdaptiveCoverProTileCardConfig | null = null;
+    el.addEventListener('config-changed', (e: Event) => {
+      emitted = (e as CustomEvent).detail.config;
+    });
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement;
+    haForm.dispatchEvent(
+      new CustomEvent('value-changed', {
+        bubbles: true,
+        composed: true,
+        detail: {
+          value: {
+            type: TYPE,
+            entry_id: ENTRY,
+            badge_solar: true,
+            badge_force: true,
+            badge_weather: true,
+            badge_manual: true,
+            badge_custom_position: true,
+            badge_motion: true,
+            badge_climate: true,
+            badge_glare_zone: true,
+          },
+        },
+      }),
+    );
+
+    expect(emitted).not.toBeNull();
+    expect((emitted as unknown as Record<string, unknown>).badges).toBeUndefined();
+  });
+});
+
 describe('adaptive-cover-pro-tile-card editor — cover pre-fill', () => {
   // Build a registry + hass that makes discoverEntities return exactly one managed cover.
   function makeEditorSingleCover(): EditorLike {
@@ -245,6 +333,14 @@ describe('adaptive-cover-pro-tile-card editor — schema', () => {
       'show_decision_summary',
       'show_controls',
       'show_badge',
+      'badge_solar',
+      'badge_force',
+      'badge_weather',
+      'badge_manual',
+      'badge_custom_position',
+      'badge_motion',
+      'badge_climate',
+      'badge_glare_zone',
       'show_motion_icon',
       'show_compass',
       'show_resume',

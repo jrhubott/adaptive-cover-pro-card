@@ -31,10 +31,27 @@ class HaCard extends HTMLElement {
   }
 }
 
+// Render into a shadow root with self-contained styling so the icon honors
+// `--mdc-icon-size` and `currentColor` exactly like the real <ha-icon> — and,
+// crucially, renders correctly when placed INSIDE a card's shadow DOM (e.g. the
+// tile badge), where the page-level harness/styles.css rules cannot reach.
+const ICON_STYLE =
+  ':host{display:inline-flex;align-items:center;justify-content:center;' +
+  'vertical-align:middle;width:var(--mdc-icon-size,24px);height:var(--mdc-icon-size,24px)}' +
+  'svg{width:100%;height:100%;fill:currentColor}';
+
+function svgMarkup(path: string): string {
+  return `<style>${ICON_STYLE}</style><svg viewBox="0 0 24 24"><path d="${path}"></path></svg>`;
+}
+
 class HaIcon extends HTMLElement {
   static observedAttributes = ['icon'];
+  private _root = this.attachShadow({ mode: 'open' });
 
   attributeChangedCallback(): void {
+    this._render();
+  }
+  connectedCallback(): void {
     this._render();
   }
 
@@ -46,20 +63,19 @@ class HaIcon extends HTMLElement {
   }
 
   private _render(): void {
-    const name = this.getAttribute('icon') ?? '';
-    const path = ICON_PATHS[name];
-    if (!path) {
-      this.innerHTML = '';
-      return;
-    }
-    this.innerHTML = `<svg viewBox="0 0 24 24"><path d="${path}"></path></svg>`;
+    const path = ICON_PATHS[this.getAttribute('icon') ?? ''];
+    this._root.innerHTML = path ? svgMarkup(path) : '';
   }
 }
 
 class HaSvgIcon extends HTMLElement {
   static observedAttributes = ['path'];
+  private _root = this.attachShadow({ mode: 'open' });
 
   attributeChangedCallback(): void {
+    this._render();
+  }
+  connectedCallback(): void {
     this._render();
   }
 
@@ -72,11 +88,7 @@ class HaSvgIcon extends HTMLElement {
 
   private _render(): void {
     const path = this.getAttribute('path') ?? '';
-    if (!path) {
-      this.innerHTML = '';
-      return;
-    }
-    this.innerHTML = `<svg viewBox="0 0 24 24"><path d="${path}"></path></svg>`;
+    this._root.innerHTML = path ? svgMarkup(path) : '';
   }
 }
 

@@ -150,11 +150,9 @@ export class SkyCompass extends LitElement {
     const sunAzi = first.sunAzi;
     const sunElev = first.sun.elevation;
     const sunPt = sunDotPosition(sunAzi, sunElev, o);
-    const anyInFov = overlays.some((ov) => ov.sun.in_fov);
     const anyValid = overlays.some((ov) => ov.sunInfront);
     const belowHorizon = sunElev <= 0;
-    const sunDotClass =
-      !belowHorizon && anyValid ? 'sun valid' : !belowHorizon && anyInFov ? 'sun in-fov' : 'sun';
+    const sunDotClass = belowHorizon ? 'sun' : anyValid ? 'sun valid' : 'sun up';
 
     const { latitude, longitude } = this.hass.config as unknown as {
       latitude?: number;
@@ -180,9 +178,12 @@ export class SkyCompass extends LitElement {
     const moonX = moonPt ? moonPt.x * OUTER_R : 0;
     const moonY = moonPt ? moonPt.y * OUTER_R : 0;
 
+    // Plot the full 24h track: daytime samples bow toward the centre (higher
+    // elevation = smaller radius) while below-horizon samples clamp to the
+    // outer rim (elevationToRadius maps elevation <= 0 to radius 1), so the
+    // not-visible portion of the path traces around the outside of the circle.
     const pathPoints = this.showSunPath
       ? samples
-          .filter((s) => s.elevation > 0)
           .map((s) => {
             const pt = sunDotPosition(s.azimuth, s.elevation, o);
             return `${(pt.x * OUTER_R).toFixed(1)},${(pt.y * OUTER_R).toFixed(1)}`;
@@ -493,8 +494,8 @@ export class SkyCompass extends LitElement {
     }
     return html`<div class="legend">
       <div><span class="dot sun valid"></span> ${t('compass.sun_hitting', this.hass)}</div>
-      <div><span class="dot sun in-fov"></span> ${t('compass.sun_in_fov_invalid', this.hass)}</div>
-      <div><span class="dot sun"></span> ${t('compass.sun_outside_fov', this.hass)}</div>
+      <div><span class="dot sun up"></span> ${t('compass.sun_up_not_hitting', this.hass)}</div>
+      <div><span class="dot sun"></span> ${t('compass.sun_below_horizon', this.hass)}</div>
       ${this.showMoon
         ? html`<div><span class="dot moon-dot"></span> ${t('compass.moon', this.hass)}</div>`
         : nothing}
@@ -602,6 +603,7 @@ export class SkyCompass extends LitElement {
     @container (min-width: 320px) {
       .compass {
         flex-direction: row;
+        flex-wrap: wrap;
         align-items: center;
         justify-content: center;
         gap: 16px;
@@ -616,7 +618,8 @@ export class SkyCompass extends LitElement {
       }
       .compass .legend,
       .compass .stats {
-        flex: 0 0 auto;
+        flex: 0 1 auto;
+        min-width: 0;
         flex-direction: column;
         align-items: flex-start;
         justify-content: center;
@@ -685,8 +688,8 @@ export class SkyCompass extends LitElement {
         cy 0.3s ease,
         fill 0.3s ease;
     }
-    .sun.in-fov {
-      fill: var(--state-active-color, orange);
+    .sun.up {
+      fill: #ffe680;
     }
     .sun.valid {
       fill: var(--warning-color, gold);
@@ -748,8 +751,8 @@ export class SkyCompass extends LitElement {
     .dot.sun.valid {
       background: var(--warning-color, gold);
     }
-    .dot.sun.in-fov {
-      background: var(--state-active-color, orange);
+    .dot.sun.up {
+      background: #ffe680;
     }
     .swatch.cover-fill-swatch {
       background: var(--primary-color);

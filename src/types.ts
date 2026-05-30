@@ -46,8 +46,22 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   show_decision_summary?: boolean;
   /** Render the ↑■▼ controls row (default true). */
   show_controls?: boolean;
-  /** Render the contextual badge (default true). */
+  /** Render the contextual badge (default true). Master switch for the tile
+   *  badge — `badges` filters within it. */
   show_badge?: boolean;
+  /** Per-kind opt-in for the 8 configurable handler badges. Omitted/undefined =
+   *  on; only `=== false` hides. `off` and `auto` are state-fallbacks and are
+   *  never filtered by this. */
+  badges?: {
+    solar?: boolean;
+    force?: boolean;
+    weather?: boolean;
+    manual?: boolean;
+    custom_position?: boolean;
+    motion?: boolean;
+    climate?: boolean;
+    glare_zone?: boolean;
+  };
   /** Render the sky compass inside the more-info dialog's Advanced section
    *  (default true). */
   show_compass?: boolean;

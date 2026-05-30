@@ -423,6 +423,25 @@ describe('acp-sky-compass visual toggles', () => {
     expect(el.shadowRoot!.querySelector('polyline.sun-path')).toBeNull();
   });
 
+  it('sun-path plots the full 24h track, with below-horizon points on the outer rim', async () => {
+    const el = await mountCompass([d()], hass());
+    const poly = el.shadowRoot!.querySelector('polyline.sun-path') as SVGPolylineElement;
+    expect(poly).not.toBeNull();
+    const OUTER_R = 110;
+    const mags = (poly.getAttribute('points') ?? '')
+      .trim()
+      .split(/\s+/)
+      .map((p) => {
+        const [x, y] = p.split(',').map(Number);
+        return Math.hypot(x, y);
+      });
+    // Below-horizon samples clamp to the rim and ride around the outside…
+    const onRim = mags.filter((m) => Math.abs(m - OUTER_R) < 0.5);
+    expect(onRim.length).toBeGreaterThan(0);
+    // …while daytime samples bow toward the centre.
+    expect(Math.min(...mags)).toBeLessThan(OUTER_R * 0.9);
+  });
+
   it('showSunriseSunset=false hides rise/set markers', async () => {
     const el = await mountCompass([d()], hass(), { showSunriseSunset: false });
     expect(el.shadowRoot!.querySelector('circle.rise-marker')).toBeNull();
@@ -700,12 +719,10 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     const dots = Array.from(el.shadowRoot!.querySelectorAll('.legend .dot.sun'));
     expect(dots.length).toBe(3);
     const valid = dots.filter((d) => d.classList.contains('valid'));
-    const inFov = dots.filter((d) => d.classList.contains('in-fov'));
-    const bare = dots.filter(
-      (d) => !d.classList.contains('valid') && !d.classList.contains('in-fov'),
-    );
+    const up = dots.filter((d) => d.classList.contains('up'));
+    const bare = dots.filter((d) => !d.classList.contains('valid') && !d.classList.contains('up'));
     expect(valid.length).toBe(1);
-    expect(inFov.length).toBe(1);
+    expect(up.length).toBe(1);
     expect(bare.length).toBe(1);
   });
 
@@ -715,8 +732,8 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     const el = await mountCompass([d], hass);
     const text = el.shadowRoot!.textContent ?? '';
     expect(text).toContain('Sun (hitting window)');
-    expect(text).toContain('Sun (in FOV, not valid)');
-    expect(text).toContain('Sun (outside FOV)');
+    expect(text).toContain('Sun (up, not hitting)');
+    expect(text).toContain('Sun (below horizon)');
   });
 
   it('FOV swatch shares its theme token with the FOV path', () => {
@@ -742,11 +759,11 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     expect(dotValid).toMatch(/var\(--warning-color/);
   });
 
-  it('in-FOV sun dot and SVG .sun.in-fov share the same theme token', () => {
-    const svgInFov = cssBlock('.sun.in-fov ');
-    const dotInFov = cssBlock('.dot.sun.in-fov ');
-    expect(svgInFov).toMatch(/var\(--state-active-color/);
-    expect(dotInFov).toMatch(/var\(--state-active-color/);
+  it('up (not hitting) sun dot and SVG .sun.up share the same light-gold value', () => {
+    const svgUp = cssBlock('.sun.up ');
+    const dotUp = cssBlock('.dot.sun.up ');
+    expect(svgUp).toContain('#ffe680');
+    expect(dotUp).toContain('#ffe680');
   });
 });
 
