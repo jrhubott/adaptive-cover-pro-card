@@ -220,12 +220,12 @@ export const SCENARIOS: Scenario[] = [
     id: 'solar-tracking-active',
     label: 'Solar tracking active',
     description:
-      'Sun in FOV, solar handler matched, cloud suppression configured but not winning — the inverted "Solar tracking active" badge shows.',
+      'Sun in FOV, solar handler wins (cloud not suppressing) — the "Solar tracking active" badge shows.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'solar-tracking-active';
-      // Derived mode produces a real trace (solar matched) + enabled_handlers
-      // that include cloud, so the solar-active gate is satisfied.
+      // Derived mode produces a real trace where solar matched and cloud is not
+      // the winner, so the solar-active badge shows regardless of cloud config.
       c.decisionMode = 'derived';
       return c;
     },

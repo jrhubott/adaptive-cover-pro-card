@@ -196,8 +196,8 @@ describe('adaptive-cover-pro-tile-card render', () => {
   });
 
   it('renders the winner badge by default and no inline Resume (solar tracking active)', async () => {
-    // Solar wins with a matched solar trace row and cloud configured (fail-open
-    // when enabled_handlers is absent) → the inverted "solar active" badge shows.
+    // Solar wins with a matched solar trace row and cloud is not the winner →
+    // the "solar active" badge shows.
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({
@@ -210,6 +210,22 @@ describe('adaptive-cover-pro-tile-card render', () => {
     const root = el.shadowRoot!;
     expect(root.querySelector('acp-tile-badge')).toBeTruthy();
     expect(root.querySelector('.resume')).toBeFalsy();
+  });
+
+  it('shows the solar winner badge even when cloud suppression is not configured', async () => {
+    // Regression: solar wins but enabled_handlers omits cloud (cloud suppression
+    // off). The badge must still render — it no longer depends on cloud config.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({
+        decisionState: 'solar',
+        decisionAttrs: {
+          trace: [{ handler: 'solar', matched: true, reason: '', position: 60 }],
+          enabled_handlers: ['solar', 'manual'],
+        },
+      }),
+    );
+    expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeTruthy();
   });
 
   it('shows inline Resume when manual_override_binary is on', async () => {

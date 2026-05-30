@@ -1,53 +1,29 @@
 import { describe, it, expect } from 'vitest';
-import { isSolarActive, isCloudConfigured, selectVisibleBadges } from '../src/lib/badge-visibility';
+import { isSolarActive, selectVisibleBadges } from '../src/lib/badge-visibility';
 import type { BadgeKind } from '../src/const';
 
-describe('isCloudConfigured (fail-open)', () => {
-  it('returns true when enabled_handlers is undefined (older integration)', () => {
-    expect(isCloudConfigured(undefined)).toBe(true);
-  });
-
-  it('returns true when enabled_handlers includes the cloud handler', () => {
-    expect(isCloudConfigured(['solar', 'cloud', 'manual'])).toBe(true);
-  });
-
-  it('returns false when enabled_handlers is present but omits cloud', () => {
-    expect(isCloudConfigured(['solar', 'manual'])).toBe(false);
-  });
-
-  it('returns false for an empty array (present-without-cloud)', () => {
-    expect(isCloudConfigured([])).toBe(false);
-  });
-});
-
 describe('isSolarActive', () => {
-  it('is true when solar matched, cloud is not winner, and cloud configured', () => {
-    expect(isSolarActive({ solarMatched: true, cloudIsWinner: false, cloudConfigured: true })).toBe(
-      true,
-    );
+  it('is true when solar matched and cloud is not the winner', () => {
+    expect(isSolarActive({ solarMatched: true, cloudIsWinner: false })).toBe(true);
   });
 
   it('is false when solar did not match', () => {
-    expect(
-      isSolarActive({ solarMatched: false, cloudIsWinner: false, cloudConfigured: true }),
-    ).toBe(false);
+    expect(isSolarActive({ solarMatched: false, cloudIsWinner: false })).toBe(false);
   });
 
   it('is false when cloud is the winner (suppressed)', () => {
-    expect(isSolarActive({ solarMatched: true, cloudIsWinner: true, cloudConfigured: true })).toBe(
-      false,
-    );
+    expect(isSolarActive({ solarMatched: true, cloudIsWinner: true })).toBe(false);
   });
 
-  it('is false when cloud is not configured', () => {
-    expect(
-      isSolarActive({ solarMatched: true, cloudIsWinner: false, cloudConfigured: false }),
-    ).toBe(false);
+  it('is active whenever solar wins, regardless of whether cloud is configured', () => {
+    // The badge no longer depends on cloud-suppression being configured: solar
+    // matched + cloud not winning is sufficient.
+    expect(isSolarActive({ solarMatched: true, cloudIsWinner: false })).toBe(true);
   });
 });
 
 describe('selectVisibleBadges', () => {
-  const active = { solarMatched: true, cloudIsWinner: false, cloudConfigured: true };
+  const active = { solarMatched: true, cloudIsWinner: false };
 
   it('always drops the cloud badge, even when cloud is matched', () => {
     const kinds: BadgeKind[] = ['cloud', 'manual'];
@@ -60,7 +36,6 @@ describe('selectVisibleBadges', () => {
       selectVisibleBadges(kinds, undefined, {
         solarMatched: false,
         cloudIsWinner: true,
-        cloudConfigured: true,
       }),
     ).toEqual([]);
   });
@@ -74,11 +49,7 @@ describe('selectVisibleBadges', () => {
       selectVisibleBadges(
         ['solar'],
         { solar: true },
-        {
-          solarMatched: false,
-          cloudIsWinner: false,
-          cloudConfigured: true,
-        },
+        { solarMatched: false, cloudIsWinner: false },
       ),
     ).toEqual([]);
   });
@@ -119,7 +90,6 @@ describe('selectVisibleBadges', () => {
         {
           solarMatched: false,
           cloudIsWinner: false,
-          cloudConfigured: true,
         },
       ),
     ).toEqual(['auto', 'off']);
