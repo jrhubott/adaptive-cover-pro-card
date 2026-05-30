@@ -9,6 +9,18 @@ interface DialogLike extends HTMLElement {
   discovered?: DiscoveredEntities;
   open?: boolean;
   showCompass?: boolean;
+  badges?: Record<string, boolean>;
+}
+
+function badgeKinds(el: DialogLike): string[] {
+  return Array.from(el.shadowRoot!.querySelectorAll('.header acp-tile-badge')).map((b) => {
+    const span = b.shadowRoot!.querySelector('span.badge') as HTMLElement;
+    return (
+      Array.from(span.classList)
+        .filter((c) => c.startsWith('kind-'))
+        .map((c) => c.slice('kind-'.length))[0] ?? ''
+    );
+  });
 }
 
 async function mount(props: Partial<DialogLike>): Promise<DialogLike> {
@@ -179,6 +191,82 @@ describe('acp-more-info-dialog: header content', () => {
     });
     const txt = el.shadowRoot!.querySelector('.summary')?.textContent?.trim();
     expect(txt).toBe('Solar Tracking 100% → Manual Override 60%');
+  });
+});
+
+describe('acp-more-info-dialog: badge inversion + opt-in', () => {
+  function solarTrace() {
+    return [
+      { handler: 'solar', matched: true, position: 100, reason: '' },
+      { handler: 'default', matched: false, position: 0, reason: '' },
+    ];
+  }
+
+  it('shows the solar badge when enabled_handlers is absent (fail-open) + solar matched + cloud not winner', async () => {
+    const el = await mount({
+      hass: hass({ winner: 'solar', trace: solarTrace() }),
+      discovered: discovered(),
+      open: true,
+    });
+    expect(badgeKinds(el)).toContain('solar');
+  });
+
+  it('hides the solar badge when enabled_handlers is present without cloud (not configured)', async () => {
+    const el = await mount({
+      hass: hass({
+        winner: 'solar',
+        trace: solarTrace(),
+        traceExtraAttrs: { enabled_handlers: ['solar', 'manual'] },
+      }),
+      discovered: discovered(),
+      open: true,
+    });
+    expect(badgeKinds(el)).not.toContain('solar');
+    expect(el.shadowRoot!.querySelectorAll('.header acp-tile-badge').length).toBe(0);
+  });
+
+  it('drops the solar badge when badges.solar is false even though it is active', async () => {
+    const el = await mount({
+      hass: hass({ winner: 'solar', trace: solarTrace() }),
+      discovered: discovered(),
+      open: true,
+      badges: { solar: false },
+    });
+    expect(badgeKinds(el)).not.toContain('solar');
+  });
+
+  it('never renders a cloud badge even when the cloud handler matched', async () => {
+    const el = await mount({
+      hass: hass({
+        winner: 'cloud_suppression',
+        trace: [
+          { handler: 'cloud_suppression', matched: true, position: 0, reason: '' },
+          { handler: 'default', matched: false, position: 0, reason: '' },
+        ],
+        traceExtraAttrs: { enabled_handlers: ['cloud', 'solar'] },
+      }),
+      discovered: discovered(),
+      open: true,
+    });
+    expect(badgeKinds(el)).not.toContain('cloud');
+  });
+
+  it('respects badges.motion: false in the dialog list', async () => {
+    const el = await mount({
+      hass: hass({
+        winner: 'manual',
+        trace: [
+          { handler: 'motion_timeout', matched: true, position: 100, reason: '' },
+          { handler: 'manual_override', matched: true, position: 60, reason: '' },
+        ],
+      }),
+      discovered: discovered(),
+      open: true,
+      badges: { motion: false },
+    });
+    const kinds = badgeKinds(el);
+    expect(kinds).toContain('manual');
+    expect(kinds).not.toContain('motion');
   });
 });
 

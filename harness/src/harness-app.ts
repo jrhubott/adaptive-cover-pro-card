@@ -4,7 +4,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import { buildMockHass, type ServiceCallEvent } from './mock/hass';
 import { applyService, type ServiceCall } from './mock/services';
-import { defaultScenarioConfig } from './scenarios';
+import { defaultScenarioConfig, normalizeConfig } from './scenarios';
 import { loadConfig, saveConfig } from './persistence';
 import { setFakeNow } from './fake-clock';
 import {
@@ -23,9 +23,11 @@ const MAX_LOG_ENTRIES = 200;
 
 @customElement('acp-harness-app')
 export class AcpHarnessApp extends LitElement {
-  // URL hash > localStorage > default preset.
-  @state() private _config: HarnessConfig =
-    readStateFromUrl() ?? loadConfig() ?? defaultScenarioConfig();
+  // URL hash > localStorage > default preset. Normalize so configs persisted
+  // before newer fields (e.g. tile.badges) were added get them backfilled.
+  @state() private _config: HarnessConfig = normalizeConfig(
+    readStateFromUrl() ?? loadConfig() ?? defaultScenarioConfig(),
+  );
   @state() private _hass!: HomeAssistant;
   @state() private _log: ServiceCall[] = [];
   @state() private _shareToast: string | null = null;

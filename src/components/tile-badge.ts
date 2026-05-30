@@ -1,15 +1,9 @@
-import { LitElement, html, css, type TemplateResult } from 'lit';
+import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
-import {
-  BADGE_I18N_KEYS,
-  BADGE_KINDS_BY_HANDLER,
-  BADGE_TOKENS,
-  type BadgeKind,
-  type HandlerName,
-} from '../const';
-import { normalizeHandler } from '../lib/decision-summary';
+import { BADGE_I18N_KEYS, BADGE_ICONS, BADGE_TOKENS, type BadgeKind } from '../const';
+import { winnerBadgeKind } from '../lib/badge-visibility';
 import { formatClock } from '../lib/formatters';
 import { t } from '../lib/i18n';
 
@@ -59,20 +53,21 @@ export class TileBadge extends LitElement {
     const tokens = BADGE_TOKENS[kind];
     const base = this.hass ? t(BADGE_I18N_KEYS[kind], this.hass) : tokens.label;
     const label = this._label(kind, base);
+    const icon = BADGE_ICONS[kind];
     return html`<span
       class="badge kind-${kind}"
       style="background:${tokens.bg};color:${tokens.fg};"
       part="badge"
-      >${label}</span
+      >${icon ? html`<ha-icon class="badge-icon" icon=${icon}></ha-icon>` : nothing}${label}</span
     >`;
   }
 
   private _kind(): BadgeKind {
-    if (this.integrationEnabled === false) return 'off';
-    const normalized = normalizeHandler(this.winner) as HandlerName;
-    if (this.manualActive && normalized !== 'force' && normalized !== 'custom_position')
-      return 'manual';
-    return BADGE_KINDS_BY_HANDLER[normalized] ?? 'auto';
+    return winnerBadgeKind({
+      winner: this.winner,
+      integrationEnabled: this.integrationEnabled,
+      manualActive: this.manualActive,
+    });
   }
 
   private _label(kind: BadgeKind, base: string): string {
@@ -107,6 +102,7 @@ export class TileBadge extends LitElement {
     .badge {
       display: inline-flex;
       align-items: center;
+      gap: 4px;
       padding: 2px 8px;
       border-radius: 999px;
       font-size: 0.75rem;
@@ -114,9 +110,17 @@ export class TileBadge extends LitElement {
       white-space: nowrap;
       line-height: 1.4;
     }
+    .badge-icon {
+      --mdc-icon-size: 14px;
+      line-height: 0;
+      flex: 0 0 auto;
+    }
     :host([compact]) .badge {
       padding: 1px 6px;
       font-size: 0.7rem;
+    }
+    :host([compact]) .badge-icon {
+      --mdc-icon-size: 12px;
     }
   `;
 }

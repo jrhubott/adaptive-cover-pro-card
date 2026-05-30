@@ -142,7 +142,7 @@ export const BADGE_TOKENS: Record<BadgeKind, BadgeTokens> = {
   climate: { label: 'Climate', bg: 'rgba(0, 150, 136, 0.22)', fg: '#00695c' },
   cloud: { label: 'Cloudy', bg: 'rgba(33, 150, 243, 0.22)', fg: '#0d47a1' },
   custom_position: { label: 'Custom', bg: 'rgba(156, 39, 176, 0.22)', fg: '#6a1b9a' },
-  solar: { label: 'Sun tracking', bg: 'rgba(76, 175, 80, 0.22)', fg: '#1b5e20' },
+  solar: { label: 'Solar tracking active', bg: 'rgba(76, 175, 80, 0.22)', fg: '#1b5e20' },
   motion: { label: 'Motion', bg: 'rgba(255, 235, 59, 0.22)', fg: '#827717' },
   off: { label: 'Off', bg: 'rgba(97, 97, 97, 0.28)', fg: '#212121' },
 };
@@ -165,6 +165,24 @@ export const BADGE_I18N_KEYS: Record<BadgeKind, string> = {
   solar: 'badge.solar',
   motion: 'badge.motion',
   off: 'badge.off',
+};
+
+/**
+ * Leading mdi icon rendered inside each badge. `cloud` keeps an entry for
+ * taxonomy completeness but never renders as a badge (it's filtered upstream).
+ */
+export const BADGE_ICONS: Record<BadgeKind, string> = {
+  auto: 'mdi:autorenew',
+  manual: 'mdi:hand-back-right',
+  force: 'mdi:flash',
+  weather: 'mdi:shield-sun',
+  glare_zone: 'mdi:weather-sunny-alert',
+  climate: 'mdi:thermostat',
+  cloud: 'mdi:weather-cloudy',
+  custom_position: 'mdi:bookmark',
+  solar: 'mdi:white-balance-sunny',
+  motion: 'mdi:motion-sensor',
+  off: 'mdi:power',
 };
 
 /** Logical slots the card binds to. */

@@ -31,7 +31,7 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'badge.climate': 'Climate',
   'badge.cloud': 'Cloudy',
   'badge.custom_position': 'Custom',
-  'badge.solar': 'Sun tracking',
+  'badge.solar': 'Solar tracking active',
   'badge.motion': 'Motion',
   'badge.off': 'Off',
   'root.loading_registry': 'Loading entity registry…',

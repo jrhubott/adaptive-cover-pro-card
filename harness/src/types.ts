@@ -112,6 +112,17 @@ export interface TileCardOptions {
   show_decision_summary: boolean;
   show_controls: boolean;
   show_badge: boolean;
+  /** Per-kind badge opt-in. All default on; only `false` hides the kind. */
+  badges: {
+    solar: boolean;
+    force: boolean;
+    weather: boolean;
+    manual: boolean;
+    custom_position: boolean;
+    motion: boolean;
+    climate: boolean;
+    glare_zone: boolean;
+  };
   show_compass: boolean;
   show_motion_icon: boolean;
   show_resume: 'auto' | 'always' | 'never';

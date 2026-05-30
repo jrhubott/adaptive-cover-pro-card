@@ -758,6 +758,31 @@ export class AcpHarnessControlPanel extends LitElement {
             this._emit({ ...this.config, tile: { ...this.config.tile, [k]: v } }),
           ),
         )}
+        <fieldset class="entry">
+          <legend>Badges (opt-in)</legend>
+          ${(
+            [
+              'solar',
+              'force',
+              'weather',
+              'manual',
+              'custom_position',
+              'motion',
+              'climate',
+              'glare_zone',
+            ] as const
+          ).map((k) =>
+            this._checkbox(`badge: ${k}`, this.config.tile.badges?.[k] ?? true, (v) =>
+              this._emit({
+                ...this.config,
+                tile: {
+                  ...this.config.tile,
+                  badges: { ...(this.config.tile.badges ?? {}), [k]: v },
+                },
+              }),
+            ),
+          )}
+        </fieldset>
         <label class="row">
           <span>show_resume</span>
           <select

@@ -25,6 +25,20 @@ interface HaFormSchemaItem {
 
 // Mirror the runtime defaults applied in adaptive-cover-pro-tile-card.ts so the
 // editor toggles reflect actual behavior when a key is omitted from YAML.
+// The 8 configurable handler-badge kinds, surfaced as flat `badge_<kind>`
+// boolean fields in the form and reassembled into a nested `badges` object on
+// emit. `off` and `auto` are state-fallbacks and are never user-configurable.
+const BADGE_KINDS = [
+  'solar',
+  'force',
+  'weather',
+  'manual',
+  'custom_position',
+  'motion',
+  'climate',
+  'glare_zone',
+] as const;
+
 const FORM_DEFAULTS = {
   show_position: true,
   show_state: true,
@@ -35,6 +49,15 @@ const FORM_DEFAULTS = {
   show_motion_icon: true,
   show_resume: 'auto',
   layout: 'one-line',
+  // All badges default on; only `=== false` hides.
+  badge_solar: true,
+  badge_force: true,
+  badge_weather: true,
+  badge_manual: true,
+  badge_custom_position: true,
+  badge_motion: true,
+  badge_climate: true,
+  badge_glare_zone: true,
 } as const;
 
 const LABEL_KEYS: Record<string, string> = {
@@ -48,6 +71,14 @@ const LABEL_KEYS: Record<string, string> = {
   show_decision_summary: 'editor.tile.show_decision_summary',
   show_controls: 'editor.tile.show_controls',
   show_badge: 'editor.tile.show_badge',
+  badge_solar: 'editor.tile.badge_solar',
+  badge_force: 'editor.tile.badge_force',
+  badge_weather: 'editor.tile.badge_weather',
+  badge_manual: 'editor.tile.badge_manual',
+  badge_custom_position: 'editor.tile.badge_custom_position',
+  badge_motion: 'editor.tile.badge_motion',
+  badge_climate: 'editor.tile.badge_climate',
+  badge_glare_zone: 'editor.tile.badge_glare_zone',
   show_compass: 'editor.tile.show_compass',
   show_motion_icon: 'editor.tile.show_motion_icon',
   show_resume: 'editor.tile.show_resume',
@@ -185,13 +216,36 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     // the user's config, so the YAML stays minimal.
     const cleaned: Record<string, unknown> = { ...value };
     for (const [k, def] of Object.entries(FORM_DEFAULTS)) {
+      // The flat badge_* fields don't live on _config (they're nested under
+      // `badges`), so treat them purely as default-prunable: drop them whenever
+      // they equal the default (true). Off badges survive and are reassembled
+      // into the nested object below.
+      if (k.startsWith('badge_')) {
+        if (cleaned[k] === def) delete cleaned[k];
+        continue;
+      }
       const wasSet = this._config && Object.prototype.hasOwnProperty.call(this._config, k);
       if (!wasSet && cleaned[k] === def) delete cleaned[k];
     }
-    this._emit({
+
+    // Reassemble the surviving flat badge_<kind>=false fields into a nested
+    // `badges` object, and strip the flat keys so they don't leak into YAML.
+    const badges: Record<string, boolean> = {};
+    for (const k of BADGE_KINDS) {
+      const flatKey = `badge_${k}`;
+      if (cleaned[flatKey] === false) badges[k] = false;
+      delete cleaned[flatKey];
+    }
+
+    const next: Record<string, unknown> = {
       ...(this._config ?? { type: '', entry_id: '' }),
-      ...(cleaned as Partial<AdaptiveCoverProTileCardConfig>),
-    });
+      ...cleaned,
+    };
+    // Prune the object entirely when all eight badges are on (keeps YAML minimal).
+    if (Object.keys(badges).length > 0) next.badges = badges;
+    else delete next.badges;
+
+    this._emit(next as AdaptiveCoverProTileCardConfig);
   };
 
   protected render(): TemplateResult | typeof nothing {
@@ -224,7 +278,14 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     }
 
     const schema = this._schema();
-    const data = { ...FORM_DEFAULTS, ...this._config };
+    // Flatten the nested `badges` object into `badge_<kind>` form fields. The
+    // `badges` key itself is not a form field, so drop it from `data`.
+    const { badges, ...rest } = this._config;
+    const flatBadges: Record<string, boolean> = {};
+    for (const k of BADGE_KINDS) {
+      if (badges && badges[k] === false) flatBadges[`badge_${k}`] = false;
+    }
+    const data = { ...FORM_DEFAULTS, ...rest, ...flatBadges };
 
     return html`
       <ha-form
@@ -289,6 +350,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       { name: 'show_decision_summary', selector: { boolean: {} } },
       { name: 'show_controls', selector: { boolean: {} } },
       { name: 'show_badge', selector: { boolean: {} } },
+      ...BADGE_KINDS.map((k) => ({ name: `badge_${k}`, selector: { boolean: {} } })),
       { name: 'show_motion_icon', selector: { boolean: {} } },
       { name: 'show_compass', selector: { boolean: {} } },
       {

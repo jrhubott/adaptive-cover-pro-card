@@ -144,6 +144,11 @@ export class AcpHarnessCardStage extends LitElement {
 
   private _tileConfig(entryId: string): Record<string, unknown> {
     const t = this.config.tile;
+    // Only the off badges need to be passed; omitted kinds default on.
+    const badges: Record<string, boolean> = {};
+    for (const [k, on] of Object.entries(t.badges ?? {})) {
+      if (!on) badges[k] = false;
+    }
     return {
       type: `custom:${TILE_CARD_NAME}`,
       entry_id: entryId,
@@ -152,6 +157,7 @@ export class AcpHarnessCardStage extends LitElement {
       show_decision_summary: t.show_decision_summary,
       show_controls: t.show_controls,
       show_badge: t.show_badge,
+      ...(Object.keys(badges).length > 0 ? { badges } : {}),
       show_compass: t.show_compass,
       show_motion_icon: t.show_motion_icon,
       show_resume: t.show_resume,
