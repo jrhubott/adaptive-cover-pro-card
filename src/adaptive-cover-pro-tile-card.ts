@@ -31,6 +31,11 @@ import {
   resolveCustomPositionPct,
   resolveActiveMinModeFloor,
 } from './lib/decision-summary';
+import {
+  buildSolarActiveContext,
+  selectVisibleBadges,
+  winnerBadgeKind,
+} from './lib/badge-visibility';
 import { formatCoverState, formatPercent } from './lib/formatters';
 import { t } from './lib/i18n';
 
@@ -169,6 +174,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
         .discovered=${discovered}
         .open=${this._dialogOpen}
         .showCompass=${this._config.show_compass !== false}
+        .badges=${this._config.badges}
         @acp-dialog-close=${this._closeDialog}
       ></acp-more-info-dialog>
     `;
@@ -221,7 +227,19 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const hasBottomSummary = !!summary && detailed;
     const integrationEnabled = this._switchOn(discovered, 'integration_enabled_switch');
     const automaticControl = this._switchOn(discovered, 'automatic_control_switch');
-    const renderBadge = showBadge && !(automaticControl === false && integrationEnabled === true);
+    const manualActive = this._manualOverrideOn(discovered);
+    // Filter the single winner badge through the same inversion + per-badge
+    // opt-in used by the dialog. When cloud wins, the badge is dropped (blank).
+    const winnerKind = winnerBadgeKind({ winner, integrationEnabled, manualActive });
+    const solarCtx = buildSolarActiveContext(
+      traceAttrs?.trace,
+      winner,
+      traceAttrs?.enabled_handlers,
+    );
+    const winnerVisible =
+      selectVisibleBadges([winnerKind], this._config!.badges, solarCtx).length > 0;
+    const renderBadge =
+      showBadge && winnerVisible && !(automaticControl === false && integrationEnabled === true);
     const stateText = showState ? formatCoverState(this.hass, cover) : null;
     const positionText = showPosition && livePosition !== null ? formatPercent(livePosition) : null;
     const labelParts = [stateText, positionText].filter((p): p is string => !!p);
@@ -317,7 +335,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
               .pct=${resolveCustomPositionPct(traceAttrs, calculatedPosition) ?? undefined}
               .minimumMode=${traceAttrs?.custom_position_minimum_mode}
               .manualEndIso=${manualEndIso}
-              .manualActive=${this._manualOverrideOn(discovered)}
+              .manualActive=${manualActive}
             ></acp-tile-badge>`
           : nothing}
         ${showResume

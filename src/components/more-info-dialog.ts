@@ -3,10 +3,12 @@ import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
 import {
+  BADGE_KINDS_BY_HANDLER,
   COVER_TYPE_ICONS,
   HANDLER_I18N_KEYS,
   HANDLER_ORDER,
   INTEGRATION_DOMAIN,
+  type BadgeKind,
   type HandlerName,
 } from '../const';
 import {
@@ -14,7 +16,9 @@ import {
   normalizeHandler,
   resolveCustomPositionPct,
 } from '../lib/decision-summary';
+import { buildSolarActiveContext, selectVisibleBadges } from '../lib/badge-visibility';
 import type {
+  AdaptiveCoverProTileCardConfig,
   CustomPositionSlotSnapshot,
   DecisionTraceAttributes,
   DecisionStep,
@@ -54,6 +58,9 @@ export class MoreInfoDialog extends LitElement {
   @property({ type: Boolean }) public advancedOpen = false;
   @property({ type: Boolean }) public showCompass = true;
 
+  /** Per-kind badge opt-in, threaded down from the tile-card config. */
+  @property({ attribute: false }) public badges?: AdaptiveCoverProTileCardConfig['badges'];
+
   private _buildHandlerLabels(): Record<string, string> {
     const labels: Record<string, string> = {};
     for (const [key, dotted] of Object.entries(HANDLER_I18N_KEYS)) {
@@ -66,7 +73,7 @@ export class MoreInfoDialog extends LitElement {
     if (!this.open || !this.hass || !this.discovered) return nothing;
     const winner = this._winner();
     const attrs = this._traceAttrs();
-    const matched = this._matchedHandlers(attrs);
+    const matched = this._matchedHandlers(attrs, winner);
     const summary = attrs
       ? buildDecisionSentence(attrs.trace ?? [], attrs, winner, this._buildHandlerLabels())
       : '';
@@ -211,7 +218,10 @@ export class MoreInfoDialog extends LitElement {
     return this.hass.states[id]?.attributes as unknown as DecisionTraceAttributes | undefined;
   }
 
-  private _matchedHandlers(attrs: DecisionTraceAttributes | undefined): HandlerName[] {
+  private _matchedHandlers(
+    attrs: DecisionTraceAttributes | undefined,
+    winner: string,
+  ): BadgeKind[] {
     if (!attrs?.trace) return [];
     const matched = new Set<HandlerName>();
     for (const row of attrs.trace as DecisionStep[]) {
@@ -219,8 +229,13 @@ export class MoreInfoDialog extends LitElement {
       const key = normalizeHandler(row.handler) as HandlerName;
       if (HANDLER_ORDER.includes(key)) matched.add(key);
     }
-    // Preserve HANDLER_ORDER (highest priority first) for badge sequence.
-    return HANDLER_ORDER.filter((h) => matched.has(h));
+    // Preserve HANDLER_ORDER (highest priority first), then map each matched
+    // handler to its badge kind so the inversion + per-badge opt-in apply.
+    const kinds = HANDLER_ORDER.filter((h) => matched.has(h))
+      .map((h) => BADGE_KINDS_BY_HANDLER[h])
+      .filter((k): k is BadgeKind => k !== undefined);
+    const ctx = buildSolarActiveContext(attrs.trace, winner, attrs.enabled_handlers);
+    return selectVisibleBadges(kinds, this.badges, ctx);
   }
 
   private _target(): number | null {

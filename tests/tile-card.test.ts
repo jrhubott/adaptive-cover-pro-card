@@ -195,8 +195,18 @@ describe('adaptive-cover-pro-tile-card render', () => {
     expect(el.shadowRoot!.querySelector('.position')).toBeFalsy();
   });
 
-  it('renders the Auto badge by default and no inline Resume', async () => {
-    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass({ decisionState: 'solar' }));
+  it('renders the winner badge by default and no inline Resume (solar tracking active)', async () => {
+    // Solar wins with a matched solar trace row and cloud configured (fail-open
+    // when enabled_handlers is absent) → the inverted "solar active" badge shows.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({
+        decisionState: 'solar',
+        decisionAttrs: {
+          trace: [{ handler: 'solar', matched: true, reason: '', position: 60 }],
+        },
+      }),
+    );
     const root = el.shadowRoot!;
     expect(root.querySelector('acp-tile-badge')).toBeTruthy();
     expect(root.querySelector('.resume')).toBeFalsy();
@@ -554,6 +564,46 @@ describe('adaptive-cover-pro-tile-card new options', () => {
   it('show_badge: false hides the contextual badge', async () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY, show_badge: false }, makeHass());
     expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeFalsy();
+  });
+
+  it('renders no badge when the cloud_suppression handler wins (suppressed)', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({
+        decisionState: 'cloud_suppression',
+        decisionAttrs: {
+          trace: [{ handler: 'cloud_suppression', matched: true, reason: '', position: 0 }],
+          enabled_handlers: ['cloud', 'solar'],
+        },
+      }),
+    );
+    expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeFalsy();
+  });
+
+  it('badges:{motion:false} hides the badge when motion wins', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, badges: { motion: false } },
+      makeHass({
+        decisionState: 'motion_timeout',
+        decisionAttrs: {
+          trace: [{ handler: 'motion_timeout', matched: true, reason: '', position: 100 }],
+        },
+      }),
+    );
+    expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeFalsy();
+  });
+
+  it('badges:{motion:true} (default) still shows the badge when motion wins', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({
+        decisionState: 'motion_timeout',
+        decisionAttrs: {
+          trace: [{ handler: 'motion_timeout', matched: true, reason: '', position: 100 }],
+        },
+      }),
+    );
+    expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeTruthy();
   });
 
   it('icon overrides the cover_type default', async () => {

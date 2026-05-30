@@ -40,6 +40,20 @@ function defaultCompass(): HarnessConfig['compass'] {
   };
 }
 
+/** Every badge kind on — the default opt-in state. */
+export function defaultBadges(): HarnessConfig['tile']['badges'] {
+  return {
+    solar: true,
+    force: true,
+    weather: true,
+    manual: true,
+    custom_position: true,
+    motion: true,
+    climate: true,
+    glare_zone: true,
+  };
+}
+
 function defaultTile(): HarnessConfig['tile'] {
   return {
     enabled: true,
@@ -48,6 +62,7 @@ function defaultTile(): HarnessConfig['tile'] {
     show_decision_summary: false,
     show_controls: true,
     show_badge: true,
+    badges: defaultBadges(),
     show_compass: true,
     show_motion_icon: true,
     show_resume: 'auto',
@@ -202,6 +217,33 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'solar-tracking-active',
+    label: 'Solar tracking active',
+    description:
+      'Sun in FOV, solar handler matched, cloud suppression configured but not winning — the inverted "Solar tracking active" badge shows.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'solar-tracking-active';
+      // Derived mode produces a real trace (solar matched) + enabled_handlers
+      // that include cloud, so the solar-active gate is satisfied.
+      c.decisionMode = 'derived';
+      return c;
+    },
+  },
+  {
+    id: 'cloud-suppressed',
+    label: 'Cloud suppressed — no badge',
+    description:
+      'Cloud-suppression handler wins (tracking suppressed). The cloud badge is dropped, so the tile shows no badge.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'cloud-suppressed';
+      c.decisionMode = 'scripted';
+      c.scriptedWinner = 'cloud';
+      return c;
+    },
+  },
+  {
     id: 'multi-window',
     label: 'Multi-window — south + west',
     description: 'Two entries with overlapping FOV wedges.',
@@ -237,4 +279,20 @@ export function findScenario(id: string): Scenario | undefined {
 
 export function defaultScenarioConfig(): HarnessConfig {
   return SCENARIOS[0].build();
+}
+
+/**
+ * Backfill fields added after a persisted config was saved. Configs restored
+ * from localStorage or a shared URL may predate newer keys (e.g. `tile.badges`),
+ * so merge them over the defaults before they reach the UI — otherwise a missing
+ * key throws mid-render and the control panel disappears.
+ */
+export function normalizeConfig(cfg: HarnessConfig): HarnessConfig {
+  return {
+    ...cfg,
+    tile: {
+      ...cfg.tile,
+      badges: { ...defaultBadges(), ...(cfg.tile?.badges ?? {}) },
+    },
+  };
 }
