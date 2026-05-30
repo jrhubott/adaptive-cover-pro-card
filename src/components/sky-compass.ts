@@ -178,9 +178,12 @@ export class SkyCompass extends LitElement {
     const moonX = moonPt ? moonPt.x * OUTER_R : 0;
     const moonY = moonPt ? moonPt.y * OUTER_R : 0;
 
+    // Plot the full 24h track: daytime samples bow toward the centre (higher
+    // elevation = smaller radius) while below-horizon samples clamp to the
+    // outer rim (elevationToRadius maps elevation <= 0 to radius 1), so the
+    // not-visible portion of the path traces around the outside of the circle.
     const pathPoints = this.showSunPath
       ? samples
-          .filter((s) => s.elevation > 0)
           .map((s) => {
             const pt = sunDotPosition(s.azimuth, s.elevation, o);
             return `${(pt.x * OUTER_R).toFixed(1)},${(pt.y * OUTER_R).toFixed(1)}`;

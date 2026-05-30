@@ -423,6 +423,25 @@ describe('acp-sky-compass visual toggles', () => {
     expect(el.shadowRoot!.querySelector('polyline.sun-path')).toBeNull();
   });
 
+  it('sun-path plots the full 24h track, with below-horizon points on the outer rim', async () => {
+    const el = await mountCompass([d()], hass());
+    const poly = el.shadowRoot!.querySelector('polyline.sun-path') as SVGPolylineElement;
+    expect(poly).not.toBeNull();
+    const OUTER_R = 110;
+    const mags = (poly.getAttribute('points') ?? '')
+      .trim()
+      .split(/\s+/)
+      .map((p) => {
+        const [x, y] = p.split(',').map(Number);
+        return Math.hypot(x, y);
+      });
+    // Below-horizon samples clamp to the rim and ride around the outside…
+    const onRim = mags.filter((m) => Math.abs(m - OUTER_R) < 0.5);
+    expect(onRim.length).toBeGreaterThan(0);
+    // …while daytime samples bow toward the centre.
+    expect(Math.min(...mags)).toBeLessThan(OUTER_R * 0.9);
+  });
+
   it('showSunriseSunset=false hides rise/set markers', async () => {
     const el = await mountCompass([d()], hass(), { showSunriseSunset: false });
     expect(el.shadowRoot!.querySelector('circle.rise-marker')).toBeNull();
