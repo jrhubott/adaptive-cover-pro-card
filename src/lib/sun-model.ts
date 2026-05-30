@@ -45,6 +45,55 @@ export function startOfDay(ref: Date = new Date()): Date {
 }
 
 /**
+ * The offset (ms) between wall-clock time in `timeZone` and UTC at `date`,
+ * i.e. `localWallTimeAsUTC − date`. Positive east of Greenwich.
+ */
+function zoneOffsetMs(timeZone: string, date: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const f: Record<string, number> = {};
+  for (const p of parts) if (p.type !== 'literal') f[p.type] = Number(p.value);
+  const asUTC = Date.UTC(f.year, f.month - 1, f.day, f.hour, f.minute, f.second);
+  return asUTC - date.getTime();
+}
+
+/**
+ * Midnight (start of day) in the given IANA `timeZone`, returned as an absolute
+ * instant. Use this instead of `startOfDay()` when the sun is sampled for a
+ * location whose timezone may differ from the browser's — otherwise the 24h
+ * sample window is anchored to the *viewer's* midnight, not the *location's*,
+ * shifting the whole sun path (and sunrise/sunset/FOV) by the offset between
+ * the two zones.
+ *
+ * Falls back to browser-local `startOfDay(ref)` when `timeZone` is missing.
+ */
+export function startOfDayInZone(timeZone: string | undefined, ref: Date = new Date()): Date {
+  if (!timeZone) return startOfDay(ref);
+  // Calendar date (Y/M/D) as it reads in the target zone right now.
+  const ymd = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(ref);
+  const [y, m, d] = ymd.split('-').map(Number);
+  // Naïve guess: that wall date at 00:00 treated as if it were UTC.
+  const guessMs = Date.UTC(y, m - 1, d, 0, 0, 0);
+  // Correct by the zone's offset near that instant (DST-safe except the rare
+  // midnight-DST transition — acceptable for a visualisation).
+  const offset = zoneOffsetMs(timeZone, new Date(guessMs));
+  return new Date(guessMs - offset);
+}
+
+/**
  * True when an azimuth falls inside a FOV wedge.
  * `windowAzi` is the window normal (0..360). `fovLeft` and `fovRight` are
  * positive degrees to each side. Handles wedges crossing 0°.
@@ -63,12 +112,37 @@ export function azimuthInFov(
 }
 
 /**
- * Find the start/end indices of the contiguous "sun in FOV + above horizon"
- * window for today. Returns null if the sun never enters the FOV today.
- *
- * A FOV can span multiple disjoint windows in edge cases (e.g. very narrow
- * blind spots), but for the typical ACP use case we just return the
- * longest contiguous valid run — good enough for visualisation.
+ * Find every disjoint "sun in FOV + above horizon" run for the sampled day, in
+ * chronological order. A window facing toward the pole (north in the N
+ * hemisphere) at high latitude catches the sun twice — once on each side of the
+ * window normal — producing two separate runs; this returns both.
+ */
+export function findFovWindows(
+  samples: SunSample[],
+  windowAzi: number,
+  fovLeft: number,
+  fovRight: number,
+): Array<{ startIdx: number; endIdx: number }> {
+  const runs: Array<{ startIdx: number; endIdx: number }> = [];
+  let curStart = -1;
+  for (let i = 0; i < samples.length; i++) {
+    const s = samples[i];
+    const inside = s.elevation > 0 && azimuthInFov(s.azimuth, windowAzi, fovLeft, fovRight);
+    if (inside) {
+      if (curStart === -1) curStart = i;
+    } else if (curStart !== -1) {
+      runs.push({ startIdx: curStart, endIdx: i - 1 });
+      curStart = -1;
+    }
+  }
+  if (curStart !== -1) runs.push({ startIdx: curStart, endIdx: samples.length - 1 });
+  return runs;
+}
+
+/**
+ * The single longest contiguous "sun in FOV + above horizon" run for today, or
+ * null if the sun never enters the FOV. For all disjoint runs see
+ * {@link findFovWindows}.
  */
 export function findFovWindow(
   samples: SunSample[],
@@ -76,24 +150,9 @@ export function findFovWindow(
   fovLeft: number,
   fovRight: number,
 ): { startIdx: number; endIdx: number } | null {
-  let bestStart = -1;
-  let bestEnd = -1;
-  let curStart = -1;
-  for (let i = 0; i < samples.length; i++) {
-    const s = samples[i];
-    const inside = s.elevation > 0 && azimuthInFov(s.azimuth, windowAzi, fovLeft, fovRight);
-    if (inside) {
-      if (curStart === -1) curStart = i;
-      if (i - curStart > bestEnd - bestStart) {
-        bestStart = curStart;
-        bestEnd = i;
-      }
-    } else {
-      curStart = -1;
-    }
-  }
-  if (bestStart === -1) return null;
-  return { startIdx: bestStart, endIdx: bestEnd };
+  const runs = findFovWindows(samples, windowAzi, fovLeft, fovRight);
+  if (runs.length === 0) return null;
+  return runs.reduce((best, r) => (r.endIdx - r.startIdx > best.endIdx - best.startIdx ? r : best));
 }
 
 export interface MoonData {
@@ -130,24 +189,32 @@ function _phaseName(p: number): string {
 }
 
 /**
- * Return the azimuths of the first and last above-horizon sun samples.
- * These approximate the compass directions of sunrise and sunset.
- * Returns null for either if the sun never rises (or never sets) today.
+ * Return the compass azimuths of sunrise and sunset, detected as the actual
+ * horizon crossings within the sampled day: rise is the first below→above
+ * transition, set is the last above→below transition.
+ *
+ * Returns null for either when no such crossing exists in the window — e.g. a
+ * polar day (sun never sets) or a window misaligned so the boundary samples are
+ * already above horizon. This avoids reporting a window-edge sample as a false
+ * sunrise/sunset.
  */
 export function sunriseSetAzimuths(samples: SunSample[]): {
   riseAzimuth: number | null;
   setAzimuth: number | null;
 } {
-  let riseIdx = -1;
-  let setIdx = -1;
-  for (let i = 0; i < samples.length; i++) {
-    if (samples[i].elevation > 0) {
-      if (riseIdx === -1) riseIdx = i;
-      setIdx = i;
+  let riseAzimuth: number | null = null;
+  let setAzimuth: number | null = null;
+  for (let i = 1; i < samples.length; i++) {
+    const prev = samples[i - 1];
+    const cur = samples[i];
+    // below→above: first qualifying crossing is sunrise
+    if (prev.elevation <= 0 && cur.elevation > 0 && riseAzimuth === null) {
+      riseAzimuth = cur.azimuth;
+    }
+    // above→below: keep the last qualifying crossing as sunset
+    if (prev.elevation > 0 && cur.elevation <= 0) {
+      setAzimuth = prev.azimuth;
     }
   }
-  return {
-    riseAzimuth: riseIdx >= 0 ? samples[riseIdx].azimuth : null,
-    setAzimuth: setIdx >= 0 ? samples[setIdx].azimuth : null,
-  };
+  return { riseAzimuth, setAzimuth };
 }

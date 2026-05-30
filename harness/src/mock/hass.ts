@@ -1,6 +1,7 @@
 import type { HomeAssistant } from 'custom-card-helpers';
 import { HANDLER_I18N_KEYS, HANDLER_LABELS, type HandlerName } from '../../../src/const';
 import type { HarnessConfig } from '../types';
+import { zoneForLongitude } from '../zone';
 import { buildRegistry } from './registry';
 import { buildStates, type GeneratedStates } from './state-gen';
 
@@ -108,8 +109,9 @@ export function buildMockHass(
     config: {
       latitude: cfg.latitude,
       longitude: cfg.longitude,
-      // Minimum HA config; the cards don't read more than lat/lon.
-      time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      // Report the zone matching the configured longitude (not the dev
+      // machine's) so the card anchors its sun day to the *location's* day.
+      time_zone: zoneForLongitude(cfg.longitude),
       unit_system: { temperature: '°C', length: 'km', mass: 'kg' },
     } as unknown as HomeAssistant['config'],
     language: 'en' as HomeAssistant['language'],

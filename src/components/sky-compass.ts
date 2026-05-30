@@ -5,18 +5,21 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { DiscoveredEntities, SunPositionAttributes } from '../types';
 import {
+  arcsOverlap,
   azimuthToCartesian,
   blindSpotBearings,
   clampActiveArcToFov,
   elevationGatedFovBounds,
   fovBandRadii,
+  fovRunBounds,
   normalizeAzimuth,
   sunDotPosition,
   wedgePath,
 } from '../lib/geometry';
 import {
+  findFovWindows,
   sampleDay,
-  startOfDay,
+  startOfDayInZone,
   sunriseSetAzimuths,
   getMoonData,
   type SunSample,
@@ -154,13 +157,14 @@ export class SkyCompass extends LitElement {
     const belowHorizon = sunElev <= 0;
     const sunDotClass = belowHorizon ? 'sun' : anyValid ? 'sun valid' : 'sun up';
 
-    const { latitude, longitude } = this.hass.config as unknown as {
+    const { latitude, longitude, time_zone } = this.hass.config as unknown as {
       latitude?: number;
       longitude?: number;
+      time_zone?: string;
     };
     const samples =
       latitude !== undefined && longitude !== undefined
-        ? sampleDay(latitude, longitude, startOfDay())
+        ? sampleDay(latitude, longitude, startOfDayInZone(time_zone))
         : [];
 
     const moon =
@@ -261,12 +265,12 @@ export class SkyCompass extends LitElement {
 
             ${
               this.showSunriseSunset && risePt && riseAzimuth !== null
-                ? svg`<g data-tooltip=${ttRise}><title>${ttRise}</title><circle class="rise-marker" cx=${risePt.x} cy=${risePt.y} r="4"></circle></g>`
+                ? svg`<g data-tooltip=${ttRise}><title>${ttRise}</title><circle class="rise-marker" cx=${risePt.x} cy=${risePt.y} r="5"></circle></g>`
                 : nothing
             }
             ${
               this.showSunriseSunset && setPt && setAzimuth !== null
-                ? svg`<g data-tooltip=${ttSet}><title>${ttSet}</title><circle class="set-marker" cx=${setPt.x} cy=${setPt.y} r="4"></circle></g>`
+                ? svg`<g data-tooltip=${ttSet}><title>${ttSet}</title><circle class="set-marker" cx=${setPt.x} cy=${setPt.y} r="5"></circle></g>`
                 : nothing
             }
 
@@ -378,6 +382,26 @@ export class SkyCompass extends LitElement {
         ? wedgePath(wedgeStart, wedgeEnd, coverOuter, fovInnerR, northOffsetDeg)
         : '';
 
+    // Other FOV crossings for today. A window facing toward the pole catches the
+    // sun on both sides of the window normal, so the day has more than one
+    // disjoint "sun in FOV" run. The integration's start/end sensors describe
+    // only the active/primary arc; derive the rest from the sampled sun path and
+    // draw a wedge per run that doesn't overlap the primary wedge.
+    const extraWedges: Array<{ fov: string; cover: string; from: number; to: number }> = [];
+    for (const run of findFovWindows(samples, windowAzi, o.sun.fov_left, o.sun.fov_right)) {
+      const b = fovRunBounds(samples, run.startIdx, run.endIdx, o.sun.min_elevation);
+      if (!b || arcsOverlap(b.wedgeStart, b.wedgeEnd, wedgeStart, wedgeEnd)) continue;
+      extraWedges.push({
+        fov: wedgePath(b.wedgeStart, b.wedgeEnd, fovOuterR, fovInnerR, northOffsetDeg),
+        cover:
+          this.showCoverFill && coverOuter !== null && coverOuter > fovInnerR
+            ? wedgePath(b.wedgeStart, b.wedgeEnd, coverOuter, fovInnerR, northOffsetDeg)
+            : '',
+        from: b.wedgeStart,
+        to: b.wedgeEnd,
+      });
+    }
+
     const label = multi ? `${o.d.entry_title}: ` : '';
     const hasElevLimit = o.sun.min_elevation !== undefined || o.sun.max_elevation !== undefined;
     const elevSuffix = hasElevLimit
@@ -444,6 +468,18 @@ export class SkyCompass extends LitElement {
         <title>${ttFov}</title>
         <path class="fov" style=${fovStyle} d=${fovPath}></path>
       </g>
+      ${extraWedges.map((w) => {
+        const ttExtra = `${label}${t('compass.active_sun_arc', this.hass, {
+          from: formatDegrees(w.from),
+          to: formatDegrees(w.to),
+          elev: elevSuffix,
+        })}`;
+        return svg`<g data-tooltip=${ttExtra}>
+          <title>${ttExtra}</title>
+          <path class="fov-extra" style=${fovStyle} d=${w.fov}></path>
+          ${w.cover ? svg`<path class="cover-fill-extra" style=${coverStyle} d=${w.cover}></path>` : nothing}
+        </g>`;
+      })}
       <g class="arrow-group" data-tooltip=${ttWindow} style=${showArrow ? '' : hideStyle}>
         <title>${ttWindow}</title>
         <path class="window" style=${arrowStyle} d=${arrowPath}></path>
@@ -637,7 +673,8 @@ export class SkyCompass extends LitElement {
       stroke-width: 0.5;
       opacity: 0.5;
     }
-    .fov {
+    .fov,
+    .fov-extra {
       fill: var(--warning-color, gold);
       fill-opacity: 0.22;
       stroke: var(--warning-color, gold);
@@ -653,7 +690,8 @@ export class SkyCompass extends LitElement {
       stroke-opacity: 0.25;
       stroke-dasharray: 4 3;
     }
-    .cover-fill {
+    .cover-fill,
+    .cover-fill-extra {
       fill: var(--primary-color);
       fill-opacity: 0.3;
       stroke: var(--primary-color);
@@ -813,11 +851,15 @@ export class SkyCompass extends LitElement {
     }
     .rise-marker {
       fill: var(--warning-color, gold);
-      opacity: 0.75;
+      stroke: var(--card-background-color, #fff);
+      stroke-width: 1;
+      paint-order: stroke;
     }
     .set-marker {
       fill: var(--secondary-text-color);
-      opacity: 0.55;
+      stroke: var(--card-background-color, #fff);
+      stroke-width: 1;
+      paint-order: stroke;
     }
     .moon-outline {
       fill: none;

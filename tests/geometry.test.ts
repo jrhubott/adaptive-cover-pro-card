@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
+  arcsOverlap,
   azimuthToCartesian,
   blindSpotBearings,
   clampActiveArcToFov,
   elevationGatedFovBounds,
   elevationToRadius,
   fovBandRadii,
+  fovRunBounds,
   normalizeAzimuth,
   sunDotPosition,
   wedgePath,
@@ -344,5 +346,46 @@ describe('geometry — elevationGatedFovBounds', () => {
     ]);
     const result = elevationGatedFovBounds(samples, 180, 45, 45, undefined);
     expect(result).toBeNull();
+  });
+});
+
+describe('geometry — fovRunBounds', () => {
+  const s = (azimuth: number, elevation: number) => ({ azimuth, elevation });
+
+  it('returns first/last azimuth of the run with no elevation gate', () => {
+    const samples = [s(40, 2), s(50, 8), s(60, 12), s(70, 6)];
+    expect(fovRunBounds(samples, 0, 3, undefined)).toEqual({ wedgeStart: 40, wedgeEnd: 70 });
+  });
+
+  it('narrows the run to samples clearing the elevation gate', () => {
+    const samples = [s(40, 2), s(50, 8), s(60, 12), s(70, 6)];
+    // gate 7 → only 50/8, 60/12 qualify
+    expect(fovRunBounds(samples, 0, 3, 7)).toEqual({ wedgeStart: 50, wedgeEnd: 60 });
+  });
+
+  it('respects the start/end index window', () => {
+    const samples = [s(10, 5), s(40, 8), s(60, 9), s(300, 5)];
+    expect(fovRunBounds(samples, 1, 2, undefined)).toEqual({ wedgeStart: 40, wedgeEnd: 60 });
+  });
+
+  it('returns null when no sample in the run clears the gate', () => {
+    const samples = [s(40, 2), s(50, 3)];
+    expect(fovRunBounds(samples, 0, 1, 10)).toBeNull();
+  });
+});
+
+describe('geometry — arcsOverlap', () => {
+  it('detects overlapping arcs', () => {
+    expect(arcsOverlap(10, 50, 40, 80)).toBe(true);
+  });
+
+  it('reports disjoint arcs as non-overlapping', () => {
+    // morning NE run vs evening NW run around a north window — never overlap
+    expect(arcsOverlap(20, 70, 290, 340)).toBe(false);
+  });
+
+  it('handles arcs that wrap past north', () => {
+    expect(arcsOverlap(300, 40, 20, 60)).toBe(true); // 20..60 sits inside 300..40? overlaps at 20..40
+    expect(arcsOverlap(300, 20, 80, 140)).toBe(false);
   });
 });
