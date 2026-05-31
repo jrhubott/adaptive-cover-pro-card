@@ -101,6 +101,7 @@ const DEFAULTS = {
   only: null, // comma-separated shot names → capture just those
   outDir: 'images',
   compose: false, // vstack the tile gallery into tile-gallery.png (needs ffmpeg)
+  gap: 28, // transparent px between tiles in the composed gallery (2× density)
   build: true,
   listShots: false,
   help: false,
@@ -126,6 +127,7 @@ Options:
   --tile-width <px>   Render width for tile shots.                   (default: ${DEFAULTS.tileWidth})
   --out-dir <dir>     Output directory for PNGs.                     (default: ${DEFAULTS.outDir})
   --compose           Also vstack the tile gallery into tile-gallery.png (needs ffmpeg).
+  --gap <px>          Transparent gap between tiles in the gallery.     (default: ${DEFAULTS.gap})
   --no-build          Skip rebuilding the harness (use existing harness/dist).
   -h, --help          Show this help.
 
@@ -150,6 +152,7 @@ function parseArgs(argv) {
       case '--list-shots': o.listShots = true; break;
       case '--no-build': o.build = false; break;
       case '--compose': o.compose = true; break;
+      case '--gap': o.gap = Number(next(i++)); break;
       case '--only': o.only = next(i++).split(',').map((s) => s.trim()).filter(Boolean); break;
       case '--theme': o.theme = next(i++); break;
       case '--card-width': o.cardWidth = Number(next(i++)); break;
@@ -297,10 +300,22 @@ function composeGallery(opts, captured) {
   const inputs = [];
   for (const n of have) inputs.push('-i', path.join(ROOT, opts.outDir, `${n}.png`));
   const out = path.join(ROOT, opts.outDir, 'tile-gallery.png');
+  // Pad a transparent strip below every tile but the last so they read as
+  // separate cards on the page (matching a real stacked-tiles dashboard)
+  // instead of one touching block. Output keeps alpha so the gap is invisible
+  // on light and dark READMEs alike.
+  const pads = have
+    .map((_, i) =>
+      i === have.length - 1
+        ? `[${i}:v]format=rgba[v${i}]`
+        : `[${i}:v]format=rgba,pad=iw:ih+${opts.gap}:0:0:color=#00000000[v${i}]`,
+    )
+    .join(';');
+  const filter = `${pads};${have.map((_, i) => `[v${i}]`).join('')}vstack=inputs=${have.length}`;
   console.log('▸ Composing tile-gallery.png…');
   run(
     'ffmpeg',
-    ['-y', ...inputs, '-filter_complex', `vstack=inputs=${have.length}`, '-frames:v', '1', '-update', '1', out],
+    ['-y', ...inputs, '-filter_complex', filter, '-frames:v', '1', '-update', '1', out],
     'ffmpeg vstack',
   );
   const kb = (statSync(out).size / 1024).toFixed(0);
