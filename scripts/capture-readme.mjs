@@ -4,7 +4,8 @@
  *
  * Builds the harness once, then drives the two capture scripts with the
  * parameters that produce the committed README assets:
- *   - scripts/capture-screenshots.mjs --compose  → the still PNGs + tile gallery
+ *   - scripts/capture-screenshots.mjs --compose  → every still PNG (the card,
+ *     sky compass, tile gallery, and the more-info dialog)
  *   - scripts/capture-timelapse.mjs              → the animated sky-compass GIF
  *
  * Run it whenever the cards change and the README imagery needs refreshing:
