@@ -2,8 +2,9 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant, LovelaceCardEditor } from 'custom-card-helpers';
 
-import { CARD_VERSION, TILE_CARD_EDITOR_NAME } from './const';
+import { TILE_CARD_EDITOR_NAME } from './const';
 import { fetchAcpConfigEntries, type AcpConfigEntry } from './lib/config-entries';
+import { renderEditorFooter } from './lib/editor-footer';
 import {
   fetchEntityRegistry,
   subscribeEntityRegistry,
@@ -286,9 +287,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
                 entry_id: (e.target as HTMLInputElement).value,
               })}
           />
-          <div class="version-footer dim">
-            ${t('root.footer_version', this.hass, { version: CARD_VERSION })}
-          </div>
+          ${renderEditorFooter(this.hass)}
         </div>
       `;
     }
@@ -315,9 +314,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
         ${this._managedCovers.length > 1 && !this._config?.cover
           ? html`<div class="hint">${t('editor.tile.cover_blank_hint', this.hass)}</div>`
           : nothing}
-        <div class="version-footer dim">
-          ${t('root.footer_version', this.hass, { version: CARD_VERSION })}
-        </div>
+        ${renderEditorFooter(this.hass)}
       </div>
     `;
   }

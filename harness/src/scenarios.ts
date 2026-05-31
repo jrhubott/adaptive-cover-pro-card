@@ -483,6 +483,19 @@ export const SCENARIOS: Scenario[] = [
       return c;
     },
   },
+  {
+    id: 'winter-night-moonlit',
+    label: 'Winter night — sun below horizon',
+    description:
+      'Sun well below the horizon renders as a dim amber filled disc, distinct from the grey moon disc. Moon overlay enabled.',
+    build: () => {
+      const c = baseConfig('2026-12-21', 21 * 60);
+      c.scenario = 'winter-night-moonlit';
+      c.root.show_moon = true;
+      c.compass.show_moon = true;
+      return c;
+    },
+  },
 ];
 
 export function findScenario(id: string): Scenario | undefined {

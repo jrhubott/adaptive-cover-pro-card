@@ -179,6 +179,7 @@ export const fr: EnDict = {
   editor: {
     common: {
       entry_id: 'Instance Adaptive Cover Pro',
+      support_alt: 'Offrez-moi un café',
       title_optional: 'Titre (facultatif)',
       title_placeholder: 'ex. Fenêtres côté ouest',
       north_offset: 'Décalage nord de la boussole (°)',

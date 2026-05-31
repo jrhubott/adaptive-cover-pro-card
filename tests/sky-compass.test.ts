@@ -141,6 +141,29 @@ describe('acp-sky-compass (single entry)', () => {
     const el = await mountCompass([], hass);
     expect(el.shadowRoot!.textContent).toContain('No Adaptive Cover Pro entries selected');
   });
+
+  it('above-horizon sun renders a filled disc, not the night ring', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
+    // helper defaults elevation to 30 (above horizon)
+    const el = await mountCompass([d], hass);
+    const dot = el.shadowRoot!.querySelector('circle.sun') as SVGCircleElement;
+    expect(dot).toBeTruthy();
+    expect(dot.classList.contains('night')).toBe(false);
+  });
+
+  it('below-horizon sun renders the dim amber hollow ring (sun night)', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
+    hass.states['sensor.sun_pos_entry1'].attributes.elevation = -10;
+    const el = await mountCompass([d], hass);
+    // The `night` modifier drives the dim amber fill that sets it apart from
+    // the moon's grey disc.
+    const dot = el.shadowRoot!.querySelector('circle.sun.night') as SVGCircleElement;
+    expect(dot).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('circle.sun.up')).toBeNull();
+    expect(el.shadowRoot!.querySelector('circle.sun.valid')).toBeNull();
+  });
 });
 
 describe('acp-sky-compass (multi-entry overlay)', () => {

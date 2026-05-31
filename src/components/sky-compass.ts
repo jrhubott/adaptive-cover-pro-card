@@ -155,7 +155,7 @@ export class SkyCompass extends LitElement {
     const sunPt = sunDotPosition(sunAzi, sunElev, o);
     const anyValid = overlays.some((ov) => ov.sunInfront);
     const belowHorizon = sunElev <= 0;
-    const sunDotClass = belowHorizon ? 'sun' : anyValid ? 'sun valid' : 'sun up';
+    const sunDotClass = belowHorizon ? 'sun night' : anyValid ? 'sun valid' : 'sun up';
 
     const { latitude, longitude, time_zone } = this.hass.config as unknown as {
       latitude?: number;
@@ -732,6 +732,12 @@ export class SkyCompass extends LitElement {
     .sun.valid {
       fill: var(--warning-color, gold);
       filter: drop-shadow(0 0 4px var(--warning-color, gold));
+    }
+    /* Below the horizon: dim amber filled disc — keeps the sun's warm
+       identity while reading clearly different from the grey moon disc. */
+    .sun.night {
+      fill: var(--warning-color, #d4a017);
+      opacity: 0.55;
     }
     .legend {
       display: flex;

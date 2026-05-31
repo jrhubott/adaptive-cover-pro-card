@@ -2,9 +2,10 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant, LovelaceCardEditor } from 'custom-card-helpers';
 
-import { CARD_EDITOR_NAME, CARD_VERSION } from './const';
+import { CARD_EDITOR_NAME } from './const';
 import type { ControlFlags } from './const';
 import { fetchAcpConfigEntries, type AcpConfigEntry } from './lib/config-entries';
+import { renderEditorFooter } from './lib/editor-footer';
 import { t } from './lib/i18n';
 import type { AdaptiveCoverProCardConfig, CardSection } from './types';
 
@@ -311,9 +312,7 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
             @change=${this._onNorthOffsetChange}
           />
         </div>
-        <div class="version-footer dim">
-          ${t('root.footer_version', this.hass, { version: CARD_VERSION })}
-        </div>
+        ${renderEditorFooter(this.hass)}
       </div>
     `;
   }

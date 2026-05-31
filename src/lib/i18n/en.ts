@@ -170,6 +170,7 @@ export const en = {
   editor: {
     common: {
       entry_id: 'Adaptive Cover Pro instance',
+      support_alt: 'Buy me a coffee',
       title_optional: 'Title (optional)',
       title_placeholder: 'e.g. West-facing windows',
       north_offset: 'Compass north offset (°)',
