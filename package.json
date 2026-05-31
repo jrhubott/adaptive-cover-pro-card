@@ -33,7 +33,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "capture:timelapse": "node scripts/capture-timelapse.mjs",
-    "capture:screenshots": "node scripts/capture-screenshots.mjs"
+    "capture:screenshots": "node scripts/capture-screenshots.mjs",
+    "capture:readme": "node scripts/capture-readme.mjs"
   },
   "dependencies": {
     "custom-card-helpers": "^2.0.0",

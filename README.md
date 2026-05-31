@@ -126,14 +126,20 @@ npm run test      # vitest
 npm run lint
 ```
 
-The README imagery is generated from the dev harness, so it stays in sync with the cards:
+The README imagery is generated from the dev harness, so it stays in sync with the cards. One command regenerates everything:
+
+```bash
+npm run capture:readme        # all stills, the tile gallery, and the GIF
+```
+
+Or run the pieces directly:
 
 ```bash
 npm run capture:screenshots   # still PNGs of each card/control into images/
 npm run capture:timelapse     # the animated sky-compass GIF
 ```
 
-Both need Playwright (`npx playwright install chromium` once); the timelapse also needs `ffmpeg` on PATH, as does `capture:screenshots --compose`. Run either with `--help` for options, or `capture:screenshots --list-shots` to see what each shot captures.
+All need Playwright (`npx playwright install chromium` once); the timelapse also needs `ffmpeg` on PATH, as does `capture:screenshots --compose`. Run any of them with `--help` for options, or `capture:screenshots --list-shots` to see what each shot captures.
 
 ## Support
 
