@@ -234,7 +234,7 @@ describe('acp-more-info-dialog: badge inversion + opt-in', () => {
     expect(badgeKinds(el)).not.toContain('solar');
   });
 
-  it('never renders a cloud badge even when the cloud handler matched', async () => {
+  it('renders the cloud badge when the cloud handler matched', async () => {
     const el = await mount({
       hass: hass({
         winner: 'cloud_suppression',
@@ -246,6 +246,23 @@ describe('acp-more-info-dialog: badge inversion + opt-in', () => {
       }),
       discovered: discovered(),
       open: true,
+    });
+    expect(badgeKinds(el)).toContain('cloud');
+  });
+
+  it('hides the cloud badge when badges.cloud is false', async () => {
+    const el = await mount({
+      hass: hass({
+        winner: 'cloud_suppression',
+        trace: [
+          { handler: 'cloud_suppression', matched: true, position: 0, reason: '' },
+          { handler: 'default', matched: false, position: 0, reason: '' },
+        ],
+        traceExtraAttrs: { enabled_handlers: ['cloud', 'solar'] },
+      }),
+      discovered: discovered(),
+      open: true,
+      badges: { cloud: false },
     });
     expect(badgeKinds(el)).not.toContain('cloud');
   });

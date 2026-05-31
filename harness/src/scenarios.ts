@@ -50,6 +50,7 @@ export function defaultBadges(): HarnessConfig['tile']['badges'] {
     motion: true,
     climate: true,
     glare_zone: true,
+    cloud: true,
   };
 }
 
@@ -224,9 +225,9 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: 'solar-tracking-active',
-    label: 'Solar tracking active',
+    label: 'Solar tracking',
     description:
-      'Sun in FOV, solar handler wins (cloud not suppressing) — the "Solar tracking active" badge shows.',
+      'Sun in FOV, solar handler wins (cloud not suppressing) — the "Solar tracking" badge shows.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'solar-tracking-active';
@@ -238,9 +239,9 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: 'cloud-suppressed',
-    label: 'Cloud suppressed — no badge',
+    label: 'Cloud suppressed — Cloudy badge',
     description:
-      'Cloud-suppression handler wins (tracking suppressed). The cloud badge is dropped, so the tile shows no badge.',
+      'Cloud-suppression handler wins (tracking suppressed). The tile shows the blue "Cloudy" badge; toggle badge: cloud off to hide it.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'cloud-suppressed';

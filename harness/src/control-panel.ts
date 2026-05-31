@@ -803,6 +803,7 @@ export class AcpHarnessControlPanel extends LitElement {
               'motion',
               'climate',
               'glare_zone',
+              'cloud',
             ] as const
           ).map((k) =>
             this._checkbox(`badge: ${k}`, this.config.tile.badges?.[k] ?? true, (v) =>

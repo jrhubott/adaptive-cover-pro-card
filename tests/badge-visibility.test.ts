@@ -25,19 +25,24 @@ describe('isSolarActive', () => {
 describe('selectVisibleBadges', () => {
   const active = { solarMatched: true, cloudIsWinner: false };
 
-  it('always drops the cloud badge, even when cloud is matched', () => {
+  it('keeps the cloud badge by default when cloud is matched', () => {
     const kinds: BadgeKind[] = ['cloud', 'manual'];
-    expect(selectVisibleBadges(kinds, undefined, active)).toEqual(['manual']);
+    expect(selectVisibleBadges(kinds, undefined, active)).toEqual(['cloud', 'manual']);
   });
 
-  it('drops cloud even when cloud is the winner and nothing else matched', () => {
+  it('keeps cloud when it is the winner and nothing else matched', () => {
     const kinds: BadgeKind[] = ['cloud'];
     expect(
       selectVisibleBadges(kinds, undefined, {
         solarMatched: false,
         cloudIsWinner: true,
       }),
-    ).toEqual([]);
+    ).toEqual(['cloud']);
+  });
+
+  it('drops cloud when badges.cloud is false', () => {
+    const kinds: BadgeKind[] = ['cloud', 'manual'];
+    expect(selectVisibleBadges(kinds, { cloud: false }, active)).toEqual(['manual']);
   });
 
   it('keeps solar when it is active and badges.solar is not false', () => {
@@ -67,9 +72,10 @@ describe('selectVisibleBadges', () => {
       'motion',
       'climate',
       'glare_zone',
+      'cloud',
     ];
     expect(selectVisibleBadges(kinds, undefined, active)).toEqual(kinds);
-    expect(selectVisibleBadges(kinds, { motion: false }, active)).toEqual([
+    expect(selectVisibleBadges(kinds, { motion: false, cloud: false }, active)).toEqual([
       'force',
       'weather',
       'manual',
@@ -79,7 +85,7 @@ describe('selectVisibleBadges', () => {
     ]);
     expect(
       selectVisibleBadges(kinds, { force: false, climate: false, glare_zone: false }, active),
-    ).toEqual(['weather', 'manual', 'custom_position', 'motion']);
+    ).toEqual(['weather', 'manual', 'custom_position', 'motion', 'cloud']);
   });
 
   it('never filters auto or off, regardless of badges config', () => {

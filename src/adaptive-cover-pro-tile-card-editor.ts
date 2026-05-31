@@ -25,7 +25,7 @@ interface HaFormSchemaItem {
 
 // Mirror the runtime defaults applied in adaptive-cover-pro-tile-card.ts so the
 // editor toggles reflect actual behavior when a key is omitted from YAML.
-// The 8 configurable handler-badge kinds, surfaced as flat `badge_<kind>`
+// The 9 configurable handler-badge kinds, surfaced as flat `badge_<kind>`
 // boolean fields in the form and reassembled into a nested `badges` object on
 // emit. `off` and `auto` are state-fallbacks and are never user-configurable.
 const BADGE_KINDS = [
@@ -37,6 +37,7 @@ const BADGE_KINDS = [
   'motion',
   'climate',
   'glare_zone',
+  'cloud',
 ] as const;
 
 const FORM_DEFAULTS = {
@@ -241,7 +242,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       ...(this._config ?? { type: '', entry_id: '' }),
       ...cleaned,
     };
-    // Prune the object entirely when all eight badges are on (keeps YAML minimal).
+    // Prune the object entirely when all nine badges are on (keeps YAML minimal).
     if (Object.keys(badges).length > 0) next.badges = badges;
     else delete next.badges;
 

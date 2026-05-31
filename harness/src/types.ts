@@ -123,6 +123,7 @@ export interface TileCardOptions {
     motion: boolean;
     climate: boolean;
     glare_zone: boolean;
+    cloud: boolean;
   };
   show_compass: boolean;
   show_motion_icon: boolean;
