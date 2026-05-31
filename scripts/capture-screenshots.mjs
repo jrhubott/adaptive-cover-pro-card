@@ -81,6 +81,15 @@ const SHOTS = [
     minutes: 19 * 60,
     note: 'Tile — "Motion" badge (motion handler holding the cover).',
   },
+  // ── More-info dialog ─────────────────────────────────────────────────────
+  {
+    name: 'more-info-dialog',
+    card: 'tile',
+    scenario: 'solar-tracking-active',
+    minutes: 12 * 60,
+    dialog: true,
+    note: 'More-info dialog opened from a tile, advanced section expanded.',
+  },
 ];
 
 /** Tile shots, in order, that --compose stacks into tile-gallery.png. */
@@ -237,7 +246,9 @@ function enableOnly(card, config = {}) {
 
 async function captureShot(page, shot, opts) {
   const sel = SELECTORS[shot.card];
-  const width = shot.card === 'tile' ? opts.tileWidth : opts.cardWidth;
+  // Dialog shots host the tile wide enough for the dialog to reach its own
+  // 520px max-width; tile shots use tileWidth; everything else cardWidth.
+  const width = shot.dialog ? 580 : shot.card === 'tile' ? opts.tileWidth : opts.cardWidth;
 
   await page.evaluate((id) => window.__acpCapture.loadScenario(id), shot.scenario);
 
@@ -254,26 +265,39 @@ async function captureShot(page, shot, opts) {
   // and hide the section headings / disabled placeholders around it. A single
   // keyed <style> we replace each shot, so widths/tags never accumulate.
   await page.evaluate(
-    ({ tag, width }) => {
+    ({ tag, width, dialog }) => {
       const app = document.querySelector('acp-harness-app');
       const stage = app?.shadowRoot?.querySelector('acp-harness-card-stage');
       if (!stage?.shadowRoot) return;
       stage.shadowRoot.getElementById('acp-cap-style')?.remove();
       const style = document.createElement('style');
       style.id = 'acp-cap-style';
+      // Dialog shots capture the dialog panel inside the tile, so the host must
+      // not round/clip it; other shots frame the host itself like an ha-card.
+      const hostRule = dialog
+        ? `${tag}{display:block;width:${width}px;overflow:visible}`
+        : `${tag}{display:block;width:${width}px;background:var(--card-background-color);` +
+          'border-radius:16px;overflow:hidden}';
       style.textContent =
-        `${tag}{display:block;width:${width}px;background:var(--card-background-color);` +
-        'border-radius:16px;overflow:hidden}' +
+        hostRule +
         '.card-host{max-width:none!important}' +
         '.card-heading,.disabled{display:none!important}' +
         ':host{padding:0!important}';
       stage.shadowRoot.appendChild(style);
     },
-    { tag: sel.tag, width },
+    { tag: sel.tag, width, dialog: Boolean(shot.dialog) },
   );
 
   if (shot.minutes != null) {
     await page.evaluate((m) => window.__acpCapture.setMinutes(m), shot.minutes);
+  }
+
+  const outPath = path.join(ROOT, opts.outDir, `${shot.name}.png`);
+  mkdirSync(path.dirname(outPath), { recursive: true });
+
+  if (shot.dialog) {
+    await captureDialog(page, shot, outPath);
+    return;
   }
 
   const card = page.locator(sel.tag).nth(shot.tileIndex ?? 0);
@@ -283,11 +307,55 @@ async function captureShot(page, shot, opts) {
     await card.waitFor({ state: 'visible', timeout: 15000 });
   }
 
-  const outPath = path.join(ROOT, opts.outDir, `${shot.name}.png`);
-  mkdirSync(path.dirname(outPath), { recursive: true });
   await card.screenshot({ path: outPath, animations: 'disabled' });
+  reportSaved(shot.name, outPath);
+}
+
+/**
+ * Open the more-info dialog on the first tile (advanced section expanded) and
+ * screenshot just its panel. The dialog mounts inside the tile's shadow root
+ * behind a fixed full-screen backdrop, so we neutralize the backdrop (drop the
+ * dim, the fixed positioning, and the scroll clamp) to capture the panel as a
+ * clean card — the same look as every other shot.
+ */
+async function captureDialog(page, shot, outPath) {
+  await page.evaluate(() => {
+    const stage = document
+      .querySelector('acp-harness-app')
+      ?.shadowRoot?.querySelector('acp-harness-card-stage');
+    const tile = stage?.shadowRoot?.querySelector('adaptive-cover-pro-tile-card');
+    if (!tile) throw new Error('no tile to open the dialog on');
+    // Drive the tile's own state so a re-render keeps the dialog open.
+    tile._dialogOpen = true;
+    tile.requestUpdate();
+    return tile.updateComplete.then(() => {
+      const dlg = tile.shadowRoot.querySelector('acp-more-info-dialog');
+      if (!dlg) throw new Error('acp-more-info-dialog not found');
+      dlg.advancedOpen = true;
+      return dlg.updateComplete.then(() => {
+        dlg.shadowRoot.getElementById('acp-cap-dlg')?.remove();
+        const style = document.createElement('style');
+        style.id = 'acp-cap-dlg';
+        style.textContent =
+          '.backdrop{position:static!important;inset:auto!important;display:block!important;' +
+          'overflow:visible!important;padding:0!important;background:transparent!important}' +
+          '.dialog{box-shadow:none!important;margin:0!important}';
+        dlg.shadowRoot.appendChild(style);
+      });
+    });
+  });
+
+  const panel = page.locator('acp-more-info-dialog .dialog').first();
+  await panel.waitFor({ state: 'visible', timeout: 15000 });
+  // The advanced compass renders an SVG; wait for it so it's not mid-paint.
+  await panel.locator('.compass svg').first().waitFor({ state: 'visible', timeout: 15000 });
+  await panel.screenshot({ path: outPath, animations: 'disabled' });
+  reportSaved(shot.name, outPath);
+}
+
+function reportSaved(name, outPath) {
   const kb = (statSync(outPath).size / 1024).toFixed(0);
-  console.log(`  ✓ ${shot.name.padEnd(14)} → ${path.relative(ROOT, outPath)} (${kb} KB)`);
+  console.log(`  ✓ ${name.padEnd(14)} → ${path.relative(ROOT, outPath)} (${kb} KB)`);
 }
 
 function composeGallery(opts, captured) {
