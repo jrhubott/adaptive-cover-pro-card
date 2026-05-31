@@ -819,26 +819,6 @@ export class AcpHarnessControlPanel extends LitElement {
           )}
         </fieldset>
         <label class="row">
-          <span>show_resume</span>
-          <select
-            @change=${(e: Event) =>
-              this._emit({
-                ...this.config,
-                tile: {
-                  ...this.config.tile,
-                  show_resume: (e.target as HTMLSelectElement).value as 'auto' | 'always' | 'never',
-                },
-              })}
-          >
-            ${(['auto', 'always', 'never'] as const).map(
-              (v) =>
-                html`<option value=${v} ?selected=${this.config.tile.show_resume === v}>
-                  ${v}
-                </option>`,
-            )}
-          </select>
-        </label>
-        <label class="row">
           <span>layout</span>
           <select
             @change=${(e: Event) =>

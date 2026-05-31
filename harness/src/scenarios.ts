@@ -66,7 +66,6 @@ function defaultTile(): HarnessConfig['tile'] {
     badges: defaultBadges(),
     show_compass: true,
     show_motion_icon: true,
-    show_resume: 'auto',
     layout: 'one-line',
   };
 }
@@ -186,7 +185,8 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 'manual-override-active',
     label: 'Manual override active',
-    description: 'User overrode the cover; manual handler holds.',
+    description:
+      'User overrode the cover; manual handler holds. The Manual badge is tappable (↺) to resume automatic control.',
     build: () => {
       const c = baseConfig('2026-06-21', 14 * 60);
       c.scenario = 'manual-override-active';
@@ -225,6 +225,22 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'motion-idle-badge',
+    label: 'Motion idle badge',
+    description:
+      'Motion handler winning with the motion indicator icon turned off, so the "Motion idle" text badge shows. Turn the indicator back on, or disable the motion badge, to watch it fall back to Auto.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 19 * 60);
+      c.scenario = 'motion-idle-badge';
+      c.entries[0].flags.motion_status = 'timeout_pending';
+      c.entries[0].flags.motion_timeout_minutes_from_now = 0.5;
+      c.entries[0].target_position = 100;
+      c.entries[0].covers[0].position = 100;
+      c.tile.show_motion_icon = false;
+      return c;
+    },
+  },
+  {
     id: 'solar-tracking-active',
     label: 'Solar tracking',
     description:
@@ -235,6 +251,19 @@ export const SCENARIOS: Scenario[] = [
       // Derived mode produces a real trace where solar matched and cloud is not
       // the winner, so the solar-active badge shows regardless of cloud config.
       c.decisionMode = 'derived';
+      return c;
+    },
+  },
+  {
+    id: 'solar-detailed-layout',
+    label: 'Solar tracking — detailed layout',
+    description:
+      'Detailed layout: the solar badge rides inline on the state line, right-aligned against the controls.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'solar-detailed-layout';
+      c.decisionMode = 'derived';
+      c.tile.layout = 'detailed';
       return c;
     },
   },

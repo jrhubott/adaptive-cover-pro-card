@@ -128,7 +128,6 @@ export interface TileCardOptions {
   };
   show_compass: boolean;
   show_motion_icon: boolean;
-  show_resume: 'auto' | 'always' | 'never';
   layout: 'one-line' | 'detailed';
 }
 

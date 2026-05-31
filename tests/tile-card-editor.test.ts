@@ -68,7 +68,6 @@ describe('adaptive-cover-pro-tile-card editor — setConfig', () => {
         show_decision_summary: true,
         show_controls: false,
         show_badge: false,
-        show_resume: 'always',
         tap_action: { action: 'more-info' },
         hold_action: { action: 'none' },
         double_tap_action: { action: 'toggle' },
@@ -343,7 +342,6 @@ describe('adaptive-cover-pro-tile-card editor — schema', () => {
       '', // expandable "Badges" group
       'show_motion_icon',
       'show_compass',
-      'show_resume',
       'tap_action',
       'hold_action',
       'double_tap_action',

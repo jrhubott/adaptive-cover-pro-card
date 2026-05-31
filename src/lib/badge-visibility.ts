@@ -74,6 +74,35 @@ export function winnerBadgeKind(opts: {
   return BADGE_KINDS_BY_HANDLER[normalized] ?? 'auto';
 }
 
+/**
+ * Resolve the tile's single winner badge kind, layering the "Motion idle"
+ * suppression + Auto fallback on top of {@link winnerBadgeKind}.
+ *
+ * The "Motion idle" badge (kind `motion`) is suppressed when either:
+ *  - its own opt-in flag is off (`badges.motion === false`), or
+ *  - the motion indicator icon is shown (`showMotionIcon`) — the icon already
+ *    conveys motion, so the text badge would be redundant.
+ *
+ * When suppressed and `motion` was the winning kind, the tile shows the Auto
+ * badge instead — unless Auto is itself disabled (`badges.auto === false`), in
+ * which case there is nothing to show and this returns `null` (blank badge).
+ *
+ * For every non-`motion` winner this is exactly {@link winnerBadgeKind}.
+ */
+export function resolveTileBadgeKind(opts: {
+  winner: string;
+  integrationEnabled: boolean;
+  manualActive: boolean;
+  badges: BadgesConfig | undefined;
+  showMotionIcon: boolean;
+}): BadgeKind | null {
+  const kind = winnerBadgeKind(opts);
+  if (kind !== 'motion') return kind;
+  const suppressed = opts.badges?.motion === false || opts.showMotionIcon;
+  if (!suppressed) return kind;
+  return opts.badges?.auto === false ? null : 'auto';
+}
+
 /** Build the {@link SolarActiveContext} from a decision trace + winner. */
 export function buildSolarActiveContext(
   trace: readonly DecisionStep[] | undefined,

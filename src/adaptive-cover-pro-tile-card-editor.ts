@@ -57,7 +57,6 @@ const FORM_DEFAULTS = {
   show_badge: true,
   show_compass: true,
   show_motion_icon: true,
-  show_resume: 'auto',
   layout: 'one-line',
   // All badges default on; only `=== false` hides.
   badge_auto: true,
@@ -96,7 +95,6 @@ const LABEL_KEYS: Record<string, string> = {
   badge_cloud: 'editor.tile.badge_cloud',
   show_compass: 'editor.tile.show_compass',
   show_motion_icon: 'editor.tile.show_motion_icon',
-  show_resume: 'editor.tile.show_resume',
   tap_action: 'editor.tile.tap_action',
   hold_action: 'editor.tile.hold_action',
   double_tap_action: 'editor.tile.double_tap_action',
@@ -327,12 +325,6 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
   private _schema(): HaFormSchemaItem[] {
     const entryOptions = this._entries?.map((e) => ({ value: e.entry_id, label: e.title })) ?? [];
 
-    const resumeOptions = [
-      { value: 'auto', label: t('editor.tile.resume_option_auto', this.hass) },
-      { value: 'always', label: t('editor.tile.resume_option_always', this.hass) },
-      { value: 'never', label: t('editor.tile.resume_option_never', this.hass) },
-    ];
-
     const layoutOptions = [
       { value: 'one-line', label: t('editor.tile.layout_option_one_line', this.hass) },
       { value: 'detailed', label: t('editor.tile.layout_option_detailed', this.hass) },
@@ -393,10 +385,6 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       },
       { name: 'show_motion_icon', selector: { boolean: {} } },
       { name: 'show_compass', selector: { boolean: {} } },
-      {
-        name: 'show_resume',
-        selector: { select: { mode: 'list', options: resumeOptions } },
-      },
       { name: 'tap_action', selector: { ui_action: {} } },
       { name: 'hold_action', selector: { ui_action: {} } },
       { name: 'double_tap_action', selector: { ui_action: {} } },
