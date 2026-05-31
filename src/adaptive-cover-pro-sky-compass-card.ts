@@ -14,6 +14,7 @@ import {
 import type { DiscoveredEntities, SkyCompassCardConfig } from './types';
 
 import './components/sky-compass';
+import './components/elevation-chart';
 import './adaptive-cover-pro-sky-compass-card-editor';
 
 @customElement(SKY_COMPASS_CARD_NAME)
@@ -156,6 +157,13 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
           .coverColors=${cfg.cover_colors ?? []}
           .northOffsetDeg=${normalizeAzimuth(cfg.north_offset ?? 0)}
         ></acp-sky-compass>
+        ${cfg.show_elevation_chart !== false
+          ? html`<acp-elevation-chart
+              .hass=${this.hass}
+              .discovered=${discoveredList[0]}
+              ?compact=${!!cfg.compact}
+            ></acp-elevation-chart>`
+          : nothing}
         ${missing.length > 0
           ? html`<div class="warn dim">
               ${t('root.compass_not_found', this.hass, { entries: missing.join(', ') })}

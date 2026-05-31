@@ -4,6 +4,7 @@ import {
   azimuthToCartesian,
   blindSpotBearings,
   clampActiveArcToFov,
+  elevationBandFraction,
   elevationGatedFovBounds,
   elevationToRadius,
   fovBandRadii,
@@ -173,6 +174,50 @@ describe('geometry — fovBandRadii', () => {
     const { outer, inner } = fovBandRadii(-5, 95, R);
     expect(outer).toBeCloseTo(R * elevationToRadius(-5)); // clamps to R*1 = R
     expect(inner).toBeCloseTo(R * elevationToRadius(95)); // clamps to R*0 = 0
+  });
+});
+
+describe('geometry — elevationBandFraction', () => {
+  // axisMin = -10, axisMax = 90 mirrors the elevation chart's y-axis.
+  const AXIS_MIN = -10;
+  const AXIS_MAX = 90;
+
+  it('both set → in-band fractions (0 = axisMin, 1 = axisMax)', () => {
+    // min=10 → (10 - -10)/100 = 0.2 ; max=60 → (60 - -10)/100 = 0.7
+    const { loFrac, hiFrac } = elevationBandFraction(10, 60, AXIS_MIN, AXIS_MAX);
+    expect(loFrac).toBeCloseTo(0.2);
+    expect(hiFrac).toBeCloseTo(0.7);
+  });
+
+  it('inverted limits (min > max) → fallback to full axis {0, 1}', () => {
+    const { loFrac, hiFrac } = elevationBandFraction(70, 30, AXIS_MIN, AXIS_MAX);
+    expect(loFrac).toBe(0);
+    expect(hiFrac).toBe(1);
+  });
+
+  it('min only → lo clipped, hi at axis top (1)', () => {
+    const { loFrac, hiFrac } = elevationBandFraction(10, undefined, AXIS_MIN, AXIS_MAX);
+    expect(loFrac).toBeCloseTo(0.2);
+    expect(hiFrac).toBe(1);
+  });
+
+  it('max only → lo at axis bottom (0), hi clipped', () => {
+    const { loFrac, hiFrac } = elevationBandFraction(undefined, 60, AXIS_MIN, AXIS_MAX);
+    expect(loFrac).toBe(0);
+    expect(hiFrac).toBeCloseTo(0.7);
+  });
+
+  it('neither set → full axis {0, 1}', () => {
+    const { loFrac, hiFrac } = elevationBandFraction(undefined, undefined, AXIS_MIN, AXIS_MAX);
+    expect(loFrac).toBe(0);
+    expect(hiFrac).toBe(1);
+  });
+
+  it('out-of-range values clamp to [0, 1]', () => {
+    // min below axisMin → 0 ; max above axisMax → 1
+    const { loFrac, hiFrac } = elevationBandFraction(-50, 200, AXIS_MIN, AXIS_MAX);
+    expect(loFrac).toBe(0);
+    expect(hiFrac).toBe(1);
   });
 });
 

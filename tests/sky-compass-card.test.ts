@@ -2,15 +2,77 @@ import { describe, it, expect } from 'vitest';
 import '../src/adaptive-cover-pro-sky-compass-card';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { SkyCompassCardConfig } from '../src/types';
+import type { EntityRegistryEntry } from '../src/lib/entity-registry';
 
 interface CardLike extends HTMLElement {
   updateComplete: Promise<boolean>;
   hass?: HomeAssistant;
   setConfig(config: SkyCompassCardConfig): void;
+  _registry?: EntityRegistryEntry[] | null;
 }
 
 function makeCard(): CardLike {
   return document.createElement('adaptive-cover-pro-sky-compass-card') as CardLike;
+}
+
+const ENTRY = 'entry_abc';
+
+const REGISTRY: EntityRegistryEntry[] = [
+  {
+    entity_id: 'sensor.cover_position',
+    unique_id: `${ENTRY}_Cover_Position`,
+    config_entry_id: ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+  {
+    entity_id: 'sensor.sun_position',
+    unique_id: `${ENTRY}_sun_position`,
+    config_entry_id: ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+];
+
+function makeHass(): HomeAssistant {
+  return {
+    config: { latitude: 52.0, longitude: 4.0, time_zone: 'UTC' },
+    states: {
+      'sensor.cover_position': {
+        state: '40',
+        attributes: { actual_positions: { 'cover.living': 40 } },
+      },
+      'sensor.sun_position': {
+        state: '30',
+        attributes: {
+          elevation: 30,
+          gamma: 0,
+          window_azimuth: 180,
+          fov_left: 90,
+          fov_right: 90,
+          azimuth_min: 90,
+          azimuth_max: 270,
+          in_fov: true,
+          min_elevation: 10,
+          max_elevation: 60,
+        },
+      },
+    },
+    callWS: async () => [],
+    connection: {
+      subscribeEvents: async () => () => {},
+    },
+  } as unknown as HomeAssistant;
+}
+
+async function mountWithRegistry(config: SkyCompassCardConfig): Promise<CardLike> {
+  const el = makeCard();
+  el.hass = makeHass();
+  el._registry = REGISTRY;
+  el.setConfig(config);
+  document.body.appendChild(el);
+  await el.updateComplete;
+  return el;
 }
 
 describe('adaptive-cover-pro-sky-compass-card setConfig', () => {
@@ -116,5 +178,24 @@ describe('adaptive-cover-pro-sky-compass-card setConfig', () => {
     input.push('c');
     // No direct getter; just assert the call did not throw and input mutation doesn't crash re-render.
     expect(input.length).toBe(3);
+  });
+});
+
+describe('adaptive-cover-pro-sky-compass-card — elevation chart toggle', () => {
+  it('renders the elevation chart by default (key omitted)', async () => {
+    const el = await mountWithRegistry({
+      type: 'custom:adaptive-cover-pro-sky-compass-card',
+      entry_ids: [ENTRY],
+    });
+    expect(el.shadowRoot!.querySelector('acp-elevation-chart')).toBeTruthy();
+  });
+
+  it('omits the elevation chart when show_elevation_chart is false', async () => {
+    const el = await mountWithRegistry({
+      type: 'custom:adaptive-cover-pro-sky-compass-card',
+      entry_ids: [ENTRY],
+      show_elevation_chart: false,
+    });
+    expect(el.shadowRoot!.querySelector('acp-elevation-chart')).toBeNull();
   });
 });

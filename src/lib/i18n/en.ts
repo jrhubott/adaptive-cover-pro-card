@@ -243,6 +243,7 @@ export const en = {
       badge_glare_zone: 'Glare zone',
       badge_cloud: 'Cloud suppression',
       show_compass: 'Show sun compass in dialog',
+      show_elevation_chart: 'Show sun-today chart in dialog',
       show_motion_icon: 'Show motion indicator',
       tap_action: 'Tap action',
       hold_action: 'Hold action',
@@ -278,6 +279,9 @@ export const en = {
       toggle_cover_fill_desc: 'Inner wedge showing how closed each cover is.',
       toggle_window_arrow_label: 'Window-normal arrow',
       toggle_window_arrow_desc: 'Line from center toward each window’s azimuth.',
+      toggle_elevation_chart_label: 'Sun-today chart',
+      toggle_elevation_chart_desc:
+        'Elevation-vs-time chart below the compass, with FOV band and elevation limits.',
     },
   },
 } as const;

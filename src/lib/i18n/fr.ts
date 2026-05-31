@@ -259,6 +259,7 @@ export const fr: EnDict = {
       badge_glare_zone: "Zone d'éblouissement",
       badge_cloud: 'Suppression nuageuse',
       show_compass: 'Afficher la boussole solaire dans le dialogue',
+      show_elevation_chart: 'Afficher le graphique du soleil dans le dialogue',
       show_motion_icon: "Afficher l'indicateur de mouvement",
       tap_action: 'Action au toucher',
       hold_action: 'Action au maintien',
@@ -296,6 +297,9 @@ export const fr: EnDict = {
       toggle_cover_fill_desc: 'Secteur intérieur indiquant le taux de fermeture de chaque store.',
       toggle_window_arrow_label: 'Flèche de normale de fenêtre',
       toggle_window_arrow_desc: "Ligne du centre vers l'azimut de chaque fenêtre.",
+      toggle_elevation_chart_label: 'Graphique du soleil',
+      toggle_elevation_chart_desc:
+        "Graphique élévation/temps sous la boussole, avec bande FOV et limites d'élévation.",
     },
   },
 };

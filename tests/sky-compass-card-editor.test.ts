@@ -10,6 +10,7 @@ interface EditorLike extends HTMLElement {
   _onCoverColorChange(index: number, value: string): void;
   _onCoverColorReset(index: number): void;
   _onEntryToggle(entryId: string, enabled: boolean): void;
+  _onToggle(key: string, enabled: boolean): void;
   _onNorthOffsetChange(e: Event): void;
 }
 
@@ -49,6 +50,36 @@ describe('editor north_offset', () => {
     const fakeEvent = { target: { value: 'abc' } } as unknown as Event;
     el._onNorthOffsetChange(fakeEvent);
     expect(emitted!.north_offset).toBe(0);
+  });
+});
+
+describe('editor show_elevation_chart toggle', () => {
+  it('emits show_elevation_chart in config-changed when toggled off', () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: 'a', title: 'Kitchen' }];
+    el.setConfig({ type: 'custom:x', entry_ids: ['a'] });
+
+    let emitted: SkyCompassCardConfig | null = null;
+    el.addEventListener('config-changed', (e: Event) => {
+      emitted = (e as CustomEvent).detail.config;
+    });
+
+    el._onToggle('show_elevation_chart', false);
+    expect(emitted).not.toBeNull();
+    expect(emitted!.show_elevation_chart).toBe(false);
+  });
+
+  it('renders a show_elevation_chart checkbox in the display toggles, defaulting on', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: 'a', title: 'Kitchen' }];
+    el.setConfig({ type: 'custom:x', entry_ids: ['a'] });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const labels = Array.from(el.shadowRoot!.querySelectorAll('.toggle-label')).map(
+      (n) => n.textContent?.trim() ?? '',
+    );
+    expect(labels).toContain('Sun-today chart');
   });
 });
 

@@ -754,6 +754,7 @@ export class AcpHarnessControlPanel extends LitElement {
             'show_sunrise_sunset',
             'show_cover_fill',
             'show_window_arrow',
+            'show_elevation_chart',
           ] as const
         ).map((k) =>
           this._checkbox(k, this.config.compass[k], (v) =>
@@ -784,6 +785,7 @@ export class AcpHarnessControlPanel extends LitElement {
             'show_controls',
             'show_badge',
             'show_compass',
+            'show_elevation_chart',
             'show_motion_icon',
           ] as const
         ).map((k) =>
