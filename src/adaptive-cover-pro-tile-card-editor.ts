@@ -2,8 +2,9 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant, LovelaceCardEditor } from 'custom-card-helpers';
 
-import { CARD_VERSION, TILE_CARD_EDITOR_NAME } from './const';
+import { TILE_CARD_EDITOR_NAME } from './const';
 import { fetchAcpConfigEntries, type AcpConfigEntry } from './lib/config-entries';
+import { renderEditorFooter } from './lib/editor-footer';
 import {
   fetchEntityRegistry,
   subscribeEntityRegistry,
@@ -56,8 +57,9 @@ const FORM_DEFAULTS = {
   show_controls: true,
   show_badge: true,
   show_compass: true,
+  show_elevation_chart: true,
   show_motion_icon: true,
-  layout: 'one-line',
+  layout: 'detailed',
   // All badges default on; only `=== false` hides.
   badge_auto: true,
   badge_solar: true,
@@ -94,6 +96,7 @@ const LABEL_KEYS: Record<string, string> = {
   badge_glare_zone: 'editor.tile.badge_glare_zone',
   badge_cloud: 'editor.tile.badge_cloud',
   show_compass: 'editor.tile.show_compass',
+  show_elevation_chart: 'editor.tile.show_elevation_chart',
   show_motion_icon: 'editor.tile.show_motion_icon',
   tap_action: 'editor.tile.tap_action',
   hold_action: 'editor.tile.hold_action',
@@ -286,9 +289,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
                 entry_id: (e.target as HTMLInputElement).value,
               })}
           />
-          <div class="version-footer dim">
-            ${t('root.footer_version', this.hass, { version: CARD_VERSION })}
-          </div>
+          ${renderEditorFooter(this.hass)}
         </div>
       `;
     }
@@ -315,9 +316,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
         ${this._managedCovers.length > 1 && !this._config?.cover
           ? html`<div class="hint">${t('editor.tile.cover_blank_hint', this.hass)}</div>`
           : nothing}
-        <div class="version-footer dim">
-          ${t('root.footer_version', this.hass, { version: CARD_VERSION })}
-        </div>
+        ${renderEditorFooter(this.hass)}
       </div>
     `;
   }
@@ -385,6 +384,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       },
       { name: 'show_motion_icon', selector: { boolean: {} } },
       { name: 'show_compass', selector: { boolean: {} } },
+      { name: 'show_elevation_chart', selector: { boolean: {} } },
       { name: 'tap_action', selector: { ui_action: {} } },
       { name: 'hold_action', selector: { ui_action: {} } },
       { name: 'double_tap_action', selector: { ui_action: {} } },

@@ -160,7 +160,10 @@ export class TileBadge extends LitElement {
       flex: 0 0 auto;
     }
     button.badge {
-      font: inherit;
+      /* Inherit only the family — the font shorthand would reset font-size to
+         the page value and make the resumable (manual) badge larger than the
+         span badges, which keep the .badge 0.75rem size. */
+      font-family: inherit;
       border: none;
       cursor: pointer;
     }

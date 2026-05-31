@@ -66,12 +66,16 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   /** Render the sky compass inside the more-info dialog's Advanced section
    *  (default true). */
   show_compass?: boolean;
+  /** Render the "Sun today" elevation chart inside the more-info dialog's
+   *  Advanced section (default true). */
+  show_elevation_chart?: boolean;
   /** Render a small motion indicator overlaid on the cover icon when the
    *  motion handler reports `motion_detected` (default true). */
   show_motion_icon?: boolean;
-  /** Tile layout. `one-line` (default) is the compact single-row layout;
-   *  `detailed` stacks title on row 1 and state · position + inline badge on
-   *  row 2, with the controls floating to the right across both rows. */
+  /** Tile layout. `detailed` (default) stacks title on row 1, an optional
+   *  standalone "Auto" indicator on row 2, and state · position + inline winner
+   *  badge on row 3, with the controls floating to the right across the rows.
+   *  `one-line` is the compact single-row opt-out (no Auto indicator). */
   layout?: 'one-line' | 'detailed';
   /** Tap behavior. When undefined, opens the ACP more-info dialog (default).
    *  Otherwise a standard HA `ActionConfig`. Legacy string values
@@ -97,6 +101,10 @@ export interface SkyCompassCardConfig extends LovelaceCardConfig {
   show_sunrise_sunset?: boolean;
   show_cover_fill?: boolean;
   show_window_arrow?: boolean;
+  /** Render the "Sun today" elevation-vs-time chart below the compass
+   *  (default true). The chart always reflects the integration's elevation
+   *  limits when present. */
+  show_elevation_chart?: boolean;
   cover_colors?: (string | null)[];
   north_offset?: number;
 }

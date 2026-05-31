@@ -103,6 +103,39 @@ export function resolveTileBadgeKind(opts: {
   return opts.badges?.auto === false ? null : 'auto';
 }
 
+/**
+ * Whether the cover is under active automatic control — independent of which
+ * automatic handler won. This drives the standalone "Auto" indicator, which
+ * shows alongside the winner badge (cloud, solar, climate, …) so the user can
+ * tell automatic control is running even when a specific handler is shown.
+ *
+ * Auto is suppressed only when control is genuinely NOT automatic:
+ *  - the integration is disabled, or
+ *  - automatic control is off, or
+ *  - a manual override is active, or
+ *  - a `force` handler won (forced position, not adaptive), or
+ *  - a `custom_position` slot won AND it bypasses automatic control.
+ *
+ * Every other automatic handler (cloud, solar, default, weather, climate,
+ * glare_zone, motion) keeps Auto visible. The winner string is normalized
+ * before the rules apply, so raw integration handler names work too.
+ */
+export function isAutoControlActive(opts: {
+  winner: string;
+  integrationEnabled: boolean;
+  automaticControl: boolean;
+  manualActive: boolean;
+  bypassAutoControl: boolean;
+}): boolean {
+  if (!opts.integrationEnabled) return false;
+  if (!opts.automaticControl) return false;
+  if (opts.manualActive) return false;
+  const normalized = normalizeHandler(opts.winner);
+  if (normalized === 'force') return false;
+  if (normalized === 'custom_position' && opts.bypassAutoControl) return false;
+  return true;
+}
+
 /** Build the {@link SolarActiveContext} from a decision trace + winner. */
 export function buildSolarActiveContext(
   trace: readonly DecisionStep[] | undefined,

@@ -38,6 +38,7 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'root.loading_registry': 'Loading entity registry…',
   'root.no_entities_title': 'No matching entities',
   'root.footer_version': 'adaptive-cover-pro-card v{version}',
+  'editor.common.support_alt': 'Buy me a coffee',
   'tile.loading': 'Loading…',
   'tile.entry_not_found': 'Entry not found ({entry})',
   'tile.registry_failed': 'Registry failed: {error}',

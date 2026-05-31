@@ -2,9 +2,11 @@ import { LitElement, css, html, type TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
+import type { LitElement as LitElementType } from 'lit';
+import { SKY_COMPASS_CARD_NAME } from '../../src/const';
 import { buildMockHass, type ServiceCallEvent } from './mock/hass';
 import { applyService, type ServiceCall } from './mock/services';
-import { defaultScenarioConfig, normalizeConfig } from './scenarios';
+import { defaultScenarioConfig, findScenario, normalizeConfig, SCENARIOS } from './scenarios';
 import { loadConfig, saveConfig } from './persistence';
 import { setFakeNow } from './fake-clock';
 import { zoneForLongitude, zonedNowMs } from './zone';
@@ -14,11 +16,45 @@ import {
   readStateFromUrl,
   writeStateToUrl,
 } from './share-state';
-import type { HarnessConfig } from './types';
+import type {
+  HarnessConfig,
+  RootCardOptions,
+  SkyCompassCardOptions,
+  TileCardOptions,
+} from './types';
 import type { ConfigChangeDetail } from './control-panel';
 import './control-panel';
 import './card-stage';
 import './service-log';
+
+/** A shallow-by-section partial of {@link HarnessConfig} accepted by the capture bridge. */
+export type CapturePartial = Partial<Omit<HarnessConfig, 'root' | 'compass' | 'tile'>> & {
+  root?: Partial<RootCardOptions>;
+  compass?: Partial<SkyCompassCardOptions>;
+  tile?: Partial<TileCardOptions>;
+};
+
+/**
+ * Programmatic hook the time-lapse capture script drives via Playwright. Only
+ * attached when the page URL carries a `?capture` param, so normal harness runs
+ * are untouched. See `scripts/capture-timelapse.mjs`.
+ */
+export interface CaptureBridge {
+  listScenarios(): { id: string; label: string }[];
+  loadScenario(id: string): Promise<void>;
+  setConfig(partial: CapturePartial): Promise<void>;
+  setMinutes(minutes: number): Promise<void>;
+}
+
+function mergeCaptureConfig(base: HarnessConfig, p: CapturePartial): HarnessConfig {
+  return {
+    ...base,
+    ...p,
+    root: { ...base.root, ...(p.root ?? {}) },
+    compass: { ...base.compass, ...(p.compass ?? {}) },
+    tile: { ...base.tile, ...(p.tile ?? {}) },
+  };
+}
 
 const MAX_LOG_ENTRIES = 200;
 
@@ -40,6 +76,7 @@ export class AcpHarnessApp extends LitElement {
     super.connectedCallback();
     this._rebuildHass();
     this._applyTheme();
+    if (new URLSearchParams(location.search).has('capture')) this._installCaptureBridge();
   }
 
   disconnectedCallback(): void {
@@ -97,6 +134,50 @@ export class AcpHarnessApp extends LitElement {
       clearInterval(this._playInterval);
       this._playInterval = null;
     }
+  }
+
+  /** Expose `window.__acpCapture` so the time-lapse script can step time deterministically. */
+  private _installCaptureBridge(): void {
+    this._clearPlayInterval();
+    const bridge: CaptureBridge = {
+      listScenarios: () => SCENARIOS.map((s) => ({ id: s.id, label: s.label })),
+      loadScenario: async (id) => {
+        const sc = findScenario(id);
+        if (!sc) throw new Error(`unknown scenario: ${id}`);
+        this._config = normalizeConfig({ ...sc.build(), playing: false });
+        await this._settle();
+      },
+      setConfig: async (partial) => {
+        this._config = mergeCaptureConfig(this._config, { ...partial, playing: false });
+        await this._settle();
+      },
+      setMinutes: async (minutes) => {
+        this._config = { ...this._config, timeOfDayMinutes: minutes, playing: false };
+        await this._settle();
+      },
+    };
+    (window as unknown as { __acpCapture: CaptureBridge }).__acpCapture = bridge;
+  }
+
+  /**
+   * Wait for the full render chain to settle. Setting `_config` triggers a hass
+   * rebuild in `updated()`, which schedules a *second* update — `updateComplete`
+   * resolves `false` while another update is pending, so drain those first, then
+   * await the nested card-stage and compass card, and finally a paint frame.
+   */
+  private async _settle(): Promise<void> {
+    for (let i = 0; i < 5; i++) {
+      if (await this.updateComplete) break;
+    }
+    const stage = this.renderRoot.querySelector('acp-harness-card-stage') as LitElementType | null;
+    if (stage) await stage.updateComplete;
+    const compass = stage?.renderRoot?.querySelector(
+      SKY_COMPASS_CARD_NAME,
+    ) as LitElementType | null;
+    if (compass?.updateComplete) await compass.updateComplete;
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
   }
 
   private _onServiceCall = (e: ServiceCallEvent): void => {

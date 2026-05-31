@@ -2,8 +2,9 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant, LovelaceCardEditor } from 'custom-card-helpers';
 
-import { CARD_VERSION, SKY_COMPASS_CARD_EDITOR_NAME, SKY_COMPASS_CARD_NAME } from './const';
+import { SKY_COMPASS_CARD_EDITOR_NAME, SKY_COMPASS_CARD_NAME } from './const';
 import { fetchAcpConfigEntries, type AcpConfigEntry } from './lib/config-entries';
+import { renderEditorFooter } from './lib/editor-footer';
 import { colorForIndex } from './lib/palette';
 import { t } from './lib/i18n';
 import type { SkyCompassCardConfig } from './types';
@@ -18,7 +19,8 @@ type ToggleKey =
   | 'show_sun_path'
   | 'show_sunrise_sunset'
   | 'show_cover_fill'
-  | 'show_window_arrow';
+  | 'show_window_arrow'
+  | 'show_elevation_chart';
 
 interface ToggleRow {
   key: ToggleKey;
@@ -86,6 +88,12 @@ const TOGGLE_ROWS: ToggleRow[] = [
     key: 'show_window_arrow',
     labelKey: 'editor.compass.toggle_window_arrow_label',
     descKey: 'editor.compass.toggle_window_arrow_desc',
+    defaultOn: true,
+  },
+  {
+    key: 'show_elevation_chart',
+    labelKey: 'editor.compass.toggle_elevation_chart_label',
+    descKey: 'editor.compass.toggle_elevation_chart_desc',
     defaultOn: true,
   },
 ];
@@ -302,9 +310,7 @@ export class AdaptiveCoverProSkyCompassCardEditor extends LitElement implements 
             @change=${this._onNorthOffsetChange}
           />
         </div>
-        <div class="version-footer dim">
-          ${t('root.footer_version', this.hass, { version: CARD_VERSION })}
-        </div>
+        ${renderEditorFooter(this.hass)}
       </div>
     `;
   }

@@ -261,6 +261,11 @@ export function scriptedDecision(
     position: h === winner ? entry.target_position : null,
   }));
   const f = entry.flags;
+  // A custom_position slot that sets an exact position (min_mode false) bypasses
+  // automatic control, mirroring the integration's `bypass_auto_control`. This
+  // lets the Auto-badge suppression case (issue #110) be exercised even while
+  // automatic control stays on.
+  const customBypass = winner === 'custom_position' && activeSlotMinMode(entry) === false;
   return {
     winner,
     position: entry.target_position,
@@ -268,7 +273,7 @@ export function scriptedDecision(
     reason: `Scripted winner: ${winner}`,
     attrs: {
       enabled_handlers: [...HANDLER_ORDER],
-      bypass_auto_control: !f.automatic_control,
+      bypass_auto_control: !f.automatic_control || customBypass,
       default_position: f.default_position,
       is_sunset_active: f.is_sunset_active,
       in_time_window: f.in_time_window,
