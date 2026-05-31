@@ -104,6 +104,32 @@ export function fovBandRadii(
 }
 
 /**
+ * Map an elevation band [minElevDeg, maxElevDeg] onto a linear elevation axis
+ * [axisMin, axisMax] (e.g. the "Sun today" chart's y-axis), returning the
+ * band's normalized fractions { loFrac, hiFrac } where 0 = axisMin and
+ * 1 = axisMax. Both fractions are clamped to [0, 1]. An undefined limit falls
+ * back to the corresponding axis edge (min → 0, max → 1). Inverted limits
+ * (min > max) fall back to the full axis {loFrac: 0, hiFrac: 1}, mirroring
+ * `fovBandRadii`'s inverted-limit guard.
+ */
+export function elevationBandFraction(
+  minElevDeg: number | undefined,
+  maxElevDeg: number | undefined,
+  axisMin: number,
+  axisMax: number,
+): { loFrac: number; hiFrac: number } {
+  if (minElevDeg !== undefined && maxElevDeg !== undefined && minElevDeg > maxElevDeg) {
+    return { loFrac: 0, hiFrac: 1 };
+  }
+  const span = axisMax - axisMin;
+  const frac = (elev: number): number => Math.max(0, Math.min(1, (elev - axisMin) / span));
+  return {
+    loFrac: minElevDeg !== undefined ? frac(minElevDeg) : 0,
+    hiFrac: maxElevDeg !== undefined ? frac(maxElevDeg) : 1,
+  };
+}
+
+/**
  * Project rawStart/rawEnd onto the configured FOV envelope
  * [windowAzi − fovLeft, windowAzi + fovRight] (CW). Returns the absolute
  * (wedgeStart, wedgeEnd) bounds for the active sun wedge, always a subset of

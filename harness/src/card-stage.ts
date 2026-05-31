@@ -136,6 +136,7 @@ export class AcpHarnessCardStage extends LitElement {
       show_sunrise_sunset: c.show_sunrise_sunset,
       show_cover_fill: c.show_cover_fill,
       show_window_arrow: c.show_window_arrow,
+      show_elevation_chart: c.show_elevation_chart,
       cover_colors: this.config.entries.map((e) => e.color),
       north_offset: c.north_offset,
     };
@@ -158,6 +159,7 @@ export class AcpHarnessCardStage extends LitElement {
       show_badge: t.show_badge,
       ...(Object.keys(badges).length > 0 ? { badges } : {}),
       show_compass: t.show_compass,
+      show_elevation_chart: t.show_elevation_chart,
       show_motion_icon: t.show_motion_icon,
       layout: t.layout,
     };

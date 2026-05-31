@@ -9,6 +9,7 @@ interface DialogLike extends HTMLElement {
   discovered?: DiscoveredEntities;
   open?: boolean;
   showCompass?: boolean;
+  showElevationChart?: boolean;
   badges?: Record<string, boolean>;
 }
 
@@ -508,6 +509,32 @@ describe('acp-more-info-dialog: sky compass', () => {
   it('does not render the compass while advanced is collapsed', async () => {
     const el = await mount({ hass: hass(), discovered: discovered(), open: true });
     expect(el.shadowRoot!.querySelector('acp-sky-compass')).toBeNull();
+  });
+});
+
+describe('acp-more-info-dialog: elevation chart', () => {
+  it('renders the elevation chart in the advanced section by default when advanced is open', async () => {
+    const el = await mount({ hass: hass(), discovered: discovered(), open: true });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('.advanced acp-elevation-chart')).toBeTruthy();
+  });
+
+  it('hides the elevation chart when showElevationChart=false', async () => {
+    const el = await mount({
+      hass: hass(),
+      discovered: discovered(),
+      open: true,
+      showElevationChart: false,
+    });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('.advanced acp-elevation-chart')).toBeNull();
+  });
+
+  it('does not render the elevation chart while advanced is collapsed', async () => {
+    const el = await mount({ hass: hass(), discovered: discovered(), open: true });
+    expect(el.shadowRoot!.querySelector('acp-elevation-chart')).toBeNull();
   });
 });
 

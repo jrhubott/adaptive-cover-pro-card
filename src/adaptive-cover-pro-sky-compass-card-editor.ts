@@ -19,7 +19,8 @@ type ToggleKey =
   | 'show_sun_path'
   | 'show_sunrise_sunset'
   | 'show_cover_fill'
-  | 'show_window_arrow';
+  | 'show_window_arrow'
+  | 'show_elevation_chart';
 
 interface ToggleRow {
   key: ToggleKey;
@@ -87,6 +88,12 @@ const TOGGLE_ROWS: ToggleRow[] = [
     key: 'show_window_arrow',
     labelKey: 'editor.compass.toggle_window_arrow_label',
     descKey: 'editor.compass.toggle_window_arrow_desc',
+    defaultOn: true,
+  },
+  {
+    key: 'show_elevation_chart',
+    labelKey: 'editor.compass.toggle_elevation_chart_label',
+    descKey: 'editor.compass.toggle_elevation_chart_desc',
     defaultOn: true,
   },
 ];

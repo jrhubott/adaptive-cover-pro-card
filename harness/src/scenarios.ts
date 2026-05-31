@@ -35,6 +35,7 @@ function defaultCompass(): HarnessConfig['compass'] {
     show_sunrise_sunset: true,
     show_cover_fill: true,
     show_window_arrow: true,
+    show_elevation_chart: true,
     north_offset: 0,
   };
 }
@@ -65,6 +66,7 @@ function defaultTile(): HarnessConfig['tile'] {
     show_badge: true,
     badges: defaultBadges(),
     show_compass: true,
+    show_elevation_chart: true,
     show_motion_icon: true,
     layout: 'detailed',
   };
@@ -468,6 +470,7 @@ export const SCENARIOS: Scenario[] = [
           title: 'Living Room',
           window_azimuth: 180,
           min_elevation: 10,
+          max_elevation: 70,
           color: '#ff7043',
         }),
         makeEntry({

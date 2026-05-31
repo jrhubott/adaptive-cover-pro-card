@@ -588,6 +588,26 @@ describe('adaptive-cover-pro-tile-card tap action', () => {
     expect(listener).not.toHaveBeenCalled();
   });
 
+  it('threads show_elevation_chart=false into the dialog as showElevationChart=false', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, show_elevation_chart: false },
+      makeHass(),
+    );
+    const dialog = el.shadowRoot!.querySelector('acp-more-info-dialog') as HTMLElement & {
+      showElevationChart?: boolean;
+    };
+    expect(dialog).toBeTruthy();
+    expect(dialog.showElevationChart).toBe(false);
+  });
+
+  it('defaults showElevationChart to true on the dialog when the key is omitted', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
+    const dialog = el.shadowRoot!.querySelector('acp-more-info-dialog') as HTMLElement & {
+      showElevationChart?: boolean;
+    };
+    expect(dialog.showElevationChart).toBe(true);
+  });
+
   it('opens the more-info dialog on tile body click and closes via dialog close event', async () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
     const dialog = el.shadowRoot!.querySelector('acp-more-info-dialog') as HTMLElement & {

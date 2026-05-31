@@ -66,6 +66,9 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   /** Render the sky compass inside the more-info dialog's Advanced section
    *  (default true). */
   show_compass?: boolean;
+  /** Render the "Sun today" elevation chart inside the more-info dialog's
+   *  Advanced section (default true). */
+  show_elevation_chart?: boolean;
   /** Render a small motion indicator overlaid on the cover icon when the
    *  motion handler reports `motion_detected` (default true). */
   show_motion_icon?: boolean;
@@ -98,6 +101,10 @@ export interface SkyCompassCardConfig extends LovelaceCardConfig {
   show_sunrise_sunset?: boolean;
   show_cover_fill?: boolean;
   show_window_arrow?: boolean;
+  /** Render the "Sun today" elevation-vs-time chart below the compass
+   *  (default true). The chart always reflects the integration's elevation
+   *  limits when present. */
+  show_elevation_chart?: boolean;
   cover_colors?: (string | null)[];
   north_offset?: number;
 }

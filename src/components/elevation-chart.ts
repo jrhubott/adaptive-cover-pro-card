@@ -4,6 +4,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { DiscoveredEntities, SunPositionAttributes } from '../types';
 import { findFovWindows, sampleDay, startOfDayInZone, type SunSample } from '../lib/sun-model';
+import { elevationBandFraction } from '../lib/geometry';
 import { formatClock } from '../lib/formatters';
 import { t } from '../lib/i18n';
 
@@ -31,7 +32,7 @@ export class ElevationChart extends LitElement {
   protected render(): TemplateResult | typeof nothing {
     if (!this.hass || !this.discovered) return nothing;
     const attrs = this._sunAttrs();
-    const { latitude, longitude, time_zone } = this.hass.config as unknown as {
+    const { latitude, longitude, time_zone } = (this.hass.config ?? {}) as unknown as {
       latitude?: number;
       longitude?: number;
       time_zone?: string;
@@ -71,6 +72,27 @@ export class ElevationChart extends LitElement {
     const nowX = xAt(now);
     const currentSample = this._interpAt(samples, now);
     const currentY = currentSample ? yAt(currentSample.elevation) : null;
+
+    // Elevation limits (optional integration attrs). When present, the FOV
+    // time-bands are clipped to the in-band elevation range and horizontal
+    // limit gridlines are drawn. Graceful no-op when both are absent.
+    const hasMin = typeof attrs.min_elevation === 'number';
+    const hasMax = typeof attrs.max_elevation === 'number';
+    const plotTop = PAD_T;
+    const plotBottom = VIEWBOX_H - PAD_B;
+    // loFrac → lower elevation (axisMin side, bottom of plot); hiFrac → upper.
+    const { loFrac, hiFrac } = elevationBandFraction(
+      attrs.min_elevation,
+      attrs.max_elevation,
+      minElev,
+      maxElev,
+    );
+    // Map a 0..1 elevation-axis fraction to a y coordinate (0 = bottom).
+    const yForFrac = (frac: number): number => plotBottom - frac * (plotBottom - plotTop);
+    const bandTopY = yForFrac(hiFrac);
+    const bandBottomY = yForFrac(loFrac);
+    const bandY = hasMin || hasMax ? bandTopY : plotTop;
+    const bandHeight = hasMin || hasMax ? bandBottomY - bandTopY : plotBottom - plotTop;
 
     const fovBands = fovWindows.map((w) => ({
       x0: xAt(samples[w.startIdx].t),
@@ -117,14 +139,27 @@ export class ElevationChart extends LitElement {
             <!-- horizon -->
             <line class="horizon" x1=${PAD_L} y1=${horizonY} x2=${VIEWBOX_W - PAD_R} y2=${horizonY} />
 
-            <!-- FOV shaded bands (each time the sun is actually in FOV + above horizon) -->
+            <!-- elevation limit gridlines (drawn only for limits actually set) -->
+            ${
+              hasMin
+                ? svg`<line class="limit-line" x1=${PAD_L} y1=${bandBottomY} x2=${VIEWBOX_W - PAD_R} y2=${bandBottomY} />`
+                : nothing
+            }
+            ${
+              hasMax
+                ? svg`<line class="limit-line" x1=${PAD_L} y1=${bandTopY} x2=${VIEWBOX_W - PAD_R} y2=${bandTopY} />`
+                : nothing
+            }
+
+            <!-- FOV shaded bands (each time the sun is actually in FOV + above horizon),
+                 clipped to the in-band elevation range when limits are present -->
             ${fovBands.map(
               (b) => svg`<rect
                   class="fov-band"
                   x=${b.x0}
-                  y=${PAD_T}
+                  y=${bandY}
                   width=${b.x1 - b.x0}
-                  height=${VIEWBOX_H - PAD_T - PAD_B}
+                  height=${bandHeight}
                 />`,
             )}
 
@@ -214,6 +249,12 @@ export class ElevationChart extends LitElement {
       stroke: var(--divider-color);
       stroke-width: 1;
       stroke-dasharray: 2 2;
+    }
+    .limit-line {
+      stroke: var(--warning-color, gold);
+      stroke-width: 1;
+      stroke-dasharray: 4 3;
+      opacity: 0.7;
     }
     .fov-band {
       fill: var(--warning-color, gold);

@@ -304,6 +304,89 @@ describe('adaptive-cover-pro-tile-card editor — default layout (issue #110)', 
   });
 });
 
+describe('adaptive-cover-pro-tile-card editor — show_elevation_chart', () => {
+  it('includes a show_elevation_chart boolean field in the schema', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement & {
+      schema?: Array<{ name: string; selector?: Record<string, unknown> }>;
+    };
+    const field = (haForm.schema ?? []).find((s) => s.name === 'show_elevation_chart');
+    expect(field).toBeTruthy();
+    expect(field!.selector).toEqual({ boolean: {} });
+  });
+
+  it('defaults show_elevation_chart to true in the form data', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement & {
+      data?: Record<string, unknown>;
+    };
+    expect(haForm.data!.show_elevation_chart).toBe(true);
+  });
+
+  it('prunes show_elevation_chart:true from the emitted config (equals default)', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    let emitted: AdaptiveCoverProTileCardConfig | null = null;
+    el.addEventListener('config-changed', (e: Event) => {
+      emitted = (e as CustomEvent).detail.config;
+    });
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement;
+    haForm.dispatchEvent(
+      new CustomEvent('value-changed', {
+        bubbles: true,
+        composed: true,
+        detail: { value: { type: TYPE, entry_id: ENTRY, show_elevation_chart: true } },
+      }),
+    );
+
+    expect(emitted).not.toBeNull();
+    expect((emitted as unknown as Record<string, unknown>).show_elevation_chart).toBeUndefined();
+  });
+
+  it('keeps show_elevation_chart:false in the emitted config', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    let emitted: AdaptiveCoverProTileCardConfig | null = null;
+    el.addEventListener('config-changed', (e: Event) => {
+      emitted = (e as CustomEvent).detail.config;
+    });
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement;
+    haForm.dispatchEvent(
+      new CustomEvent('value-changed', {
+        bubbles: true,
+        composed: true,
+        detail: { value: { type: TYPE, entry_id: ENTRY, show_elevation_chart: false } },
+      }),
+    );
+
+    expect(emitted!.show_elevation_chart).toBe(false);
+  });
+});
+
 describe('adaptive-cover-pro-tile-card editor — cover pre-fill', () => {
   // Build a registry + hass that makes discoverEntities return exactly one managed cover.
   function makeEditorSingleCover(): EditorLike {
@@ -412,6 +495,7 @@ describe('adaptive-cover-pro-tile-card editor — schema', () => {
       '', // expandable "Badges" group
       'show_motion_icon',
       'show_compass',
+      'show_elevation_chart',
       'tap_action',
       'hold_action',
       'double_tap_action',

@@ -38,6 +38,7 @@ import './climate-panel';
 import './cover-bar';
 import './forecast-strip';
 import './sky-compass';
+import './elevation-chart';
 
 /**
  * ACP-specific more-info dialog rendered by the card (not HA's built-in
@@ -58,6 +59,7 @@ export class MoreInfoDialog extends LitElement {
 
   @property({ type: Boolean }) public advancedOpen = false;
   @property({ type: Boolean }) public showCompass = true;
+  @property({ type: Boolean }) public showElevationChart = true;
 
   /** Per-kind badge opt-in, threaded down from the tile-card config. */
   @property({ attribute: false }) public badges?: AdaptiveCoverProTileCardConfig['badges'];
@@ -186,6 +188,13 @@ export class MoreInfoDialog extends LitElement {
                         .showStats=${true}
                       ></acp-sky-compass>
                     </div>`
+                  : nothing}
+                ${this.showElevationChart
+                  ? html`<acp-elevation-chart
+                      .hass=${this.hass}
+                      .discovered=${this.discovered}
+                      ?compact=${true}
+                    ></acp-elevation-chart>`
                   : nothing}
                 ${this._renderSlots(attrs?.custom_position_slots)}
                 <acp-decision-strip

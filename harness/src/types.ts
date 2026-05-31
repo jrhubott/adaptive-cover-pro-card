@@ -103,6 +103,7 @@ export interface SkyCompassCardOptions {
   show_sunrise_sunset: boolean;
   show_cover_fill: boolean;
   show_window_arrow: boolean;
+  show_elevation_chart: boolean;
   north_offset: number;
 }
 
@@ -127,6 +128,7 @@ export interface TileCardOptions {
     cloud: boolean;
   };
   show_compass: boolean;
+  show_elevation_chart: boolean;
   show_motion_icon: boolean;
   layout: 'one-line' | 'detailed';
 }
