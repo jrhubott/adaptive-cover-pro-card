@@ -605,16 +605,16 @@ export class AdaptiveCoverProTileCard extends LitElement {
        1-2 (HA tile-card style). Always two rows — the Resume action is folded
        into the Manual badge rather than getting its own row. */
     .tile-body.detailed {
-      grid-template-columns: 24px minmax(0, 1fr) auto;
-      grid-template-rows: auto auto auto;
+      grid-template-columns: 24px minmax(0, 1fr) auto auto;
+      grid-template-rows: auto auto;
       grid-template-areas:
-        'icon label       controls'
-        'icon auto-line   controls'
-        'icon detail-line controls';
+        'icon label       auto-line   controls'
+        'icon detail-line detail-line controls';
       row-gap: 2px;
     }
-    /* The standalone Auto indicator (issue #110) rides on its own row above the
-       state line. When absent the row is not rendered and collapses to 0px. */
+    /* The standalone Auto indicator (issue #110) rides right-aligned on the
+       title row — same line as the cover name, above the state line — so the
+       tile stays two text lines tall. When absent the cell collapses to 0px. */
     .auto-line {
       grid-area: auto-line;
       display: flex;
@@ -644,12 +644,11 @@ export class AdaptiveCoverProTileCard extends LitElement {
       overflow: visible;
     }
     .tile-body.detailed.has-state-label {
-      grid-template-columns: 24px minmax(0, 1fr) auto;
-      grid-template-rows: auto auto auto;
+      grid-template-columns: 24px minmax(0, 1fr) auto auto;
+      grid-template-rows: auto auto;
       grid-template-areas:
-        'icon label       controls'
-        'icon auto-line   controls'
-        'icon detail-line controls';
+        'icon label       auto-line   controls'
+        'icon detail-line detail-line controls';
     }
     .tile-body.detailed.has-summary .label {
       display: flex;
@@ -828,21 +827,19 @@ export class AdaptiveCoverProTileCard extends LitElement {
        one-line .has-floor-chip rules have equal specificity and would
        otherwise win by source order. */
     .tile-body.detailed.has-floor-chip {
-      grid-template-columns: 24px minmax(0, 1fr) auto;
-      grid-template-rows: auto auto auto;
+      grid-template-columns: 24px minmax(0, 1fr) auto auto;
+      grid-template-rows: auto auto;
       grid-template-areas:
-        'icon label       controls'
-        'icon auto-line   controls'
-        'icon detail-line controls';
+        'icon label       auto-line   controls'
+        'icon detail-line detail-line controls';
     }
     .tile-body.detailed.has-row3.has-floor-chip {
-      grid-template-columns: 24px minmax(0, 1fr) auto;
-      grid-template-rows: auto auto auto auto;
+      grid-template-columns: 24px minmax(0, 1fr) auto auto;
+      grid-template-rows: auto auto auto;
       grid-template-areas:
-        'icon label       controls'
-        'icon auto-line   controls'
-        'icon detail-line controls'
-        'icon resume      resume';
+        'icon label       auto-line   controls'
+        'icon detail-line detail-line controls'
+        'icon resume      resume      resume';
     }
     .empty {
       padding: 12px;
