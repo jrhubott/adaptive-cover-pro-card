@@ -705,9 +705,6 @@ export class AcpHarnessControlPanel extends LitElement {
         ${this._checkbox('Show moon', this.config.root.show_moon, (v) =>
           this._emit({ ...this.config, root: { ...this.config.root, show_moon: v } }),
         )}
-        ${this._checkbox('Show version', this.config.root.show_version, (v) =>
-          this._emit({ ...this.config, root: { ...this.config.root, show_version: v } }),
-        )}
         ${this._checkbox('Hide inactive handlers', this.config.root.hide_inactive_handlers, (v) =>
           this._emit({
             ...this.config,
