@@ -10,6 +10,7 @@ interface BadgeLike extends HTMLElement {
   minimumMode?: boolean;
   manualEndIso?: string;
   integrationEnabled?: boolean;
+  resumable?: boolean;
 }
 
 async function mountBadge(props: Partial<BadgeLike>): Promise<BadgeLike> {
@@ -172,5 +173,23 @@ describe('acp-tile-badge', () => {
     const el = await mountBadge({ winner: 'default' });
     expect(text(el)).toBe('Auto');
     expect(kind(el)).toBe('auto');
+  });
+
+  it('renders a plain span (not a button) when not resumable', async () => {
+    const el = await mountBadge({ winner: 'manual' });
+    expect(el.shadowRoot!.querySelector('button.badge')).toBeFalsy();
+    expect(el.shadowRoot!.querySelector('span.badge')).toBeTruthy();
+  });
+
+  it('renders a tappable button and emits acp-resume when resumable', async () => {
+    const el = await mountBadge({ winner: 'manual', resumable: true });
+    const button = el.shadowRoot!.querySelector('button.badge') as HTMLButtonElement;
+    expect(button).toBeTruthy();
+    let fired = false;
+    el.addEventListener('acp-resume', () => {
+      fired = true;
+    });
+    button.click();
+    expect(fired).toBe(true);
   });
 });

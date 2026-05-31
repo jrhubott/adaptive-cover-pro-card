@@ -159,7 +159,6 @@ export class AcpHarnessCardStage extends LitElement {
       ...(Object.keys(badges).length > 0 ? { badges } : {}),
       show_compass: t.show_compass,
       show_motion_icon: t.show_motion_icon,
-      show_resume: t.show_resume,
       layout: t.layout,
     };
   }

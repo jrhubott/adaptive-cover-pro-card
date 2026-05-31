@@ -66,7 +66,6 @@ function defaultTile(): HarnessConfig['tile'] {
     badges: defaultBadges(),
     show_compass: true,
     show_motion_icon: true,
-    show_resume: 'auto',
     layout: 'one-line',
   };
 }
@@ -186,7 +185,8 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 'manual-override-active',
     label: 'Manual override active',
-    description: 'User overrode the cover; manual handler holds.',
+    description:
+      'User overrode the cover; manual handler holds. The Manual badge is tappable (↺) to resume automatic control.',
     build: () => {
       const c = baseConfig('2026-06-21', 14 * 60);
       c.scenario = 'manual-override-active';
@@ -235,6 +235,19 @@ export const SCENARIOS: Scenario[] = [
       // Derived mode produces a real trace where solar matched and cloud is not
       // the winner, so the solar-active badge shows regardless of cloud config.
       c.decisionMode = 'derived';
+      return c;
+    },
+  },
+  {
+    id: 'solar-detailed-layout',
+    label: 'Solar tracking — detailed layout',
+    description:
+      'Detailed layout: the solar badge rides inline on the state line, right-aligned against the controls.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'solar-detailed-layout';
+      c.decisionMode = 'derived';
+      c.tile.layout = 'detailed';
       return c;
     },
   },

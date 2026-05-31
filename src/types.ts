@@ -69,13 +69,9 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   /** Render a small motion indicator overlaid on the cover icon when the
    *  motion handler reports `motion_detected` (default true). */
   show_motion_icon?: boolean;
-  /** Resume-button visibility. `auto` keeps the original
-   *  manual-override/custom-position rule; `always` shows whenever a
-   *  reset_override_button exists; `never` hides it. */
-  show_resume?: 'auto' | 'always' | 'never';
   /** Tile layout. `one-line` (default) is the compact single-row layout;
-   *  `detailed` stacks title on row 1, state · position + controls on row 2,
-   *  and the contextual badge on its own row 3 beneath. */
+   *  `detailed` stacks title on row 1 and state · position + inline badge on
+   *  row 2, with the controls floating to the right across both rows. */
   layout?: 'one-line' | 'detailed';
   /** Tap behavior. When undefined, opens the ACP more-info dialog (default).
    *  Otherwise a standard HA `ActionConfig`. Legacy string values
