@@ -2,6 +2,7 @@
 node_modules/
 *.tsbuildinfo
 harness/dist/
+.timelapse-frames/
 
 # editor / OS
 .vscode/*

@@ -96,6 +96,10 @@ Find your `entry_id` on the integration's URL:
 
 ## Screenshots
 
+**Sky compass — a full day in motion.** The standalone sky compass card across a simulated day: the sun rises, arcs through the window's field of view, and sets, while the cover-closure wedge tracks it. The dimmed disc is the sun below the horizon at night.
+
+![Sky compass — a day in motion](https://raw.githubusercontent.com/jrhubott/adaptive-cover-pro-card/main/images/sky-compass-timelapse.gif)
+
 **Tile card — five configurations stacked.** Same `custom:adaptive-cover-pro-tile-card` type; each tile reflects a different combination of `show_position`, `show_controls`, `show_badge`, and `show_resume`, plus the live winner-driven badge state (Auto / Manual countdown / etc.):
 
 ![Tile card configurations](https://raw.githubusercontent.com/jrhubott/adaptive-cover-pro-card/main/images/tile-card-variants.png)
@@ -114,6 +118,9 @@ npm run dev       # rollup -c -w, rebuilds dist/ on save
 npm run test      # vitest
 npm run lint
 ```
+
+The sky-compass demo GIF above is regenerated from the dev harness with
+`npm run capture:timelapse` (needs `npx playwright install chromium` once and `ffmpeg` on PATH; run `npm run capture:timelapse -- --help` for scenario/time-span/format options).
 
 ## Support
 
