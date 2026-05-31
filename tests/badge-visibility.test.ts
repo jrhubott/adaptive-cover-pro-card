@@ -88,17 +88,16 @@ describe('selectVisibleBadges', () => {
     ).toEqual(['weather', 'manual', 'custom_position', 'motion', 'cloud']);
   });
 
-  it('never filters auto or off, regardless of badges config', () => {
-    expect(
-      selectVisibleBadges(
-        ['auto', 'off'],
-        { solar: false, motion: false },
-        {
-          solarMatched: false,
-          cloudIsWinner: false,
-        },
-      ),
-    ).toEqual(['auto', 'off']);
+  it('keeps auto by default but lets badges.auto hide it; off is never filtered', () => {
+    const noSolar = { solarMatched: false, cloudIsWinner: false };
+    // Unrelated flags off → auto still shows.
+    expect(selectVisibleBadges(['auto', 'off'], { solar: false, motion: false }, noSolar)).toEqual([
+      'auto',
+      'off',
+    ]);
+    // badges.auto === false hides auto, but off survives.
+    expect(selectVisibleBadges(['auto', 'off'], { auto: false }, noSolar)).toEqual(['off']);
+    expect(selectVisibleBadges(['auto'], { auto: true }, noSolar)).toEqual(['auto']);
   });
 
   it('preserves input order of the surviving kinds', () => {

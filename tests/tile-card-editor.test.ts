@@ -317,12 +317,19 @@ describe('adaptive-cover-pro-tile-card editor — schema', () => {
     document.body.appendChild(el);
     await el.updateComplete;
 
+    interface SchemaNode {
+      name: string;
+      type?: string;
+      schema?: SchemaNode[];
+    }
     const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement & {
-      schema?: Array<{ name: string }>;
+      schema?: SchemaNode[];
     };
     expect(haForm).toBeTruthy();
-    const names = (haForm.schema ?? []).map((s) => s.name);
-    expect(names).toEqual([
+    // Top-level fields: the badge toggles are collapsed into a single
+    // unnamed `expandable` group that sits where they used to be.
+    const topNames = (haForm.schema ?? []).map((s) => s.name);
+    expect(topNames).toEqual([
       'entry_id',
       'name',
       'icon',
@@ -333,6 +340,21 @@ describe('adaptive-cover-pro-tile-card editor — schema', () => {
       'show_decision_summary',
       'show_controls',
       'show_badge',
+      '', // expandable "Badges" group
+      'show_motion_icon',
+      'show_compass',
+      'show_resume',
+      'tap_action',
+      'hold_action',
+      'double_tap_action',
+    ]);
+
+    // The badge booleans live nested inside the expandable > grid.
+    const collectNames = (nodes: SchemaNode[] | undefined): string[] =>
+      (nodes ?? []).flatMap((s) => [s.name, ...collectNames(s.schema)]);
+    const allNames = collectNames(haForm.schema);
+    const badgeNames = [
+      'badge_auto',
       'badge_solar',
       'badge_force',
       'badge_weather',
@@ -342,13 +364,12 @@ describe('adaptive-cover-pro-tile-card editor — schema', () => {
       'badge_climate',
       'badge_glare_zone',
       'badge_cloud',
-      'show_motion_icon',
-      'show_compass',
-      'show_resume',
-      'tap_action',
-      'hold_action',
-      'double_tap_action',
-    ]);
+    ];
+    for (const n of badgeNames) {
+      expect(allNames).toContain(n);
+    }
+    const group = (haForm.schema ?? []).find((s) => s.type === 'expandable');
+    expect(group).toBeTruthy();
   });
 
   it("restricts the cover picker to the entry's managed_covers when registry is loaded", async () => {
