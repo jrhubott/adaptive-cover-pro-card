@@ -42,6 +42,7 @@ function defaultCompass(): HarnessConfig['compass'] {
 /** Every badge kind on — the default opt-in state. */
 export function defaultBadges(): HarnessConfig['tile']['badges'] {
   return {
+    auto: true,
     solar: true,
     force: true,
     weather: true,
@@ -247,6 +248,19 @@ export const SCENARIOS: Scenario[] = [
       c.scenario = 'cloud-suppressed';
       c.decisionMode = 'scripted';
       c.scriptedWinner = 'cloud';
+      return c;
+    },
+  },
+  {
+    id: 'auto-default-badge',
+    label: 'Auto badge — default winner',
+    description:
+      'No specific handler wins (the default position applies). The tile shows the green "Auto" badge; toggle badge: auto off to hide it.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'auto-default-badge';
+      c.decisionMode = 'scripted';
+      c.scriptedWinner = 'default';
       return c;
     },
   },

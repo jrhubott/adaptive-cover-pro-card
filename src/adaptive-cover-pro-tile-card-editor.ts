@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant, LovelaceCardEditor } from 'custom-card-helpers';
 
-import { TILE_CARD_EDITOR_NAME } from './const';
+import { CARD_VERSION, TILE_CARD_EDITOR_NAME } from './const';
 import { fetchAcpConfigEntries, type AcpConfigEntry } from './lib/config-entries';
 import {
   fetchEntityRegistry,
@@ -20,7 +20,15 @@ interface ValueChangedEvent extends CustomEvent {
 interface HaFormSchemaItem {
   name: string;
   required?: boolean;
-  selector: Record<string, unknown>;
+  selector?: Record<string, unknown>;
+  // Layout-group containers (ha-form `expandable` / `grid`). When `type` is set
+  // the item groups `schema` children instead of binding a selector.
+  type?: string;
+  title?: string;
+  icon?: string;
+  expanded?: boolean;
+  column_min_width?: string;
+  schema?: HaFormSchemaItem[];
 }
 
 // Mirror the runtime defaults applied in adaptive-cover-pro-tile-card.ts so the
@@ -29,6 +37,7 @@ interface HaFormSchemaItem {
 // boolean fields in the form and reassembled into a nested `badges` object on
 // emit. `off` and `auto` are state-fallbacks and are never user-configurable.
 const BADGE_KINDS = [
+  'auto',
   'solar',
   'force',
   'weather',
@@ -51,6 +60,7 @@ const FORM_DEFAULTS = {
   show_resume: 'auto',
   layout: 'one-line',
   // All badges default on; only `=== false` hides.
+  badge_auto: true,
   badge_solar: true,
   badge_force: true,
   badge_weather: true,
@@ -59,6 +69,7 @@ const FORM_DEFAULTS = {
   badge_motion: true,
   badge_climate: true,
   badge_glare_zone: true,
+  badge_cloud: true,
 } as const;
 
 const LABEL_KEYS: Record<string, string> = {
@@ -72,6 +83,8 @@ const LABEL_KEYS: Record<string, string> = {
   show_decision_summary: 'editor.tile.show_decision_summary',
   show_controls: 'editor.tile.show_controls',
   show_badge: 'editor.tile.show_badge',
+  badge_section: 'editor.tile.badge_section',
+  badge_auto: 'editor.tile.badge_auto',
   badge_solar: 'editor.tile.badge_solar',
   badge_force: 'editor.tile.badge_force',
   badge_weather: 'editor.tile.badge_weather',
@@ -80,6 +93,7 @@ const LABEL_KEYS: Record<string, string> = {
   badge_motion: 'editor.tile.badge_motion',
   badge_climate: 'editor.tile.badge_climate',
   badge_glare_zone: 'editor.tile.badge_glare_zone',
+  badge_cloud: 'editor.tile.badge_cloud',
   show_compass: 'editor.tile.show_compass',
   show_motion_icon: 'editor.tile.show_motion_icon',
   show_resume: 'editor.tile.show_resume',
@@ -274,6 +288,9 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
                 entry_id: (e.target as HTMLInputElement).value,
               })}
           />
+          <div class="version-footer dim">
+            ${t('root.footer_version', this.hass, { version: CARD_VERSION })}
+          </div>
         </div>
       `;
     }
@@ -289,16 +306,21 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     const data = { ...FORM_DEFAULTS, ...rest, ...flatBadges };
 
     return html`
-      <ha-form
-        .hass=${this.hass}
-        .data=${data}
-        .schema=${schema}
-        .computeLabel=${this._computeLabel}
-        @value-changed=${this._valueChanged}
-      ></ha-form>
-      ${this._managedCovers.length > 1 && !this._config?.cover
-        ? html`<div class="hint">${t('editor.tile.cover_blank_hint', this.hass)}</div>`
-        : nothing}
+      <div class="form">
+        <ha-form
+          .hass=${this.hass}
+          .data=${data}
+          .schema=${schema}
+          .computeLabel=${this._computeLabel}
+          @value-changed=${this._valueChanged}
+        ></ha-form>
+        ${this._managedCovers.length > 1 && !this._config?.cover
+          ? html`<div class="hint">${t('editor.tile.cover_blank_hint', this.hass)}</div>`
+          : nothing}
+        <div class="version-footer dim">
+          ${t('root.footer_version', this.hass, { version: CARD_VERSION })}
+        </div>
+      </div>
     `;
   }
 
@@ -351,7 +373,24 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       { name: 'show_decision_summary', selector: { boolean: {} } },
       { name: 'show_controls', selector: { boolean: {} } },
       { name: 'show_badge', selector: { boolean: {} } },
-      ...BADGE_KINDS.map((k) => ({ name: `badge_${k}`, selector: { boolean: {} } })),
+      {
+        // Layout-only container with an empty name so the badge_<kind> booleans
+        // stay flat in the form value (ha-form does not nest unnamed groups).
+        type: 'expandable',
+        name: '',
+        title: t('editor.tile.badge_section', this.hass),
+        icon: 'mdi:label-multiple-outline',
+        schema: [
+          {
+            type: 'grid',
+            name: '',
+            schema: BADGE_KINDS.map((k) => ({
+              name: `badge_${k}`,
+              selector: { boolean: {} },
+            })),
+          },
+        ],
+      },
       { name: 'show_motion_icon', selector: { boolean: {} } },
       { name: 'show_compass', selector: { boolean: {} } },
       {
@@ -397,6 +436,13 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       font-size: 0.8rem;
       color: var(--secondary-text-color, #888);
       padding: 4px 0 0;
+    }
+    .version-footer {
+      font-size: 0.7rem;
+      text-align: right;
+    }
+    .dim {
+      color: var(--secondary-text-color);
     }
   `;
 }

@@ -795,6 +795,7 @@ export class AcpHarnessControlPanel extends LitElement {
           <legend>Badges (opt-in)</legend>
           ${(
             [
+              'auto',
               'solar',
               'force',
               'weather',

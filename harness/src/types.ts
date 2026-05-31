@@ -115,6 +115,7 @@ export interface TileCardOptions {
   show_badge: boolean;
   /** Per-kind badge opt-in. All default on; only `false` hides the kind. */
   badges: {
+    auto: boolean;
     solar: boolean;
     force: boolean;
     weather: boolean;

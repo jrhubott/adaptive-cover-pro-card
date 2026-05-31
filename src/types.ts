@@ -48,10 +48,11 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   /** Render the contextual badge (default true). Master switch for the tile
    *  badge — `badges` filters within it. */
   show_badge?: boolean;
-  /** Per-kind opt-in for the 9 configurable handler badges. Omitted/undefined =
-   *  on; only `=== false` hides. `off` and `auto` are state-fallbacks and are
-   *  never filtered by this. */
+  /** Per-kind opt-in for the 10 configurable badge kinds. Omitted/undefined =
+   *  on; only `=== false` hides. `off` is a state-fallback and is never
+   *  filtered by this. */
   badges?: {
+    auto?: boolean;
     solar?: boolean;
     force?: boolean;
     weather?: boolean;
