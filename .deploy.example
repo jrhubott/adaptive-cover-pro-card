@@ -1,6 +1,12 @@
 # Copy to `.deploy` (gitignored) and set your values.
-# Used by scripts/deploy-local to copy the built card into your dev Home Assistant.
+# Used by scripts/deploy to copy the built card into your Home Assistant over SMB.
 
-# Absolute path to the directory inside your HA config where the card should live.
-# HA serves files from config/www/* at /local/*.
-HA_WWW=/home/you/homeassistant/config/www/community/adaptive-cover-pro-card
+# SMB connection to the HA config share.
+HA_SMB_HOST=home-assistant.home
+HA_SMB_SHARE=config
+# HA_SMB_USER=                       # optional; omit for guest access
+# HA_SMB_PASS=                       # optional
+
+# HA URL + long-lived token, used to refresh the Lovelace resource after copy.
+HA_URL=http://home-assistant.home:8123
+# HA_TOKEN=                          # optional; prompted if not set

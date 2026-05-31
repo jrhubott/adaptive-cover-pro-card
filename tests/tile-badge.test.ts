@@ -44,9 +44,9 @@ describe('acp-tile-badge', () => {
     expect(kind(el)).toBe('auto');
   });
 
-  it('renders Solar tracking active for solar winner', async () => {
+  it('renders Solar tracking for solar winner', async () => {
     const el = await mountBadge({ winner: 'solar' });
-    expect(text(el)).toBe('Solar tracking active');
+    expect(text(el)).toBe('Solar tracking');
     expect(kind(el)).toBe('solar');
   });
 
@@ -98,12 +98,9 @@ describe('acp-tile-badge', () => {
     expect(kind(el)).toBe('climate');
   });
 
-  it('renders the inverted "Solar tracking active" label for the cloud_suppression winner string', async () => {
-    // The cloud kind is dropped from the visible badge set; surfaces filter it
-    // out. The user-facing positive indicator is the solar badge instead, so the
-    // "Cloudy" label is no longer surfaced anywhere.
+  it('renders the "Solar tracking" label for the solar winner string', async () => {
     const el = await mountBadge({ winner: 'solar' });
-    expect(text(el)).toBe('Solar tracking active');
+    expect(text(el)).toBe('Solar tracking');
     expect(kind(el)).toBe('solar');
   });
 
@@ -161,7 +158,7 @@ describe('acp-tile-badge', () => {
 
   it('accepts CamelCase ControlMethod-style winner names', async () => {
     const el = await mountBadge({ winner: 'SolarHandler' });
-    expect(text(el)).toBe('Solar tracking active');
+    expect(text(el)).toBe('Solar tracking');
     expect(kind(el)).toBe('solar');
   });
 

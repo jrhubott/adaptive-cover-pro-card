@@ -341,6 +341,7 @@ describe('adaptive-cover-pro-tile-card editor — schema', () => {
       'badge_motion',
       'badge_climate',
       'badge_glare_zone',
+      'badge_cloud',
       'show_motion_icon',
       'show_compass',
       'show_resume',

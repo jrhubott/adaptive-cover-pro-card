@@ -151,7 +151,7 @@ export const BADGE_TOKENS: Record<BadgeKind, BadgeTokens> = {
   climate: { label: 'Climate', bg: 'rgba(0, 150, 136, 0.22)', fg: '#00695c' },
   cloud: { label: 'Cloudy', bg: 'rgba(33, 150, 243, 0.22)', fg: '#0d47a1' },
   custom_position: { label: 'Custom', bg: 'rgba(156, 39, 176, 0.22)', fg: '#6a1b9a' },
-  solar: { label: 'Solar tracking active', bg: 'rgba(76, 175, 80, 0.22)', fg: '#1b5e20' },
+  solar: { label: 'Solar tracking', bg: 'rgba(76, 175, 80, 0.22)', fg: '#1b5e20' },
   motion: { label: 'Motion', bg: 'rgba(255, 235, 59, 0.22)', fg: '#827717' },
   off: { label: 'Off', bg: 'rgba(97, 97, 97, 0.28)', fg: '#212121' },
 };
@@ -177,8 +177,7 @@ export const BADGE_I18N_KEYS: Record<BadgeKind, string> = {
 };
 
 /**
- * Leading mdi icon rendered inside each badge. `cloud` keeps an entry for
- * taxonomy completeness but never renders as a badge (it's filtered upstream).
+ * Leading mdi icon rendered inside each badge.
  */
 export const BADGE_ICONS: Record<BadgeKind, string> = {
   auto: 'mdi:autorenew',

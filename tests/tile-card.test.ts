@@ -228,6 +228,37 @@ describe('adaptive-cover-pro-tile-card render', () => {
     expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeTruthy();
   });
 
+  it('renders the Cloudy winner badge when cloud suppression wins', async () => {
+    // Cloud-suppression handler wins → the tile shows the "Cloudy" badge instead
+    // of a blank badge area.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({
+        decisionState: 'cloud',
+        decisionAttrs: {
+          trace: [{ handler: 'cloud', matched: true, reason: '', position: 100 }],
+        },
+      }),
+    );
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).toBe('Cloudy');
+  });
+
+  it('hides the cloud winner badge when badges.cloud is false', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, badges: { cloud: false } },
+      makeHass({
+        decisionState: 'cloud',
+        decisionAttrs: {
+          trace: [{ handler: 'cloud', matched: true, reason: '', position: 100 }],
+        },
+      }),
+    );
+    expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeFalsy();
+  });
+
   it('shows inline Resume when manual_override_binary is on', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
@@ -582,7 +613,7 @@ describe('adaptive-cover-pro-tile-card new options', () => {
     expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeFalsy();
   });
 
-  it('renders no badge when the cloud_suppression handler wins (suppressed)', async () => {
+  it('renders the Cloudy badge when the un-normalized cloud_suppression handler wins', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({
@@ -593,7 +624,10 @@ describe('adaptive-cover-pro-tile-card new options', () => {
         },
       }),
     );
-    expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeFalsy();
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).toBe('Cloudy');
   });
 
   it('badges:{motion:false} hides the badge when motion wins', async () => {
