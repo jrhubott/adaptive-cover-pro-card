@@ -126,10 +126,10 @@ npm run test      # vitest
 npm run lint
 ```
 
-The README imagery is generated from the dev harness, so it stays in sync with the cards. One command regenerates everything:
+The README and wiki imagery is generated from the dev harness, so it stays in sync with the cards. One command regenerates everything:
 
 ```bash
-npm run capture:readme        # all stills, the tile gallery, and the GIF
+npm run capture:readme-wiki   # all stills, the tile gallery, and the GIF
 ```
 
 Or run the pieces directly:

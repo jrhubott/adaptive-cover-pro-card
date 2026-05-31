@@ -34,7 +34,7 @@
     "typecheck": "tsc --noEmit",
     "capture:timelapse": "node scripts/capture-timelapse.mjs",
     "capture:screenshots": "node scripts/capture-screenshots.mjs",
-    "capture:readme": "node scripts/capture-readme.mjs"
+    "capture:readme-wiki": "node scripts/capture-readme-wiki.mjs"
   },
   "dependencies": {
     "custom-card-helpers": "^2.0.0",

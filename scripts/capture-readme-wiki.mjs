@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 /**
- * Regenerate every image and animation the README uses, in one shot.
+ * Regenerate every image and animation the README and wiki use, in one shot.
  *
  * Builds the harness once, then drives the two capture scripts with the
- * parameters that produce the committed README assets:
+ * parameters that produce the committed README/wiki assets:
  *   - scripts/capture-screenshots.mjs --compose  → every still PNG (the card,
  *     sky compass, tile gallery, and the more-info dialog)
  *   - scripts/capture-timelapse.mjs              → the animated sky-compass GIF
  *
- * Run it whenever the cards change and the README imagery needs refreshing:
- *   node scripts/capture-readme.mjs           # or: npm run capture:readme
- *   node scripts/capture-readme.mjs --theme light
- *   node scripts/capture-readme.mjs --skip-timelapse   # stills only (faster)
+ * Run it whenever the cards change and the README/wiki imagery needs refreshing:
+ *   node scripts/capture-readme-wiki.mjs           # or: npm run capture:readme-wiki
+ *   node scripts/capture-readme-wiki.mjs --theme light
+ *   node scripts/capture-readme-wiki.mjs --skip-timelapse   # stills only (faster)
  *
  * Requirements (dev-only): Playwright (`npm i` + `npx playwright install
  * chromium`) and ffmpeg on PATH (for the GIF and the composed tile gallery).
@@ -32,11 +32,11 @@ const DEFAULTS = {
 };
 
 const HELP = `
-Regenerate all README images and animations from the dev harness.
+Regenerate all README and wiki images and animations from the dev harness.
 
 Usage:
-  node scripts/capture-readme.mjs [options]
-  npm run capture:readme -- [options]
+  node scripts/capture-readme-wiki.mjs [options]
+  npm run capture:readme-wiki -- [options]
 
 Options:
   --theme <dark|light>   Theme for every asset.        (default: ${DEFAULTS.theme})
@@ -102,7 +102,7 @@ function main() {
     capture('capture-timelapse.mjs', theme);
   }
 
-  console.log('\n✓ README assets regenerated in images/.');
+  console.log('\n✓ README/wiki assets regenerated in images/.');
 }
 
 try {
