@@ -242,7 +242,11 @@ function e(e,t,o,s){var i,n=arguments.length,r=n<3?t:null===s?s=Object.getOwnPro
       stroke: var(--warning-color, gold);
       stroke-width: 1;
       stroke-opacity: 0.7;
-      transition: all 0.3s ease;
+      transition:
+        fill 0.3s ease,
+        fill-opacity 0.3s ease,
+        stroke 0.3s ease,
+        stroke-opacity 0.3s ease;
     }
     /* Static FOV envelope shown dim beneath the active sun arc — lets the
        reader see the configured ±fov_left/right span at the same time as
@@ -259,7 +263,11 @@ function e(e,t,o,s){var i,n=arguments.length,r=n<3?t:null===s?s=Object.getOwnPro
       stroke: var(--primary-color);
       stroke-width: 1;
       stroke-opacity: 0.6;
-      transition: all 0.3s ease;
+      transition:
+        fill 0.3s ease,
+        fill-opacity 0.3s ease,
+        stroke 0.3s ease,
+        stroke-opacity 0.3s ease;
     }
     .blind-spot {
       fill: var(--error-color, crimson);
@@ -283,10 +291,7 @@ function e(e,t,o,s){var i,n=arguments.length,r=n<3?t:null===s?s=Object.getOwnPro
     }
     .sun {
       fill: var(--secondary-text-color);
-      transition:
-        cx 0.3s ease,
-        cy 0.3s ease,
-        fill 0.3s ease;
+      transition: fill 0.3s ease;
     }
     .sun.up {
       fill: #ffe680;
@@ -438,9 +443,6 @@ function e(e,t,o,s){var i,n=arguments.length,r=n<3?t:null===s?s=Object.getOwnPro
     .moon-lit {
       fill: var(--secondary-text-color);
       opacity: 0.75;
-      transition:
-        cx 0.3s ease,
-        cy 0.3s ease;
     }
     .dot.moon-dot {
       background: var(--secondary-text-color);

@@ -680,7 +680,11 @@ export class SkyCompass extends LitElement {
       stroke: var(--warning-color, gold);
       stroke-width: 1;
       stroke-opacity: 0.7;
-      transition: all 0.3s ease;
+      transition:
+        fill 0.3s ease,
+        fill-opacity 0.3s ease,
+        stroke 0.3s ease,
+        stroke-opacity 0.3s ease;
     }
     /* Static FOV envelope shown dim beneath the active sun arc — lets the
        reader see the configured ±fov_left/right span at the same time as
@@ -697,7 +701,11 @@ export class SkyCompass extends LitElement {
       stroke: var(--primary-color);
       stroke-width: 1;
       stroke-opacity: 0.6;
-      transition: all 0.3s ease;
+      transition:
+        fill 0.3s ease,
+        fill-opacity 0.3s ease,
+        stroke 0.3s ease,
+        stroke-opacity 0.3s ease;
     }
     .blind-spot {
       fill: var(--error-color, crimson);
@@ -721,10 +729,7 @@ export class SkyCompass extends LitElement {
     }
     .sun {
       fill: var(--secondary-text-color);
-      transition:
-        cx 0.3s ease,
-        cy 0.3s ease,
-        fill 0.3s ease;
+      transition: fill 0.3s ease;
     }
     .sun.up {
       fill: #ffe680;
@@ -876,9 +881,6 @@ export class SkyCompass extends LitElement {
     .moon-lit {
       fill: var(--secondary-text-color);
       opacity: 0.75;
-      transition:
-        cx 0.3s ease,
-        cy 0.3s ease;
     }
     .dot.moon-dot {
       background: var(--secondary-text-color);
