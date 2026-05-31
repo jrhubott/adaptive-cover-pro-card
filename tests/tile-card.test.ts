@@ -230,9 +230,10 @@ describe('adaptive-cover-pro-tile-card render', () => {
 
   it('renders the Cloudy winner badge when cloud suppression wins', async () => {
     // Cloud-suppression handler wins → the tile shows the "Cloudy" badge instead
-    // of a blank badge area.
+    // of a blank badge area. Pinned to one-line so this exercises the single
+    // winner badge (detailed now also renders a separate Auto indicator).
     const el = await mount(
-      { type: TYPE, entry_id: ENTRY },
+      { type: TYPE, entry_id: ENTRY, layout: 'one-line' },
       makeHass({
         decisionState: 'cloud',
         decisionAttrs: {
@@ -248,7 +249,7 @@ describe('adaptive-cover-pro-tile-card render', () => {
 
   it('hides the cloud winner badge when badges.cloud is false', async () => {
     const el = await mount(
-      { type: TYPE, entry_id: ENTRY, badges: { cloud: false } },
+      { type: TYPE, entry_id: ENTRY, layout: 'one-line', badges: { cloud: false } },
       makeHass({
         decisionState: 'cloud',
         decisionAttrs: {
@@ -338,7 +339,7 @@ describe('adaptive-cover-pro-tile-card render', () => {
 
   it('badge shows the configured floor value (60%), not the effective computed position (42%), when minimum_mode is true', async () => {
     const el = await mount(
-      { type: TYPE, entry_id: ENTRY },
+      { type: TYPE, entry_id: ENTRY, layout: 'one-line' },
       makeHass({
         decisionState: 'custom_position_1',
         decisionAttrs: {
@@ -622,7 +623,7 @@ describe('adaptive-cover-pro-tile-card new options', () => {
 
   it('renders the Cloudy badge when the un-normalized cloud_suppression handler wins', async () => {
     const el = await mount(
-      { type: TYPE, entry_id: ENTRY },
+      { type: TYPE, entry_id: ENTRY, layout: 'one-line' },
       makeHass({
         decisionState: 'cloud_suppression',
         decisionAttrs: {
@@ -650,7 +651,7 @@ describe('adaptive-cover-pro-tile-card new options', () => {
 
   it('shows the Motion idle badge when the icon is off and its flag is on', async () => {
     const el = await mount(
-      { type: TYPE, entry_id: ENTRY, show_motion_icon: false },
+      { type: TYPE, entry_id: ENTRY, layout: 'one-line', show_motion_icon: false },
       motionWinnerHass(),
     );
     const badge = el.shadowRoot!.querySelector('acp-tile-badge');
@@ -785,6 +786,158 @@ describe('adaptive-cover-pro-tile-card new options', () => {
     // Scope to the tile body — the more-info dialog has its own badges, and
     // happy-dom's querySelector pierces shadow roots.
     expect(body!.querySelector('acp-tile-badge')).toBeFalsy();
+  });
+});
+
+describe('adaptive-cover-pro-tile-card Auto indicator (issue #110)', () => {
+  it('detailed: cloud wins under automatic control → BOTH the Cloudy winner badge and a separate Auto badge', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed' },
+      makeHass({
+        decisionState: 'cloud',
+        decisionAttrs: {
+          trace: [{ handler: 'cloud', matched: true, reason: '', position: 100 }],
+        },
+      }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    // Two distinct badges render: the Cloudy winner inline on .detail-line and
+    // the Auto indicator on its own .auto-line above it.
+    const badges = body.querySelectorAll('acp-tile-badge');
+    expect(badges.length).toBe(2);
+
+    const detailLineBadge = body.querySelector('.detail-line acp-tile-badge');
+    expect(detailLineBadge).toBeTruthy();
+    expect(detailLineBadge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim()).toBe('Cloudy');
+
+    const autoLine = body.querySelector('.auto-line');
+    expect(autoLine).toBeTruthy();
+    const autoBadge = autoLine!.querySelector('acp-tile-badge');
+    expect(autoBadge).toBeTruthy();
+    expect(autoBadge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim()).toBe('Auto');
+  });
+
+  it('detailed: .auto-line appears in DOM order BEFORE .detail-line within .tile-body.detailed', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed' },
+      makeHass({
+        decisionState: 'cloud',
+        decisionAttrs: {
+          trace: [{ handler: 'cloud', matched: true, reason: '', position: 100 }],
+        },
+      }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    const rows = Array.from(body.children);
+    const autoIdx = rows.findIndex((n) => (n as Element).classList.contains('auto-line'));
+    const detailIdx = rows.findIndex((n) => (n as Element).classList.contains('detail-line'));
+    expect(autoIdx).toBeGreaterThanOrEqual(0);
+    expect(detailIdx).toBeGreaterThanOrEqual(0);
+    expect(autoIdx).toBeLessThan(detailIdx);
+  });
+
+  it('detailed: default winner (auto) renders the Auto line only — no duplicate inline Auto badge', async () => {
+    // Dedupe: when the winner badge kind is itself `auto`, the inline winner
+    // badge is suppressed so Auto never shows twice.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed' },
+      makeHass({
+        decisionState: 'default',
+        decisionAttrs: {
+          trace: [{ handler: 'default', matched: true, reason: '', position: 60 }],
+        },
+      }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    const badges = body.querySelectorAll('acp-tile-badge');
+    expect(badges.length).toBe(1);
+    // The single badge lives on .auto-line, not inline on .detail-line.
+    expect(body.querySelector('.auto-line acp-tile-badge')).toBeTruthy();
+    expect(body.querySelector('.detail-line acp-tile-badge')).toBeFalsy();
+  });
+
+  it('detailed: manual override active → no Auto badge', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed' },
+      makeHass({ manualOverrideOn: true, decisionState: 'manual' }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    expect(body.querySelector('.auto-line')).toBeFalsy();
+  });
+
+  it('detailed: force winner → no Auto badge', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed' },
+      makeHass({
+        decisionState: 'force',
+        decisionAttrs: {
+          trace: [{ handler: 'force', matched: true, reason: '', position: 0 }],
+        },
+      }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    expect(body.querySelector('.auto-line')).toBeFalsy();
+  });
+
+  it('detailed: custom_position with bypass_auto_control true → no Auto badge', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed' },
+      makeHass({
+        decisionState: 'custom_position_1',
+        decisionAttrs: {
+          trace: [{ handler: 'custom_position_1', matched: true, reason: '', position: 50 }],
+          bypass_auto_control: true,
+        },
+      }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    expect(body.querySelector('.auto-line')).toBeFalsy();
+  });
+
+  it('detailed: custom_position with bypass_auto_control false → Auto badge present', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed' },
+      makeHass({
+        decisionState: 'custom_position_1',
+        decisionAttrs: {
+          trace: [{ handler: 'custom_position_1', matched: true, reason: '', position: 50 }],
+          bypass_auto_control: false,
+        },
+      }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    expect(body.querySelector('.auto-line acp-tile-badge')).toBeTruthy();
+  });
+
+  it('detailed: badges.auto false hides the Auto badge but keeps the winner badge', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', badges: { auto: false } },
+      makeHass({
+        decisionState: 'cloud',
+        decisionAttrs: {
+          trace: [{ handler: 'cloud', matched: true, reason: '', position: 100 }],
+        },
+      }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    expect(body.querySelector('.auto-line')).toBeFalsy();
+    expect(body.querySelector('.detail-line acp-tile-badge')).toBeTruthy();
+  });
+
+  it('one-line: Auto-active cloud winner → no .auto-line, exactly one badge', async () => {
+    // Auto is detailed-only; one-line is the compact opt-out with no vertical room.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'one-line' },
+      makeHass({
+        decisionState: 'cloud',
+        decisionAttrs: {
+          trace: [{ handler: 'cloud', matched: true, reason: '', position: 100 }],
+        },
+      }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body')!;
+    expect(body.querySelector('.auto-line')).toBeFalsy();
+    expect(body.querySelectorAll('acp-tile-badge').length).toBe(1);
   });
 });
 

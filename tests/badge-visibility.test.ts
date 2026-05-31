@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  isAutoControlActive,
   isSolarActive,
   resolveTileBadgeKind,
   selectVisibleBadges,
@@ -175,5 +176,69 @@ describe('resolveTileBadgeKind', () => {
         showMotionIcon: true,
       }),
     ).toBe('manual');
+  });
+});
+
+describe('isAutoControlActive', () => {
+  const base = {
+    integrationEnabled: true,
+    automaticControl: true,
+    manualActive: false,
+    bypassAutoControl: false,
+  };
+
+  // Every ordinary automatic handler keeps Auto visible: the indicator is
+  // independent of *which* automatic handler won.
+  const ordinaryHandlers = [
+    'cloud',
+    'solar',
+    'default',
+    'weather',
+    'climate',
+    'glare_zone',
+    'motion',
+  ];
+  for (const winner of ordinaryHandlers) {
+    it(`is true for the ${winner} handler under automatic control`, () => {
+      expect(isAutoControlActive({ ...base, winner })).toBe(true);
+    });
+  }
+
+  it('is false when a manual override is active', () => {
+    expect(isAutoControlActive({ ...base, winner: 'solar', manualActive: true })).toBe(false);
+  });
+
+  it('is false when the winner normalizes to force', () => {
+    expect(isAutoControlActive({ ...base, winner: 'force' })).toBe(false);
+    // Raw integration handler name normalizes to force.
+    expect(isAutoControlActive({ ...base, winner: 'force_override' })).toBe(false);
+  });
+
+  it('is false for a custom_position winner that bypasses automatic control', () => {
+    expect(
+      isAutoControlActive({ ...base, winner: 'custom_position', bypassAutoControl: true }),
+    ).toBe(false);
+  });
+
+  it('is true for a custom_position winner that does NOT bypass automatic control', () => {
+    expect(
+      isAutoControlActive({ ...base, winner: 'custom_position', bypassAutoControl: false }),
+    ).toBe(true);
+  });
+
+  it('is false when the integration is disabled', () => {
+    expect(isAutoControlActive({ ...base, winner: 'solar', integrationEnabled: false })).toBe(
+      false,
+    );
+  });
+
+  it('is false when automatic control is off', () => {
+    expect(isAutoControlActive({ ...base, winner: 'solar', automaticControl: false })).toBe(false);
+  });
+
+  it('normalizes the raw winner string before applying the rules', () => {
+    // A raw, space-separated winner label still flows through normalizeHandler;
+    // it is not 'force' or 'custom_position', so Auto stays active.
+    expect(isAutoControlActive({ ...base, winner: 'Cloud Suppression' })).toBe(true);
   });
 });

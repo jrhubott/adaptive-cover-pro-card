@@ -57,7 +57,7 @@ const FORM_DEFAULTS = {
   show_badge: true,
   show_compass: true,
   show_motion_icon: true,
-  layout: 'one-line',
+  layout: 'detailed',
   // All badges default on; only `=== false` hides.
   badge_auto: true,
   badge_solar: true,

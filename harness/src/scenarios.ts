@@ -66,7 +66,7 @@ function defaultTile(): HarnessConfig['tile'] {
     badges: defaultBadges(),
     show_compass: true,
     show_motion_icon: true,
-    layout: 'one-line',
+    layout: 'detailed',
   };
 }
 
@@ -269,9 +269,9 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: 'cloud-suppressed',
-    label: 'Cloud suppressed — Cloudy badge',
+    label: 'Cloud suppressed — Cloudy + Auto badges',
     description:
-      'Cloud-suppression handler wins (tracking suppressed). The tile shows the blue "Cloudy" badge; toggle badge: cloud off to hide it.',
+      'Cloud-suppression handler wins (tracking suppressed). In the detailed layout the tile now shows BOTH the green "Auto" badge on the line above AND the blue "Cloudy" winner badge inline. Toggle badge: auto off to hide Auto, or badge: cloud off to hide Cloudy.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'cloud-suppressed';
@@ -290,6 +290,80 @@ export const SCENARIOS: Scenario[] = [
       c.scenario = 'auto-default-badge';
       c.decisionMode = 'scripted';
       c.scriptedWinner = 'default';
+      return c;
+    },
+  },
+  {
+    id: 'auto-with-cloud-winner',
+    label: 'Auto + Cloudy (issue #110)',
+    description:
+      'Cloud wins while automatic control is on. The detailed tile shows the green "Auto" indicator on the line above AND the "Cloudy" winner badge inline — proof that automatic control stays visible behind a specific handler. Toggle badge: auto / badge: cloud to hide either.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'auto-with-cloud-winner';
+      c.decisionMode = 'scripted';
+      c.scriptedWinner = 'cloud';
+      return c;
+    },
+  },
+  {
+    id: 'auto-hidden-manual',
+    label: 'Auto hidden — manual override',
+    description:
+      'A manual override is active, so automatic control is NOT running. The Auto indicator is suppressed; only the tappable Manual badge shows.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 14 * 60);
+      c.scenario = 'auto-hidden-manual';
+      c.entries[0].flags.manual_override = true;
+      c.entries[0].flags.manual_override_minutes_from_now = 60;
+      c.entries[0].target_position = 80;
+      c.entries[0].covers[0].position = 80;
+      return c;
+    },
+  },
+  {
+    id: 'auto-hidden-force',
+    label: 'Auto hidden — force override',
+    description:
+      'A force trigger wins (forced position, not adaptive). The Auto indicator is suppressed; the red "Force" badge shows.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 13 * 60);
+      c.scenario = 'auto-hidden-force';
+      c.decisionMode = 'scripted';
+      c.scriptedWinner = 'force';
+      c.entries[0].flags.force_override_triggers = 2;
+      c.entries[0].target_position = 0;
+      c.entries[0].covers[0].position = 0;
+      return c;
+    },
+  },
+  {
+    id: 'auto-hidden-custom-bypass',
+    label: 'Auto hidden — custom position bypass',
+    description:
+      'A custom-position slot wins with an exact (non-floor) position that bypasses automatic control (bypass_auto_control). The Auto indicator is suppressed; the purple "Custom" badge shows. Automatic control stays ON — the slot itself is the bypass.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'auto-hidden-custom-bypass';
+      c.decisionMode = 'scripted';
+      c.scriptedWinner = 'custom_position';
+      // Enable a single exact-position (min_mode false) slot so the scripted
+      // decider derives bypass_auto_control: true while automatic control is on.
+      c.entries[0].slots = [
+        { slot: 1, enabled: true, position: 30, name: 'Privacy', min_mode: false, priority: 60 },
+        { slot: 2, enabled: false, position: 20, name: 'Privacy', min_mode: false, priority: 70 },
+        {
+          slot: 3,
+          enabled: false,
+          position: 100,
+          name: 'Welcome home',
+          min_mode: false,
+          priority: 50,
+        },
+        { slot: 4, enabled: false, position: 50, name: 'Floor', min_mode: true, priority: 90 },
+      ];
+      c.entries[0].target_position = 30;
+      c.entries[0].covers[0].position = 30;
       return c;
     },
   },

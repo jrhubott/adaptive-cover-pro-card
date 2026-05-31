@@ -33,6 +33,7 @@ import {
 } from './lib/decision-summary';
 import {
   buildSolarActiveContext,
+  isAutoControlActive,
   resolveTileBadgeKind,
   selectVisibleBadges,
 } from './lib/badge-visibility';
@@ -206,7 +207,8 @@ export class AdaptiveCoverProTileCard extends LitElement {
       motionState === 'timeout_pending'
         ? t('tile.motion_pending', this.hass)
         : t('tile.motion_detected', this.hass);
-    const detailed = cfg.layout === 'detailed';
+    // `detailed` is the default layout; `one-line` is the compact opt-out.
+    const detailed = cfg.layout !== 'one-line';
     const calculatedPosition = this._currentPosition(discovered);
     const livePosition = this._liveCoverPosition(cover) ?? calculatedPosition;
     const winner = this._winner(discovered);
@@ -243,6 +245,21 @@ export class AdaptiveCoverProTileCard extends LitElement {
       winnerKind !== null && selectVisibleBadges([winnerKind], cfg.badges, solarCtx).length > 0;
     const renderBadge =
       showBadge && winnerVisible && !(automaticControl === false && integrationEnabled === true);
+    // Standalone "Auto" indicator (issue #110): shows whenever the cover is
+    // under automatic control, independent of which automatic handler won, so
+    // a non-auto winner badge (Cloudy, Solar, …) no longer hides the fact that
+    // automatic control is running. Detailed layout only — one-line has no room.
+    const autoActive = isAutoControlActive({
+      winner,
+      integrationEnabled,
+      automaticControl,
+      manualActive,
+      bypassAutoControl: traceAttrs?.bypass_auto_control === true,
+    });
+    const showAutoBadge = detailed && showBadge && cfg.badges?.auto !== false && autoActive;
+    // Dedupe: when the winner badge is itself `auto` (default winner), render
+    // the Auto line only and suppress the inline winner badge.
+    const inlineWinnerBadge = !(showAutoBadge && winnerKind === 'auto');
     const stateText = showState ? formatCoverState(this.hass, cover) : null;
     const positionText = showPosition && livePosition !== null ? formatPercent(livePosition) : null;
     const labelParts = [stateText, positionText].filter((p): p is string => !!p);
@@ -291,6 +308,16 @@ export class AdaptiveCoverProTileCard extends LitElement {
           @acp-resume=${() => this._resume(discovered)}
         ></acp-tile-badge>`
       : nothing;
+    // The standalone Auto badge reuses the existing `auto` kind/tokens/icon —
+    // no resume/manual context, no countdown, just the indicator.
+    const autoBadgeTpl = showAutoBadge
+      ? html`<acp-tile-badge
+          .hass=${this.hass}
+          .winner=${winner}
+          .kindOverride=${'auto'}
+          .integrationEnabled=${integrationEnabled}
+        ></acp-tile-badge>`
+      : nothing;
 
     return html`
       <div
@@ -320,8 +347,11 @@ export class AdaptiveCoverProTileCard extends LitElement {
             ? html`<div class="summary inline-summary" title=${summary}>${summary}</div>`
             : nothing}
         </div>
+        ${detailed && showAutoBadge ? html`<div class="auto-line">${autoBadgeTpl}</div>` : nothing}
         ${detailed
-          ? html`<div class="detail-line">${positionTpl}${floorChipTpl}${badgeTpl}</div>`
+          ? html`<div class="detail-line">
+              ${positionTpl}${floorChipTpl}${inlineWinnerBadge ? badgeTpl : nothing}
+            </div>`
           : html`${positionTpl}${floorChipTpl}`}
         ${showControls
           ? html`<div class="controls" @click=${this._stop} @pointerdown=${this._stop}>
@@ -575,12 +605,25 @@ export class AdaptiveCoverProTileCard extends LitElement {
        1-2 (HA tile-card style). Always two rows — the Resume action is folded
        into the Manual badge rather than getting its own row. */
     .tile-body.detailed {
-      grid-template-columns: 24px minmax(0, 1fr) auto;
+      grid-template-columns: 24px minmax(0, 1fr) auto auto;
       grid-template-rows: auto auto;
       grid-template-areas:
-        'icon label       controls'
-        'icon detail-line controls';
+        'icon label       auto-line   controls'
+        'icon detail-line detail-line controls';
       row-gap: 2px;
+    }
+    /* The standalone Auto indicator (issue #110) rides right-aligned on the
+       title row — same line as the cover name, above the state line — so the
+       tile stays two text lines tall. When absent the cell collapses to 0px. */
+    .auto-line {
+      grid-area: auto-line;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      min-width: 0;
+    }
+    .auto-line acp-tile-badge {
+      overflow: visible;
     }
     .detail-line {
       grid-area: detail-line;
@@ -601,7 +644,11 @@ export class AdaptiveCoverProTileCard extends LitElement {
       overflow: visible;
     }
     .tile-body.detailed.has-state-label {
-      grid-template-columns: 24px minmax(0, 1fr) auto;
+      grid-template-columns: 24px minmax(0, 1fr) auto auto;
+      grid-template-rows: auto auto;
+      grid-template-areas:
+        'icon label       auto-line   controls'
+        'icon detail-line detail-line controls';
     }
     .tile-body.detailed.has-summary .label {
       display: flex;
@@ -780,19 +827,19 @@ export class AdaptiveCoverProTileCard extends LitElement {
        one-line .has-floor-chip rules have equal specificity and would
        otherwise win by source order. */
     .tile-body.detailed.has-floor-chip {
-      grid-template-columns: 24px minmax(0, 1fr) auto;
+      grid-template-columns: 24px minmax(0, 1fr) auto auto;
       grid-template-rows: auto auto;
       grid-template-areas:
-        'icon label       controls'
-        'icon detail-line controls';
+        'icon label       auto-line   controls'
+        'icon detail-line detail-line controls';
     }
     .tile-body.detailed.has-row3.has-floor-chip {
-      grid-template-columns: 24px minmax(0, 1fr) auto;
+      grid-template-columns: 24px minmax(0, 1fr) auto auto;
       grid-template-rows: auto auto auto;
       grid-template-areas:
-        'icon label       controls'
-        'icon detail-line controls'
-        'icon resume      resume';
+        'icon label       auto-line   controls'
+        'icon detail-line detail-line controls'
+        'icon resume      resume      resume';
     }
     .empty {
       padding: 12px;

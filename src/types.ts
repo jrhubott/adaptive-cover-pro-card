@@ -69,9 +69,10 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   /** Render a small motion indicator overlaid on the cover icon when the
    *  motion handler reports `motion_detected` (default true). */
   show_motion_icon?: boolean;
-  /** Tile layout. `one-line` (default) is the compact single-row layout;
-   *  `detailed` stacks title on row 1 and state · position + inline badge on
-   *  row 2, with the controls floating to the right across both rows. */
+  /** Tile layout. `detailed` (default) stacks title on row 1, an optional
+   *  standalone "Auto" indicator on row 2, and state · position + inline winner
+   *  badge on row 3, with the controls floating to the right across the rows.
+   *  `one-line` is the compact single-row opt-out (no Auto indicator). */
   layout?: 'one-line' | 'detailed';
   /** Tap behavior. When undefined, opens the ACP more-info dialog (default).
    *  Otherwise a standard HA `ActionConfig`. Legacy string values
