@@ -637,30 +637,58 @@ describe('adaptive-cover-pro-tile-card new options', () => {
     expect(text).toBe('Cloudy');
   });
 
-  it('badges:{motion:false} hides the badge when motion wins', async () => {
+  // The "Motion idle" winner badge is suppressed two ways — its own flag being
+  // off, or the (default-on) motion indicator icon making it redundant — and in
+  // both cases falls back to the Auto badge unless Auto is itself disabled.
+  const motionWinnerHass = () =>
+    makeHass({
+      decisionState: 'motion_timeout',
+      decisionAttrs: {
+        trace: [{ handler: 'motion_timeout', matched: true, reason: '', position: 100 }],
+      },
+    });
+
+  it('shows the Motion idle badge when the icon is off and its flag is on', async () => {
     const el = await mount(
-      { type: TYPE, entry_id: ENTRY, badges: { motion: false } },
-      makeHass({
-        decisionState: 'motion_timeout',
-        decisionAttrs: {
-          trace: [{ handler: 'motion_timeout', matched: true, reason: '', position: 100 }],
-        },
-      }),
+      { type: TYPE, entry_id: ENTRY, show_motion_icon: false },
+      motionWinnerHass(),
     );
-    expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeFalsy();
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).toBe('Motion idle');
   });
 
-  it('badges:{motion:true} (default) still shows the badge when motion wins', async () => {
+  it('falls back to Auto when motion wins but badges.motion is off', async () => {
     const el = await mount(
-      { type: TYPE, entry_id: ENTRY },
-      makeHass({
-        decisionState: 'motion_timeout',
-        decisionAttrs: {
-          trace: [{ handler: 'motion_timeout', matched: true, reason: '', position: 100 }],
-        },
-      }),
+      { type: TYPE, entry_id: ENTRY, show_motion_icon: false, badges: { motion: false } },
+      motionWinnerHass(),
     );
-    expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeTruthy();
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).toBe('Auto');
+  });
+
+  it('falls back to Auto when motion wins and the motion indicator icon is enabled (default)', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, motionWinnerHass());
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).toBe('Auto');
+  });
+
+  it('blanks the badge when motion is suppressed and Auto is also off', async () => {
+    const el = await mount(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        show_motion_icon: false,
+        badges: { motion: false, auto: false },
+      },
+      motionWinnerHass(),
+    );
+    expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeFalsy();
   });
 
   it('icon overrides the cover_type default', async () => {

@@ -225,6 +225,22 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'motion-idle-badge',
+    label: 'Motion idle badge',
+    description:
+      'Motion handler winning with the motion indicator icon turned off, so the "Motion idle" text badge shows. Turn the indicator back on, or disable the motion badge, to watch it fall back to Auto.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 19 * 60);
+      c.scenario = 'motion-idle-badge';
+      c.entries[0].flags.motion_status = 'timeout_pending';
+      c.entries[0].flags.motion_timeout_minutes_from_now = 0.5;
+      c.entries[0].target_position = 100;
+      c.entries[0].covers[0].position = 100;
+      c.tile.show_motion_icon = false;
+      return c;
+    },
+  },
+  {
     id: 'solar-tracking-active',
     label: 'Solar tracking',
     description:

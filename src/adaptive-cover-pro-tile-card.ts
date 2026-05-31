@@ -33,8 +33,8 @@ import {
 } from './lib/decision-summary';
 import {
   buildSolarActiveContext,
+  resolveTileBadgeKind,
   selectVisibleBadges,
-  winnerBadgeKind,
 } from './lib/badge-visibility';
 import { formatCoverState, formatPercent } from './lib/formatters';
 import { t } from './lib/i18n';
@@ -227,12 +227,20 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const integrationEnabled = this._switchOn(discovered, 'integration_enabled_switch');
     const automaticControl = this._switchOn(discovered, 'automatic_control_switch');
     const manualActive = this._manualOverrideOn(discovered);
-    // Filter the single winner badge through the same inversion + per-badge
-    // opt-in used by the dialog. When cloud wins, the badge is dropped (blank).
-    const winnerKind = winnerBadgeKind({ winner, integrationEnabled, manualActive });
+    // Resolve the single winner badge: the same inversion + per-badge opt-in
+    // used by the dialog, plus the "Motion idle" → Auto fallback (the badge is
+    // redundant when the motion icon shows, and hidden when its flag is off).
+    // When cloud wins, the badge is dropped (blank).
+    const winnerKind = resolveTileBadgeKind({
+      winner,
+      integrationEnabled,
+      manualActive,
+      badges: cfg.badges,
+      showMotionIcon: cfg.show_motion_icon !== false,
+    });
     const solarCtx = buildSolarActiveContext(traceAttrs?.trace, winner);
     const winnerVisible =
-      selectVisibleBadges([winnerKind], this._config!.badges, solarCtx).length > 0;
+      winnerKind !== null && selectVisibleBadges([winnerKind], cfg.badges, solarCtx).length > 0;
     const renderBadge =
       showBadge && winnerVisible && !(automaticControl === false && integrationEnabled === true);
     const stateText = showState ? formatCoverState(this.hass, cover) : null;
@@ -271,6 +279,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       ? html`<acp-tile-badge
           .hass=${this.hass}
           .winner=${winner}
+          .kindOverride=${winnerKind ?? undefined}
           .integrationEnabled=${integrationEnabled}
           .slotNumber=${traceAttrs?.custom_position_active_slot}
           .slotName=${traceAttrs?.custom_position_active_slot_name}

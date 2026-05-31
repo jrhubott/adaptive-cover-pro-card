@@ -48,6 +48,11 @@ export class TileBadge extends LitElement {
   @property({ type: Boolean, attribute: 'manual-active' })
   public manualActive = false;
 
+  /** Explicit badge kind that overrides the winner-derived kind. The tile card
+   *  sets this to substitute the Auto badge for a suppressed "Motion idle"
+   *  winner; left undefined the kind is derived from `winner` as usual. */
+  @property({ attribute: 'kind-override' }) public kindOverride?: BadgeKind;
+
   /** When true, the badge becomes a tappable button that emits `acp-resume`
    *  (used to resume automatic control while a manual override is active). The
    *  badge stays presentational — it dispatches the event; the host runs the
@@ -98,11 +103,14 @@ export class TileBadge extends LitElement {
   }
 
   private _kind(): BadgeKind {
-    return winnerBadgeKind({
-      winner: this.winner,
-      integrationEnabled: this.integrationEnabled,
-      manualActive: this.manualActive,
-    });
+    return (
+      this.kindOverride ??
+      winnerBadgeKind({
+        winner: this.winner,
+        integrationEnabled: this.integrationEnabled,
+        manualActive: this.manualActive,
+      })
+    );
   }
 
   private _label(kind: BadgeKind, base: string): string {

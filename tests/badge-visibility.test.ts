@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { isSolarActive, selectVisibleBadges } from '../src/lib/badge-visibility';
+import {
+  isSolarActive,
+  resolveTileBadgeKind,
+  selectVisibleBadges,
+} from '../src/lib/badge-visibility';
 import type { BadgeKind } from '../src/const';
 
 describe('isSolarActive', () => {
@@ -103,5 +107,73 @@ describe('selectVisibleBadges', () => {
   it('preserves input order of the surviving kinds', () => {
     const kinds: BadgeKind[] = ['solar', 'manual', 'motion'];
     expect(selectVisibleBadges(kinds, undefined, active)).toEqual(['solar', 'manual', 'motion']);
+  });
+});
+
+describe('resolveTileBadgeKind', () => {
+  const base = { integrationEnabled: true, manualActive: false };
+
+  it('passes non-motion winners straight through', () => {
+    expect(
+      resolveTileBadgeKind({ ...base, winner: 'solar', badges: undefined, showMotionIcon: true }),
+    ).toBe('solar');
+    expect(
+      resolveTileBadgeKind({ ...base, winner: 'default', badges: undefined, showMotionIcon: true }),
+    ).toBe('auto');
+  });
+
+  it('keeps the Motion idle badge when the icon is off and its flag is on', () => {
+    expect(
+      resolveTileBadgeKind({ ...base, winner: 'motion', badges: undefined, showMotionIcon: false }),
+    ).toBe('motion');
+  });
+
+  it('falls back to Auto when the motion indicator icon is shown', () => {
+    expect(
+      resolveTileBadgeKind({ ...base, winner: 'motion', badges: undefined, showMotionIcon: true }),
+    ).toBe('auto');
+  });
+
+  it('falls back to Auto when the motion badge flag is off', () => {
+    expect(
+      resolveTileBadgeKind({
+        ...base,
+        winner: 'motion',
+        badges: { motion: false },
+        showMotionIcon: false,
+      }),
+    ).toBe('auto');
+  });
+
+  it('returns null (blank) when motion is suppressed and Auto is also disabled', () => {
+    expect(
+      resolveTileBadgeKind({
+        ...base,
+        winner: 'motion',
+        badges: { motion: false, auto: false },
+        showMotionIcon: false,
+      }),
+    ).toBeNull();
+    expect(
+      resolveTileBadgeKind({
+        ...base,
+        winner: 'motion',
+        badges: { auto: false },
+        showMotionIcon: true,
+      }),
+    ).toBeNull();
+  });
+
+  it('does not touch a manual override that outranks the motion winner', () => {
+    // manualActive forces the manual kind before motion is ever considered.
+    expect(
+      resolveTileBadgeKind({
+        winner: 'motion',
+        integrationEnabled: true,
+        manualActive: true,
+        badges: undefined,
+        showMotionIcon: true,
+      }),
+    ).toBe('manual');
   });
 });
