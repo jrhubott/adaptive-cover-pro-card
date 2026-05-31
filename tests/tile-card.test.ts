@@ -195,7 +195,7 @@ describe('adaptive-cover-pro-tile-card render', () => {
     expect(el.shadowRoot!.querySelector('.position')).toBeFalsy();
   });
 
-  it('renders the winner badge by default and no inline Resume (solar tracking active)', async () => {
+  it('renders the winner badge by default and it is not resumable (solar tracking active)', async () => {
     // Solar wins with a matched solar trace row and cloud is not the winner →
     // the "solar active" badge shows.
     const el = await mount(
@@ -207,9 +207,9 @@ describe('adaptive-cover-pro-tile-card render', () => {
         },
       }),
     );
-    const root = el.shadowRoot!;
-    expect(root.querySelector('acp-tile-badge')).toBeTruthy();
-    expect(root.querySelector('.resume')).toBeFalsy();
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    expect(badge!.hasAttribute('resumable')).toBe(false);
   });
 
   it('shows the solar winner badge even when cloud suppression is not configured', async () => {
@@ -228,31 +228,67 @@ describe('adaptive-cover-pro-tile-card render', () => {
     expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeTruthy();
   });
 
-  it('shows inline Resume when manual_override_binary is on', async () => {
+  it('renders the Cloudy winner badge when cloud suppression wins', async () => {
+    // Cloud-suppression handler wins → the tile shows the "Cloudy" badge instead
+    // of a blank badge area.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({
+        decisionState: 'cloud',
+        decisionAttrs: {
+          trace: [{ handler: 'cloud', matched: true, reason: '', position: 100 }],
+        },
+      }),
+    );
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).toBe('Cloudy');
+  });
+
+  it('hides the cloud winner badge when badges.cloud is false', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, badges: { cloud: false } },
+      makeHass({
+        decisionState: 'cloud',
+        decisionAttrs: {
+          trace: [{ handler: 'cloud', matched: true, reason: '', position: 100 }],
+        },
+      }),
+    );
+    expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeFalsy();
+  });
+
+  it('makes the badge resumable when manual_override_binary is on', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({ manualOverrideOn: true, decisionState: 'manual' }),
     );
-    expect(el.shadowRoot!.querySelector('.resume')).toBeTruthy();
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    expect(badge!.hasAttribute('resumable')).toBe(true);
   });
 
-  it('hides Resume when winner is custom_position but no override is active', async () => {
-    // Regression for issue #81: after clicking Reprendre, manual_override clears but
-    // winner stays custom_position_1. Resume must disappear.
+  it('keeps the badge non-resumable when winner is custom_position but no override is active', async () => {
+    // Regression for issue #81: after resuming, manual_override clears but
+    // winner stays custom_position_1. The badge must stop being resumable.
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({ decisionState: 'custom_position_1', manualOverrideOn: false }),
     );
-    expect(el.shadowRoot!.querySelector('.resume')).toBeFalsy();
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge!.hasAttribute('resumable')).toBe(false);
   });
 
-  it('shows Resume when manual_override is on AND winner is custom_position', async () => {
-    // Override active + custom_position winner simultaneously → Resume must appear.
+  it('makes the badge resumable when manual_override is on AND winner is custom_position', async () => {
+    // Override active + custom_position winner simultaneously → the badge stays
+    // tappable to resume.
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({ decisionState: 'custom_position_1', manualOverrideOn: true }),
     );
-    expect(el.shadowRoot!.querySelector('.resume')).toBeTruthy();
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge!.hasAttribute('resumable')).toBe(true);
   });
 
   it('hides the badge entirely when automatic_control is off but integration is on', async () => {
@@ -490,13 +526,15 @@ describe('adaptive-cover-pro-tile-card service calls', () => {
     );
   });
 
-  it('inline Resume calls button.press on reset_override_button', async () => {
+  it('badge acp-resume event calls button.press on reset_override_button', async () => {
     const callService = vi.fn();
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({ manualOverrideOn: true, callService }),
     );
-    (el.shadowRoot!.querySelector('.resume') as HTMLElement).click();
+    el.shadowRoot!.querySelector('acp-tile-badge')!.dispatchEvent(
+      new CustomEvent('acp-resume', { bubbles: true, composed: true }),
+    );
     expect(callService).toHaveBeenCalledWith('button', 'press', {
       entity_id: 'button.reset_manual_override',
     });
@@ -582,7 +620,7 @@ describe('adaptive-cover-pro-tile-card new options', () => {
     expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeFalsy();
   });
 
-  it('renders no badge when the cloud_suppression handler wins (suppressed)', async () => {
+  it('renders the Cloudy badge when the un-normalized cloud_suppression handler wins', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({
@@ -593,33 +631,64 @@ describe('adaptive-cover-pro-tile-card new options', () => {
         },
       }),
     );
-    expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeFalsy();
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).toBe('Cloudy');
   });
 
-  it('badges:{motion:false} hides the badge when motion wins', async () => {
+  // The "Motion idle" winner badge is suppressed two ways — its own flag being
+  // off, or the (default-on) motion indicator icon making it redundant — and in
+  // both cases falls back to the Auto badge unless Auto is itself disabled.
+  const motionWinnerHass = () =>
+    makeHass({
+      decisionState: 'motion_timeout',
+      decisionAttrs: {
+        trace: [{ handler: 'motion_timeout', matched: true, reason: '', position: 100 }],
+      },
+    });
+
+  it('shows the Motion idle badge when the icon is off and its flag is on', async () => {
     const el = await mount(
-      { type: TYPE, entry_id: ENTRY, badges: { motion: false } },
-      makeHass({
-        decisionState: 'motion_timeout',
-        decisionAttrs: {
-          trace: [{ handler: 'motion_timeout', matched: true, reason: '', position: 100 }],
-        },
-      }),
+      { type: TYPE, entry_id: ENTRY, show_motion_icon: false },
+      motionWinnerHass(),
     );
-    expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeFalsy();
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).toBe('Motion idle');
   });
 
-  it('badges:{motion:true} (default) still shows the badge when motion wins', async () => {
+  it('falls back to Auto when motion wins but badges.motion is off', async () => {
     const el = await mount(
-      { type: TYPE, entry_id: ENTRY },
-      makeHass({
-        decisionState: 'motion_timeout',
-        decisionAttrs: {
-          trace: [{ handler: 'motion_timeout', matched: true, reason: '', position: 100 }],
-        },
-      }),
+      { type: TYPE, entry_id: ENTRY, show_motion_icon: false, badges: { motion: false } },
+      motionWinnerHass(),
     );
-    expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeTruthy();
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).toBe('Auto');
+  });
+
+  it('falls back to Auto when motion wins and the motion indicator icon is enabled (default)', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, motionWinnerHass());
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).toBe('Auto');
+  });
+
+  it('blanks the badge when motion is suppressed and Auto is also off', async () => {
+    const el = await mount(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        show_motion_icon: false,
+        badges: { motion: false, auto: false },
+      },
+      motionWinnerHass(),
+    );
+    expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeFalsy();
   });
 
   it('icon overrides the cover_type default', async () => {
@@ -628,22 +697,6 @@ describe('adaptive-cover-pro-tile-card new options', () => {
       icon?: string;
     };
     expect(icon.getAttribute('icon')).toBe('mdi:test-icon');
-  });
-
-  it('show_resume: never hides Resume even during manual override', async () => {
-    const el = await mount(
-      { type: TYPE, entry_id: ENTRY, show_resume: 'never' },
-      makeHass({ manualOverrideOn: true, decisionState: 'manual' }),
-    );
-    expect(el.shadowRoot!.querySelector('.resume')).toBeFalsy();
-  });
-
-  it('show_resume: always shows Resume even when no override is active', async () => {
-    const el = await mount(
-      { type: TYPE, entry_id: ENTRY, show_resume: 'always' },
-      makeHass({ decisionState: 'solar' }),
-    );
-    expect(el.shadowRoot!.querySelector('.resume')).toBeTruthy();
   });
 
   it('show_decision_summary renders the summary line under the title', async () => {
@@ -702,7 +755,7 @@ describe('adaptive-cover-pro-tile-card new options', () => {
     expect(el.shadowRoot!.querySelector('.tile-body.detailed.has-summary')).toBeTruthy();
   });
 
-  it('detailed layout renders the badge on its own row beneath the controls', async () => {
+  it('detailed layout renders the badge inline on the state line', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY, layout: 'detailed' },
       makeHass({
@@ -713,22 +766,25 @@ describe('adaptive-cover-pro-tile-card new options', () => {
         },
       }),
     );
-    const body = el.shadowRoot!.querySelector('.tile-body.detailed.has-row3');
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed');
     expect(body).toBeTruthy();
-    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    // Badge no longer claims its own row; with no resume button there is no
+    // third row, and the badge sits inline within .detail-line.
+    expect(el.shadowRoot!.querySelector('.tile-body.detailed.has-row3')).toBeNull();
+    const badge = el.shadowRoot!.querySelector('.detail-line acp-tile-badge');
     expect(badge).toBeTruthy();
-    expect(body!.contains(badge!)).toBe(true);
   });
 
-  it('detailed layout collapses the third row when no badge and no resume', async () => {
+  it('detailed layout renders no tile badge when show_badge is false', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY, layout: 'detailed', show_badge: false },
       makeHass(),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed');
     expect(body).toBeTruthy();
-    expect(body!.classList.contains('has-row3')).toBe(false);
-    expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeFalsy();
+    // Scope to the tile body — the more-info dialog has its own badges, and
+    // happy-dom's querySelector pierces shadow roots.
+    expect(body!.querySelector('acp-tile-badge')).toBeFalsy();
   });
 });
 

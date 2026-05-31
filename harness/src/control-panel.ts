@@ -705,9 +705,6 @@ export class AcpHarnessControlPanel extends LitElement {
         ${this._checkbox('Show moon', this.config.root.show_moon, (v) =>
           this._emit({ ...this.config, root: { ...this.config.root, show_moon: v } }),
         )}
-        ${this._checkbox('Show version', this.config.root.show_version, (v) =>
-          this._emit({ ...this.config, root: { ...this.config.root, show_version: v } }),
-        )}
         ${this._checkbox('Hide inactive handlers', this.config.root.hide_inactive_handlers, (v) =>
           this._emit({
             ...this.config,
@@ -798,6 +795,7 @@ export class AcpHarnessControlPanel extends LitElement {
           <legend>Badges (opt-in)</legend>
           ${(
             [
+              'auto',
               'solar',
               'force',
               'weather',
@@ -806,6 +804,7 @@ export class AcpHarnessControlPanel extends LitElement {
               'motion',
               'climate',
               'glare_zone',
+              'cloud',
             ] as const
           ).map((k) =>
             this._checkbox(`badge: ${k}`, this.config.tile.badges?.[k] ?? true, (v) =>
@@ -819,26 +818,6 @@ export class AcpHarnessControlPanel extends LitElement {
             ),
           )}
         </fieldset>
-        <label class="row">
-          <span>show_resume</span>
-          <select
-            @change=${(e: Event) =>
-              this._emit({
-                ...this.config,
-                tile: {
-                  ...this.config.tile,
-                  show_resume: (e.target as HTMLSelectElement).value as 'auto' | 'always' | 'never',
-                },
-              })}
-          >
-            ${(['auto', 'always', 'never'] as const).map(
-              (v) =>
-                html`<option value=${v} ?selected=${this.config.tile.show_resume === v}>
-                  ${v}
-                </option>`,
-            )}
-          </select>
-        </label>
         <label class="row">
           <span>layout</span>
           <select

@@ -13,7 +13,6 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
   show_compass_stats?: boolean;
   show_compass_legend?: boolean;
   show_moon?: boolean;
-  show_version?: boolean;
   hide_inactive_handlers?: boolean;
   /** Render a plain-English "Why this position?" sentence above the decision
    *  strip's row grid. Defaults to true. */
@@ -49,10 +48,11 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   /** Render the contextual badge (default true). Master switch for the tile
    *  badge — `badges` filters within it. */
   show_badge?: boolean;
-  /** Per-kind opt-in for the 8 configurable handler badges. Omitted/undefined =
-   *  on; only `=== false` hides. `off` and `auto` are state-fallbacks and are
-   *  never filtered by this. */
+  /** Per-kind opt-in for the 10 configurable badge kinds. Omitted/undefined =
+   *  on; only `=== false` hides. `off` is a state-fallback and is never
+   *  filtered by this. */
   badges?: {
+    auto?: boolean;
     solar?: boolean;
     force?: boolean;
     weather?: boolean;
@@ -61,6 +61,7 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
     motion?: boolean;
     climate?: boolean;
     glare_zone?: boolean;
+    cloud?: boolean;
   };
   /** Render the sky compass inside the more-info dialog's Advanced section
    *  (default true). */
@@ -68,13 +69,9 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   /** Render a small motion indicator overlaid on the cover icon when the
    *  motion handler reports `motion_detected` (default true). */
   show_motion_icon?: boolean;
-  /** Resume-button visibility. `auto` keeps the original
-   *  manual-override/custom-position rule; `always` shows whenever a
-   *  reset_override_button exists; `never` hides it. */
-  show_resume?: 'auto' | 'always' | 'never';
   /** Tile layout. `one-line` (default) is the compact single-row layout;
-   *  `detailed` stacks title on row 1, state · position + controls on row 2,
-   *  and the contextual badge on its own row 3 beneath. */
+   *  `detailed` stacks title on row 1 and state · position + inline badge on
+   *  row 2, with the controls floating to the right across both rows. */
   layout?: 'one-line' | 'detailed';
   /** Tap behavior. When undefined, opens the ACP more-info dialog (default).
    *  Otherwise a standard HA `ActionConfig`. Legacy string values

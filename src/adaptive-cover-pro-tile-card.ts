@@ -33,8 +33,8 @@ import {
 } from './lib/decision-summary';
 import {
   buildSolarActiveContext,
+  resolveTileBadgeKind,
   selectVisibleBadges,
-  winnerBadgeKind,
 } from './lib/badge-visibility';
 import { formatCoverState, formatPercent } from './lib/formatters';
 import { t } from './lib/i18n';
@@ -212,7 +212,6 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const winner = this._winner(discovered);
     const traceAttrs = this._traceAttrs(discovered);
     const manualEndIso = this._manualEndIso(discovered);
-    const showResume = this._shouldShowResume(discovered);
     const inert = this._isFullyInert(cfg);
     const summary =
       cfg.show_decision_summary === true && traceAttrs
@@ -228,12 +227,20 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const integrationEnabled = this._switchOn(discovered, 'integration_enabled_switch');
     const automaticControl = this._switchOn(discovered, 'automatic_control_switch');
     const manualActive = this._manualOverrideOn(discovered);
-    // Filter the single winner badge through the same inversion + per-badge
-    // opt-in used by the dialog. When cloud wins, the badge is dropped (blank).
-    const winnerKind = winnerBadgeKind({ winner, integrationEnabled, manualActive });
+    // Resolve the single winner badge: the same inversion + per-badge opt-in
+    // used by the dialog, plus the "Motion idle" → Auto fallback (the badge is
+    // redundant when the motion icon shows, and hidden when its flag is off).
+    // When cloud wins, the badge is dropped (blank).
+    const winnerKind = resolveTileBadgeKind({
+      winner,
+      integrationEnabled,
+      manualActive,
+      badges: cfg.badges,
+      showMotionIcon: cfg.show_motion_icon !== false,
+    });
     const solarCtx = buildSolarActiveContext(traceAttrs?.trace, winner);
     const winnerVisible =
-      selectVisibleBadges([winnerKind], this._config!.badges, solarCtx).length > 0;
+      winnerKind !== null && selectVisibleBadges([winnerKind], cfg.badges, solarCtx).length > 0;
     const renderBadge =
       showBadge && winnerVisible && !(automaticControl === false && integrationEnabled === true);
     const stateText = showState ? formatCoverState(this.hass, cover) : null;
@@ -250,11 +257,44 @@ export class AdaptiveCoverProTileCard extends LitElement {
       ) &&
       integrationEnabled;
 
-    const hasRow3 = detailed && (renderBadge || showResume);
+    // Detailed layout now inlines the badge + floor chip onto the state line
+    // The Resume action is folded into the badge: while a manual override is
+    // active and the integration exposes a reset button, the contextual badge
+    // (Manual, or Custom when a slot also wins) becomes tappable to resume
+    // automatic control — replacing the old standalone Resume pill.
+    const resumable = manualActive && !!discovered.entities.reset_override_button;
+
+    const positionTpl =
+      labelParts.length > 0 ? html`<div class="position">${labelParts.join(' · ')}</div>` : nothing;
+    const floorChipTpl = showFloorChip
+      ? html`<span
+          class=${`acp-floor-chip${activeFloor!.clamping ? '' : ' is-armed'}${
+            activeFloor!.resistsManual ? ' resists-manual' : ' is-bypassable'
+          }`}
+          title=${t('dialog.floor_tooltip', this.hass)}
+          >${t('dialog.floor', this.hass)} ${formatPercent(activeFloor!.position)}</span
+        >`
+      : nothing;
+    const badgeTpl = renderBadge
+      ? html`<acp-tile-badge
+          .hass=${this.hass}
+          .winner=${winner}
+          .kindOverride=${winnerKind ?? undefined}
+          .integrationEnabled=${integrationEnabled}
+          .slotNumber=${traceAttrs?.custom_position_active_slot}
+          .slotName=${traceAttrs?.custom_position_active_slot_name}
+          .pct=${resolveCustomPositionPct(traceAttrs, calculatedPosition) ?? undefined}
+          .minimumMode=${traceAttrs?.custom_position_minimum_mode}
+          .manualEndIso=${manualEndIso}
+          .manualActive=${manualActive}
+          .resumable=${resumable}
+          @acp-resume=${() => this._resume(discovered)}
+        ></acp-tile-badge>`
+      : nothing;
 
     return html`
       <div
-        class=${`tile-body${detailed ? ' detailed' : ''}${hasBottomSummary ? ' has-summary' : ''}${hasStateLabel ? ' has-state-label' : ''}${hasRow3 ? ' has-row3' : ''}${showFloorChip ? ' has-floor-chip' : ''}`}
+        class=${`tile-body${detailed ? ' detailed' : ''}${hasBottomSummary ? ' has-summary' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip ? ' has-floor-chip' : ''}`}
         role=${inert ? 'group' : 'button'}
         tabindex=${inert ? -1 : 0}
         @pointerdown=${this._onPointerDown}
@@ -280,18 +320,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
             ? html`<div class="summary inline-summary" title=${summary}>${summary}</div>`
             : nothing}
         </div>
-        ${labelParts.length > 0
-          ? html`<div class="position">${labelParts.join(' · ')}</div>`
-          : nothing}
-        ${showFloorChip
-          ? html`<span
-              class=${`acp-floor-chip${activeFloor!.clamping ? '' : ' is-armed'}${
-                activeFloor!.resistsManual ? ' resists-manual' : ' is-bypassable'
-              }`}
-              title=${t('dialog.floor_tooltip', this.hass)}
-              >${t('dialog.floor', this.hass)} ${formatPercent(activeFloor!.position)}</span
-            >`
-          : nothing}
+        ${detailed
+          ? html`<div class="detail-line">${positionTpl}${floorChipTpl}${badgeTpl}</div>`
+          : html`${positionTpl}${floorChipTpl}`}
         ${showControls
           ? html`<div class="controls" @click=${this._stop} @pointerdown=${this._stop}>
               <button
@@ -323,33 +354,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
               </button>
             </div>`
           : nothing}
-        ${renderBadge
-          ? html`<acp-tile-badge
-              .hass=${this.hass}
-              .winner=${winner}
-              .integrationEnabled=${integrationEnabled}
-              .slotNumber=${traceAttrs?.custom_position_active_slot}
-              .slotName=${traceAttrs?.custom_position_active_slot_name}
-              .pct=${resolveCustomPositionPct(traceAttrs, calculatedPosition) ?? undefined}
-              .minimumMode=${traceAttrs?.custom_position_minimum_mode}
-              .manualEndIso=${manualEndIso}
-              .manualActive=${manualActive}
-            ></acp-tile-badge>`
-          : nothing}
-        ${showResume
-          ? html`<button
-              class="resume"
-              type="button"
-              aria-label=${t('tile.resume_aria', this.hass)}
-              @click=${(e: Event) => {
-                e.stopPropagation();
-                this._resume(discovered);
-              }}
-              @pointerdown=${this._stop}
-            >
-              ${t('tile.resume', this.hass)}
-            </button>`
-          : nothing}
+        ${detailed ? nothing : badgeTpl}
       </div>
     `;
   }
@@ -413,14 +418,6 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const id = discovered.entities.manual_override_end_sensor;
     if (!id) return undefined;
     return this.hass.states[id]?.state;
-  }
-
-  private _shouldShowResume(discovered: DiscoveredEntities): boolean {
-    if (!discovered.entities.reset_override_button) return false;
-    const mode = this._config?.show_resume ?? 'auto';
-    if (mode === 'never') return false;
-    if (mode === 'always') return true;
-    return this._manualOverrideOn(discovered);
   }
 
   private _setCoverPosition(cover: string | undefined, position: number): void {
@@ -556,8 +553,8 @@ export class AdaptiveCoverProTileCard extends LitElement {
       display: grid;
       /* Position column is fixed-width so the controls land at the same x
          across stacked tiles regardless of the digit count (87% vs 100%). */
-      grid-template-columns: 24px minmax(0, 1fr) 3rem auto auto auto;
-      grid-template-areas: 'icon label position controls badge resume';
+      grid-template-columns: 24px minmax(0, 1fr) 3rem auto auto;
+      grid-template-areas: 'icon label position controls badge';
       align-items: center;
       column-gap: 8px;
       row-gap: 2px;
@@ -570,26 +567,38 @@ export class AdaptiveCoverProTileCard extends LitElement {
        ▲ ■ ▼ controls is impossible once the label is variable, so we let
        the cell auto-size. */
     .tile-body.has-state-label {
-      grid-template-columns: 24px minmax(0, 1fr) auto auto auto auto;
+      grid-template-columns: 24px minmax(0, 1fr) auto auto auto;
     }
-    /* Detailed layout: title row, state row, optional badge/resume row.
-       Icon spans every row so it's vertically centered against the whole
-       tile; controls float to the right of rows 1-2 (HA tile-card style);
-       resume sits below controls on row 3 when shown. */
+    /* Detailed layout: title row, then a state row that inlines the position
+       text + contextual badge + floor chip (.detail-line). Icon spans both
+       rows so it's vertically centered; controls float to the right of rows
+       1-2 (HA tile-card style). Always two rows — the Resume action is folded
+       into the Manual badge rather than getting its own row. */
     .tile-body.detailed {
       grid-template-columns: 24px minmax(0, 1fr) auto;
       grid-template-rows: auto auto;
       grid-template-areas:
-        'icon label    controls'
-        'icon position controls';
-      row-gap: 4px;
+        'icon label       controls'
+        'icon detail-line controls';
+      row-gap: 2px;
     }
-    .tile-body.detailed.has-row3 {
-      grid-template-rows: auto auto auto;
-      grid-template-areas:
-        'icon label    controls'
-        'icon position controls'
-        'icon badge    resume';
+    .detail-line {
+      grid-area: detail-line;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+    .detail-line .position {
+      padding: 0;
+      text-align: left;
+      /* Push the badge + floor chip to the right edge of the row so they sit
+         flush against the controls column. */
+      margin-right: auto;
+    }
+    .detail-line acp-tile-badge {
+      overflow: visible;
     }
     .tile-body.detailed.has-state-label {
       grid-template-columns: 24px minmax(0, 1fr) auto;
@@ -632,10 +641,6 @@ export class AdaptiveCoverProTileCard extends LitElement {
     }
     .tile-body.detailed .cover-icon-wrap {
       place-self: center;
-    }
-    .tile-body.detailed acp-tile-badge {
-      justify-self: start;
-      margin-top: 2px;
     }
     .tile-body[role='group'] {
       cursor: default;
@@ -732,19 +737,6 @@ export class AdaptiveCoverProTileCard extends LitElement {
       min-width: 0;
       overflow: hidden;
     }
-    .resume {
-      grid-area: resume;
-      padding: 2px 8px;
-      border: 1px solid var(--primary-color);
-      border-radius: 999px;
-      background: transparent;
-      color: var(--primary-color);
-      font-size: 0.75rem;
-      cursor: pointer;
-    }
-    .resume:hover {
-      background: rgba(var(--rgb-primary-color, 33, 150, 243), 0.08);
-    }
     .acp-floor-chip {
       grid-area: floor-chip;
       font-size: 0.7rem;
@@ -783,21 +775,24 @@ export class AdaptiveCoverProTileCard extends LitElement {
         'icon label     position  controls badge resume'
         'icon label     floor-chip .        .     .';
     }
-    /* Detailed layout: floor chip stacks below the position row */
+    /* Detailed layout: the floor chip rides inline on the state line
+       (.detail-line), so these just re-assert the detailed grid — the
+       one-line .has-floor-chip rules have equal specificity and would
+       otherwise win by source order. */
     .tile-body.detailed.has-floor-chip {
+      grid-template-columns: 24px minmax(0, 1fr) auto;
+      grid-template-rows: auto auto;
       grid-template-areas:
-        'icon label    controls'
-        'icon position controls'
-        'icon floor-chip controls';
-      grid-template-rows: auto auto auto;
+        'icon label       controls'
+        'icon detail-line controls';
     }
     .tile-body.detailed.has-row3.has-floor-chip {
-      grid-template-rows: auto auto auto auto;
+      grid-template-columns: 24px minmax(0, 1fr) auto;
+      grid-template-rows: auto auto auto;
       grid-template-areas:
-        'icon label      controls'
-        'icon position   controls'
-        'icon floor-chip controls'
-        'icon badge      resume';
+        'icon label       controls'
+        'icon detail-line controls'
+        'icon resume      resume';
     }
     .empty {
       padding: 12px;

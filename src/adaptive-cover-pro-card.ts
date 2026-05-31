@@ -338,11 +338,6 @@ export class AdaptiveCoverProCard extends LitElement {
               ></acp-climate-panel>`
             : nothing}
         </div>
-        ${this._config.show_version
-          ? html`<div class="footer dim">
-              ${t('root.footer_version', this.hass, { version: CARD_VERSION })}
-            </div>`
-          : nothing}
       </ha-card>
     `;
   }
@@ -396,10 +391,6 @@ export class AdaptiveCoverProCard extends LitElement {
       text-align: left;
       display: inline-block;
       font-size: 0.82rem;
-    }
-    .footer {
-      font-size: 0.7rem;
-      text-align: right;
     }
     .dim {
       color: var(--secondary-text-color);

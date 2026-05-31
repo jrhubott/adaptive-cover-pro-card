@@ -105,9 +105,14 @@ cleanup() {
     if [[ -n "${ORIGINAL_CONST:-}" ]]; then
         echo "$ORIGINAL_CONST" > src/const.ts
     fi
-    # Reset the dev-version-stamped build so the working tree stays clean —
-    # otherwise the next `git checkout` / `gh pr merge` trips on dirty dist.
-    git checkout -- dist/adaptive-cover-pro-card.js 2>/dev/null || true
+    # Restore the pre-deploy dist bundle so the working tree is left exactly as
+    # we found it. We can't `git checkout` here: that resets dist to HEAD and
+    # would silently discard a legitimate uncommitted build (e.g. a freshly
+    # rebuilt bundle on a feature branch). Restoring the backed-up file only
+    # undoes the dev-version stamp this script introduced.
+    if [[ -n "${DIST_BAK:-}" && -f "$DIST_BAK" ]]; then
+        mv -f "$DIST_BAK" dist/adaptive-cover-pro-card.js
+    fi
     if $MOUNTED_BY_US && [[ -n "${MOUNT_POINT:-}" ]]; then
         if mount | grep -q "on ${MOUNT_POINT} "; then
             echo "==> Unmounting ${MOUNT_POINT}..."
@@ -126,6 +131,14 @@ cleanup() {
 
 # ── Build with dev version stamped into CARD_VERSION ─────────────────────────
 ORIGINAL_CONST="$(cat src/const.ts)"
+# Back up the current dist bundle so cleanup() can restore the working tree to
+# its exact pre-deploy state — the build below overwrites it with a dev-stamped
+# copy, and we don't want that (or any uncommitted dist) left behind.
+DIST_BAK=""
+if [[ -f dist/adaptive-cover-pro-card.js ]]; then
+    DIST_BAK="$(mktemp)"
+    cp dist/adaptive-cover-pro-card.js "$DIST_BAK"
+fi
 trap cleanup EXIT
 # Portable sed -i: -i.bak works on both GNU (Linux) and BSD (macOS) sed.
 sed -i.bak "s/export const CARD_VERSION = '.*'/export const CARD_VERSION = '${DEV_VERSION}'/" src/const.ts

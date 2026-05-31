@@ -15,7 +15,6 @@ function defaultRoot(): HarnessConfig['root'] {
     show_compass_stats: true,
     show_compass_legend: true,
     show_moon: false,
-    show_version: false,
     hide_inactive_handlers: false,
     show_decision_summary: true,
     north_offset: 0,
@@ -43,6 +42,7 @@ function defaultCompass(): HarnessConfig['compass'] {
 /** Every badge kind on — the default opt-in state. */
 export function defaultBadges(): HarnessConfig['tile']['badges'] {
   return {
+    auto: true,
     solar: true,
     force: true,
     weather: true,
@@ -51,6 +51,7 @@ export function defaultBadges(): HarnessConfig['tile']['badges'] {
     motion: true,
     climate: true,
     glare_zone: true,
+    cloud: true,
   };
 }
 
@@ -65,7 +66,6 @@ function defaultTile(): HarnessConfig['tile'] {
     badges: defaultBadges(),
     show_compass: true,
     show_motion_icon: true,
-    show_resume: 'auto',
     layout: 'one-line',
   };
 }
@@ -185,7 +185,8 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 'manual-override-active',
     label: 'Manual override active',
-    description: 'User overrode the cover; manual handler holds.',
+    description:
+      'User overrode the cover; manual handler holds. The Manual badge is tappable (↺) to resume automatic control.',
     build: () => {
       const c = baseConfig('2026-06-21', 14 * 60);
       c.scenario = 'manual-override-active';
@@ -224,10 +225,26 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
-    id: 'solar-tracking-active',
-    label: 'Solar tracking active',
+    id: 'motion-idle-badge',
+    label: 'Motion idle badge',
     description:
-      'Sun in FOV, solar handler wins (cloud not suppressing) — the "Solar tracking active" badge shows.',
+      'Motion handler winning with the motion indicator icon turned off, so the "Motion idle" text badge shows. Turn the indicator back on, or disable the motion badge, to watch it fall back to Auto.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 19 * 60);
+      c.scenario = 'motion-idle-badge';
+      c.entries[0].flags.motion_status = 'timeout_pending';
+      c.entries[0].flags.motion_timeout_minutes_from_now = 0.5;
+      c.entries[0].target_position = 100;
+      c.entries[0].covers[0].position = 100;
+      c.tile.show_motion_icon = false;
+      return c;
+    },
+  },
+  {
+    id: 'solar-tracking-active',
+    label: 'Solar tracking',
+    description:
+      'Sun in FOV, solar handler wins (cloud not suppressing) — the "Solar tracking" badge shows.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'solar-tracking-active';
@@ -238,15 +255,41 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
-    id: 'cloud-suppressed',
-    label: 'Cloud suppressed — no badge',
+    id: 'solar-detailed-layout',
+    label: 'Solar tracking — detailed layout',
     description:
-      'Cloud-suppression handler wins (tracking suppressed). The cloud badge is dropped, so the tile shows no badge.',
+      'Detailed layout: the solar badge rides inline on the state line, right-aligned against the controls.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'solar-detailed-layout';
+      c.decisionMode = 'derived';
+      c.tile.layout = 'detailed';
+      return c;
+    },
+  },
+  {
+    id: 'cloud-suppressed',
+    label: 'Cloud suppressed — Cloudy badge',
+    description:
+      'Cloud-suppression handler wins (tracking suppressed). The tile shows the blue "Cloudy" badge; toggle badge: cloud off to hide it.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'cloud-suppressed';
       c.decisionMode = 'scripted';
       c.scriptedWinner = 'cloud';
+      return c;
+    },
+  },
+  {
+    id: 'auto-default-badge',
+    label: 'Auto badge — default winner',
+    description:
+      'No specific handler wins (the default position applies). The tile shows the green "Auto" badge; toggle badge: auto off to hide it.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'auto-default-badge';
+      c.decisionMode = 'scripted';
+      c.scriptedWinner = 'default';
       return c;
     },
   },

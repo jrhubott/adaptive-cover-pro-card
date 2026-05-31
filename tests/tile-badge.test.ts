@@ -10,6 +10,7 @@ interface BadgeLike extends HTMLElement {
   minimumMode?: boolean;
   manualEndIso?: string;
   integrationEnabled?: boolean;
+  resumable?: boolean;
 }
 
 async function mountBadge(props: Partial<BadgeLike>): Promise<BadgeLike> {
@@ -44,9 +45,9 @@ describe('acp-tile-badge', () => {
     expect(kind(el)).toBe('auto');
   });
 
-  it('renders Solar tracking active for solar winner', async () => {
+  it('renders Solar tracking for solar winner', async () => {
     const el = await mountBadge({ winner: 'solar' });
-    expect(text(el)).toBe('Solar tracking active');
+    expect(text(el)).toBe('Solar tracking');
     expect(kind(el)).toBe('solar');
   });
 
@@ -98,12 +99,9 @@ describe('acp-tile-badge', () => {
     expect(kind(el)).toBe('climate');
   });
 
-  it('renders the inverted "Solar tracking active" label for the cloud_suppression winner string', async () => {
-    // The cloud kind is dropped from the visible badge set; surfaces filter it
-    // out. The user-facing positive indicator is the solar badge instead, so the
-    // "Cloudy" label is no longer surfaced anywhere.
+  it('renders the "Solar tracking" label for the solar winner string', async () => {
     const el = await mountBadge({ winner: 'solar' });
-    expect(text(el)).toBe('Solar tracking active');
+    expect(text(el)).toBe('Solar tracking');
     expect(kind(el)).toBe('solar');
   });
 
@@ -161,7 +159,7 @@ describe('acp-tile-badge', () => {
 
   it('accepts CamelCase ControlMethod-style winner names', async () => {
     const el = await mountBadge({ winner: 'SolarHandler' });
-    expect(text(el)).toBe('Solar tracking active');
+    expect(text(el)).toBe('Solar tracking');
     expect(kind(el)).toBe('solar');
   });
 
@@ -175,5 +173,23 @@ describe('acp-tile-badge', () => {
     const el = await mountBadge({ winner: 'default' });
     expect(text(el)).toBe('Auto');
     expect(kind(el)).toBe('auto');
+  });
+
+  it('renders a plain span (not a button) when not resumable', async () => {
+    const el = await mountBadge({ winner: 'manual' });
+    expect(el.shadowRoot!.querySelector('button.badge')).toBeFalsy();
+    expect(el.shadowRoot!.querySelector('span.badge')).toBeTruthy();
+  });
+
+  it('renders a tappable button and emits acp-resume when resumable', async () => {
+    const el = await mountBadge({ winner: 'manual', resumable: true });
+    const button = el.shadowRoot!.querySelector('button.badge') as HTMLButtonElement;
+    expect(button).toBeTruthy();
+    let fired = false;
+    el.addEventListener('acp-resume', () => {
+      fired = true;
+    });
+    button.click();
+    expect(fired).toBe(true);
   });
 });

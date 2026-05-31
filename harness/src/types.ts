@@ -85,7 +85,6 @@ export interface RootCardOptions {
   show_compass_stats: boolean;
   show_compass_legend: boolean;
   show_moon: boolean;
-  show_version: boolean;
   hide_inactive_handlers: boolean;
   show_decision_summary: boolean;
   north_offset: number;
@@ -116,6 +115,7 @@ export interface TileCardOptions {
   show_badge: boolean;
   /** Per-kind badge opt-in. All default on; only `false` hides the kind. */
   badges: {
+    auto: boolean;
     solar: boolean;
     force: boolean;
     weather: boolean;
@@ -124,10 +124,10 @@ export interface TileCardOptions {
     motion: boolean;
     climate: boolean;
     glare_zone: boolean;
+    cloud: boolean;
   };
   show_compass: boolean;
   show_motion_icon: boolean;
-  show_resume: 'auto' | 'always' | 'never';
   layout: 'one-line' | 'detailed';
 }
 

@@ -82,6 +82,32 @@ describe('floor glyph (↥) i18n', () => {
   });
 });
 
+describe('version footer i18n', () => {
+  it('root.footer_version is defined in EN', () => {
+    expect(en.root.footer_version).toBeDefined();
+  });
+
+  it('root.footer_version is defined in FR', () => {
+    expect(fr.root.footer_version).toBeDefined();
+  });
+
+  it('editor.main.show_version_label is undefined in EN', () => {
+    expect((en.editor.main as Record<string, string>)['show_version_label']).toBeUndefined();
+  });
+
+  it('editor.main.show_version_label is undefined in FR', () => {
+    expect((fr.editor.main as Record<string, string>)['show_version_label']).toBeUndefined();
+  });
+
+  it('editor.main.show_version_desc is undefined in EN', () => {
+    expect((en.editor.main as Record<string, string>)['show_version_desc']).toBeUndefined();
+  });
+
+  it('editor.main.show_version_desc is undefined in FR', () => {
+    expect((fr.editor.main as Record<string, string>)['show_version_desc']).toBeUndefined();
+  });
+});
+
 describe('locale-table parity', () => {
   // Compile-time parity comes from `const fr: typeof en = {...}` in fr.ts. Runtime check is defense-in-depth.
   it('FR has exactly the same key paths as EN', () => {

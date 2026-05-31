@@ -48,26 +48,69 @@ export class TileBadge extends LitElement {
   @property({ type: Boolean, attribute: 'manual-active' })
   public manualActive = false;
 
+  /** Explicit badge kind that overrides the winner-derived kind. The tile card
+   *  sets this to substitute the Auto badge for a suppressed "Motion idle"
+   *  winner; left undefined the kind is derived from `winner` as usual. */
+  @property({ attribute: 'kind-override' }) public kindOverride?: BadgeKind;
+
+  /** When true, the badge becomes a tappable button that emits `acp-resume`
+   *  (used to resume automatic control while a manual override is active). The
+   *  badge stays presentational — it dispatches the event; the host runs the
+   *  actual service call. A trailing ↺ icon signals the affordance. */
+  @property({ type: Boolean, reflect: true }) public resumable = false;
+
   protected render(): TemplateResult {
     const kind = this._kind();
     const tokens = BADGE_TOKENS[kind];
     const base = this.hass ? t(BADGE_I18N_KEYS[kind], this.hass) : tokens.label;
     const label = this._label(kind, base);
     const icon = BADGE_ICONS[kind];
+    const inner = html`${icon
+      ? html`<ha-icon class="badge-icon" icon=${icon}></ha-icon>`
+      : nothing}${label}${this.resumable
+      ? html`<ha-icon class="resume-icon" icon="mdi:restore"></ha-icon>`
+      : nothing}`;
+    if (this.resumable) {
+      const hint = this.hass ? t('tile.resume_aria', this.hass) : 'Resume automatic control';
+      return html`<button
+        class="badge kind-${kind} resumable"
+        style="background:${tokens.bg};color:${tokens.fg};"
+        part="badge"
+        type="button"
+        title=${hint}
+        aria-label=${hint}
+        @click=${this._onResumeClick}
+        @pointerdown=${this._stop}
+      >
+        ${inner}
+      </button>`;
+    }
     return html`<span
       class="badge kind-${kind}"
       style="background:${tokens.bg};color:${tokens.fg};"
       part="badge"
-      >${icon ? html`<ha-icon class="badge-icon" icon=${icon}></ha-icon>` : nothing}${label}</span
+      >${inner}</span
     >`;
   }
 
+  private _stop(e: Event): void {
+    e.stopPropagation();
+  }
+
+  private _onResumeClick(e: Event): void {
+    e.stopPropagation();
+    this.dispatchEvent(new CustomEvent('acp-resume', { bubbles: true, composed: true }));
+  }
+
   private _kind(): BadgeKind {
-    return winnerBadgeKind({
-      winner: this.winner,
-      integrationEnabled: this.integrationEnabled,
-      manualActive: this.manualActive,
-    });
+    return (
+      this.kindOverride ??
+      winnerBadgeKind({
+        winner: this.winner,
+        integrationEnabled: this.integrationEnabled,
+        manualActive: this.manualActive,
+      })
+    );
   }
 
   private _label(kind: BadgeKind, base: string): string {
@@ -115,6 +158,23 @@ export class TileBadge extends LitElement {
       --mdc-icon-size: 14px;
       line-height: 0;
       flex: 0 0 auto;
+    }
+    button.badge {
+      font: inherit;
+      border: none;
+      cursor: pointer;
+    }
+    button.badge:hover {
+      filter: brightness(0.92);
+    }
+    .resume-icon {
+      --mdc-icon-size: 14px;
+      line-height: 0;
+      flex: 0 0 auto;
+      opacity: 0.85;
+    }
+    :host([compact]) .resume-icon {
+      --mdc-icon-size: 12px;
     }
     :host([compact]) .badge {
       padding: 1px 6px;
