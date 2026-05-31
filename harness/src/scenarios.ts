@@ -15,7 +15,6 @@ function defaultRoot(): HarnessConfig['root'] {
     show_compass_stats: true,
     show_compass_legend: true,
     show_moon: false,
-    show_version: false,
     hide_inactive_handlers: false,
     show_decision_summary: true,
     north_offset: 0,

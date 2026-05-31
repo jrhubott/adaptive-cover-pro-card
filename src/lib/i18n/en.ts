@@ -220,8 +220,6 @@ export const en = {
       show_moon_desc: 'Moon position and phase overlay on the sky compass.',
       hide_inactive_label: 'Hide inactive handlers',
       hide_inactive_desc: 'Show only the winner and actively matched pipeline handlers.',
-      show_version_label: 'Show version tag',
-      show_version_desc: 'Display card version at the bottom.',
     },
     tile: {
       name: 'Title override',

@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant, LovelaceCardEditor } from 'custom-card-helpers';
 
-import { CARD_EDITOR_NAME } from './const';
+import { CARD_EDITOR_NAME, CARD_VERSION } from './const';
 import type { ControlFlags } from './const';
 import { fetchAcpConfigEntries, type AcpConfigEntry } from './lib/config-entries';
 import { t } from './lib/i18n';
@@ -116,10 +116,6 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
 
   private _onCompactToggle(enabled: boolean): void {
     this._emit({ ...(this._config ?? { type: '', entry_id: '' }), compact: enabled });
-  }
-
-  private _onVersionToggle(enabled: boolean): void {
-    this._emit({ ...(this._config ?? { type: '', entry_id: '' }), show_version: enabled });
   }
 
   private _onCompassStatsToggle(enabled: boolean): void {
@@ -301,17 +297,6 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
               <span class="toggle-desc">${t('editor.main.hide_inactive_desc', this.hass)}</span>
             </span>
           </label>
-          <label class="toggle-row">
-            <input
-              type="checkbox"
-              .checked=${this._config.show_version ?? false}
-              @change=${(e: Event) => this._onVersionToggle((e.target as HTMLInputElement).checked)}
-            />
-            <span class="toggle-text">
-              <span class="toggle-label">${t('editor.main.show_version_label', this.hass)}</span>
-              <span class="toggle-desc">${t('editor.main.show_version_desc', this.hass)}</span>
-            </span>
-          </label>
         </div>
 
         <div class="section">
@@ -325,6 +310,9 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
             inputmode="numeric"
             @change=${this._onNorthOffsetChange}
           />
+        </div>
+        <div class="version-footer dim">
+          ${t('root.footer_version', this.hass, { version: CARD_VERSION })}
         </div>
       </div>
     `;
@@ -452,6 +440,13 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
       padding: 1px 5px;
       border-radius: 3px;
       font-size: 0.85em;
+    }
+    .version-footer {
+      font-size: 0.7rem;
+      text-align: right;
+    }
+    .dim {
+      color: var(--secondary-text-color);
     }
   `;
 }

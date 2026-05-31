@@ -85,7 +85,6 @@ export interface RootCardOptions {
   show_compass_stats: boolean;
   show_compass_legend: boolean;
   show_moon: boolean;
-  show_version: boolean;
   hide_inactive_handlers: boolean;
   show_decision_summary: boolean;
   north_offset: number;

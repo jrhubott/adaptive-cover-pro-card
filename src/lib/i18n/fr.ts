@@ -236,8 +236,6 @@ export const fr: EnDict = {
       hide_inactive_label: 'Masquer les gestionnaires inactifs',
       hide_inactive_desc:
         'Afficher uniquement le gestionnaire sélectionné et les gestionnaires du pipeline actifs.',
-      show_version_label: "Afficher l'étiquette de version",
-      show_version_desc: 'Afficher la version de la carte en bas.',
     },
     tile: {
       name: 'Titre personnalisé',
