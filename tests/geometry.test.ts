@@ -4,6 +4,7 @@ import {
   azimuthToCartesian,
   blindSpotBearings,
   clampActiveArcToFov,
+  dayFractionX,
   elevationBandFraction,
   elevationGatedFovBounds,
   elevationToRadius,
@@ -432,5 +433,32 @@ describe('geometry — arcsOverlap', () => {
   it('handles arcs that wrap past north', () => {
     expect(arcsOverlap(300, 40, 20, 60)).toBe(true); // 20..60 sits inside 300..40? overlaps at 20..40
     expect(arcsOverlap(300, 20, 80, 140)).toBe(false);
+  });
+});
+
+describe('geometry — dayFractionX', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const WIDTH = 600;
+  // Fixed reference: midnight 2026-06-01 UTC (used as a concrete dayStart)
+  const dayStart = new Date('2026-06-01T00:00:00Z').getTime();
+
+  it('dayStart maps to 0', () => {
+    expect(dayFractionX(dayStart, dayStart, WIDTH)).toBe(0);
+  });
+
+  it('dayStart + 12h maps to width / 2', () => {
+    expect(dayFractionX(dayStart + 12 * 3600_000, dayStart, WIDTH)).toBeCloseTo(WIDTH / 2);
+  });
+
+  it('dayStart + 24h maps to width', () => {
+    expect(dayFractionX(dayStart + DAY_MS, dayStart, WIDTH)).toBeCloseTo(WIDTH);
+  });
+
+  it('clamps below-day inputs to 0', () => {
+    expect(dayFractionX(dayStart - 1, dayStart, WIDTH)).toBe(0);
+  });
+
+  it('clamps above-day inputs to width', () => {
+    expect(dayFractionX(dayStart + DAY_MS + 1, dayStart, WIDTH)).toBe(WIDTH);
   });
 });
