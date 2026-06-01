@@ -92,6 +92,22 @@ describe('acp-forecast-strip', () => {
     expect(pairs.length).toBe(2);
   });
 
+  it('drops samples whose timestamps fall outside the fixed day window from the curve', async () => {
+    // A pre-#510 integration walks 12h from `now`, so an evening forecast spills
+    // past midnight. Those out-of-day samples must be excluded, not clamped onto
+    // the right edge (which would draw a spurious vertical spike).
+    const samples = [
+      sample(18 * 3600_000, 50), // 18:00 — in day
+      sample(23 * 3600_000, 40), // 23:00 — in day
+      sample(26 * 3600_000, 30), // 02:00 next day — outside day
+      sample(28 * 3600_000, 20), // 04:00 next day — outside day
+    ];
+    const el = await mount(samples, [], NOW);
+    const points = el.shadowRoot!.querySelector('polyline.curve')!.getAttribute('points') ?? '';
+    const pairs = points.trim().split(/\s+/).filter(Boolean);
+    expect(pairs.length).toBe(2);
+  });
+
   it('renders axis labels: 100% top label and five fixed time-axis tick labels', async () => {
     const samples = [sample(0, 0), sample(12 * 3600_000, 100)];
     const el = await mount(samples, [], NOW);

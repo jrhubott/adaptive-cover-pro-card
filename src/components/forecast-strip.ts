@@ -55,13 +55,21 @@ export class ForecastStrip extends LitElement {
 
     const xAt = (t: number): number => dayFractionX(t, dayStart, VIEW_W);
 
+    // Keep samplePts index-aligned with `this.samples` (hover indexing depends
+    // on it), but flag samples that fall outside today's window so the curve and
+    // hover skip them. A pre-#510 integration walks 12h from `now`, spilling past
+    // midnight; clamping those onto the right edge would draw a spurious spike.
     const samplePts = this.samples.map((s) => {
       const ts = Date.parse(s.t);
       const x = xAt(ts);
       const y = TOP_PAD + (1 - clampPercent(s.position) / 100) * usableH;
-      return { t: ts, x, y, sample: s };
+      const inDay = !Number.isNaN(ts) && ts >= dayStart && ts <= dayStart + DAY_MS;
+      return { t: ts, x, y, sample: s, inDay };
     });
-    const points = samplePts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+    const points = samplePts
+      .filter((p) => p.inDay)
+      .map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+      .join(' ');
 
     const eventGroups = (this.events ?? [])
       .map((e) => {
@@ -169,7 +177,8 @@ export class ForecastStrip extends LitElement {
     let bestDist = Number.POSITIVE_INFINITY;
     for (let i = 0; i < this.samples.length; i++) {
       const ts = Date.parse(this.samples[i].t);
-      if (Number.isNaN(ts)) continue;
+      // Skip out-of-day samples so hover can't land on a point the curve omits.
+      if (Number.isNaN(ts) || ts < dayStart || ts > dayStart + DAY_MS) continue;
       const x = dayFractionX(ts, dayStart, ForecastStrip.VIEW_W);
       const d = Math.abs(x - svgX);
       if (d < bestDist) {
