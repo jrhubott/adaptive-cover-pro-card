@@ -151,10 +151,12 @@ export class SkyCompass extends LitElement {
     const sunElev = first.sun.elevation;
     const sunPt = sunDotPosition(sunAzi, sunElev, o);
     const anyInFov = overlays.some((ov) => ov.sun.in_fov);
-    const anyValid = overlays.some((ov) => ov.sunInfront);
-    const belowHorizon = sunElev <= 0;
-    const sunDotClass =
-      !belowHorizon && anyValid ? 'sun valid' : !belowHorizon && anyInFov ? 'sun in-fov' : 'sun';
+    // Gold whenever the sun clears the minimum-elevation gate; gray only below it.
+    // Use the most-permissive gate across entries, pairing with the `.some(...)` FOV
+    // aggregation. No gate set → 0, reproducing below-horizon behavior.
+    const gate = Math.min(...overlays.map((ov) => ov.sun.min_elevation ?? 0));
+    const belowGate = sunElev <= gate;
+    const sunDotClass = belowGate ? 'sun' : anyInFov ? 'sun visible in-fov' : 'sun visible';
 
     const { latitude, longitude } = this.hass.config as unknown as {
       latitude?: number;
@@ -484,7 +486,7 @@ export class SkyCompass extends LitElement {
               </button>
             `,
           )}
-          <div><span class="dot sun valid"></span> ${t('compass.sun', this.hass)}</div>
+          <div><span class="dot sun visible in-fov"></span> ${t('compass.sun', this.hass)}</div>
           ${this.showMoon
             ? html`<div><span class="dot moon-dot"></span> ${t('compass.moon', this.hass)}</div>`
             : nothing}
@@ -492,9 +494,9 @@ export class SkyCompass extends LitElement {
       `;
     }
     return html`<div class="legend">
-      <div><span class="dot sun valid"></span> ${t('compass.sun_hitting', this.hass)}</div>
-      <div><span class="dot sun in-fov"></span> ${t('compass.sun_in_fov_invalid', this.hass)}</div>
-      <div><span class="dot sun"></span> ${t('compass.sun_outside_fov', this.hass)}</div>
+      <div><span class="dot sun visible in-fov"></span> ${t('compass.sun_in_fov', this.hass)}</div>
+      <div><span class="dot sun visible"></span> ${t('compass.sun_in_sky', this.hass)}</div>
+      <div><span class="dot sun"></span> ${t('compass.sun_below_gate', this.hass)}</div>
       ${this.showMoon
         ? html`<div><span class="dot moon-dot"></span> ${t('compass.moon', this.hass)}</div>`
         : nothing}
@@ -685,11 +687,10 @@ export class SkyCompass extends LitElement {
         cy 0.3s ease,
         fill 0.3s ease;
     }
-    .sun.in-fov {
-      fill: var(--state-active-color, orange);
-    }
-    .sun.valid {
+    .sun.visible {
       fill: var(--warning-color, gold);
+    }
+    .sun.visible.in-fov {
       filter: drop-shadow(0 0 4px var(--warning-color, gold));
     }
     .legend {
@@ -745,11 +746,11 @@ export class SkyCompass extends LitElement {
     .dot.sun {
       background: var(--secondary-text-color);
     }
-    .dot.sun.valid {
+    .dot.sun.visible {
       background: var(--warning-color, gold);
     }
-    .dot.sun.in-fov {
-      background: var(--state-active-color, orange);
+    .dot.sun.visible.in-fov {
+      box-shadow: 0 0 4px var(--warning-color, gold);
     }
     .swatch.cover-fill-swatch {
       background: var(--primary-color);

@@ -53,6 +53,8 @@ function makeHass(
     blindSpot?: [number, number];
     minElevation?: number;
     maxElevation?: number;
+    inFov?: boolean;
+    elevation?: number;
     coverPos?: number;
     targetSensorId?: string;
     startSensorId?: string;
@@ -73,14 +75,14 @@ function makeHass(
     states[e.sensorId] = {
       state: '180',
       attributes: {
-        elevation: 30,
+        elevation: e.elevation ?? 30,
         gamma: 0,
         window_azimuth: e.windowAzimuth,
         fov_left: fovLeft,
         fov_right: fovRight,
         azimuth_min: e.windowAzimuth - fovLeft,
         azimuth_max: e.windowAzimuth + fovRight,
-        in_fov: true,
+        in_fov: e.inFov ?? true,
         blind_spot_range: e.blindSpot ?? null,
         ...(e.minElevation !== undefined ? { min_elevation: e.minElevation } : {}),
         ...(e.maxElevation !== undefined ? { max_elevation: e.maxElevation } : {}),
@@ -699,13 +701,15 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     const el = await mountCompass([d], hass);
     const dots = Array.from(el.shadowRoot!.querySelectorAll('.legend .dot.sun'));
     expect(dots.length).toBe(3);
-    const valid = dots.filter((d) => d.classList.contains('valid'));
-    const inFov = dots.filter((d) => d.classList.contains('in-fov'));
-    const bare = dots.filter(
-      (d) => !d.classList.contains('valid') && !d.classList.contains('in-fov'),
+    const inFov = dots.filter(
+      (d) => d.classList.contains('visible') && d.classList.contains('in-fov'),
     );
-    expect(valid.length).toBe(1);
+    const visible = dots.filter(
+      (d) => d.classList.contains('visible') && !d.classList.contains('in-fov'),
+    );
+    const bare = dots.filter((d) => !d.classList.contains('visible'));
     expect(inFov.length).toBe(1);
+    expect(visible.length).toBe(1);
     expect(bare.length).toBe(1);
   });
 
@@ -714,9 +718,48 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
     const el = await mountCompass([d], hass);
     const text = el.shadowRoot!.textContent ?? '';
-    expect(text).toContain('Sun (hitting window)');
-    expect(text).toContain('Sun (in FOV, not valid)');
-    expect(text).toContain('Sun (outside FOV)');
+    expect(text).toContain('Sun (in FOV)');
+    expect(text).toContain('Sun (in sky)');
+    expect(text).toContain('Sun (below min. elevation)');
+  });
+
+  it('sun above the min-elevation gate is gold (visible) whether or not it is in the FOV', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    // elevation 30 clears the (absent) gate; outside the FOV → gold, not gray.
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, inFov: false },
+    ]);
+    const el = await mountCompass([d], hass);
+    const dot = el.shadowRoot!.querySelector('circle.sun');
+    const cls = dot?.getAttribute('class') ?? '';
+    expect(cls).toContain('visible');
+    expect(cls).not.toContain('in-fov');
+  });
+
+  it('sun in the FOV gets the gold + glow indicator', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, inFov: true }]);
+    const el = await mountCompass([d], hass);
+    const cls = el.shadowRoot!.querySelector('circle.sun')?.getAttribute('class') ?? '';
+    expect(cls).toContain('visible');
+    expect(cls).toContain('in-fov');
+  });
+
+  it('sun below the min-elevation gate is dark gray (bare .sun)', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([
+      {
+        sensorId: 'sensor.sun_pos_entry1',
+        windowAzimuth: 180,
+        elevation: 5,
+        minElevation: 10,
+        inFov: false,
+      },
+    ]);
+    const el = await mountCompass([d], hass);
+    const cls = el.shadowRoot!.querySelector('circle.sun')?.getAttribute('class') ?? '';
+    expect(cls).not.toContain('visible');
+    expect(cls).not.toContain('in-fov');
   });
 
   it('FOV swatch shares its theme token with the FOV path', () => {
@@ -735,18 +778,20 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     expect(swatch).not.toMatch(/background:\s*gold\b/);
   });
 
-  it('valid sun dot and SVG .sun.valid share the same theme token', () => {
-    const svgValid = cssBlock('.sun.valid ');
-    const dotValid = cssBlock('.dot.sun.valid ');
-    expect(svgValid).toMatch(/var\(--warning-color/);
-    expect(dotValid).toMatch(/var\(--warning-color/);
+  it('visible sun dot and SVG .sun.visible share the same gold theme token', () => {
+    const svgVisible = cssBlock('.sun.visible ');
+    const dotVisible = cssBlock('.dot.sun.visible ');
+    expect(svgVisible).toMatch(/var\(--warning-color/);
+    expect(dotVisible).toMatch(/var\(--warning-color/);
   });
 
-  it('in-FOV sun dot and SVG .sun.in-fov share the same theme token', () => {
-    const svgInFov = cssBlock('.sun.in-fov ');
-    const dotInFov = cssBlock('.dot.sun.in-fov ');
-    expect(svgInFov).toMatch(/var\(--state-active-color/);
-    expect(dotInFov).toMatch(/var\(--state-active-color/);
+  it('in-FOV sun stays gold and adds a glow indicator', () => {
+    const svgInFov = cssBlock('.sun.visible.in-fov ');
+    const dotInFov = cssBlock('.dot.sun.visible.in-fov ');
+    // Gold comes from .sun.visible; the in-fov modifier only adds the glow.
+    expect(svgInFov).toMatch(/drop-shadow\([^)]*var\(--warning-color/);
+    expect(dotInFov).toMatch(/box-shadow:[^;]*var\(--warning-color/);
+    expect(svgInFov).not.toMatch(/var\(--state-active-color/);
   });
 });
 
