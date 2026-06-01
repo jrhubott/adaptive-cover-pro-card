@@ -120,3 +120,17 @@ describe('locale-table parity', () => {
     expect(flat(fr).sort()).toEqual(flat(en).sort());
   });
 });
+
+describe('forecast.solar_only_note i18n', () => {
+  it('resolves to a non-key string in EN', () => {
+    const result = t('forecast.solar_only_note', { locale: { language: 'en' } });
+    expect(result).not.toBe('forecast.solar_only_note');
+    expect(result.length).toBeGreaterThan(0);
+  });
+
+  it('resolves to a non-key string in FR', () => {
+    const result = t('forecast.solar_only_note', { locale: { language: 'fr' } });
+    expect(result).not.toBe('forecast.solar_only_note');
+    expect(result.length).toBeGreaterThan(0);
+  });
+});

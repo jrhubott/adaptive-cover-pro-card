@@ -43,6 +43,8 @@ export const fr: EnDict = {
     },
     hover_hint:
       "Survolez la courbe pour voir l'heure et la position prévue ; survolez une ligne colorée pour voir l'événement qu'elle indique.",
+    solar_only_note:
+      'Géométrie solaire uniquement — ne tient pas compte des dérogations manuelles, des positions personnalisées, de la désactivation par temps nuageux ni des conditions météo.',
   },
   dialog: {
     configure_integration: "Configurer l'intégration",

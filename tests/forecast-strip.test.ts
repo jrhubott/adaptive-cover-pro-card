@@ -1,113 +1,139 @@
 import { describe, it, expect } from 'vitest';
 import '../src/components/forecast-strip';
 import type { ForecastSample, ForecastEvent } from '../src/types';
+import { startOfDay } from '../src/lib/sun-model';
 
 interface StripLike extends HTMLElement {
   updateComplete: Promise<boolean>;
   samples?: ForecastSample[];
   events?: ForecastEvent[];
+  now?: number;
 }
 
-async function mount(samples: ForecastSample[], events: ForecastEvent[]): Promise<StripLike> {
+async function mount(
+  samples: ForecastSample[],
+  events: ForecastEvent[],
+  nowMs?: number,
+): Promise<StripLike> {
   const el = document.createElement('acp-forecast-strip') as StripLike;
   el.samples = samples;
   el.events = events;
+  if (nowMs !== undefined) el.now = nowMs;
   document.body.appendChild(el);
   await el.updateComplete;
   return el;
 }
 
-const NOW = new Date('2026-06-01T06:00:00Z').getTime();
+// All fixtures are anchored to local midnight so tests are timezone-independent.
+// DAY_START is midnight local time for a fixed reference date.
+const DAY_START = startOfDay(new Date('2026-06-01T12:00:00')).getTime();
+// NOW is local noon of the same day.
+const NOW = DAY_START + 12 * 3600_000;
 
-function sample(offsetMinutes: number, position: number, handler = 'solar'): ForecastSample {
+function sample(offsetMs: number, position: number, handler = 'solar'): ForecastSample {
   return {
-    t: new Date(NOW + offsetMinutes * 60_000).toISOString(),
+    t: new Date(DAY_START + offsetMs).toISOString(),
     position,
     handler,
   };
 }
 
-function event(offsetMinutes: number, kind: ForecastEvent['kind'], label: string): ForecastEvent {
-  return { t: new Date(NOW + offsetMinutes * 60_000).toISOString(), kind, label };
+function event(offsetMs: number, kind: ForecastEvent['kind'], label: string): ForecastEvent {
+  return { t: new Date(DAY_START + offsetMs).toISOString(), kind, label };
 }
 
 describe('acp-forecast-strip', () => {
   it('renders nothing when samples is empty', async () => {
-    const el = await mount([], []);
+    const el = await mount([], [], NOW);
     expect(el.shadowRoot!.querySelector('svg')).toBeNull();
   });
 
   it('renders an SVG with a polyline for the sample series', async () => {
-    const samples = [sample(0, 0), sample(60, 30), sample(120, 60), sample(180, 100)];
-    const el = await mount(samples, []);
+    const samples = [
+      sample(0, 0),
+      sample(3 * 3600_000, 30),
+      sample(6 * 3600_000, 60),
+      sample(9 * 3600_000, 100),
+    ];
+    const el = await mount(samples, [], NOW);
     const svg = el.shadowRoot!.querySelector('svg');
     expect(svg).toBeTruthy();
     expect(svg!.querySelector('polyline.curve')).toBeTruthy();
   });
 
   it('plots one event marker per event in the events array', async () => {
-    const samples = [sample(0, 0), sample(60, 50), sample(120, 100)];
+    const samples = [sample(0, 0), sample(6 * 3600_000, 50), sample(12 * 3600_000, 100)];
     const events = [
-      event(30, 'sunrise', 'Sunrise'),
-      event(75, 'fov_enter', 'Sun enters FOV'),
-      event(110, 'fov_exit', 'Sun exits FOV'),
+      event(2 * 3600_000, 'sunrise', 'Sunrise'),
+      event(7 * 3600_000, 'fov_enter', 'Sun enters FOV'),
+      event(11 * 3600_000, 'fov_exit', 'Sun exits FOV'),
     ];
-    const el = await mount(samples, events);
+    const el = await mount(samples, events, NOW);
     expect(el.shadowRoot!.querySelectorAll('line.event-marker').length).toBe(3);
   });
 
-  it('skips events whose timestamps fall outside the rendered sample range', async () => {
-    const samples = [sample(60, 50), sample(120, 50)];
+  it('skips events whose timestamps fall outside the fixed day window', async () => {
+    const samples = [sample(6 * 3600_000, 50), sample(12 * 3600_000, 50)];
     const events = [
-      event(0, 'sunrise', 'Sunrise'), // before first sample
-      event(90, 'fov_enter', 'Sun enters FOV'), // inside
-      event(240, 'sunset', 'Sunset'), // after last sample
+      event(9 * 3600_000, 'fov_enter', 'Sun enters FOV'), // inside day
+      event(-3600_000, 'sunrise', 'Sunrise'), // before midnight (outside day)
+      event(25 * 3600_000, 'sunset', 'Sunset'), // after midnight+24h (outside day)
     ];
-    const el = await mount(samples, events);
-    // Only the in-range event renders.
+    const el = await mount(samples, events, NOW);
+    // Only the in-day event renders.
     expect(el.shadowRoot!.querySelectorAll('line.event-marker').length).toBe(1);
   });
 
   it('preserves the relative position of samples in the polyline points string', async () => {
-    const samples = [sample(0, 0), sample(60, 100)];
-    const el = await mount(samples, []);
+    const samples = [sample(0, 0), sample(6 * 3600_000, 100)];
+    const el = await mount(samples, [], NOW);
     const points = el.shadowRoot!.querySelector('polyline.curve')!.getAttribute('points') ?? '';
     const pairs = points.trim().split(/\s+/);
     expect(pairs.length).toBe(2);
   });
 
-  it('renders axis labels: 100% top label and time boundary labels for left and right edges', async () => {
-    const samples = [sample(0, 0), sample(120, 100)];
-    const el = await mount(samples, []);
+  it('renders axis labels: 100% top label and five fixed time-axis tick labels', async () => {
+    const samples = [sample(0, 0), sample(12 * 3600_000, 100)];
+    const el = await mount(samples, [], NOW);
     const svgEl = el.shadowRoot!.querySelector('svg')!;
-
-    // happy-dom doesn't support querySelector with class selectors on SVG <text>
-    // so we inspect innerHTML for the axis-label class attribute.
     const inner = svgEl.innerHTML;
-
-    // At least 3 axis-label elements expected (100%, left time, right time)
-    const axisLabelMatches = (inner.match(/class="axis-label"/g) ?? []).length;
-    expect(axisLabelMatches).toBeGreaterThanOrEqual(3);
 
     // The 100% label must appear in the SVG
     expect(inner).toContain('100%');
 
-    // Both boundary time labels must contain at least one time-like pattern (digit:digit)
-    const textContents = Array.from(svgEl.querySelectorAll('[class="axis-label"]')).map(
-      (n) => n.textContent ?? '',
-    );
-    const timeLike = textContents.filter((t) => /\d{1,2}:\d{2}/.test(t));
-    expect(timeLike.length).toBeGreaterThanOrEqual(2);
+    // Five fixed tick labels must all appear
+    expect(inner).toContain('00:00');
+    expect(inner).toContain('06:00');
+    expect(inner).toContain('12:00');
+    expect(inner).toContain('18:00');
+    expect(inner).toContain('24:00');
+  });
+
+  it('renders five fixed time-axis tick labels: 00:00, 06:00, 12:00, 18:00, 24:00', async () => {
+    const fullDaySamples = [
+      sample(0, 0),
+      sample(6 * 3600_000, 50),
+      sample(12 * 3600_000, 100),
+      sample(18 * 3600_000, 50),
+      sample(23 * 3600_000, 0),
+    ];
+    const el = await mount(fullDaySamples, [], NOW);
+    const inner = el.shadowRoot!.querySelector('svg')!.innerHTML;
+    expect(inner).toContain('00:00');
+    expect(inner).toContain('06:00');
+    expect(inner).toContain('12:00');
+    expect(inner).toContain('18:00');
+    expect(inner).toContain('24:00');
   });
 
   it('wraps each event in a hoverable group with a richer tooltip', async () => {
-    const samples = [sample(0, 0), sample(120, 100)];
+    const samples = [sample(0, 0), sample(12 * 3600_000, 100)];
     const events = [
-      event(30, 'sunrise', 'Sunrise'),
-      event(60, 'fov_enter', 'Sun enters FOV'),
-      event(90, 'unknown_kind', 'Mystery'),
+      event(2 * 3600_000, 'sunrise', 'Sunrise'),
+      event(6 * 3600_000, 'fov_enter', 'Sun enters FOV'),
+      event(10 * 3600_000, 'unknown_kind', 'Mystery'),
     ];
-    const el = await mount(samples, events);
+    const el = await mount(samples, events, NOW);
     const groups = el.shadowRoot!.querySelectorAll('g.event-group');
     expect(groups.length).toBe(3);
 
@@ -122,5 +148,26 @@ describe('acp-forecast-strip', () => {
     expect(tooltips[1]).toMatch(/^Sun enters window field of view — \d{1,2}:\d{2}/);
     // Unknown kind falls back to the integration-supplied label.
     expect(tooltips[2]).toMatch(/^Mystery — \d{1,2}:\d{2}/);
+  });
+
+  it('renders a now cursor line and places it at x=300 (center) when now is at noon', async () => {
+    const samples = [sample(0, 0), sample(12 * 3600_000, 100)];
+    // VIEW_W=600, noon = 50% = x300
+    const nowNoon = DAY_START + 12 * 3600_000;
+    const el = await mount(samples, [], nowNoon);
+    const svgEl = el.shadowRoot!.querySelector('svg')!;
+    const nowLine = svgEl.querySelector('line.now');
+    expect(nowLine).toBeTruthy();
+    expect(Number(nowLine!.getAttribute('x1'))).toBeCloseTo(300, 0);
+  });
+
+  it('renders a now cursor at x≈0 when now is at the start of the day', async () => {
+    const samples = [sample(0, 0), sample(12 * 3600_000, 100)];
+    const nowAtStart = DAY_START; // midnight
+    const el = await mount(samples, [], nowAtStart);
+    const svgEl = el.shadowRoot!.querySelector('svg')!;
+    const nowLine = svgEl.querySelector('line.now');
+    expect(nowLine).toBeTruthy();
+    expect(Number(nowLine!.getAttribute('x1'))).toBeCloseTo(0, 0);
   });
 });

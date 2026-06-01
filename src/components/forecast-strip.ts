@@ -5,6 +5,10 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import type { ForecastEvent, ForecastSample } from '../types';
 import { formatClock } from '../lib/formatters';
 import { t } from '../lib/i18n';
+import { dayFractionX } from '../lib/geometry';
+import { startOfDay } from '../lib/sun-model';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Hand-written SVG strip rendering today's forecast curve + boundary events.
@@ -12,8 +16,8 @@ import { t } from '../lib/i18n';
  * Keeps the bundle small (no charting library; see CLAUDE.md "Keep bundle
  * small"). Inputs are the integration's `position_forecast` sensor
  * attributes: a list of (t, position) samples and a list of (t, kind, label)
- * events. Time axis is derived from the first/last sample so the strip
- * always fills its viewport regardless of forecast window length.
+ * events. Time axis is pinned to a fixed midnight→midnight local-day window
+ * (00:00→24:00) so it aligns with the elevation chart.
  *
  * Hover affordances:
  *   - Vertical event markers get a wide invisible hit area + cursor:help and
@@ -26,6 +30,7 @@ export class ForecastStrip extends LitElement {
   @property({ attribute: false }) public hass?: HomeAssistant;
   @property({ attribute: false }) public samples: ForecastSample[] = [];
   @property({ attribute: false }) public events: ForecastEvent[] = [];
+  @property({ attribute: false }) public now = Date.now();
 
   @state() private _hoverIdx: number | null = null;
 
@@ -34,34 +39,36 @@ export class ForecastStrip extends LitElement {
   // without touching the viewBox math.
   private static readonly VIEW_W = 600;
   private static readonly VIEW_H = 80;
-  // Reserve a tiny strip at the top for event labels.
+  // Reserve a tiny strip at the top for event labels and tick labels at the bottom.
   private static readonly TOP_PAD = 10;
   // Width of the invisible hit-area overlaid on each event line.
   private static readonly EVENT_HIT_W = 12;
 
   protected render(): TemplateResult | typeof nothing {
     if (!this.samples || this.samples.length === 0) return nothing;
-    const range = this._timeRange();
-    if (!range) return nothing;
-    const { start, end } = range;
-    const span = end - start;
-    if (span <= 0) return nothing;
+
     const { VIEW_W, VIEW_H, TOP_PAD, EVENT_HIT_W } = ForecastStrip;
     const usableH = VIEW_H - TOP_PAD;
 
+    // Fixed local-day axis: midnight → midnight (mirrors elevation-chart.ts)
+    const dayStart = startOfDay(new Date(this.now)).getTime();
+
+    const xAt = (t: number): number => dayFractionX(t, dayStart, VIEW_W);
+
     const samplePts = this.samples.map((s) => {
-      const t = Date.parse(s.t);
-      const x = ((t - start) / span) * VIEW_W;
+      const ts = Date.parse(s.t);
+      const x = xAt(ts);
       const y = TOP_PAD + (1 - clampPercent(s.position) / 100) * usableH;
-      return { t, x, y, sample: s };
+      return { t: ts, x, y, sample: s };
     });
     const points = samplePts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 
     const eventGroups = (this.events ?? [])
       .map((e) => {
         const eventTime = Date.parse(e.t);
-        if (Number.isNaN(eventTime) || eventTime < start || eventTime > end) return null;
-        const x = ((eventTime - start) / span) * VIEW_W;
+        if (Number.isNaN(eventTime) || eventTime < dayStart || eventTime > dayStart + DAY_MS)
+          return null;
+        const x = xAt(eventTime);
         const colorClass = `evt-${e.kind}`;
         const tooltip = describeEvent(e, this.hass);
         return svg`<g class="event-group" data-tooltip=${tooltip}>
@@ -105,8 +112,22 @@ export class ForecastStrip extends LitElement {
         </div>`
       : nothing;
 
-    const leftTime = formatClock(this.samples[0].t);
-    const rightTime = formatClock(this.samples[this.samples.length - 1].t);
+    // Fixed 00/06/12/18/24 tick labels + faint gridlines (mirrors elevation-chart.ts)
+    const ticks = [0, 6, 12, 18, 24].map((h) => {
+      const tickX = xAt(dayStart + h * 3600_000);
+      return svg`
+        <line class="grid faint" x1=${tickX} y1=${TOP_PAD} x2=${tickX} y2=${VIEW_H - 0.5} />
+        <text class="axis-label tick-time" x=${tickX} y=${VIEW_H - 3} text-anchor="middle">${h.toString().padStart(2, '0')}:00</text>
+      `;
+    });
+
+    // "now" cursor — only rendered when now falls within today's window
+    const nowMs = this.now;
+    const nowX = xAt(nowMs);
+    const nowInDay = nowMs >= dayStart && nowMs <= dayStart + DAY_MS;
+    const nowCursor = nowInDay
+      ? svg`<line class="now" x1=${nowX.toFixed(1)} y1=${TOP_PAD} x2=${nowX.toFixed(1)} y2=${VIEW_H - 0.5}></line>`
+      : nothing;
 
     return html`
       <div class="wrap">
@@ -119,30 +140,14 @@ export class ForecastStrip extends LitElement {
         >
           <title>${t('forecast.hover_hint', this.hass)}</title>
           <line class="baseline" x1="0" y1=${VIEW_H - 0.5} x2=${VIEW_W} y2=${VIEW_H - 0.5}></line>
-          <polyline class="curve" points=${points} fill="none"></polyline>
           <text class="axis-label" x="4" y=${TOP_PAD + 8} text-anchor="start">100%</text>
-          <text class="axis-label" x="4" y=${VIEW_H - 3} text-anchor="start">${leftTime}</text>
-          <text class="axis-label" x=${VIEW_W - 4} y=${VIEW_H - 3} text-anchor="end">
-            ${rightTime}
-          </text>
-          ${eventGroups} ${hoverGuide}
+          ${ticks}
+          <polyline class="curve" points=${points} fill="none"></polyline>
+          ${eventGroups} ${hoverGuide} ${nowCursor}
         </svg>
         ${hoverLabel}
       </div>
     `;
-  }
-
-  private _timeRange(): { start: number; end: number } | null {
-    let start = Number.POSITIVE_INFINITY;
-    let end = Number.NEGATIVE_INFINITY;
-    for (const s of this.samples) {
-      const t = Date.parse(s.t);
-      if (Number.isNaN(t)) continue;
-      if (t < start) start = t;
-      if (t > end) end = t;
-    }
-    if (start === Number.POSITIVE_INFINITY) return null;
-    return { start, end };
   }
 
   private _onPointerMove = (e: PointerEvent): void => {
@@ -159,16 +164,13 @@ export class ForecastStrip extends LitElement {
   };
 
   private _nearestSampleIdx(svgX: number): number | null {
-    const range = this._timeRange();
-    if (!range) return null;
-    const span = range.end - range.start;
-    if (span <= 0) return null;
+    const dayStart = startOfDay(new Date(this.now)).getTime();
     let bestIdx = -1;
     let bestDist = Number.POSITIVE_INFINITY;
     for (let i = 0; i < this.samples.length; i++) {
-      const t = Date.parse(this.samples[i].t);
-      if (Number.isNaN(t)) continue;
-      const x = ((t - range.start) / span) * ForecastStrip.VIEW_W;
+      const ts = Date.parse(this.samples[i].t);
+      if (Number.isNaN(ts)) continue;
+      const x = dayFractionX(ts, dayStart, ForecastStrip.VIEW_W);
       const d = Math.abs(x - svgX);
       if (d < bestDist) {
         bestDist = d;
@@ -258,6 +260,18 @@ export class ForecastStrip extends LitElement {
       pointer-events: none;
       vector-effect: non-scaling-stroke;
       user-select: none;
+    }
+    .grid {
+      stroke: var(--divider-color);
+      stroke-width: 0.5;
+      opacity: 0.6;
+    }
+    .grid.faint {
+      opacity: 0.25;
+    }
+    .now {
+      stroke: var(--accent-color, crimson);
+      stroke-width: 1.25;
     }
   `;
 }
