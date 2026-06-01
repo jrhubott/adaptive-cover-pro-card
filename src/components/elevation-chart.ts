@@ -29,6 +29,12 @@ export class ElevationChart extends LitElement {
     return st.attributes as unknown as SunPositionAttributes;
   }
 
+  private _sunInfront(): boolean {
+    const id = this.discovered.entities.sun_infront_binary;
+    if (!id) return false;
+    return this.hass.states[id]?.state === 'on';
+  }
+
   protected render(): TemplateResult | typeof nothing {
     if (!this.hass || !this.discovered) return nothing;
     const attrs = this._sunAttrs();
@@ -72,6 +78,11 @@ export class ElevationChart extends LitElement {
     const nowX = xAt(now);
     const currentSample = this._interpAt(samples, now);
     const currentY = currentSample ? yAt(currentSample.elevation) : null;
+    // Mirror the sky compass sun-dot colour states: dim amber below the
+    // horizon, gold while the sun is hitting the window, light gold when up
+    // but not hitting.
+    const sunBelowHorizon = currentSample ? currentSample.elevation <= 0 : true;
+    const sunDotState = sunBelowHorizon ? 'night' : this._sunInfront() ? 'valid' : 'up';
 
     // Elevation limits (optional integration attrs). When present, the FOV
     // time-bands are clipped to the in-band elevation range and horizontal
@@ -172,7 +183,7 @@ export class ElevationChart extends LitElement {
             <!-- current sun dot -->
             ${
               currentY !== null
-                ? svg`<circle class="sun-dot" cx=${nowX} cy=${currentY} r="4" />`
+                ? svg`<circle class="sun-dot ${sunDotState}" cx=${nowX} cy=${currentY} r="4" />`
                 : nothing
             }
           `}
@@ -271,9 +282,22 @@ export class ElevationChart extends LitElement {
       stroke: var(--accent-color, crimson);
       stroke-width: 1.25;
     }
+    /* Colour states mirror acp-sky-compass .sun.* so the sun reads the same
+       across both visuals. */
     .sun-dot {
-      fill: gold;
-      filter: drop-shadow(0 0 3px gold);
+      fill: var(--secondary-text-color);
+      transition: fill 0.3s ease;
+    }
+    .sun-dot.up {
+      fill: #ffe680;
+    }
+    .sun-dot.valid {
+      fill: var(--warning-color, gold);
+      filter: drop-shadow(0 0 3px var(--warning-color, gold));
+    }
+    .sun-dot.night {
+      fill: var(--warning-color, #d4a017);
+      opacity: 0.55;
     }
     .dim {
       color: var(--secondary-text-color);

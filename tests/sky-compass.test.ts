@@ -735,28 +735,25 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     return cssText.slice(open + 1, close);
   }
 
-  it('legend renders one swatch per sun visual state (3 distinct .dot.sun classes)', async () => {
+  it('legend renders a single Sun entry (one .dot.sun swatch)', async () => {
     const d = makeDiscovered('entry1', 'Kitchen');
     const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
     const el = await mountCompass([d], hass);
     const dots = Array.from(el.shadowRoot!.querySelectorAll('.legend .dot.sun'));
-    expect(dots.length).toBe(3);
-    const valid = dots.filter((d) => d.classList.contains('valid'));
-    const up = dots.filter((d) => d.classList.contains('up'));
-    const bare = dots.filter((d) => !d.classList.contains('valid') && !d.classList.contains('up'));
-    expect(valid.length).toBe(1);
-    expect(up.length).toBe(1);
-    expect(bare.length).toBe(1);
+    expect(dots.length).toBe(1);
+    // The single swatch uses the gold "valid" token, not the bare grey dot.
+    expect(dots[0].classList.contains('valid')).toBe(true);
   });
 
-  it('legend labels the three sun states with distinct, clear wording', async () => {
+  it('legend labels the sun with a single plain "Sun" entry', async () => {
     const d = makeDiscovered('entry1', 'Kitchen');
     const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
     const el = await mountCompass([d], hass);
     const text = el.shadowRoot!.textContent ?? '';
-    expect(text).toContain('Sun (hitting window)');
-    expect(text).toContain('Sun (up, not hitting)');
-    expect(text).toContain('Sun (below horizon)');
+    expect(text).toContain('Sun');
+    expect(text).not.toContain('Sun (hitting window)');
+    expect(text).not.toContain('Sun (up, not hitting)');
+    expect(text).not.toContain('Sun (below horizon)');
   });
 
   it('FOV swatch shares its theme token with the FOV path', () => {

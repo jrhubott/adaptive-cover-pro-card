@@ -529,9 +529,7 @@ export class SkyCompass extends LitElement {
       `;
     }
     return html`<div class="legend">
-      <div><span class="dot sun valid"></span> ${t('compass.sun_hitting', this.hass)}</div>
-      <div><span class="dot sun up"></span> ${t('compass.sun_up_not_hitting', this.hass)}</div>
-      <div><span class="dot sun"></span> ${t('compass.sun_below_horizon', this.hass)}</div>
+      <div><span class="dot sun valid"></span> ${t('compass.sun', this.hass)}</div>
       ${this.showMoon
         ? html`<div><span class="dot moon-dot"></span> ${t('compass.moon', this.hass)}</div>`
         : nothing}
@@ -540,10 +538,6 @@ export class SkyCompass extends LitElement {
         ? html`<div>
             <span class="swatch sun-path-swatch"></span> ${t('compass.sun_path', this.hass)}
           </div>`
-        : nothing}
-      ${this.showSunriseSunset
-        ? html`<div><span class="dot rise-dot"></span> ${t('compass.sunrise', this.hass)}</div>
-            <div><span class="dot set-dot"></span> ${t('compass.sunset', this.hass)}</div>`
         : nothing}
       ${this.showCoverFill
         ? html`<div>
