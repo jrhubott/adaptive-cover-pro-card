@@ -11,6 +11,7 @@ import {
 } from './const';
 import { t } from './lib/i18n';
 import { createDiscoveryMemo } from './lib/entity-discovery';
+import { fetchAcpConfigEntries } from './lib/config-entries';
 import { normalizeAzimuth } from './lib/geometry';
 import {
   fetchEntityRegistry,
@@ -78,10 +79,17 @@ export class AdaptiveCoverProCard extends LitElement {
     return document.createElement(CARD_EDITOR_NAME);
   }
 
-  public static getStubConfig(): AdaptiveCoverProCardConfig {
+  public static async getStubConfig(hass: HomeAssistant): Promise<AdaptiveCoverProCardConfig> {
+    let entry_id = '';
+    try {
+      const entries = await fetchAcpConfigEntries(hass);
+      entry_id = entries[0]?.entry_id ?? '';
+    } catch {
+      /* none discoverable — picker falls back to name + description */
+    }
     return {
       type: `custom:${CARD_NAME}`,
-      entry_id: '',
+      entry_id,
     };
   }
 

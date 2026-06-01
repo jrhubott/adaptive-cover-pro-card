@@ -4,6 +4,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import { SKY_COMPASS_CARD_EDITOR_NAME, SKY_COMPASS_CARD_NAME } from './const';
 import { discoverEntities } from './lib/entity-discovery';
+import { fetchAcpConfigEntries } from './lib/config-entries';
 import { normalizeAzimuth } from './lib/geometry';
 import { t } from './lib/i18n';
 import {
@@ -48,10 +49,17 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
     return document.createElement(SKY_COMPASS_CARD_EDITOR_NAME);
   }
 
-  public static getStubConfig(): SkyCompassCardConfig {
+  public static async getStubConfig(hass: HomeAssistant): Promise<SkyCompassCardConfig> {
+    let entry_ids: string[] = [];
+    try {
+      const entries = await fetchAcpConfigEntries(hass);
+      if (entries[0]) entry_ids = [entries[0].entry_id];
+    } catch {
+      /* none discoverable — picker falls back to name + description */
+    }
     return {
       type: `custom:${SKY_COMPASS_CARD_NAME}`,
-      entry_ids: [],
+      entry_ids,
     };
   }
 
