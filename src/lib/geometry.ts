@@ -235,6 +235,23 @@ export function fovRunBounds(
   return { wedgeStart: samples[first].azimuth, wedgeEnd: samples[last].azimuth };
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Map a timestamp `t` (epoch ms) onto a fixed local-day x-coordinate.
+ *
+ * The domain is [dayStart, dayStart + 24h] and maps linearly onto [0, width].
+ * Inputs outside that window are clamped so the result is always in [0, width].
+ *
+ * @param t        - The timestamp to map (ms since epoch).
+ * @param dayStart - Local midnight of the target day (ms since epoch).
+ * @param width    - Width of the SVG viewport in user units.
+ */
+export function dayFractionX(t: number, dayStart: number, width: number): number {
+  const frac = (t - dayStart) / DAY_MS;
+  return Math.max(0, Math.min(width, frac * width));
+}
+
 /** True when azimuth `x` lies on the CW arc from `start` to `end`. */
 function azimuthInArc(x: number, start: number, end: number): boolean {
   const sweep = (((end - start) % 360) + 360) % 360;

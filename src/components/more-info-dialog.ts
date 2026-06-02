@@ -382,6 +382,7 @@ export class MoreInfoDialog extends LitElement {
         .events=${events}
         .now=${Date.now()}
       ></acp-forecast-strip>
+      <div class="forecast-note">${t('forecast.solar_only_note', this.hass)}</div>
     </div>`;
   }
 
@@ -625,6 +626,11 @@ export class MoreInfoDialog extends LitElement {
       color: var(--secondary-text-color);
       text-transform: uppercase;
       letter-spacing: 0.05em;
+    }
+    .forecast-note {
+      font-size: 0.7rem;
+      color: var(--secondary-text-color);
+      opacity: 0.75;
     }
     .controls-block {
       display: flex;

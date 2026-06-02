@@ -14,6 +14,7 @@ import {
   TILE_CARD_EDITOR_NAME,
 } from './const';
 import { discoverEntities } from './lib/entity-discovery';
+import { fetchAcpConfigEntries } from './lib/config-entries';
 import { pickCoverIcon } from './lib/icons';
 import {
   fetchEntityRegistry,
@@ -79,8 +80,15 @@ export class AdaptiveCoverProTileCard extends LitElement {
     return 1;
   }
 
-  public static getStubConfig(): AdaptiveCoverProTileCardConfig {
-    return { type: `custom:${TILE_CARD_NAME}`, entry_id: '' };
+  public static async getStubConfig(hass: HomeAssistant): Promise<AdaptiveCoverProTileCardConfig> {
+    let entry_id = '';
+    try {
+      const entries = await fetchAcpConfigEntries(hass);
+      entry_id = entries[0]?.entry_id ?? '';
+    } catch {
+      /* none discoverable — picker falls back to name + description */
+    }
+    return { type: `custom:${TILE_CARD_NAME}`, entry_id };
   }
 
   public static async getConfigElement(): Promise<HTMLElement> {
