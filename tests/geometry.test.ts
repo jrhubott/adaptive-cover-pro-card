@@ -11,6 +11,7 @@ import {
   fovBandRadii,
   fovRunBounds,
   normalizeAzimuth,
+  ribbonLayout,
   sunDotPosition,
   wedgePath,
 } from '../src/lib/geometry';
@@ -219,6 +220,41 @@ describe('geometry — elevationBandFraction', () => {
     const { loFrac, hiFrac } = elevationBandFraction(-50, 200, AXIS_MIN, AXIS_MAX);
     expect(loFrac).toBe(0);
     expect(hiFrac).toBe(1);
+  });
+});
+
+describe('geometry — ribbonLayout', () => {
+  it('count=3 stacks three rows with top pad, fixed height, and gaps', () => {
+    const { rows, height } = ribbonLayout(3, 6, 8, 3, 4);
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toEqual({ y: 6, height: 8 });
+    expect(rows[1]).toEqual({ y: 17, height: 8 });
+    expect(rows[2]).toEqual({ y: 28, height: 8 });
+    // top(6) + 3*rowH(24) + 2*gap(6) + bottom(4) = 40
+    expect(height).toBe(40);
+  });
+
+  it('count=1 yields a single row and minimal height', () => {
+    const { rows, height } = ribbonLayout(1, 6, 8, 3, 4);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual({ y: 6, height: 8 });
+    // top(6) + 1*rowH(8) + 0 gaps + bottom(4) = 18
+    expect(height).toBe(18);
+  });
+
+  it('rows are disjoint and ordered top-to-bottom', () => {
+    const { rows } = ribbonLayout(3, 6, 8, 3, 4);
+    expect(rows[0].y).toBeLessThan(rows[1].y);
+    expect(rows[1].y).toBeLessThan(rows[2].y);
+    // Non-overlapping: each row ends before the next begins.
+    expect(rows[0].y + rows[0].height).toBeLessThanOrEqual(rows[1].y);
+    expect(rows[1].y + rows[1].height).toBeLessThanOrEqual(rows[2].y);
+  });
+
+  it('count=0 yields no rows and zero height', () => {
+    const { rows, height } = ribbonLayout(0, 6, 8, 3, 4);
+    expect(rows).toEqual([]);
+    expect(height).toBe(0);
   });
 });
 

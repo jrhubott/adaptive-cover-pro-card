@@ -517,7 +517,18 @@ describe('acp-more-info-dialog: elevation chart', () => {
     const el = await mount({ hass: hass(), discovered: discovered(), open: true });
     (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
     await el.updateComplete;
-    expect(el.shadowRoot!.querySelector('.advanced acp-elevation-chart')).toBeTruthy();
+    const chart = el.shadowRoot!.querySelector('.advanced acp-elevation-chart') as
+      | (HTMLElement & { discoveredList?: unknown[]; updateComplete?: Promise<boolean> })
+      | null;
+    expect(chart).toBeTruthy();
+    // Guard the prop wiring: the chart takes discoveredList (not the removed
+    // single `discovered`). A stale binding would leave it empty → renders
+    // nothing, silently dropping the chart from the more-info dialog.
+    expect(chart!.discoveredList?.length).toBe(1);
+    await chart!.updateComplete;
+    // It renders real content (chart or placeholder), not the empty `nothing`
+    // a stale/empty binding would produce.
+    expect(chart!.shadowRoot!.querySelector('.wrap, .placeholder')).toBeTruthy();
   });
 
   it('hides the elevation chart when showElevationChart=false', async () => {

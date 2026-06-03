@@ -168,7 +168,8 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
         ${cfg.show_elevation_chart !== false
           ? html`<acp-elevation-chart
               .hass=${this.hass}
-              .discovered=${discoveredList[0]}
+              .discoveredList=${discoveredList}
+              .coverColors=${cfg.cover_colors ?? []}
               ?compact=${!!cfg.compact}
             ></acp-elevation-chart>`
           : nothing}
