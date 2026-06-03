@@ -270,29 +270,28 @@ export function arcsOverlap(s1: number, e1: number, s2: number, e2: number): boo
 }
 
 /**
- * Slice the FOV-band strip [plotTop, plotBottom] into `count` equal vertical
- * lanes and return the { y, height } of the lane at `index` (0 = topmost).
+ * Vertical layout for the per-window FOV ribbon below the elevation plot.
+ * Returns one {y,height} row per window (stacked top-to-bottom) plus the
+ * ribbon's total height (top pad + rows + gaps + bottom pad).
  *
- * Lanes are contiguous, non-overlapping, and together cover the full strip.
- * For count === 1 the single lane spans the whole strip. An optional `gap`
- * (default 0) is applied symmetrically inside each lane (half at top, half at
- * bottom) to leave breathing room between adjacent lanes; gap = 0 keeps the
- * lanes flush.
+ * `rows[i].y = top + i*(rowH+gap)`, `rows[i].height = rowH`. The y values are
+ * relative to whatever origin the caller passes as `top` (e.g. pass the
+ * plot-block bottom plus a pad to place the ribbon below the plot).
  */
-export function bandLaneRect(
-  index: number,
+export function ribbonLayout(
   count: number,
-  plotTop: number,
-  plotBottom: number,
-  gap = 0,
-): { y: number; height: number } {
-  const laneH = (plotBottom - plotTop) / count;
-  const y = plotTop + index * laneH;
-  if (gap <= 0) {
-    return { y, height: laneH };
-  }
-  const half = gap / 2;
-  return { y: y + half, height: Math.max(0, laneH - gap) };
+  top: number,
+  rowH: number,
+  gap: number,
+  bottom: number,
+): { rows: Array<{ y: number; height: number }>; height: number } {
+  if (count <= 0) return { rows: [], height: 0 };
+  const rows = Array.from({ length: count }, (_, i) => ({
+    y: top + i * (rowH + gap),
+    height: rowH,
+  }));
+  const height = top + count * rowH + (count - 1) * gap + bottom;
+  return { rows, height };
 }
 
 /**

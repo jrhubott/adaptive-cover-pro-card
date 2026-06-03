@@ -4,7 +4,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { DiscoveredEntities, SunPositionAttributes } from '../types';
 import { findFovWindows, sampleDay, startOfDayInZone, type SunSample } from '../lib/sun-model';
-import { bandLaneRect, elevationBandFraction } from '../lib/geometry';
+import { elevationBandFraction, ribbonLayout } from '../lib/geometry';
 import { resolveCoverColor } from '../lib/palette';
 import { formatClock } from '../lib/formatters';
 import { t } from '../lib/i18n';
@@ -15,6 +15,12 @@ const PAD_L = 32;
 const PAD_R = 8;
 const PAD_T = 10;
 const PAD_B = 22;
+
+// Per-window FOV ribbon (multi-window only), stacked below the plot block.
+const RIBBON_TOP_PAD = 6;
+const RIBBON_ROW_H = 8;
+const RIBBON_GAP = 3;
+const RIBBON_BOTTOM_PAD = 4;
 
 @customElement('acp-elevation-chart')
 export class ElevationChart extends LitElement {
@@ -86,26 +92,23 @@ export class ElevationChart extends LitElement {
     const yForFrac = (frac: number): number => plotBottom - frac * (plotBottom - plotTop);
 
     const multi = this.discoveredList.length > 1;
-    // Lanes stack the windows vertically (one strip each) so overlapping FOV
-    // times stay legible. Compact mode (and single-window) overlap instead —
-    // vertical space is scarce, so bands share the full-height strip.
-    const layout: 'lanes' | 'overlap' = this.compact || !multi ? 'overlap' : 'lanes';
 
-    // Per-window FOV bands, elevation-clipped and color-keyed. The day samples,
-    // curve, axes, horizon, now-cursor and sun-dot are shared (sun geometry).
-    const count = this.discoveredList.length;
+    // Per-window data. The day samples, curve, axes, horizon, now-cursor and
+    // sun-dot are shared (sun geometry). In single-window mode the FOV band is
+    // drawn IN the plot (legacy). In multi-window mode the plot stays pristine
+    // and per-window FOV timing moves to a dedicated ribbon below it.
     const windows = this.discoveredList.map((d, i) => {
       const attrs = this._sunAttrsFor(d);
       const { color, isOverride } = resolveCoverColor(this.coverColors?.[i], i);
-      // Inline fill only in multi-window (or explicit override) mode; a single
-      // window keeps the CSS gold fallback — zero visual regression.
-      const inlineFill = multi || isOverride;
+      // Inline fill for the in-plot band only in single-window override mode; a
+      // plain single window keeps the CSS gold fallback — zero regression.
+      const inlineFill = isOverride;
       if (!attrs) {
-        return { d, runs: [], bands: [], label: '', color, inlineFill };
+        return { d, runs: [], inPlotBands: [], runBars: [], label: '', color, inlineFill };
       }
       const runs = findFovWindows(samples, attrs.window_azimuth, attrs.fov_left, attrs.fov_right);
 
-      // Elevation limits (optional integration attrs) clip the band y-extent.
+      // Elevation limits (optional integration attrs) clip the in-plot band.
       const hasMin = typeof attrs.min_elevation === 'number';
       const hasMax = typeof attrs.max_elevation === 'number';
       const { loFrac, hiFrac } = elevationBandFraction(
@@ -116,26 +119,20 @@ export class ElevationChart extends LitElement {
       );
       const clipTopY = hasMin || hasMax ? yForFrac(hiFrac) : plotTop;
       const clipBottomY = hasMin || hasMax ? yForFrac(loFrac) : plotBottom;
+      const bandY = clipTopY;
+      const bandHeight = Math.max(0, clipBottomY - clipTopY);
 
-      // In lane mode each window owns a horizontal slice; intersect its
-      // elevation clip with that lane. In overlap mode the lane is the full
-      // strip, so the band spans clipTop..clipBottom directly.
-      const lane =
-        layout === 'lanes'
-          ? bandLaneRect(i, count, plotTop, plotBottom)
-          : bandLaneRect(0, 1, plotTop, plotBottom);
-      const laneTop = lane.y;
-      const laneBottom = lane.y + lane.height;
-      const bandTop = Math.max(clipTopY, laneTop);
-      const bandBottom = Math.min(clipBottomY, laneBottom);
-      const bandY = bandTop;
-      const bandHeight = Math.max(0, bandBottom - bandTop);
-
-      const bands = runs.map((w) => ({
+      // In-plot bands (single-window legacy only).
+      const inPlotBands = runs.map((w) => ({
         x0: xAt(samples[w.startIdx].t),
         x1: xAt(samples[w.endIdx].t),
         y: bandY,
         height: bandHeight,
+      }));
+      // Ribbon bars (multi-window): x-extent only; y comes from ribbonLayout.
+      const runBars = runs.map((w) => ({
+        x0: xAt(samples[w.startIdx].t),
+        x1: xAt(samples[w.endIdx].t),
       }));
       const label = runs
         .map(
@@ -145,49 +142,50 @@ export class ElevationChart extends LitElement {
             )}`,
         )
         .join(', ');
-      // Limit gridlines: full-width only in the single-window legacy path; in
-      // multi-window lane mode the per-lane band height conveys the clip.
       const limitLines: number[] = [];
       if (!multi) {
         if (hasMin) limitLines.push(clipBottomY);
         if (hasMax) limitLines.push(clipTopY);
       }
-      return { d, runs, bands, label, color, inlineFill, limitLines };
+      return { d, runs, inPlotBands, runBars, label, color, inlineFill, limitLines };
     });
 
     const anyFov = windows.some((w) => w.runs.length > 0);
+
+    // Ribbon layout (multi-window only). Rows are placed below the plot block
+    // (y origin = VIEWBOX_H). totalH grows the svg so the ribbon is never
+    // squished; an inline aspect-ratio matches the dynamic viewBox.
+    // ribbonLayout works in coordinates relative to the plot block; rows are
+    // offset by VIEWBOX_H at render time. (Passing an absolute `top` here would
+    // double-count VIEWBOX_H in `height` and inflate totalH — and the cursor.)
+    const ribbon = multi
+      ? ribbonLayout(windows.length, RIBBON_TOP_PAD, RIBBON_ROW_H, RIBBON_GAP, RIBBON_BOTTOM_PAD)
+      : { rows: [], height: 0 };
+    const totalH = multi ? VIEWBOX_H + ribbon.height : VIEWBOX_H;
+    const nowY2 = multi ? totalH - RIBBON_BOTTOM_PAD : VIEWBOX_H - PAD_B;
 
     return html`
       <div class="wrap">
         <div class="head">
           <span class="label">${t('elevation.title', this.hass)}</span>
-          ${multi
-            ? html`<div class="fov-list">
-                ${windows.map(
-                  (w) =>
-                    html`<span class="fov-line">
-                      <span
-                        class="swatch"
-                        style=${w.inlineFill ? `background:${w.color}` : nothing}
-                      ></span>
-                      <span class="dim"
-                        >${w.runs.length
-                          ? t('elevation.fov_window_named', this.hass, {
-                              name: w.d.entry_title,
-                              windows: w.label,
-                            })
-                          : t('elevation.no_fov_today', this.hass)}</span
-                      >
-                    </span>`,
-                )}
-              </div>`
-            : anyFov
-              ? html`<span class="dim"
-                  >${t('elevation.fov_windows', this.hass, { windows: windows[0].label })}</span
-                >`
-              : html`<span class="dim">${t('elevation.no_fov_today', this.hass)}</span>`}
+          ${
+            // Multi-window: no per-window legend here — the sky-compass legend
+            // above already keys each window's colour. The ribbon below carries
+            // the timing. Single-window keeps its inline FOV-time summary.
+            multi
+              ? nothing
+              : anyFov
+                ? html`<span class="dim"
+                    >${t('elevation.fov_windows', this.hass, { windows: windows[0].label })}</span
+                  >`
+                : html`<span class="dim">${t('elevation.no_fov_today', this.hass)}</span>`
+          }
         </div>
-        <svg viewBox="0 0 ${VIEWBOX_W} ${VIEWBOX_H}" preserveAspectRatio="none">
+        <svg
+          viewBox="0 0 ${VIEWBOX_W} ${totalH}"
+          preserveAspectRatio="none"
+          style=${multi ? `aspect-ratio: ${VIEWBOX_W} / ${totalH}` : nothing}
+        >
           ${svg`
             <!-- y-axis gridlines -->
             ${[0, 30, 60, 90].map(
@@ -209,8 +207,7 @@ export class ElevationChart extends LitElement {
             <!-- horizon -->
             <line class="horizon" x1=${PAD_L} y1=${horizonY} x2=${VIEWBOX_W - PAD_R} y2=${horizonY} />
 
-            <!-- elevation limit gridlines (single-window legacy path only;
-                 multi-window lane heights convey the clip) -->
+            <!-- elevation limit gridlines (single-window legacy path only) -->
             ${windows.flatMap((w) =>
               (w.limitLines ?? []).map(
                 (y) =>
@@ -218,27 +215,29 @@ export class ElevationChart extends LitElement {
               ),
             )}
 
-            <!-- FOV shaded bands per window (each time the sun is actually in
-                 FOV + above horizon), clipped to the in-band elevation range
-                 and color-keyed in multi-window mode -->
-            ${windows.flatMap((w) =>
-              w.bands.map(
-                (b) => svg`<rect
-                  class="fov-band"
-                  x=${b.x0}
-                  y=${b.y}
-                  width=${b.x1 - b.x0}
-                  height=${b.height}
-                  style=${w.inlineFill ? `fill:${w.color}` : nothing}
-                />`,
-              ),
-            )}
+            <!-- In-plot FOV bands: single-window legacy path only. -->
+            ${
+              multi
+                ? nothing
+                : windows.flatMap((w) =>
+                    w.inPlotBands.map(
+                      (b) => svg`<rect
+                        class="fov-band"
+                        x=${b.x0}
+                        y=${b.y}
+                        width=${b.x1 - b.x0}
+                        height=${b.height}
+                        style=${w.inlineFill ? `fill:${w.color}` : nothing}
+                      />`,
+                    ),
+                  )
+            }
 
             <!-- elevation curve -->
             <polyline class="curve" points=${curvePoints} />
 
-            <!-- current-time cursor -->
-            <line class="now" x1=${nowX} y1=${PAD_T} x2=${nowX} y2=${VIEWBOX_H - PAD_B} />
+            <!-- current-time cursor (extends through the ribbon in multi) -->
+            <line class="now" x1=${nowX} y1=${PAD_T} x2=${nowX} y2=${nowY2} />
 
             <!-- current sun dot -->
             ${
@@ -246,6 +245,34 @@ export class ElevationChart extends LitElement {
                 ? svg`<circle class="sun-dot ${sunDotState}" cx=${nowX} cy=${currentY} r="4" />`
                 : nothing
             }
+
+            <!-- Per-window FOV ribbon (multi-window only): one row per window,
+                 a faint full-width track plus color-keyed bars for in-FOV runs,
+                 sharing the plot's xAt() time scale. -->
+            ${ribbon.rows.flatMap((row, i) => {
+              const w = windows[i];
+              const rowY = VIEWBOX_H + row.y;
+              const track = svg`<rect
+                class="ribbon-track"
+                x=${PAD_L}
+                y=${rowY}
+                width=${VIEWBOX_W - PAD_L - PAD_R}
+                height=${row.height}
+                rx="2"
+              />`;
+              const bars = w.runBars.map(
+                (b) => svg`<rect
+                  class="ribbon-bar"
+                  x=${b.x0}
+                  y=${rowY}
+                  width=${b.x1 - b.x0}
+                  height=${row.height}
+                  rx="2"
+                  style=${`fill:${w.color}`}
+                />`,
+              );
+              return [track, ...bars];
+            })}
           `}
         </svg>
       </div>
@@ -292,25 +319,6 @@ export class ElevationChart extends LitElement {
       letter-spacing: 0.05em;
       text-transform: uppercase;
     }
-    .fov-list {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 2px;
-    }
-    .fov-line {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-    }
-    .swatch {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      border-radius: 2px;
-      background: var(--warning-color, gold);
-      flex: 0 0 auto;
-    }
     svg {
       width: 100%;
       height: auto;
@@ -349,6 +357,14 @@ export class ElevationChart extends LitElement {
     .fov-band {
       fill: var(--warning-color, gold);
       fill-opacity: 0.18;
+    }
+    .ribbon-track {
+      fill: var(--divider-color);
+      fill-opacity: 0.25;
+    }
+    .ribbon-bar {
+      fill: var(--warning-color, gold);
+      fill-opacity: 0.85;
     }
     .curve {
       fill: none;

@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   arcsOverlap,
   azimuthToCartesian,
-  bandLaneRect,
   blindSpotBearings,
   clampActiveArcToFov,
   dayFractionX,
@@ -12,6 +11,7 @@ import {
   fovBandRadii,
   fovRunBounds,
   normalizeAzimuth,
+  ribbonLayout,
   sunDotPosition,
   wedgePath,
 } from '../src/lib/geometry';
@@ -223,36 +223,38 @@ describe('geometry — elevationBandFraction', () => {
   });
 });
 
-describe('geometry — bandLaneRect', () => {
-  // plotTop = 10, plotBottom = 138 (mirrors the elevation chart's strip).
-  const TOP = 10;
-  const BOTTOM = 138;
-
-  it('N=1 returns the full strip', () => {
-    const lane = bandLaneRect(0, 1, TOP, BOTTOM);
-    expect(lane.y).toBeCloseTo(TOP);
-    expect(lane.height).toBeCloseTo(BOTTOM - TOP);
+describe('geometry — ribbonLayout', () => {
+  it('count=3 stacks three rows with top pad, fixed height, and gaps', () => {
+    const { rows, height } = ribbonLayout(3, 6, 8, 3, 4);
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toEqual({ y: 6, height: 8 });
+    expect(rows[1]).toEqual({ y: 17, height: 8 });
+    expect(rows[2]).toEqual({ y: 28, height: 8 });
+    // top(6) + 3*rowH(24) + 2*gap(6) + bottom(4) = 40
+    expect(height).toBe(40);
   });
 
-  it('N=2 yields two equal, contiguous, non-overlapping lanes covering the strip', () => {
-    const lane0 = bandLaneRect(0, 2, TOP, BOTTOM);
-    const lane1 = bandLaneRect(1, 2, TOP, BOTTOM);
-    const laneH = (BOTTOM - TOP) / 2;
-    // Equal heights.
-    expect(lane0.height).toBeCloseTo(laneH);
-    expect(lane1.height).toBeCloseTo(laneH);
-    // Lane 0 starts at the top; lane 1 starts where lane 0 ends (contiguous).
-    expect(lane0.y).toBeCloseTo(TOP);
-    expect(lane1.y).toBeCloseTo(TOP + laneH);
-    expect(lane0.y + lane0.height).toBeCloseTo(lane1.y);
-    // Together they cover the whole strip.
-    expect(lane1.y + lane1.height).toBeCloseTo(BOTTOM);
+  it('count=1 yields a single row and minimal height', () => {
+    const { rows, height } = ribbonLayout(1, 6, 8, 3, 4);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual({ y: 6, height: 8 });
+    // top(6) + 1*rowH(8) + 0 gaps + bottom(4) = 18
+    expect(height).toBe(18);
   });
 
-  it('index ordering: lane 0 is above lane 1 (smaller y)', () => {
-    const lane0 = bandLaneRect(0, 3, TOP, BOTTOM);
-    const lane1 = bandLaneRect(1, 3, TOP, BOTTOM);
-    expect(lane0.y).toBeLessThan(lane1.y);
+  it('rows are disjoint and ordered top-to-bottom', () => {
+    const { rows } = ribbonLayout(3, 6, 8, 3, 4);
+    expect(rows[0].y).toBeLessThan(rows[1].y);
+    expect(rows[1].y).toBeLessThan(rows[2].y);
+    // Non-overlapping: each row ends before the next begins.
+    expect(rows[0].y + rows[0].height).toBeLessThanOrEqual(rows[1].y);
+    expect(rows[1].y + rows[1].height).toBeLessThanOrEqual(rows[2].y);
+  });
+
+  it('count=0 yields no rows and zero height', () => {
+    const { rows, height } = ribbonLayout(0, 6, 8, 3, 4);
+    expect(rows).toEqual([]);
+    expect(height).toBe(0);
   });
 });
 

@@ -3,6 +3,9 @@ import '../src/components/elevation-chart';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities, SunPositionAttributes } from '../src/types';
 
+const VIEWBOX_H = 160;
+const PAD_B = 22;
+
 interface ChartLike extends HTMLElement {
   updateComplete: Promise<boolean>;
   hass?: HomeAssistant;
@@ -49,7 +52,13 @@ async function mount(props: Partial<ChartLike>): Promise<ChartLike> {
   return el;
 }
 
-describe('acp-elevation-chart: elevation limits', () => {
+function svgViewBoxHeight(el: ChartLike): number {
+  const svg = el.shadowRoot!.querySelector('svg')!;
+  const vb = svg.getAttribute('viewBox')!.split(/\s+/).map(Number);
+  return vb[3];
+}
+
+describe('acp-elevation-chart: single-window (legacy, unchanged)', () => {
   it('draws two limit lines when both min_elevation and max_elevation are set', async () => {
     const el = await mount({
       hass: hass({ min_elevation: 10, max_elevation: 60 }),
@@ -72,9 +81,6 @@ describe('acp-elevation-chart: elevation limits', () => {
   });
 
   it('clips the FOV band y-extent to the elevation band when limits are present', async () => {
-    // With min=10, max=60 on the -10..90 axis, the band occupies a strip
-    // strictly inside the full plot height — so the rect y > PAD_T and the
-    // height is less than the full plot height.
     const clipped = await mount({
       hass: hass({ min_elevation: 10, max_elevation: 60 }),
       discoveredList: [discovered],
@@ -91,7 +97,6 @@ describe('acp-elevation-chart: elevation limits', () => {
     const fullY = parseFloat(fullRect!.getAttribute('y')!);
     const fullH = parseFloat(fullRect!.getAttribute('height')!);
 
-    // Clipped band starts lower down (larger y) and is shorter than full-height.
     expect(clippedY).toBeGreaterThan(fullY);
     expect(clippedH).toBeLessThan(fullH);
   });
@@ -109,9 +114,27 @@ describe('acp-elevation-chart: elevation limits', () => {
     const el = await mount({ hass: hass({}), discoveredList: [discovered] });
     const rect = el.shadowRoot!.querySelector('rect.fov-band');
     expect(rect).toBeTruthy();
-    // Single-window cards leave fill to the CSS gold — no inline fill override.
     const style = rect!.getAttribute('style') ?? '';
     expect(style).not.toMatch(/fill\s*:/);
+  });
+
+  it('renders NO ribbon bars or tracks for a single window', async () => {
+    const el = await mount({ hass: hass({}), discoveredList: [discovered] });
+    expect(el.shadowRoot!.querySelectorAll('rect.ribbon-bar').length).toBe(0);
+    expect(el.shadowRoot!.querySelectorAll('rect.ribbon-track').length).toBe(0);
+  });
+
+  it('keeps viewBox height 160 and no inline aspect-ratio for a single window', async () => {
+    const el = await mount({ hass: hass({}), discoveredList: [discovered] });
+    expect(svgViewBoxHeight(el)).toBe(160);
+    const style = el.shadowRoot!.querySelector('svg')!.getAttribute('style') ?? '';
+    expect(style).not.toMatch(/aspect-ratio/);
+  });
+
+  it('now-cursor y2 ends at the plot bottom for a single window', async () => {
+    const el = await mount({ hass: hass({}), discoveredList: [discovered] });
+    const now = el.shadowRoot!.querySelector('line.now')!;
+    expect(parseFloat(now.getAttribute('y2')!)).toBeCloseTo(VIEWBOX_H - PAD_B);
   });
 });
 
@@ -129,6 +152,13 @@ const discoveredWest: DiscoveredEntities = {
   entities: { sun_sensor: 'sensor.sun_west' },
   managed_covers: [],
 };
+const discoveredEast: DiscoveredEntities = {
+  entry_id: 'east',
+  entry_title: 'Bedroom',
+  cover_type: 'cover_blind',
+  entities: { sun_sensor: 'sensor.sun_east' },
+  managed_covers: [],
+};
 
 function sunState(attrs: Partial<SunPositionAttributes>) {
   return {
@@ -144,111 +174,165 @@ function sunState(attrs: Partial<SunPositionAttributes>) {
   };
 }
 
-function multiHass(
-  south: Partial<SunPositionAttributes>,
-  west: Partial<SunPositionAttributes>,
-): HomeAssistant {
+function multiHass(states: Record<string, Partial<SunPositionAttributes>>): HomeAssistant {
+  const built: Record<string, unknown> = {};
+  for (const [id, attrs] of Object.entries(states)) {
+    built[id] = sunState(attrs);
+  }
   return {
     config: { latitude: 52.0, longitude: 4.0, time_zone: 'UTC' },
-    states: {
-      'sensor.sun_south': sunState({ window_azimuth: 180, ...south }),
-      'sensor.sun_west': sunState({ window_azimuth: 270, ...west }),
-    },
+    states: built,
   } as unknown as HomeAssistant;
 }
 
-describe('acp-elevation-chart: multi-window', () => {
-  it('renders a color-keyed band per window with inline fills', async () => {
+function twoWindowHass(): HomeAssistant {
+  return multiHass({
+    'sensor.sun_south': { window_azimuth: 180 },
+    'sensor.sun_west': { window_azimuth: 270 },
+  });
+}
+
+function ribbonRanges(el: ChartLike, fill: string) {
+  return Array.from(el.shadowRoot!.querySelectorAll('rect.ribbon-bar'))
+    .filter((r) => (r.getAttribute('style') ?? '').includes(fill))
+    .map((r) => {
+      const y = parseFloat(r.getAttribute('y')!);
+      const h = parseFloat(r.getAttribute('height')!);
+      return { top: y, bottom: y + h };
+    });
+}
+
+describe('acp-elevation-chart: multi-window ribbon', () => {
+  it('renders a ribbon (bars) and NO in-plot fov-band rects', async () => {
     const el = await mount({
-      hass: multiHass({}, {}),
+      hass: twoWindowHass(),
       discoveredList: [discoveredSouth, discoveredWest],
       coverColors: ['#ff7043', '#7e57c2'],
     });
-    const rects = Array.from(el.shadowRoot!.querySelectorAll('rect.fov-band'));
-    expect(rects.length).toBeGreaterThanOrEqual(2);
-    const fills = rects.map((r) => r.getAttribute('style') ?? '');
+    const bars = el.shadowRoot!.querySelectorAll('rect.ribbon-bar');
+    expect(bars.length).toBeGreaterThanOrEqual(2);
+    // No per-window in-plot bands in multi mode.
+    expect(el.shadowRoot!.querySelectorAll('rect.fov-band').length).toBe(0);
+  });
+
+  it('color-keys each window bar with an inline fill', async () => {
+    const el = await mount({
+      hass: twoWindowHass(),
+      discoveredList: [discoveredSouth, discoveredWest],
+      coverColors: ['#ff7043', '#7e57c2'],
+    });
+    const fills = Array.from(el.shadowRoot!.querySelectorAll('rect.ribbon-bar')).map(
+      (r) => r.getAttribute('style') ?? '',
+    );
     expect(fills.some((s) => s.includes('#ff7043'))).toBe(true);
     expect(fills.some((s) => s.includes('#7e57c2'))).toBe(true);
   });
 
-  it('stacks windows into disjoint lanes in normal mode', async () => {
+  it('draws no per-window limit-lines in the plot for multi-window', async () => {
     const el = await mount({
-      hass: multiHass({}, {}),
+      hass: multiHass({
+        'sensor.sun_south': { window_azimuth: 180, min_elevation: 10, max_elevation: 60 },
+        'sensor.sun_west': { window_azimuth: 270 },
+      }),
       discoveredList: [discoveredSouth, discoveredWest],
       coverColors: ['#ff7043', '#7e57c2'],
     });
-    const rects = Array.from(el.shadowRoot!.querySelectorAll('rect.fov-band'));
-    // Group each rect's y-range by its inline color.
-    const ranges = (fill: string) =>
-      rects
-        .filter((r) => (r.getAttribute('style') ?? '').includes(fill))
-        .map((r) => {
-          const y = parseFloat(r.getAttribute('y')!);
-          const h = parseFloat(r.getAttribute('height')!);
-          return { top: y, bottom: y + h };
-        });
-    const south = ranges('#ff7043');
-    const west = ranges('#7e57c2');
+    expect(el.shadowRoot!.querySelectorAll('line.limit-line').length).toBe(0);
+  });
+
+  it('renders a background track per window even when it has no FOV runs today', async () => {
+    const el = await mount({
+      hass: twoWindowHass(),
+      discoveredList: [discoveredSouth, discoveredWest],
+      coverColors: ['#ff7043', '#7e57c2'],
+    });
+    expect(el.shadowRoot!.querySelectorAll('rect.ribbon-track').length).toBe(2);
+  });
+
+  it('stacks window rows disjoint and ordered, all below the plot block', async () => {
+    const el = await mount({
+      hass: twoWindowHass(),
+      discoveredList: [discoveredSouth, discoveredWest],
+      coverColors: ['#ff7043', '#7e57c2'],
+    });
+    const south = ribbonRanges(el, '#ff7043');
+    const west = ribbonRanges(el, '#7e57c2');
     expect(south.length).toBeGreaterThan(0);
     expect(west.length).toBeGreaterThan(0);
     const southBottom = Math.max(...south.map((r) => r.bottom));
     const westTop = Math.min(...west.map((r) => r.top));
-    // Lanes are vertically disjoint: window 0's lane sits entirely above
-    // window 1's lane.
+    // Window 0 sits in a higher row than window 1 (non-overlapping y-ranges).
     expect(southBottom).toBeLessThanOrEqual(westTop + 0.01);
+    // All ribbon bars live below the plot block.
+    const allTops = [...south, ...west].map((r) => r.top);
+    expect(Math.min(...allTops)).toBeGreaterThanOrEqual(VIEWBOX_H);
   });
 
-  it('overlaps windows on the full-height strip in compact mode', async () => {
-    const el = await mount({
-      hass: multiHass({}, {}),
-      discoveredList: [discoveredSouth, discoveredWest],
-      coverColors: ['#ff7043', '#7e57c2'],
-      compact: true,
-    });
-    const rects = Array.from(el.shadowRoot!.querySelectorAll('rect.fov-band'));
-    const tops = rects.map((r) => parseFloat(r.getAttribute('y')!));
-    const bottoms = rects.map(
-      (r) => parseFloat(r.getAttribute('y')!) + parseFloat(r.getAttribute('height')!),
-    );
-    // Every band shares the same full-height strip (no lane offset).
-    expect(Math.max(...tops) - Math.min(...tops)).toBeCloseTo(0);
-    expect(Math.max(...bottoms) - Math.min(...bottoms)).toBeCloseTo(0);
-    // PAD_T = 10, plotBottom = 138.
-    expect(Math.min(...tops)).toBeCloseTo(10);
-    expect(Math.max(...bottoms)).toBeCloseTo(138);
-  });
-
-  it('clips a window to its own elevation limits within its lane', async () => {
-    const el = await mount({
-      hass: multiHass({ min_elevation: 10, max_elevation: 60 }, {}),
+  it('grows the viewBox height with window count and sets inline aspect-ratio', async () => {
+    const two = await mount({
+      hass: twoWindowHass(),
       discoveredList: [discoveredSouth, discoveredWest],
       coverColors: ['#ff7043', '#7e57c2'],
     });
-    const rects = Array.from(el.shadowRoot!.querySelectorAll('rect.fov-band'));
-    const heightFor = (fill: string) =>
-      rects
-        .filter((r) => (r.getAttribute('style') ?? '').includes(fill))
-        .map((r) => parseFloat(r.getAttribute('height')!));
-    // Lane height for 2 windows on a 128-tall strip = 64.
-    const laneH = 64;
-    const southH = heightFor('#ff7043');
-    const westH = heightFor('#7e57c2');
-    expect(southH.length).toBeGreaterThan(0);
-    expect(westH.length).toBeGreaterThan(0);
-    // Window 0 (limited) is shorter than its lane; window 1 (no limits) fills it.
-    expect(Math.max(...southH)).toBeLessThan(laneH);
-    expect(Math.max(...westH)).toBeCloseTo(laneH);
+    const three = await mount({
+      hass: multiHass({
+        'sensor.sun_south': { window_azimuth: 180 },
+        'sensor.sun_west': { window_azimuth: 270 },
+        'sensor.sun_east': { window_azimuth: 90 },
+      }),
+      discoveredList: [discoveredSouth, discoveredWest, discoveredEast],
+      coverColors: ['#ff7043', '#7e57c2', '#26a69a'],
+    });
+    expect(svgViewBoxHeight(two)).toBeGreaterThan(160);
+    expect(svgViewBoxHeight(three)).toBeGreaterThan(svgViewBoxHeight(two));
+    const style = two.shadowRoot!.querySelector('svg')!.getAttribute('style') ?? '';
+    expect(style).toMatch(/aspect-ratio/);
   });
 
-  it('lists each window title in the head', async () => {
+  it('extends the now-cursor through the ribbon in multi mode', async () => {
     const el = await mount({
-      hass: multiHass({}, {}),
+      hass: twoWindowHass(),
+      discoveredList: [discoveredSouth, discoveredWest],
+      coverColors: ['#ff7043', '#7e57c2'],
+    });
+    const now = el.shadowRoot!.querySelector('line.now')!;
+    expect(parseFloat(now.getAttribute('y2')!)).toBeGreaterThan(VIEWBOX_H - PAD_B);
+  });
+
+  it('renders NO per-window legend in the head (the compass legend covers it)', async () => {
+    const el = await mount({
+      hass: twoWindowHass(),
       discoveredList: [discoveredSouth, discoveredWest],
       coverColors: ['#ff7043', '#7e57c2'],
     });
     const head = el.shadowRoot!.querySelector('.head')!;
-    const text = head.textContent ?? '';
-    expect(text).toContain('Living Room');
-    expect(text).toContain('Office');
+    // No swatch list and no per-window names duplicated from the compass legend.
+    expect(head.querySelector('.fov-list')).toBeNull();
+    expect(head.querySelector('.swatch')).toBeNull();
+    expect(head.textContent ?? '').not.toContain('Living Room');
+    expect(head.textContent ?? '').not.toContain('Office');
+  });
+
+  it('keeps the viewBox tight to the ribbon (no dead space below the last row)', async () => {
+    const el = await mount({
+      hass: twoWindowHass(),
+      discoveredList: [discoveredSouth, discoveredWest],
+      coverColors: ['#ff7043', '#7e57c2'],
+    });
+    const height = svgViewBoxHeight(el);
+    // The lowest ribbon element (track) bottom must sit just above the viewBox
+    // floor — a regression guard against double-counting VIEWBOX_H, which left
+    // ~160 units of empty space (and an over-long now-cursor) below the ribbon.
+    const trackBottoms = Array.from(el.shadowRoot!.querySelectorAll('rect.ribbon-track')).map(
+      (r) => parseFloat(r.getAttribute('y')!) + parseFloat(r.getAttribute('height')!),
+    );
+    const lowest = Math.max(...trackBottoms);
+    expect(height - lowest).toBeLessThanOrEqual(8);
+    // The now-cursor ends at the ribbon floor, not far below it.
+    const now = el.shadowRoot!.querySelector('line.now')!;
+    const y2 = parseFloat(now.getAttribute('y2')!);
+    expect(y2).toBeGreaterThan(VIEWBOX_H - PAD_B);
+    expect(y2).toBeLessThanOrEqual(height);
+    expect(Math.abs(y2 - lowest)).toBeLessThanOrEqual(8);
   });
 });

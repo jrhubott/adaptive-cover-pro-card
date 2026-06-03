@@ -310,7 +310,7 @@ export class AdaptiveCoverProCard extends LitElement {
           ${sections.includes('elevation')
             ? html`<acp-elevation-chart
                 .hass=${this.hass}
-                .discovered=${discovered}
+                .discoveredList=${[discovered]}
                 ?compact=${!!this._config.compact}
               ></acp-elevation-chart>`
             : nothing}

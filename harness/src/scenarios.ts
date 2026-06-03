@@ -461,11 +461,11 @@ export const SCENARIOS: Scenario[] = [
     id: 'multi-window',
     label: 'Multi-window — SE + S + SW',
     description:
-      'Three entries with overlapping in-FOV times so the elevation strip stacks color-keyed lanes; mixed elevation limits.',
+      'Three entries with overlapping in-FOV times so the per-window FOV ribbon below the elevation strip shows color-keyed bars; mixed elevation limits.',
     build: () => {
       // Early afternoon: the SE, S and SW windows all catch the sun within a
       // few hours of each other, so ≥2 are simultaneously in FOV and the
-      // elevation strip shows overlapping color-keyed lanes.
+      // FOV ribbon below the elevation strip shows overlapping color-keyed bars.
       const c = baseConfig('2026-06-21', 13 * 60 + 30);
       c.scenario = 'multi-window';
       c.entries = [
