@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  aboveHorizonSegments,
   azimuthInFov,
   findFovWindow,
   findFovWindows,
@@ -262,5 +263,56 @@ describe('sunriseSetAzimuths', () => {
     const { riseAzimuth, setAzimuth } = sunriseSetAzimuths(samples);
     expect(riseAzimuth).toBeNull();
     expect(setAzimuth).toBe(110);
+  });
+});
+
+describe('aboveHorizonSegments', () => {
+  it('finds exactly one contiguous run for a normal day', () => {
+    const samples = sampleDay(45.5, -73.6, new Date('2026-06-21T06:00:00Z'));
+    const runs = aboveHorizonSegments(samples);
+    expect(runs).toHaveLength(1);
+    const { startIdx, endIdx } = runs[0];
+    // Every sample inside the run is above horizon.
+    for (let i = startIdx; i <= endIdx; i++) {
+      expect(samples[i].elevation).toBeGreaterThan(0);
+    }
+    // The neighbour just before the run start is at/below horizon (or the run
+    // starts at index 0).
+    if (startIdx > 0) {
+      expect(samples[startIdx - 1].elevation).toBeLessThanOrEqual(0);
+    }
+  });
+
+  it('returns no runs when every sample is below horizon', () => {
+    const allBelow = [
+      { t: new Date(), elevation: -10, azimuth: 90 },
+      { t: new Date(), elevation: -5, azimuth: 95 },
+      { t: new Date(), elevation: -1, azimuth: 100 },
+    ];
+    expect(aboveHorizonSegments(allBelow)).toEqual([]);
+  });
+
+  it('returns a single full-range run for a polar day (all above horizon)', () => {
+    const polarDay = [
+      { t: new Date(), elevation: 5, azimuth: 10 },
+      { t: new Date(), elevation: 8, azimuth: 90 },
+      { t: new Date(), elevation: 6, azimuth: 170 },
+    ];
+    expect(aboveHorizonSegments(polarDay)).toEqual([{ startIdx: 0, endIdx: 2 }]);
+  });
+
+  it('detects two disjoint runs in a [+,+,-,-,+,+] sequence', () => {
+    const samples = [
+      { t: new Date(), elevation: 5, azimuth: 0 },
+      { t: new Date(), elevation: 10, azimuth: 30 },
+      { t: new Date(), elevation: -2, azimuth: 60 },
+      { t: new Date(), elevation: -5, azimuth: 90 },
+      { t: new Date(), elevation: 3, azimuth: 120 },
+      { t: new Date(), elevation: 7, azimuth: 150 },
+    ];
+    expect(aboveHorizonSegments(samples)).toEqual([
+      { startIdx: 0, endIdx: 1 },
+      { startIdx: 4, endIdx: 5 },
+    ]);
   });
 });

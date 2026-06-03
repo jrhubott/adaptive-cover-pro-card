@@ -17,6 +17,7 @@ import {
   wedgePath,
 } from '../lib/geometry';
 import {
+  aboveHorizonSegments,
   findFovWindows,
   sampleDay,
   startOfDayInZone,
@@ -182,24 +183,26 @@ export class SkyCompass extends LitElement {
     const moonX = moonPt ? moonPt.x * OUTER_R : 0;
     const moonY = moonPt ? moonPt.y * OUTER_R : 0;
 
-    // Plot the full 24h track: daytime samples bow toward the centre (higher
-    // elevation = smaller radius) while below-horizon samples clamp to the
-    // outer rim (elevationToRadius maps elevation <= 0 to radius 1), so the
-    // not-visible portion of the path traces around the outside of the circle.
-    const pathPoints = this.showSunPath
-      ? samples
-          .map((s) => {
-            const pt = sunDotPosition(s.azimuth, s.elevation, o);
-            return `${(pt.x * OUTER_R).toFixed(1)},${(pt.y * OUTER_R).toFixed(1)}`;
-          })
-          .join(' ')
-      : '';
+    // Plot only the above-horizon track: daytime samples bow toward the centre
+    // (higher elevation = smaller radius). Each contiguous above-horizon run is
+    // its own polyline so the not-visible (below-horizon) portion is simply
+    // omitted rather than clamped onto the rim.
+    const sunPathPoint = (s: SunSample): string => {
+      const pt = sunDotPosition(s.azimuth, s.elevation, o);
+      return `${(pt.x * OUTER_R).toFixed(1)},${(pt.y * OUTER_R).toFixed(1)}`;
+    };
+    const sunPathRuns = this.showSunPath
+      ? aboveHorizonSegments(samples).map((run) =>
+          samples
+            .slice(run.startIdx, run.endIdx + 1)
+            .map(sunPathPoint)
+            .join(' '),
+        )
+      : [];
 
     const { riseAzimuth, setAzimuth } = this.showSunriseSunset
       ? sunriseSetAzimuths(samples)
       : { riseAzimuth: null, setAzimuth: null };
-    const risePt = riseAzimuth !== null ? azimuthToCartesian(riseAzimuth, OUTER_R, o) : null;
-    const setPt = setAzimuth !== null ? azimuthToCartesian(setAzimuth, OUTER_R, o) : null;
 
     const cardinalPad = 14;
     const cardN = azimuthToCartesian(0, OUTER_R + cardinalPad, o);
@@ -258,19 +261,21 @@ export class SkyCompass extends LitElement {
             ${visibleOverlays.map((ov) => this._renderEntryLayers(ov, multi, o, samples))}
 
             ${
-              this.showSunPath && pathPoints
-                ? svg`<g data-tooltip=${ttSunPath}><title>${ttSunPath}</title><polyline class="sun-path" points=${pathPoints}></polyline></g>`
+              this.showSunPath && sunPathRuns.length
+                ? svg`<g data-tooltip=${ttSunPath}><title>${ttSunPath}</title>${sunPathRuns.map(
+                    (pts) => svg`<polyline class="sun-path" points=${pts}></polyline>`,
+                  )}</g>`
                 : nothing
             }
 
             ${
-              this.showSunriseSunset && risePt && riseAzimuth !== null
-                ? svg`<g data-tooltip=${ttRise}><title>${ttRise}</title><circle class="rise-marker" cx=${risePt.x} cy=${risePt.y} r="5"></circle></g>`
+              this.showSunriseSunset && riseAzimuth !== null
+                ? this._renderSunMarker(azimuthToCartesian(riseAzimuth, OUTER_R, o), 'rise', ttRise)
                 : nothing
             }
             ${
-              this.showSunriseSunset && setPt && setAzimuth !== null
-                ? svg`<g data-tooltip=${ttSet}><title>${ttSet}</title><circle class="set-marker" cx=${setPt.x} cy=${setPt.y} r="5"></circle></g>`
+              this.showSunriseSunset && setAzimuth !== null
+                ? this._renderSunMarker(azimuthToCartesian(setAzimuth, OUTER_R, o), 'set', ttSet)
                 : nothing
             }
 
@@ -306,6 +311,59 @@ export class SkyCompass extends LitElement {
         ${this.showLegend ? this._renderLegend(overlays, multi) : nothing}
         ${this.showStats ? this._renderStats(overlays, multi) : nothing}
       </div>
+    `;
+  }
+
+  /**
+   * A hand-drawn sunrise/sunset glyph: a half-sun with rays resting on a horizon
+   * baseline, plus a short arrow indicating direction (up at sunrise, down at
+   * sunset). Built from SVG primitives only — no icon font / ha-icon.
+   *
+   * Drawn screen-upright: the group is anchored at the rim point with
+   * `translate(x,y)` ONLY — no rotation. Local −y is screen-up everywhere on
+   * the rim, so the half-sun dome bulges up, the sunrise arrow points up and
+   * the sunset arrow points down, reading as the conventional sunrise/sunset
+   * icon regardless of rim azimuth.
+   */
+  private _renderSunMarker(
+    anchor: { x: number; y: number },
+    dir: 'rise' | 'set',
+    tooltip: string,
+  ): TemplateResult {
+    const SUN_R = 5.5;
+    const cls = `sun-marker sun-marker-${dir}`;
+    // Half-sun dome bulging up (−y), sitting on the horizon baseline at local
+    // y=0. With no group rotation, local −y is screen-up.
+    const dome = `M ${-SUN_R} 0 A ${SUN_R} ${SUN_R} 0 0 1 ${SUN_R} 0`;
+    const ray = (dx: number, dy: number, ex: number, ey: number) =>
+      svg`<line x1=${dx} y1=${dy} x2=${ex} y2=${ey}></line>`;
+    // Two diagonal rays fan up from the dome shoulders. The sunrise arrow
+    // occupies the central (up) channel, so its centre ray is dropped; the
+    // sunset arrow points down (+y), clear of the rays, so the set glyph keeps
+    // its centre ray.
+    const rays = svg`
+      ${ray(-SUN_R * 0.7, -(SUN_R * 0.7 + 1), -SUN_R * 0.9, -(SUN_R * 0.9 + 2.5))}
+      ${ray(SUN_R * 0.7, -(SUN_R * 0.7 + 1), SUN_R * 0.9, -(SUN_R * 0.9 + 2.5))}
+      ${dir === 'set' ? ray(0, -(SUN_R + 1.5), 0, -(SUN_R + 4)) : nothing}
+    `;
+    const arrow =
+      dir === 'rise'
+        ? // Arrow pointing up (−y), above the dome: rising sun.
+          svg`<path data-dir="up" d="M 0 -9 L 0 -17 M -3 -13 L 0 -17 L 3 -13"></path>`
+        : // Arrow pointing down (+y), below the baseline: setting sun.
+          svg`<path data-dir="down" d="M 0 8 L 0 16 M -3 12 L 0 16 L 3 12"></path>`;
+    return svg`
+      <g
+        class=${cls}
+        data-tooltip=${tooltip}
+        transform="translate(${anchor.x.toFixed(2)},${anchor.y.toFixed(2)})"
+      >
+        <title>${tooltip}</title>
+        <line class="sun-marker-horizon" x1=${-SUN_R - 2} y1="0" x2=${SUN_R + 2} y2="0"></line>
+        <path class="sun-marker-dome" d=${dome}></path>
+        <g class="sun-marker-rays">${rays}</g>
+        ${arrow}
+      </g>
     `;
   }
 
@@ -854,17 +912,31 @@ export class SkyCompass extends LitElement {
       stroke-dasharray: 4 3;
       opacity: 0.45;
     }
-    .rise-marker {
-      fill: var(--warning-color, gold);
+    /* Sunrise/sunset glyph: half-sun + horizon baseline + directional arrow.
+       Colour (currentColor) is the rise-vs-set cue. The dome carries the
+       paint-order halo (background-coloured stroke drawn under its fill) so it
+       stays legible over grid lines and FOV wedges, matching the old markers. */
+    .sun-marker {
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .sun-marker line,
+    .sun-marker path {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.4;
+    }
+    .sun-marker .sun-marker-dome {
+      fill: currentColor;
       stroke: var(--card-background-color, #fff);
       stroke-width: 1;
       paint-order: stroke;
     }
-    .set-marker {
-      fill: var(--secondary-text-color);
-      stroke: var(--card-background-color, #fff);
-      stroke-width: 1;
-      paint-order: stroke;
+    .sun-marker-rise {
+      color: var(--warning-color, gold);
+    }
+    .sun-marker-set {
+      color: var(--secondary-text-color);
     }
     .moon-outline {
       fill: none;
