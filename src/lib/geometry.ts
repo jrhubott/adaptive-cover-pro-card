@@ -270,6 +270,31 @@ export function arcsOverlap(s1: number, e1: number, s2: number, e2: number): boo
 }
 
 /**
+ * Vertical layout for the per-window FOV ribbon below the elevation plot.
+ * Returns one {y,height} row per window (stacked top-to-bottom) plus the
+ * ribbon's total height (top pad + rows + gaps + bottom pad).
+ *
+ * `rows[i].y = top + i*(rowH+gap)`, `rows[i].height = rowH`. The y values are
+ * relative to whatever origin the caller passes as `top` (e.g. pass the
+ * plot-block bottom plus a pad to place the ribbon below the plot).
+ */
+export function ribbonLayout(
+  count: number,
+  top: number,
+  rowH: number,
+  gap: number,
+  bottom: number,
+): { rows: Array<{ y: number; height: number }>; height: number } {
+  if (count <= 0) return { rows: [], height: 0 };
+  const rows = Array.from({ length: count }, (_, i) => ({
+    y: top + i * (rowH + gap),
+    height: rowH,
+  }));
+  const height = top + count * rowH + (count - 1) * gap + bottom;
+  return { rows, height };
+}
+
+/**
  * Convert the integration's blind_spot_range (FOV-left-relative offsets,
  * [fov_left − blind_spot_right, fov_left − blind_spot_left]) into absolute
  * compass bearings [startAzi, endAzi] suitable for wedgePath.

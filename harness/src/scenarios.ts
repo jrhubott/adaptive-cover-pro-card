@@ -459,24 +459,38 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: 'multi-window',
-    label: 'Multi-window — south + west',
-    description: 'Two entries with overlapping FOV wedges.',
+    label: 'Multi-window — SE + S + SW',
+    description:
+      'Three entries with overlapping in-FOV times so the per-window FOV ribbon below the elevation strip shows color-keyed bars; mixed elevation limits.',
     build: () => {
-      const c = baseConfig('2026-06-21', 16 * 60);
+      // Early afternoon: the SE, S and SW windows all catch the sun within a
+      // few hours of each other, so ≥2 are simultaneously in FOV and the
+      // FOV ribbon below the elevation strip shows overlapping color-keyed bars.
+      const c = baseConfig('2026-06-21', 13 * 60 + 30);
       c.scenario = 'multi-window';
       c.entries = [
         makeEntry({
-          entry_id: 'south_window',
+          entry_id: 'se_window',
           title: 'Living Room',
-          window_azimuth: 180,
+          window_azimuth: 135,
+          fov_left: 60,
+          fov_right: 60,
           min_elevation: 10,
           max_elevation: 70,
           color: '#ff7043',
         }),
         makeEntry({
-          entry_id: 'west_window',
+          entry_id: 's_window',
+          title: 'Kitchen',
+          window_azimuth: 180,
+          fov_left: 60,
+          fov_right: 60,
+          color: '#26a69a',
+        }),
+        makeEntry({
+          entry_id: 'sw_window',
           title: 'Office',
-          window_azimuth: 270,
+          window_azimuth: 225,
           fov_left: 60,
           fov_right: 60,
           min_elevation: 15,

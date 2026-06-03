@@ -192,7 +192,7 @@ export class MoreInfoDialog extends LitElement {
                 ${this.showElevationChart
                   ? html`<acp-elevation-chart
                       .hass=${this.hass}
-                      .discovered=${this.discovered}
+                      .discoveredList=${[this.discovered]}
                       ?compact=${true}
                     ></acp-elevation-chart>`
                   : nothing}

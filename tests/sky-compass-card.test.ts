@@ -16,6 +16,7 @@ function makeCard(): CardLike {
 }
 
 const ENTRY = 'entry_abc';
+const ENTRY_2 = 'entry_def';
 
 const REGISTRY: EntityRegistryEntry[] = [
   {
@@ -29,6 +30,20 @@ const REGISTRY: EntityRegistryEntry[] = [
     entity_id: 'sensor.sun_position',
     unique_id: `${ENTRY}_sun_position`,
     config_entry_id: ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+  {
+    entity_id: 'sensor.cover_position_2',
+    unique_id: `${ENTRY_2}_Cover_Position`,
+    config_entry_id: ENTRY_2,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+  {
+    entity_id: 'sensor.sun_position_2',
+    unique_id: `${ENTRY_2}_sun_position`,
+    config_entry_id: ENTRY_2,
     platform: 'adaptive_cover_pro',
     device_id: null,
   },
@@ -55,6 +70,23 @@ function makeHass(): HomeAssistant {
           in_fov: true,
           min_elevation: 10,
           max_elevation: 60,
+        },
+      },
+      'sensor.cover_position_2': {
+        state: '40',
+        attributes: { actual_positions: { 'cover.office': 40 } },
+      },
+      'sensor.sun_position_2': {
+        state: '30',
+        attributes: {
+          elevation: 30,
+          gamma: 0,
+          window_azimuth: 270,
+          fov_left: 90,
+          fov_right: 90,
+          azimuth_min: 180,
+          azimuth_max: 360,
+          in_fov: true,
         },
       },
     },
@@ -197,5 +229,21 @@ describe('adaptive-cover-pro-sky-compass-card — elevation chart toggle', () =>
       show_elevation_chart: false,
     });
     expect(el.shadowRoot!.querySelector('acp-elevation-chart')).toBeNull();
+  });
+
+  it('forwards the full discovered list and cover_colors to the elevation chart', async () => {
+    const el = await mountWithRegistry({
+      type: 'custom:adaptive-cover-pro-sky-compass-card',
+      entry_ids: [ENTRY, ENTRY_2],
+      cover_colors: ['#ff7043', '#7e57c2'],
+    });
+    interface ChartEl extends HTMLElement {
+      discoveredList?: unknown[];
+      coverColors?: unknown[];
+    }
+    const chart = el.shadowRoot!.querySelector('acp-elevation-chart') as ChartEl;
+    expect(chart).toBeTruthy();
+    expect(chart.discoveredList?.length).toBe(2);
+    expect(chart.coverColors).toEqual(['#ff7043', '#7e57c2']);
   });
 });
