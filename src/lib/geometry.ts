@@ -270,6 +270,32 @@ export function arcsOverlap(s1: number, e1: number, s2: number, e2: number): boo
 }
 
 /**
+ * Slice the FOV-band strip [plotTop, plotBottom] into `count` equal vertical
+ * lanes and return the { y, height } of the lane at `index` (0 = topmost).
+ *
+ * Lanes are contiguous, non-overlapping, and together cover the full strip.
+ * For count === 1 the single lane spans the whole strip. An optional `gap`
+ * (default 0) is applied symmetrically inside each lane (half at top, half at
+ * bottom) to leave breathing room between adjacent lanes; gap = 0 keeps the
+ * lanes flush.
+ */
+export function bandLaneRect(
+  index: number,
+  count: number,
+  plotTop: number,
+  plotBottom: number,
+  gap = 0,
+): { y: number; height: number } {
+  const laneH = (plotBottom - plotTop) / count;
+  const y = plotTop + index * laneH;
+  if (gap <= 0) {
+    return { y, height: laneH };
+  }
+  const half = gap / 2;
+  return { y: y + half, height: Math.max(0, laneH - gap) };
+}
+
+/**
  * Convert the integration's blind_spot_range (FOV-left-relative offsets,
  * [fov_left − blind_spot_right, fov_left − blind_spot_left]) into absolute
  * compass bearings [startAzi, endAzi] suitable for wedgePath.

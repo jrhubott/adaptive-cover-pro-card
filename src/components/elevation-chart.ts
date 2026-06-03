@@ -4,7 +4,8 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { DiscoveredEntities, SunPositionAttributes } from '../types';
 import { findFovWindows, sampleDay, startOfDayInZone, type SunSample } from '../lib/sun-model';
-import { elevationBandFraction } from '../lib/geometry';
+import { bandLaneRect, elevationBandFraction } from '../lib/geometry';
+import { resolveCoverColor } from '../lib/palette';
 import { formatClock } from '../lib/formatters';
 import { t } from '../lib/i18n';
 
@@ -18,11 +19,12 @@ const PAD_B = 22;
 @customElement('acp-elevation-chart')
 export class ElevationChart extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
-  @property({ attribute: false }) public discovered!: DiscoveredEntities;
+  @property({ attribute: false }) public discoveredList: DiscoveredEntities[] = [];
+  @property({ attribute: false }) public coverColors: (string | null | undefined)[] = [];
   @property({ type: Boolean, reflect: true }) public compact = false;
 
-  private _sunAttrs(): SunPositionAttributes | null {
-    const id = this.discovered.entities.sun_sensor;
+  private _sunAttrsFor(d: DiscoveredEntities): SunPositionAttributes | null {
+    const id = d.entities.sun_sensor;
     if (!id) return null;
     const st = this.hass.states[id];
     if (!st) return null;
@@ -30,32 +32,26 @@ export class ElevationChart extends LitElement {
   }
 
   private _sunInfront(): boolean {
-    const id = this.discovered.entities.sun_infront_binary;
+    const id = this.discoveredList[0]?.entities.sun_infront_binary;
     if (!id) return false;
     return this.hass.states[id]?.state === 'on';
   }
 
   protected render(): TemplateResult | typeof nothing {
-    if (!this.hass || !this.discovered) return nothing;
-    const attrs = this._sunAttrs();
+    if (!this.hass || this.discoveredList.length === 0) return nothing;
+    const firstAttrs = this._sunAttrsFor(this.discoveredList[0]);
     const { latitude, longitude, time_zone } = (this.hass.config ?? {}) as unknown as {
       latitude?: number;
       longitude?: number;
       time_zone?: string;
     };
-    if (latitude === undefined || longitude === undefined || !attrs) {
+    if (latitude === undefined || longitude === undefined || !firstAttrs) {
       return html`<div class="placeholder">${t('elevation.placeholder', this.hass)}</div>`;
     }
 
     const day = startOfDayInZone(time_zone);
     const samples = sampleDay(latitude, longitude, day);
     const now = new Date();
-    const fovWindows = findFovWindows(
-      samples,
-      attrs.window_azimuth,
-      attrs.fov_left,
-      attrs.fov_right,
-    );
 
     const maxElev = 90;
     const minElev = -10; // small negative so dawn/dusk renders below horizon
@@ -84,49 +80,112 @@ export class ElevationChart extends LitElement {
     const sunBelowHorizon = currentSample ? currentSample.elevation <= 0 : true;
     const sunDotState = sunBelowHorizon ? 'night' : this._sunInfront() ? 'valid' : 'up';
 
-    // Elevation limits (optional integration attrs). When present, the FOV
-    // time-bands are clipped to the in-band elevation range and horizontal
-    // limit gridlines are drawn. Graceful no-op when both are absent.
-    const hasMin = typeof attrs.min_elevation === 'number';
-    const hasMax = typeof attrs.max_elevation === 'number';
     const plotTop = PAD_T;
     const plotBottom = VIEWBOX_H - PAD_B;
-    // loFrac → lower elevation (axisMin side, bottom of plot); hiFrac → upper.
-    const { loFrac, hiFrac } = elevationBandFraction(
-      attrs.min_elevation,
-      attrs.max_elevation,
-      minElev,
-      maxElev,
-    );
     // Map a 0..1 elevation-axis fraction to a y coordinate (0 = bottom).
     const yForFrac = (frac: number): number => plotBottom - frac * (plotBottom - plotTop);
-    const bandTopY = yForFrac(hiFrac);
-    const bandBottomY = yForFrac(loFrac);
-    const bandY = hasMin || hasMax ? bandTopY : plotTop;
-    const bandHeight = hasMin || hasMax ? bandBottomY - bandTopY : plotBottom - plotTop;
 
-    const fovBands = fovWindows.map((w) => ({
-      x0: xAt(samples[w.startIdx].t),
-      x1: xAt(samples[w.endIdx].t),
-    }));
-    const fovLabel = fovWindows
-      .map(
-        (w) =>
-          `${formatClock(samples[w.startIdx].t.toISOString())} → ${formatClock(
-            samples[w.endIdx].t.toISOString(),
-          )}`,
-      )
-      .join(', ');
+    const multi = this.discoveredList.length > 1;
+    // Lanes stack the windows vertically (one strip each) so overlapping FOV
+    // times stay legible. Compact mode (and single-window) overlap instead —
+    // vertical space is scarce, so bands share the full-height strip.
+    const layout: 'lanes' | 'overlap' = this.compact || !multi ? 'overlap' : 'lanes';
+
+    // Per-window FOV bands, elevation-clipped and color-keyed. The day samples,
+    // curve, axes, horizon, now-cursor and sun-dot are shared (sun geometry).
+    const count = this.discoveredList.length;
+    const windows = this.discoveredList.map((d, i) => {
+      const attrs = this._sunAttrsFor(d);
+      const { color, isOverride } = resolveCoverColor(this.coverColors?.[i], i);
+      // Inline fill only in multi-window (or explicit override) mode; a single
+      // window keeps the CSS gold fallback — zero visual regression.
+      const inlineFill = multi || isOverride;
+      if (!attrs) {
+        return { d, runs: [], bands: [], label: '', color, inlineFill };
+      }
+      const runs = findFovWindows(samples, attrs.window_azimuth, attrs.fov_left, attrs.fov_right);
+
+      // Elevation limits (optional integration attrs) clip the band y-extent.
+      const hasMin = typeof attrs.min_elevation === 'number';
+      const hasMax = typeof attrs.max_elevation === 'number';
+      const { loFrac, hiFrac } = elevationBandFraction(
+        attrs.min_elevation,
+        attrs.max_elevation,
+        minElev,
+        maxElev,
+      );
+      const clipTopY = hasMin || hasMax ? yForFrac(hiFrac) : plotTop;
+      const clipBottomY = hasMin || hasMax ? yForFrac(loFrac) : plotBottom;
+
+      // In lane mode each window owns a horizontal slice; intersect its
+      // elevation clip with that lane. In overlap mode the lane is the full
+      // strip, so the band spans clipTop..clipBottom directly.
+      const lane =
+        layout === 'lanes'
+          ? bandLaneRect(i, count, plotTop, plotBottom)
+          : bandLaneRect(0, 1, plotTop, plotBottom);
+      const laneTop = lane.y;
+      const laneBottom = lane.y + lane.height;
+      const bandTop = Math.max(clipTopY, laneTop);
+      const bandBottom = Math.min(clipBottomY, laneBottom);
+      const bandY = bandTop;
+      const bandHeight = Math.max(0, bandBottom - bandTop);
+
+      const bands = runs.map((w) => ({
+        x0: xAt(samples[w.startIdx].t),
+        x1: xAt(samples[w.endIdx].t),
+        y: bandY,
+        height: bandHeight,
+      }));
+      const label = runs
+        .map(
+          (w) =>
+            `${formatClock(samples[w.startIdx].t.toISOString())} → ${formatClock(
+              samples[w.endIdx].t.toISOString(),
+            )}`,
+        )
+        .join(', ');
+      // Limit gridlines: full-width only in the single-window legacy path; in
+      // multi-window lane mode the per-lane band height conveys the clip.
+      const limitLines: number[] = [];
+      if (!multi) {
+        if (hasMin) limitLines.push(clipBottomY);
+        if (hasMax) limitLines.push(clipTopY);
+      }
+      return { d, runs, bands, label, color, inlineFill, limitLines };
+    });
+
+    const anyFov = windows.some((w) => w.runs.length > 0);
 
     return html`
       <div class="wrap">
         <div class="head">
           <span class="label">${t('elevation.title', this.hass)}</span>
-          ${fovWindows.length
-            ? html`<span class="dim"
-                >${t('elevation.fov_windows', this.hass, { windows: fovLabel })}</span
-              >`
-            : html`<span class="dim">${t('elevation.no_fov_today', this.hass)}</span>`}
+          ${multi
+            ? html`<div class="fov-list">
+                ${windows.map(
+                  (w) =>
+                    html`<span class="fov-line">
+                      <span
+                        class="swatch"
+                        style=${w.inlineFill ? `background:${w.color}` : nothing}
+                      ></span>
+                      <span class="dim"
+                        >${w.runs.length
+                          ? t('elevation.fov_window_named', this.hass, {
+                              name: w.d.entry_title,
+                              windows: w.label,
+                            })
+                          : t('elevation.no_fov_today', this.hass)}</span
+                      >
+                    </span>`,
+                )}
+              </div>`
+            : anyFov
+              ? html`<span class="dim"
+                  >${t('elevation.fov_windows', this.hass, { windows: windows[0].label })}</span
+                >`
+              : html`<span class="dim">${t('elevation.no_fov_today', this.hass)}</span>`}
         </div>
         <svg viewBox="0 0 ${VIEWBOX_W} ${VIEWBOX_H}" preserveAspectRatio="none">
           ${svg`
@@ -150,28 +209,29 @@ export class ElevationChart extends LitElement {
             <!-- horizon -->
             <line class="horizon" x1=${PAD_L} y1=${horizonY} x2=${VIEWBOX_W - PAD_R} y2=${horizonY} />
 
-            <!-- elevation limit gridlines (drawn only for limits actually set) -->
-            ${
-              hasMin
-                ? svg`<line class="limit-line" x1=${PAD_L} y1=${bandBottomY} x2=${VIEWBOX_W - PAD_R} y2=${bandBottomY} />`
-                : nothing
-            }
-            ${
-              hasMax
-                ? svg`<line class="limit-line" x1=${PAD_L} y1=${bandTopY} x2=${VIEWBOX_W - PAD_R} y2=${bandTopY} />`
-                : nothing
-            }
+            <!-- elevation limit gridlines (single-window legacy path only;
+                 multi-window lane heights convey the clip) -->
+            ${windows.flatMap((w) =>
+              (w.limitLines ?? []).map(
+                (y) =>
+                  svg`<line class="limit-line" x1=${PAD_L} y1=${y} x2=${VIEWBOX_W - PAD_R} y2=${y} />`,
+              ),
+            )}
 
-            <!-- FOV shaded bands (each time the sun is actually in FOV + above horizon),
-                 clipped to the in-band elevation range when limits are present -->
-            ${fovBands.map(
-              (b) => svg`<rect
+            <!-- FOV shaded bands per window (each time the sun is actually in
+                 FOV + above horizon), clipped to the in-band elevation range
+                 and color-keyed in multi-window mode -->
+            ${windows.flatMap((w) =>
+              w.bands.map(
+                (b) => svg`<rect
                   class="fov-band"
                   x=${b.x0}
-                  y=${bandY}
+                  y=${b.y}
                   width=${b.x1 - b.x0}
-                  height=${bandHeight}
+                  height=${b.height}
+                  style=${w.inlineFill ? `fill:${w.color}` : nothing}
                 />`,
+              ),
             )}
 
             <!-- elevation curve -->
@@ -231,6 +291,25 @@ export class ElevationChart extends LitElement {
     .label {
       letter-spacing: 0.05em;
       text-transform: uppercase;
+    }
+    .fov-list {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 2px;
+    }
+    .fov-line {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .swatch {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      background: var(--warning-color, gold);
+      flex: 0 0 auto;
     }
     svg {
       width: 100%;

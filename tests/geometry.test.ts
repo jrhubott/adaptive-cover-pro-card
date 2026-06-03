@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   arcsOverlap,
   azimuthToCartesian,
+  bandLaneRect,
   blindSpotBearings,
   clampActiveArcToFov,
   dayFractionX,
@@ -219,6 +220,39 @@ describe('geometry — elevationBandFraction', () => {
     const { loFrac, hiFrac } = elevationBandFraction(-50, 200, AXIS_MIN, AXIS_MAX);
     expect(loFrac).toBe(0);
     expect(hiFrac).toBe(1);
+  });
+});
+
+describe('geometry — bandLaneRect', () => {
+  // plotTop = 10, plotBottom = 138 (mirrors the elevation chart's strip).
+  const TOP = 10;
+  const BOTTOM = 138;
+
+  it('N=1 returns the full strip', () => {
+    const lane = bandLaneRect(0, 1, TOP, BOTTOM);
+    expect(lane.y).toBeCloseTo(TOP);
+    expect(lane.height).toBeCloseTo(BOTTOM - TOP);
+  });
+
+  it('N=2 yields two equal, contiguous, non-overlapping lanes covering the strip', () => {
+    const lane0 = bandLaneRect(0, 2, TOP, BOTTOM);
+    const lane1 = bandLaneRect(1, 2, TOP, BOTTOM);
+    const laneH = (BOTTOM - TOP) / 2;
+    // Equal heights.
+    expect(lane0.height).toBeCloseTo(laneH);
+    expect(lane1.height).toBeCloseTo(laneH);
+    // Lane 0 starts at the top; lane 1 starts where lane 0 ends (contiguous).
+    expect(lane0.y).toBeCloseTo(TOP);
+    expect(lane1.y).toBeCloseTo(TOP + laneH);
+    expect(lane0.y + lane0.height).toBeCloseTo(lane1.y);
+    // Together they cover the whole strip.
+    expect(lane1.y + lane1.height).toBeCloseTo(BOTTOM);
+  });
+
+  it('index ordering: lane 0 is above lane 1 (smaller y)', () => {
+    const lane0 = bandLaneRect(0, 3, TOP, BOTTOM);
+    const lane1 = bandLaneRect(1, 3, TOP, BOTTOM);
+    expect(lane0.y).toBeLessThan(lane1.y);
   });
 });
 
