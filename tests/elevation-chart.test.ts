@@ -249,6 +249,34 @@ describe('acp-elevation-chart: multi-window ribbon', () => {
     expect(el.shadowRoot!.querySelectorAll('rect.ribbon-track').length).toBe(2);
   });
 
+  it('gives each ribbon bar a <title> tooltip with the window name and FOV time range', async () => {
+    const el = await mount({
+      hass: twoWindowHass(),
+      discoveredList: [discoveredSouth, discoveredWest],
+      coverColors: ['#ff7043', '#7e57c2'],
+    });
+    const bars = el.shadowRoot!.querySelectorAll('rect.ribbon-bar');
+    expect(bars.length).toBeGreaterThan(0);
+    const titles = Array.from(bars).map((b) => b.querySelector('title')?.textContent ?? '');
+    // Every bar carries a tooltip; at least one names a window with a → range.
+    expect(titles.every((tx) => tx.length > 0)).toBe(true);
+    expect(titles.some((tx) => tx.includes('Living Room') && tx.includes('→'))).toBe(true);
+    expect(titles.some((tx) => tx.includes('Office') && tx.includes('→'))).toBe(true);
+  });
+
+  it('labels each ribbon track with its window name for empty-row identification', async () => {
+    const el = await mount({
+      hass: twoWindowHass(),
+      discoveredList: [discoveredSouth, discoveredWest],
+      coverColors: ['#ff7043', '#7e57c2'],
+    });
+    const trackTitles = Array.from(el.shadowRoot!.querySelectorAll('rect.ribbon-track')).map(
+      (r) => r.querySelector('title')?.textContent ?? '',
+    );
+    expect(trackTitles.some((tx) => tx.includes('Living Room'))).toBe(true);
+    expect(trackTitles.some((tx) => tx.includes('Office'))).toBe(true);
+  });
+
   it('stacks window rows disjoint and ordered, all below the plot block', async () => {
     const el = await mount({
       hass: twoWindowHass(),

@@ -129,10 +129,14 @@ export class ElevationChart extends LitElement {
         y: bandY,
         height: bandHeight,
       }));
-      // Ribbon bars (multi-window): x-extent only; y comes from ribbonLayout.
+      // Ribbon bars (multi-window): x-extent + this run's clock range (for the
+      // hover tooltip); y comes from ribbonLayout.
       const runBars = runs.map((w) => ({
         x0: xAt(samples[w.startIdx].t),
         x1: xAt(samples[w.endIdx].t),
+        range: `${formatClock(samples[w.startIdx].t.toISOString())} → ${formatClock(
+          samples[w.endIdx].t.toISOString(),
+        )}`,
       }));
       const label = runs
         .map(
@@ -252,6 +256,15 @@ export class ElevationChart extends LitElement {
             ${ribbon.rows.flatMap((row, i) => {
               const w = windows[i];
               const rowY = VIEWBOX_H + row.y;
+              // Track tooltip names the window so empty rows are identifiable;
+              // bar tooltips add that run's exact clock range (the numbers we
+              // dropped from the head legend live here on hover instead).
+              const trackTitle = w.runs.length
+                ? w.d.entry_title
+                : t('elevation.fov_window_named', this.hass, {
+                    name: w.d.entry_title,
+                    windows: t('elevation.no_fov_today', this.hass),
+                  });
               const track = svg`<rect
                 class="ribbon-track"
                 x=${PAD_L}
@@ -259,7 +272,7 @@ export class ElevationChart extends LitElement {
                 width=${VIEWBOX_W - PAD_L - PAD_R}
                 height=${row.height}
                 rx="2"
-              />`;
+              ><title>${trackTitle}</title></rect>`;
               const bars = w.runBars.map(
                 (b) => svg`<rect
                   class="ribbon-bar"
@@ -269,7 +282,10 @@ export class ElevationChart extends LitElement {
                   height=${row.height}
                   rx="2"
                   style=${`fill:${w.color}`}
-                />`,
+                ><title>${t('elevation.fov_window_named', this.hass, {
+                  name: w.d.entry_title,
+                  windows: b.range,
+                })}</title></rect>`,
               );
               return [track, ...bars];
             })}
