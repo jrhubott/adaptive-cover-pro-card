@@ -203,8 +203,22 @@ export class SkyCompass extends LitElement {
       const c = a.map((v, i) => Math.round(v + (b[i] - v) * f));
       return `rgb(${c[0]},${c[1]},${c[2]})`;
     };
-    const dotFill = (f: number): string =>
-      this.showSunriseSunset ? arcColor(f) : 'var(--warning-color, gold)';
+    // One continuous polyline per above-horizon run so a single dash pattern
+    // spans the whole arc evenly (per-segment dashing made the sample-dense
+    // middle read as solid). The gold→grey fade moves to a per-run linear
+    // gradient projected along the sunrise→sunset time axis (pts[0]→pts[last]).
+    const sunPathGradients =
+      this.showSunPath && this.showSunriseSunset
+        ? sunPathRuns
+            .filter((pts) => pts.length > 1)
+            .map((pts, i) => {
+              const a = pts[0];
+              const b = pts[pts.length - 1];
+              return { id: `sun-path-grad-${i}`, x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+            })
+        : [];
+    const sunPathStroke = (i: number): string =>
+      this.showSunriseSunset ? `url(#sun-path-grad-${i})` : 'var(--warning-color, gold)';
 
     const cardinalPad = 14;
     const cardN = azimuthToCartesian(0, OUTER_R + cardinalPad, o);
@@ -244,6 +258,15 @@ export class SkyCompass extends LitElement {
               `
                   : nothing
               }
+              ${sunPathGradients.map(
+                (g) => svg`
+                <linearGradient id=${g.id} gradientUnits="userSpaceOnUse"
+                  x1=${g.x1} y1=${g.y1} x2=${g.x2} y2=${g.y2}>
+                  <stop offset="0%" stop-color=${arcColor(0)}></stop>
+                  <stop offset="100%" stop-color=${arcColor(1)}></stop>
+                </linearGradient>
+              `,
+              )}
             </defs>
 
             <circle class="grid" r=${OUTER_R}></circle>
@@ -256,14 +279,13 @@ export class SkyCompass extends LitElement {
 
             ${
               this.showSunPath && sunPathRuns.length
-                ? svg`<g data-tooltip=${ttSunPath}><title>${ttSunPath}</title>${sunPathRuns.map(
-                    (pts) =>
-                      svg`${pts.map((p, i) => {
-                        const f = pts.length > 1 ? i / (pts.length - 1) : 0;
-                        return svg`<circle class="sun-path-dot" cx=${p.x} cy=${p.y} r="1.1"
-                          style="fill:${dotFill(f)}"></circle>`;
-                      })}`,
-                  )}</g>`
+                ? svg`<g data-tooltip=${ttSunPath}><title>${ttSunPath}</title>${sunPathRuns
+                    .filter((pts) => pts.length > 1)
+                    .map((pts, i) => {
+                      const ptsStr = pts.map((p) => `${p.x},${p.y}`).join(' ');
+                      return svg`<polyline class="sun-path-line" points=${ptsStr}
+                        style="stroke:${sunPathStroke(i)}"></polyline>`;
+                    })}</g>`
                 : nothing
             }
 
@@ -840,11 +862,16 @@ export class SkyCompass extends LitElement {
       text-align: center;
       padding: 20px;
     }
-    /* The sun path is a string of small dots; fill is set per-dot inline so the
-       track can fade from sunrise gold to sunset grey (see dotFill in render). */
-    .sun-path-dot {
-      stroke: none;
-      opacity: 0.85;
+    /* The sun path is one dashed polyline per above-horizon run; a single dash
+       pattern spans the whole arc so spacing stays even regardless of sample
+       density. Stroke is a per-run gradient that fades sunrise gold → sunset
+       grey along the time axis (see sunPathGradients in render). */
+    .sun-path-line {
+      fill: none;
+      stroke-width: 1.4;
+      stroke-linecap: round;
+      stroke-dasharray: 2 8;
+      opacity: 0.9;
     }
     .moon-outline {
       fill: none;

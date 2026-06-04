@@ -441,56 +441,76 @@ describe('acp-sky-compass visual toggles', () => {
     expect(group!.getAttribute('style') ?? '').toContain('display: none');
   });
 
-  it('showSunPath=false hides the sun-path dots', async () => {
+  it('showSunPath=false hides the sun path', async () => {
     const el = await mountCompass([d()], hass(), { showSunPath: false });
-    expect(el.shadowRoot!.querySelector('circle.sun-path-dot')).toBeNull();
+    expect(el.shadowRoot!.querySelector('polyline.sun-path-line')).toBeNull();
   });
 
-  const sunPathDots = (el: SkyCompassLike): SVGCircleElement[] =>
-    Array.from(el.shadowRoot!.querySelectorAll('circle.sun-path-dot')) as SVGCircleElement[];
-  const dotMag = (c: SVGCircleElement): number =>
-    Math.hypot(Number(c.getAttribute('cx')), Number(c.getAttribute('cy')));
-  const dotRgb = (c: SVGCircleElement): RegExpMatchArray | null =>
-    (c.getAttribute('style') ?? '').match(/fill:\s*rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
+  // The sun path is now one dashed polyline per above-horizon run; the gold→grey
+  // fade lives in a per-run <linearGradient> referenced by the polyline stroke.
+  const sunPathLines = (el: SkyCompassLike): SVGPolylineElement[] =>
+    Array.from(el.shadowRoot!.querySelectorAll('polyline.sun-path-line')) as SVGPolylineElement[];
+  const linePoints = (l: SVGPolylineElement): Array<{ x: number; y: number }> =>
+    (l.getAttribute('points') ?? '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((pair) => {
+        const [x, y] = pair.split(',').map(Number);
+        return { x, y };
+      });
+  const allPathMags = (el: SkyCompassLike): number[] =>
+    sunPathLines(el)
+      .flatMap(linePoints)
+      .map((p) => Math.hypot(p.x, p.y));
+  const stopRgb = (s: Element): RegExpMatchArray | null =>
+    (s.getAttribute('stop-color') ?? '').match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
 
-  it('sun-path masks the below-horizon trajectory (dotted daytime arc only)', async () => {
+  it('sun-path masks the below-horizon trajectory (daytime arc only)', async () => {
     const el = await mountCompass([d()], hass());
-    const dots = sunPathDots(el);
-    expect(dots.length).toBeGreaterThanOrEqual(1);
+    expect(sunPathLines(el).length).toBeGreaterThanOrEqual(1);
     const OUTER_R = 110;
-    const mags = dots.map(dotMag);
+    const mags = allPathMags(el);
+    expect(mags.length).toBeGreaterThan(0);
     // The daytime arc bows toward the centre.
     expect(Math.min(...mags)).toBeLessThan(OUTER_R * 0.9);
-    // No dot rides outside the rim (the night arc is gone, not clamped out).
+    // No point rides outside the rim (the night arc is gone, not clamped out).
     for (const m of mags) {
       expect(m).toBeLessThanOrEqual(OUTER_R + 0.5);
     }
-    // Rim-hugging dots only occur at the horizon-crossing endpoints of each run.
+    // Rim-hugging points only occur at the horizon-crossing endpoints of each run.
     const onRim = mags.filter((m) => Math.abs(m - OUTER_R) < 0.5);
     expect(onRim.length).toBeLessThanOrEqual(4);
   });
 
   it('showSunriseSunset=true fades the arc from sunrise gold to sunset grey', async () => {
     const el = await mountCompass([d()], hass(), { showSunriseSunset: true });
-    const dots = sunPathDots(el);
-    expect(dots.length).toBeGreaterThan(2);
-    const first = dotRgb(dots[0]);
-    const last = dotRgb(dots[dots.length - 1]);
+    const lines = sunPathLines(el);
+    expect(lines.length).toBeGreaterThanOrEqual(1);
+    // The stroke references a per-run gradient.
+    const idMatch = (lines[0].getAttribute('style') ?? '').match(/url\(#(sun-path-grad-\d+)\)/);
+    expect(idMatch).not.toBeNull();
+    const stops = Array.from(el.shadowRoot!.querySelectorAll(`linearGradient#${idMatch![1]} stop`));
+    expect(stops.length).toBe(2);
+    const first = stopRgb(stops[0]);
+    const last = stopRgb(stops[1]);
     expect(first).not.toBeNull();
     expect(last).not.toBeNull();
-    // Sunrise end is gold (high red, low blue); sunset end is grey (red falls, blue rises).
+    // Sunrise stop is gold (high red, low blue); sunset stop is grey (red falls, blue rises).
     expect(Number(first![1])).toBeGreaterThan(Number(last![1]));
     expect(Number(first![3])).toBeLessThan(Number(last![3]));
   });
 
   it('showSunriseSunset=false draws the arc in a single colour', async () => {
     const el = await mountCompass([d()], hass(), { showSunriseSunset: false });
-    const dots = sunPathDots(el);
-    expect(dots.length).toBeGreaterThan(0);
-    const fills = new Set(dots.map((c) => (c.getAttribute('style') ?? '').trim()));
-    // Every dot shares one fill (no gradient) — a single sun-path colour.
-    expect(fills.size).toBe(1);
-    expect([...fills][0]).toContain('--warning-color');
+    const lines = sunPathLines(el);
+    expect(lines.length).toBeGreaterThan(0);
+    // No gradient defs when the fade is off.
+    expect(el.shadowRoot!.querySelector('linearGradient[id^="sun-path-grad"]')).toBeNull();
+    const strokes = new Set(lines.map((l) => (l.getAttribute('style') ?? '').trim()));
+    // Every run shares one stroke (no gradient) — a single sun-path colour.
+    expect(strokes.size).toBe(1);
+    expect([...strokes][0]).toContain('--warning-color');
   });
 });
 
@@ -787,10 +807,10 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
   });
 
   it('sun-path swatch uses the warning theme token', () => {
-    // The arc fill is set inline per-dot (see dotFill in render): a single
-    // var(--warning-color) when showSunriseSunset is off — asserted live in the
-    // "showSunriseSunset=false draws the arc in a single colour" test — so the
-    // legend swatch only needs to share that same token here.
+    // The arc stroke is set inline per run (see sunPathStroke in render): a
+    // single var(--warning-color) when showSunriseSunset is off — asserted live
+    // in the "showSunriseSunset=false draws the arc in a single colour" test —
+    // so the legend swatch only needs to share that same token here.
     const swatch = cssBlock('.swatch.sun-path-swatch ');
     expect(swatch).toMatch(/var\(--warning-color/);
     expect(swatch).not.toMatch(/background:\s*gold\b/);
