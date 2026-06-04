@@ -3,8 +3,6 @@ import '../src/components/sky-compass';
 import { SkyCompass } from '../src/components/sky-compass';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities } from '../src/types';
-import { azimuthToCartesian } from '../src/lib/geometry';
-import { sampleDay, startOfDayInZone, sunriseSetAzimuths } from '../src/lib/sun-model';
 
 interface SkyCompassLike extends HTMLElement {
   updateComplete: Promise<boolean>;
@@ -443,91 +441,56 @@ describe('acp-sky-compass visual toggles', () => {
     expect(group!.getAttribute('style') ?? '').toContain('display: none');
   });
 
-  it('showSunPath=false hides sun-path polyline', async () => {
+  it('showSunPath=false hides the sun-path dots', async () => {
     const el = await mountCompass([d()], hass(), { showSunPath: false });
-    expect(el.shadowRoot!.querySelector('polyline.sun-path')).toBeNull();
+    expect(el.shadowRoot!.querySelector('circle.sun-path-dot')).toBeNull();
   });
 
-  it('sun-path masks the below-horizon trajectory (only daytime arc(s) drawn)', async () => {
+  const sunPathDots = (el: SkyCompassLike): SVGCircleElement[] =>
+    Array.from(el.shadowRoot!.querySelectorAll('circle.sun-path-dot')) as SVGCircleElement[];
+  const dotMag = (c: SVGCircleElement): number =>
+    Math.hypot(Number(c.getAttribute('cx')), Number(c.getAttribute('cy')));
+  const dotRgb = (c: SVGCircleElement): RegExpMatchArray | null =>
+    (c.getAttribute('style') ?? '').match(/fill:\s*rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
+
+  it('sun-path masks the below-horizon trajectory (dotted daytime arc only)', async () => {
     const el = await mountCompass([d()], hass());
-    const polys = Array.from(
-      el.shadowRoot!.querySelectorAll('polyline.sun-path'),
-    ) as SVGPolylineElement[];
-    expect(polys.length).toBeGreaterThanOrEqual(1);
+    const dots = sunPathDots(el);
+    expect(dots.length).toBeGreaterThanOrEqual(1);
     const OUTER_R = 110;
-    const magsOf = (poly: SVGPolylineElement): number[] =>
-      (poly.getAttribute('points') ?? '')
-        .trim()
-        .split(/\s+/)
-        .map((p) => {
-          const [x, y] = p.split(',').map(Number);
-          return Math.hypot(x, y);
-        });
-    const allMags = polys.flatMap(magsOf);
+    const mags = dots.map(dotMag);
     // The daytime arc bows toward the centre.
-    expect(Math.min(...allMags)).toBeLessThan(OUTER_R * 0.9);
-    // No point rides outside the rim (the night arc is gone, not clamped out).
-    for (const m of allMags) {
+    expect(Math.min(...mags)).toBeLessThan(OUTER_R * 0.9);
+    // No dot rides outside the rim (the night arc is gone, not clamped out).
+    for (const m of mags) {
       expect(m).toBeLessThanOrEqual(OUTER_R + 0.5);
     }
-    // Rim-hugging points only occur at the horizon-crossing endpoints of each
-    // run — at most two per polyline (its start and end).
-    for (const poly of polys) {
-      const mags = magsOf(poly);
-      const onRim = mags.filter((m) => Math.abs(m - OUTER_R) < 0.5);
-      expect(onRim.length).toBeLessThanOrEqual(2);
-    }
+    // Rim-hugging dots only occur at the horizon-crossing endpoints of each run.
+    const onRim = mags.filter((m) => Math.abs(m - OUTER_R) < 0.5);
+    expect(onRim.length).toBeLessThanOrEqual(4);
   });
 
-  it('renders directional sunrise/sunset glyphs in screen-upright groups', async () => {
+  it('showSunriseSunset=true fades the arc from sunrise gold to sunset grey', async () => {
     const el = await mountCompass([d()], hass(), { showSunriseSunset: true });
-    const rise = el.shadowRoot!.querySelector('.sun-marker-rise');
-    const set = el.shadowRoot!.querySelector('.sun-marker-set');
-    expect(rise).not.toBeNull();
-    expect(set).not.toBeNull();
-    // Each glyph lives inside a <g> translated to the rim point but NOT rotated:
-    // the half-sun + arrow stays upright in screen coordinates everywhere on the rim.
-    const riseGroup = rise!.closest('g[transform]') as SVGGElement;
-    const setGroup = set!.closest('g[transform]') as SVGGElement;
-    expect(riseGroup.getAttribute('transform')).toContain('translate(');
-    expect(setGroup.getAttribute('transform')).toContain('translate(');
-    expect(riseGroup.getAttribute('transform')).not.toContain('rotate(');
-    expect(setGroup.getAttribute('transform')).not.toContain('rotate(');
+    const dots = sunPathDots(el);
+    expect(dots.length).toBeGreaterThan(2);
+    const first = dotRgb(dots[0]);
+    const last = dotRgb(dots[dots.length - 1]);
+    expect(first).not.toBeNull();
+    expect(last).not.toBeNull();
+    // Sunrise end is gold (high red, low blue); sunset end is grey (red falls, blue rises).
+    expect(Number(first![1])).toBeGreaterThan(Number(last![1]));
+    expect(Number(first![3])).toBeLessThan(Number(last![3]));
   });
 
-  it('anchors the sunrise glyph at azimuthToCartesian(riseAzimuth, OUTER_R)', async () => {
-    const el = await mountCompass([d()], hass(), { showSunriseSunset: true });
-    const samples = sampleDay(47.6, -122.3, startOfDayInZone(undefined));
-    const { riseAzimuth } = sunriseSetAzimuths(samples);
-    expect(riseAzimuth).not.toBeNull();
-    const expected = azimuthToCartesian(riseAzimuth!, 110, 0);
-    const riseGroup = el.shadowRoot!.querySelector('.sun-marker-rise')!.closest('g[transform]')!;
-    const m = (riseGroup.getAttribute('transform') ?? '').match(
-      /translate\(([-\d.]+)[ ,]+([-\d.]+)\)/,
-    );
-    expect(m).not.toBeNull();
-    expect(Number(m![1])).toBeCloseTo(expected.x, 1);
-    expect(Number(m![2])).toBeCloseTo(expected.y, 1);
-  });
-
-  it('marks the rise arrow up and the set arrow down', async () => {
-    const el = await mountCompass([d()], hass(), { showSunriseSunset: true });
-    const riseArrow = el
-      .shadowRoot!.querySelector('.sun-marker-rise')!
-      .closest('g[transform]')!
-      .querySelector('[data-dir]');
-    const setArrow = el
-      .shadowRoot!.querySelector('.sun-marker-set')!
-      .closest('g[transform]')!
-      .querySelector('[data-dir]');
-    expect(riseArrow!.getAttribute('data-dir')).toBe('up');
-    expect(setArrow!.getAttribute('data-dir')).toBe('down');
-  });
-
-  it('showSunriseSunset=false hides rise/set glyphs', async () => {
+  it('showSunriseSunset=false draws the arc in a single colour', async () => {
     const el = await mountCompass([d()], hass(), { showSunriseSunset: false });
-    expect(el.shadowRoot!.querySelector('.sun-marker-rise')).toBeNull();
-    expect(el.shadowRoot!.querySelector('.sun-marker-set')).toBeNull();
+    const dots = sunPathDots(el);
+    expect(dots.length).toBeGreaterThan(0);
+    const fills = new Set(dots.map((c) => (c.getAttribute('style') ?? '').trim()));
+    // Every dot shares one fill (no gradient) — a single sun-path colour.
+    expect(fills.size).toBe(1);
+    expect([...fills][0]).toContain('--warning-color');
   });
 });
 
@@ -823,10 +786,12 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     expect(swatch).not.toMatch(/background:\s*gold\b/);
   });
 
-  it('sun-path swatch shares its theme token with the sun-path polyline', () => {
-    const path = cssBlock('.sun-path ');
+  it('sun-path swatch uses the warning theme token', () => {
+    // The arc fill is set inline per-dot (see dotFill in render): a single
+    // var(--warning-color) when showSunriseSunset is off — asserted live in the
+    // "showSunriseSunset=false draws the arc in a single colour" test — so the
+    // legend swatch only needs to share that same token here.
     const swatch = cssBlock('.swatch.sun-path-swatch ');
-    expect(path).toMatch(/var\(--warning-color/);
     expect(swatch).toMatch(/var\(--warning-color/);
     expect(swatch).not.toMatch(/background:\s*gold\b/);
   });
