@@ -142,27 +142,27 @@ describe('acp-sky-compass (single entry)', () => {
     expect(el.shadowRoot!.textContent).toContain('No Adaptive Cover Pro entries selected');
   });
 
-  it('above-horizon sun renders a filled disc, not the night ring', async () => {
+  it('above-horizon sun renders the solar-disc image, not the night state', async () => {
     const d = makeDiscovered('entry1', 'Kitchen');
     const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
     // helper defaults elevation to 30 (above horizon)
     const el = await mountCompass([d], hass);
-    const dot = el.shadowRoot!.querySelector('circle.sun') as SVGCircleElement;
-    expect(dot).toBeTruthy();
-    expect(dot.classList.contains('night')).toBe(false);
+    const sun = el.shadowRoot!.querySelector('image.sun-img') as SVGImageElement;
+    expect(sun).toBeTruthy();
+    expect(sun.getAttribute('href') ?? '').toContain('data:image/png');
+    expect(sun.classList.contains('night')).toBe(false);
   });
 
-  it('below-horizon sun renders the dim amber hollow ring (sun night)', async () => {
+  it('below-horizon sun dims the solar-disc image (night state)', async () => {
     const d = makeDiscovered('entry1', 'Kitchen');
     const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
     hass.states['sensor.sun_pos_entry1'].attributes.elevation = -10;
     const el = await mountCompass([d], hass);
-    // The `night` modifier drives the dim amber fill that sets it apart from
-    // the moon's grey disc.
-    const dot = el.shadowRoot!.querySelector('circle.sun.night') as SVGCircleElement;
-    expect(dot).toBeTruthy();
-    expect(el.shadowRoot!.querySelector('circle.sun.up')).toBeNull();
-    expect(el.shadowRoot!.querySelector('circle.sun.valid')).toBeNull();
+    // The `night` modifier dims/desaturates the disc so it reads as below-horizon.
+    const sun = el.shadowRoot!.querySelector('image.sun-img.night') as SVGImageElement;
+    expect(sun).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('image.sun-img.up')).toBeNull();
+    expect(el.shadowRoot!.querySelector('image.sun-img.valid')).toBeNull();
   });
 });
 
@@ -441,34 +441,85 @@ describe('acp-sky-compass visual toggles', () => {
     expect(group!.getAttribute('style') ?? '').toContain('display: none');
   });
 
-  it('showSunPath=false hides sun-path polyline', async () => {
+  it('showSunPath=false hides the sun path', async () => {
     const el = await mountCompass([d()], hass(), { showSunPath: false });
-    expect(el.shadowRoot!.querySelector('polyline.sun-path')).toBeNull();
+    expect(el.shadowRoot!.querySelector('polyline.sun-path-line')).toBeNull();
   });
 
-  it('sun-path plots the full 24h track, with below-horizon points on the outer rim', async () => {
-    const el = await mountCompass([d()], hass());
-    const poly = el.shadowRoot!.querySelector('polyline.sun-path') as SVGPolylineElement;
-    expect(poly).not.toBeNull();
-    const OUTER_R = 110;
-    const mags = (poly.getAttribute('points') ?? '')
+  // The sun path is now one dashed polyline per above-horizon run; the gold→grey
+  // fade lives in a per-run <linearGradient> referenced by the polyline stroke.
+  const sunPathLines = (el: SkyCompassLike): SVGPolylineElement[] =>
+    Array.from(el.shadowRoot!.querySelectorAll('polyline.sun-path-line')) as SVGPolylineElement[];
+  const linePoints = (l: SVGPolylineElement): Array<{ x: number; y: number }> =>
+    (l.getAttribute('points') ?? '')
       .trim()
       .split(/\s+/)
-      .map((p) => {
-        const [x, y] = p.split(',').map(Number);
-        return Math.hypot(x, y);
+      .filter(Boolean)
+      .map((pair) => {
+        const [x, y] = pair.split(',').map(Number);
+        return { x, y };
       });
-    // Below-horizon samples clamp to the rim and ride around the outside…
-    const onRim = mags.filter((m) => Math.abs(m - OUTER_R) < 0.5);
-    expect(onRim.length).toBeGreaterThan(0);
-    // …while daytime samples bow toward the centre.
+  const allPathMags = (el: SkyCompassLike): number[] =>
+    sunPathLines(el)
+      .flatMap(linePoints)
+      .map((p) => Math.hypot(p.x, p.y));
+  const stopRgb = (s: Element): RegExpMatchArray | null =>
+    (s.getAttribute('stop-color') ?? '').match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
+
+  it('sun-path masks the below-horizon trajectory (daytime arc only)', async () => {
+    const el = await mountCompass([d()], hass());
+    expect(sunPathLines(el).length).toBeGreaterThanOrEqual(1);
+    const OUTER_R = 110;
+    const mags = allPathMags(el);
+    expect(mags.length).toBeGreaterThan(0);
+    // The daytime arc bows toward the centre.
     expect(Math.min(...mags)).toBeLessThan(OUTER_R * 0.9);
+    // No point rides outside the rim (the night arc is gone, not clamped out).
+    for (const m of mags) {
+      expect(m).toBeLessThanOrEqual(OUTER_R + 0.5);
+    }
+    // Rim-hugging points only occur at the horizon-crossing endpoints of each run.
+    const onRim = mags.filter((m) => Math.abs(m - OUTER_R) < 0.5);
+    expect(onRim.length).toBeLessThanOrEqual(4);
   });
 
-  it('showSunriseSunset=false hides rise/set markers', async () => {
+  it('showSunriseSunset=true ramps the arc grey (horizon) → gold (zenith) by elevation', async () => {
+    const el = await mountCompass([d()], hass(), { showSunriseSunset: true });
+    const lines = sunPathLines(el);
+    expect(lines.length).toBeGreaterThanOrEqual(1);
+    // The stroke references a per-run multi-stop gradient that samples elevation.
+    const idMatch = (lines[0].getAttribute('style') ?? '').match(/url\(#(sun-path-grad-\d+)\)/);
+    expect(idMatch).not.toBeNull();
+    const stops = Array.from(el.shadowRoot!.querySelectorAll(`linearGradient#${idMatch![1]} stop`));
+    expect(stops.length).toBeGreaterThanOrEqual(3);
+    // "Goldness" = red − blue: ~0 for neutral grey, large and positive for gold.
+    const goldness = stops.map((s) => {
+      const m = stopRgb(s)!;
+      return Number(m[1]) - Number(m[3]);
+    });
+    const maxGold = Math.max(...goldness);
+    const maxIdx = goldness.indexOf(maxGold);
+    // The gold peak sits at a mid-arc (high-elevation) stop, not at a horizon end.
+    expect(maxIdx).toBeGreaterThan(0);
+    expect(maxIdx).toBeLessThan(goldness.length - 1);
+    expect(maxGold).toBeGreaterThan(goldness[0]);
+    expect(maxGold).toBeGreaterThan(goldness[goldness.length - 1]);
+    expect(maxGold).toBeGreaterThan(150); // clearly gold at the top
+    // Horizon ends read neutral grey, not gold.
+    expect(Math.abs(goldness[0])).toBeLessThan(80);
+    expect(Math.abs(goldness[goldness.length - 1])).toBeLessThan(80);
+  });
+
+  it('showSunriseSunset=false draws the arc in a single colour', async () => {
     const el = await mountCompass([d()], hass(), { showSunriseSunset: false });
-    expect(el.shadowRoot!.querySelector('circle.rise-marker')).toBeNull();
-    expect(el.shadowRoot!.querySelector('circle.set-marker')).toBeNull();
+    const lines = sunPathLines(el);
+    expect(lines.length).toBeGreaterThan(0);
+    // No gradient defs when the fade is off.
+    expect(el.shadowRoot!.querySelector('linearGradient[id^="sun-path-grad"]')).toBeNull();
+    const strokes = new Set(lines.map((l) => (l.getAttribute('style') ?? '').trim()));
+    // Every run shares one stroke (no gradient) — a single sun-path colour.
+    expect(strokes.size).toBe(1);
+    expect([...strokes][0]).toContain('--warning-color');
   });
 });
 
@@ -764,25 +815,18 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     expect(swatch).not.toMatch(/background:\s*gold\b/);
   });
 
-  it('sun-path swatch shares its theme token with the sun-path polyline', () => {
-    const path = cssBlock('.sun-path ');
-    const swatch = cssBlock('.swatch.sun-path-swatch ');
-    expect(path).toMatch(/var\(--warning-color/);
-    expect(swatch).toMatch(/var\(--warning-color/);
-    expect(swatch).not.toMatch(/background:\s*gold\b/);
-  });
-
-  it('valid sun dot and SVG .sun.valid share the same theme token', () => {
-    const svgValid = cssBlock('.sun.valid ');
+  it('valid sun glow and the legend dot share the warning theme token', () => {
+    // The SVG sun is now a photographic disc image; its "valid" (hitting the
+    // window) state is a gold drop-shadow glow, which shares the warning token
+    // with the legend's valid sun dot.
+    const imgValid = cssBlock('.sun-img.valid ');
     const dotValid = cssBlock('.dot.sun.valid ');
-    expect(svgValid).toMatch(/var\(--warning-color/);
+    expect(imgValid).toMatch(/var\(--warning-color/);
     expect(dotValid).toMatch(/var\(--warning-color/);
   });
 
-  it('up (not hitting) sun dot and SVG .sun.up share the same light-gold value', () => {
-    const svgUp = cssBlock('.sun.up ');
+  it('legend up (not hitting) sun dot keeps the light-gold value', () => {
     const dotUp = cssBlock('.dot.sun.up ');
-    expect(svgUp).toContain('#ffe680');
     expect(dotUp).toContain('#ffe680');
   });
 });
