@@ -110,7 +110,12 @@ function makeHass(
   }
   return {
     states,
-    config: opts.omitLocation ? {} : { latitude: 47.6, longitude: -122.3 },
+    // The real integration always supplies time_zone; pin it to the location's
+    // zone so the sampled day anchors to the location's midnight (not the test
+    // runner's), keeping the sun path deterministic across CI timezones.
+    config: opts.omitLocation
+      ? {}
+      : { latitude: 47.6, longitude: -122.3, time_zone: 'America/Los_Angeles' },
   } as unknown as HomeAssistant;
 }
 
