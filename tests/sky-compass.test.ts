@@ -483,22 +483,31 @@ describe('acp-sky-compass visual toggles', () => {
     expect(onRim.length).toBeLessThanOrEqual(4);
   });
 
-  it('showSunriseSunset=true fades the arc from sunrise gold to sunset grey', async () => {
+  it('showSunriseSunset=true ramps the arc grey (horizon) → gold (zenith) by elevation', async () => {
     const el = await mountCompass([d()], hass(), { showSunriseSunset: true });
     const lines = sunPathLines(el);
     expect(lines.length).toBeGreaterThanOrEqual(1);
-    // The stroke references a per-run gradient.
+    // The stroke references a per-run multi-stop gradient that samples elevation.
     const idMatch = (lines[0].getAttribute('style') ?? '').match(/url\(#(sun-path-grad-\d+)\)/);
     expect(idMatch).not.toBeNull();
     const stops = Array.from(el.shadowRoot!.querySelectorAll(`linearGradient#${idMatch![1]} stop`));
-    expect(stops.length).toBe(2);
-    const first = stopRgb(stops[0]);
-    const last = stopRgb(stops[1]);
-    expect(first).not.toBeNull();
-    expect(last).not.toBeNull();
-    // Sunrise stop is gold (high red, low blue); sunset stop is grey (red falls, blue rises).
-    expect(Number(first![1])).toBeGreaterThan(Number(last![1]));
-    expect(Number(first![3])).toBeLessThan(Number(last![3]));
+    expect(stops.length).toBeGreaterThanOrEqual(3);
+    // "Goldness" = red − blue: ~0 for neutral grey, large and positive for gold.
+    const goldness = stops.map((s) => {
+      const m = stopRgb(s)!;
+      return Number(m[1]) - Number(m[3]);
+    });
+    const maxGold = Math.max(...goldness);
+    const maxIdx = goldness.indexOf(maxGold);
+    // The gold peak sits at a mid-arc (high-elevation) stop, not at a horizon end.
+    expect(maxIdx).toBeGreaterThan(0);
+    expect(maxIdx).toBeLessThan(goldness.length - 1);
+    expect(maxGold).toBeGreaterThan(goldness[0]);
+    expect(maxGold).toBeGreaterThan(goldness[goldness.length - 1]);
+    expect(maxGold).toBeGreaterThan(150); // clearly gold at the top
+    // Horizon ends read neutral grey, not gold.
+    expect(Math.abs(goldness[0])).toBeLessThan(80);
+    expect(Math.abs(goldness[goldness.length - 1])).toBeLessThan(80);
   });
 
   it('showSunriseSunset=false draws the arc in a single colour', async () => {
@@ -802,16 +811,6 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     const fov = cssBlock('.fov ');
     const swatch = cssBlock('.swatch.fov ');
     expect(fov).toMatch(/var\(--warning-color/);
-    expect(swatch).toMatch(/var\(--warning-color/);
-    expect(swatch).not.toMatch(/background:\s*gold\b/);
-  });
-
-  it('sun-path swatch uses the warning theme token', () => {
-    // The arc stroke is set inline per run (see sunPathStroke in render): a
-    // single var(--warning-color) when showSunriseSunset is off — asserted live
-    // in the "showSunriseSunset=false draws the arc in a single colour" test —
-    // so the legend swatch only needs to share that same token here.
-    const swatch = cssBlock('.swatch.sun-path-swatch ');
     expect(swatch).toMatch(/var\(--warning-color/);
     expect(swatch).not.toMatch(/background:\s*gold\b/);
   });

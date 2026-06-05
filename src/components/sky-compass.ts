@@ -193,17 +193,21 @@ export class SkyCompass extends LitElement {
       ? aboveHorizonSegments(samples).map((run) =>
           samples.slice(run.startIdx, run.endIdx + 1).map((s) => {
             const pt = sunDotPosition(s.azimuth, s.elevation, o);
-            return { x: pt.x * OUTER_R, y: pt.y * OUTER_R };
+            return { x: pt.x * OUTER_R, y: pt.y * OUTER_R, elev: s.elevation };
           }),
         )
       : [];
-    // The arc itself encodes time of day: when showSunriseSunset is on, the dots
-    // fade from sunrise gold to sunset grey along the track (f = fraction through
-    // the above-horizon run); otherwise they stay a single sun-path colour.
-    const arcColor = (f: number): string => {
-      const a = [245, 197, 24]; // sunrise gold
-      const b = [122, 127, 135]; // sunset grey
-      const c = a.map((v, i) => Math.round(v + (b[i] - v) * f));
+    // The arc colour encodes the sun's ELEVATION only: a grey→gold ramp, neutral
+    // grey near the horizon warming to full gold at the zenith. (No time-of-day
+    // hue fade.)
+    const HORIZON_GREY = [122, 127, 135];
+    const ZENITH_GOLD = [245, 197, 24];
+    const elevColor = (elev: number): string => {
+      // sqrt curve ramps to gold quickly at low elevations, then eases off near
+      // the zenith — so the arc reads gold for most of the day, grey only when
+      // the sun is right at the horizon.
+      const tt = Math.sqrt(Math.max(0, Math.min(1, elev / 90)));
+      const c = HORIZON_GREY.map((v, i) => Math.round(v + (ZENITH_GOLD[i] - v) * tt));
       return `rgb(${c[0]},${c[1]},${c[2]})`;
     };
     // One continuous polyline per above-horizon run so a single dash pattern
@@ -217,7 +221,20 @@ export class SkyCompass extends LitElement {
             .map((pts, i) => {
               const a = pts[0];
               const b = pts[pts.length - 1];
-              return { id: `sun-path-grad-${i}`, x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+              const ax = b.x - a.x;
+              const ay = b.y - a.y;
+              const len2 = ax * ax + ay * ay || 1;
+              // Stops sample the run's elevation, each positioned by projecting
+              // its point onto the gradient axis, so the spine brightens toward
+              // the noon high point and dims at both horizon ends.
+              const stops = pts
+                .filter((_, k) => k % 6 === 0 || k === pts.length - 1)
+                .map((p) => ({
+                  offset:
+                    Math.max(0, Math.min(1, ((p.x - a.x) * ax + (p.y - a.y) * ay) / len2)) * 100,
+                  color: elevColor(p.elev),
+                }));
+              return { id: `sun-path-grad-${i}`, x1: a.x, y1: a.y, x2: b.x, y2: b.y, stops };
             })
         : [];
     const sunPathStroke = (i: number): string =>
@@ -265,8 +282,9 @@ export class SkyCompass extends LitElement {
                 (g) => svg`
                 <linearGradient id=${g.id} gradientUnits="userSpaceOnUse"
                   x1=${g.x1} y1=${g.y1} x2=${g.x2} y2=${g.y2}>
-                  <stop offset="0%" stop-color=${arcColor(0)}></stop>
-                  <stop offset="100%" stop-color=${arcColor(1)}></stop>
+                  ${g.stops.map(
+                    (s) => svg`<stop offset="${s.offset}%" stop-color=${s.color}></stop>`,
+                  )}
                 </linearGradient>
               `,
               )}
@@ -295,15 +313,14 @@ export class SkyCompass extends LitElement {
                       // order) and tinted by its position so the fade carries
                       // onto the arrows too.
                       const chevrons = [];
-                      const step = 4;
+                      const step = 10;
                       for (let j = 0; j < pts.length; j += step) {
                         const p = pts[j];
                         const a = pts[Math.max(0, j - 1)];
                         const b = pts[Math.min(pts.length - 1, j + 1)];
                         const ang = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
-                        const f = pts.length > 1 ? j / (pts.length - 1) : 0;
                         const fill = this.showSunriseSunset
-                          ? arcColor(f)
+                          ? elevColor(p.elev)
                           : 'var(--warning-color, gold)';
                         chevrons.push(svg`<path class="sun-path-chevron"
                           transform=${`translate(${p.x} ${p.y}) rotate(${ang})`}
@@ -590,11 +607,6 @@ export class SkyCompass extends LitElement {
         ? html`<div><span class="dot moon-dot"></span> ${t('compass.moon', this.hass)}</div>`
         : nothing}
       <div><span class="swatch fov"></span> ${t('compass.window_fov', this.hass)}</div>
-      ${this.showSunPath
-        ? html`<div>
-            <span class="swatch sun-path-swatch"></span> ${t('compass.sun_path', this.hass)}
-          </div>`
-        : nothing}
       ${this.showCoverFill
         ? html`<div>
             <span class="swatch cover-fill-swatch"></span> ${t('compass.cover_closed', this.hass)}
@@ -858,11 +870,6 @@ export class SkyCompass extends LitElement {
     }
     .swatch.window-swatch {
       background: var(--primary-color);
-      border-radius: 2px;
-    }
-    .swatch.sun-path-swatch {
-      background: var(--warning-color, gold);
-      opacity: 0.45;
       border-radius: 2px;
     }
     .dot.rise-dot {
