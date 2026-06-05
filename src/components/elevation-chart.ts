@@ -199,17 +199,6 @@ export class ElevationChart extends LitElement {
             `,
             )}
 
-            <!-- x-axis gridlines at every 6h. Edge labels anchor inward (start
-                 at 00:00, end at 24:00) so they don't clip past the viewBox. -->
-            ${[0, 6, 12, 18, 24].map((h) => {
-              const t = new Date(day.getTime() + h * 3600_000);
-              const anchor = h === 0 ? 'start' : h === 24 ? 'end' : 'middle';
-              return svg`
-                <line class="grid faint" x1=${xAt(t)} y1=${PAD_T} x2=${xAt(t)} y2=${VIEWBOX_H - PAD_B} />
-                <text class="tick" x=${xAt(t)} y=${VIEWBOX_H - PAD_B + 14} text-anchor=${anchor}>${h.toString().padStart(2, '0')}:00</text>
-              `;
-            })}
-
             <!-- horizon -->
             <line class="horizon" x1=${PAD_L} y1=${horizonY} x2=${VIEWBOX_W - PAD_R} y2=${horizonY} />
 
@@ -291,6 +280,19 @@ export class ElevationChart extends LitElement {
                 ? svg`<circle class="sun-dot ${sunDotState}" cx=${nowX} cy=${currentY} r="4" />`
                 : nothing
             }
+
+            <!-- x-axis gridlines + time labels at every 6h, drawn last so the
+                 axis sits on the topmost layer (nothing paints over the times).
+                 Edge labels anchor inward (start at 00:00, end at 24:00) so they
+                 don't clip past the viewBox. -->
+            ${[0, 6, 12, 18, 24].map((h) => {
+              const t = new Date(day.getTime() + h * 3600_000);
+              const anchor = h === 0 ? 'start' : h === 24 ? 'end' : 'middle';
+              return svg`
+                <line class="grid faint" x1=${xAt(t)} y1=${PAD_T} x2=${xAt(t)} y2=${VIEWBOX_H - PAD_B} />
+                <text class="tick" x=${xAt(t)} y=${VIEWBOX_H - PAD_B + 14} text-anchor=${anchor}>${h.toString().padStart(2, '0')}:00</text>
+              `;
+            })}
           `}
         </svg>
       </div>

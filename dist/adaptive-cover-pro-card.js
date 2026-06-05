@@ -464,13 +464,6 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
               <text class="tick" x=${28} y=${l(e)+3} text-anchor="end">${e}°</text>
             `)}
 
-            <!-- x-axis gridlines at every 6h. Edge labels anchor inward (start
-                 at 00:00, end at 24:00) so they don't clip past the viewBox. -->
-            ${[0,6,12,18,24].map(e=>{const t=new Date(s.getTime()+36e5*e),o=0===e?"start":24===e?"end":"middle";return W`
-                <line class="grid faint" x1=${a(t)} y1=${10} x2=${a(t)} y2=${138} />
-                <text class="tick" x=${a(t)} y=${152} text-anchor=${o}>${e.toString().padStart(2,"0")}:00</text>
-              `})}
-
             <!-- horizon -->
             <line class="horizon" x1=${32} y1=${d} x2=${392} y2=${d} />
 
@@ -515,6 +508,15 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
                  multi). -->
             <line class="now" x1=${h} y1=${10} x2=${h} y2=${w} />
             ${null!==u?W`<circle class="sun-dot ${_}" cx=${h} cy=${u} r="4" />`:V}
+
+            <!-- x-axis gridlines + time labels at every 6h, drawn last so the
+                 axis sits on the topmost layer (nothing paints over the times).
+                 Edge labels anchor inward (start at 00:00, end at 24:00) so they
+                 don't clip past the viewBox. -->
+            ${[0,6,12,18,24].map(e=>{const t=new Date(s.getTime()+36e5*e),o=0===e?"start":24===e?"end":"middle";return W`
+                <line class="grid faint" x1=${a(t)} y1=${10} x2=${a(t)} y2=${138} />
+                <text class="tick" x=${a(t)} y=${152} text-anchor=${o}>${e.toString().padStart(2,"0")}:00</text>
+              `})}
           `}
         </svg>
       </div>
