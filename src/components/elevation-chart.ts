@@ -199,15 +199,6 @@ export class ElevationChart extends LitElement {
             `,
             )}
 
-            <!-- x-axis gridlines at every 6h -->
-            ${[0, 6, 12, 18, 24].map((h) => {
-              const t = new Date(day.getTime() + h * 3600_000);
-              return svg`
-                <line class="grid faint" x1=${xAt(t)} y1=${PAD_T} x2=${xAt(t)} y2=${VIEWBOX_H - PAD_B} />
-                <text class="tick" x=${xAt(t)} y=${VIEWBOX_H - PAD_B + 14} text-anchor="middle">${h.toString().padStart(2, '0')}:00</text>
-              `;
-            })}
-
             <!-- horizon -->
             <line class="horizon" x1=${PAD_L} y1=${horizonY} x2=${VIEWBOX_W - PAD_R} y2=${horizonY} />
 
@@ -239,16 +230,6 @@ export class ElevationChart extends LitElement {
 
             <!-- elevation curve -->
             <polyline class="curve" points=${curvePoints} />
-
-            <!-- current-time cursor (extends through the ribbon in multi) -->
-            <line class="now" x1=${nowX} y1=${PAD_T} x2=${nowX} y2=${nowY2} />
-
-            <!-- current sun dot -->
-            ${
-              currentY !== null
-                ? svg`<circle class="sun-dot ${sunDotState}" cx=${nowX} cy=${currentY} r="4" />`
-                : nothing
-            }
 
             <!-- Per-window FOV ribbon (multi-window only): one row per window,
                  a faint full-width track plus color-keyed bars for in-FOV runs,
@@ -288,6 +269,29 @@ export class ElevationChart extends LitElement {
                 })}</title></rect>`,
               );
               return [track, ...bars];
+            })}
+
+            <!-- current-time cursor + sun dot, drawn last so they sit on top of
+                 the curve AND the ribbon bars (extends through the ribbon in
+                 multi). -->
+            <line class="now" x1=${nowX} y1=${PAD_T} x2=${nowX} y2=${nowY2} />
+            ${
+              currentY !== null
+                ? svg`<circle class="sun-dot ${sunDotState}" cx=${nowX} cy=${currentY} r="4" />`
+                : nothing
+            }
+
+            <!-- x-axis gridlines + time labels at every 6h, drawn last so the
+                 axis sits on the topmost layer (nothing paints over the times).
+                 Edge labels anchor inward (start at 00:00, end at 24:00) so they
+                 don't clip past the viewBox. -->
+            ${[0, 6, 12, 18, 24].map((h) => {
+              const t = new Date(day.getTime() + h * 3600_000);
+              const anchor = h === 0 ? 'start' : h === 24 ? 'end' : 'middle';
+              return svg`
+                <line class="grid faint" x1=${xAt(t)} y1=${PAD_T} x2=${xAt(t)} y2=${VIEWBOX_H - PAD_B} />
+                <text class="tick" x=${xAt(t)} y=${VIEWBOX_H - PAD_B + 14} text-anchor=${anchor}>${h.toString().padStart(2, '0')}:00</text>
+              `;
             })}
           `}
         </svg>

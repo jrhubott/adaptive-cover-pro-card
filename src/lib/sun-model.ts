@@ -155,6 +155,30 @@ export function findFovWindow(
   return runs.reduce((best, r) => (r.endIdx - r.startIdx > best.endIdx - best.startIdx ? r : best));
 }
 
+/**
+ * Find every disjoint "above horizon" run for the sampled day, in chronological
+ * order — each a contiguous index range where `elevation > 0`. Mirrors the
+ * run-detection loop in {@link findFovWindows} without the FOV azimuth filter,
+ * so the sky-compass can draw the sun-path only where the sun is actually
+ * visible (the below-horizon portion is omitted rather than hugging the rim).
+ */
+export function aboveHorizonSegments(
+  samples: SunSample[],
+): Array<{ startIdx: number; endIdx: number }> {
+  const runs: Array<{ startIdx: number; endIdx: number }> = [];
+  let curStart = -1;
+  for (let i = 0; i < samples.length; i++) {
+    if (samples[i].elevation > 0) {
+      if (curStart === -1) curStart = i;
+    } else if (curStart !== -1) {
+      runs.push({ startIdx: curStart, endIdx: i - 1 });
+      curStart = -1;
+    }
+  }
+  if (curStart !== -1) runs.push({ startIdx: curStart, endIdx: samples.length - 1 });
+  return runs;
+}
+
 export interface MoonData {
   azimuth: number;
   elevation: number;
