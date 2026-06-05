@@ -26,7 +26,6 @@ import {
 } from '../lib/sun-model';
 import { formatDegrees } from '../lib/formatters';
 import { resolveCoverColor } from '../lib/palette';
-import { SUN_IMAGE } from '../lib/sun-image';
 import { MOON_IMAGE } from '../lib/moon-image';
 import { t } from '../lib/i18n';
 
@@ -157,7 +156,7 @@ export class SkyCompass extends LitElement {
     const sunPt = sunDotPosition(sunAzi, sunElev, o);
     const anyValid = overlays.some((ov) => ov.sunInfront);
     const belowHorizon = sunElev <= 0;
-    const sunState = belowHorizon ? 'night' : anyValid ? 'valid' : 'up';
+    const sunDotClass = belowHorizon ? 'sun night' : anyValid ? 'sun valid' : 'sun up';
 
     const { latitude, longitude, time_zone } = this.hass.config as unknown as {
       latitude?: number;
@@ -365,14 +364,7 @@ export class SkyCompass extends LitElement {
 
             <g data-tooltip=${ttSun}>
               <title>${ttSun}</title>
-              <image
-                class="sun-img ${sunState}"
-                href=${SUN_IMAGE}
-                x=${sunPt.x * OUTER_R - 9}
-                y=${sunPt.y * OUTER_R - 9}
-                width="18"
-                height="18"
-              ></image>
+              <circle class=${sunDotClass} cx=${sunPt.x * OUTER_R} cy=${sunPt.y * OUTER_R} r="7"></circle>
             </g>
           `}
         </svg>
@@ -789,20 +781,20 @@ export class SkyCompass extends LitElement {
       fill: var(--secondary-text-color);
       font-weight: 500;
     }
-    /* Real solar-disc image marker (see SUN_IMAGE). State modifiers mirror the
-       old .sun.* dot: a gold glow while the sun is hitting the window, and a
-       dimmed/desaturated disc below the horizon. */
-    .sun-img {
-      transition:
-        opacity 0.3s ease,
-        filter 0.3s ease;
+    .sun {
+      fill: var(--secondary-text-color);
+      transition: fill 0.3s ease;
     }
-    .sun-img.valid {
+    .sun.up {
+      fill: #ffe680;
+    }
+    .sun.valid {
+      fill: var(--warning-color, gold);
       filter: drop-shadow(0 0 4px var(--warning-color, gold));
     }
-    .sun-img.night {
-      opacity: 0.5;
-      filter: grayscale(0.35) brightness(0.8);
+    .sun.night {
+      fill: var(--warning-color, #d4a017);
+      opacity: 0.55;
     }
     .legend {
       display: flex;
