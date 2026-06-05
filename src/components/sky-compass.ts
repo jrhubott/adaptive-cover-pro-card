@@ -26,6 +26,8 @@ import {
 } from '../lib/sun-model';
 import { formatDegrees } from '../lib/formatters';
 import { resolveCoverColor } from '../lib/palette';
+import { SUN_IMAGE } from '../lib/sun-image';
+import { MOON_IMAGE } from '../lib/moon-image';
 import { t } from '../lib/i18n';
 
 // viewBox must have ~30 px of padding beyond OUTER_R so cardinal labels
@@ -155,7 +157,7 @@ export class SkyCompass extends LitElement {
     const sunPt = sunDotPosition(sunAzi, sunElev, o);
     const anyValid = overlays.some((ov) => ov.sunInfront);
     const belowHorizon = sunElev <= 0;
-    const sunDotClass = belowHorizon ? 'sun night' : anyValid ? 'sun valid' : 'sun up';
+    const sunState = belowHorizon ? 'night' : anyValid ? 'valid' : 'up';
 
     const { latitude, longitude, time_zone } = this.hass.config as unknown as {
       latitude?: number;
@@ -172,6 +174,7 @@ export class SkyCompass extends LitElement {
         ? getMoonData(latitude, longitude)
         : null;
     const moonAboveHorizon = moon !== null && moon.elevation > 0;
+    // Moon disc is 2/3 the sun marker's 18px diameter → 12px (radius 6).
     const MOON_R = 6;
     const moonShadowDx = moon
       ? moon.phase < 0.5
@@ -281,10 +284,33 @@ export class SkyCompass extends LitElement {
               this.showSunPath && sunPathRuns.length
                 ? svg`<g data-tooltip=${ttSunPath}><title>${ttSunPath}</title>${sunPathRuns
                     .filter((pts) => pts.length > 1)
-                    .map((pts, i) => {
+                    .flatMap((pts, i) => {
                       const ptsStr = pts.map((p) => `${p.x},${p.y}`).join(' ');
-                      return svg`<polyline class="sun-path-line" points=${ptsStr}
+                      // Thin spine carries the gold→grey gradient (and the
+                      // single-colour fallback) under the directional chevrons.
+                      const spine = svg`<polyline class="sun-path-line" points=${ptsStr}
                         style="stroke:${sunPathStroke(i)}"></polyline>`;
+                      // Block-arrow chevrons every few samples, each rotated to
+                      // the local direction of travel (sunrise→sunset sample
+                      // order) and tinted by its position so the fade carries
+                      // onto the arrows too.
+                      const chevrons = [];
+                      const step = 4;
+                      for (let j = 0; j < pts.length; j += step) {
+                        const p = pts[j];
+                        const a = pts[Math.max(0, j - 1)];
+                        const b = pts[Math.min(pts.length - 1, j + 1)];
+                        const ang = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+                        const f = pts.length > 1 ? j / (pts.length - 1) : 0;
+                        const fill = this.showSunriseSunset
+                          ? arcColor(f)
+                          : 'var(--warning-color, gold)';
+                        chevrons.push(svg`<path class="sun-path-chevron"
+                          transform=${`translate(${p.x} ${p.y}) rotate(${ang})`}
+                          d="M -2.4 -3 L 1.8 0 L -2.4 3 L -0.7 0 Z"
+                          style=${`fill:${fill}`}></path>`);
+                      }
+                      return [spine, ...chevrons];
                     })}</g>`
                 : nothing
             }
@@ -306,7 +332,15 @@ export class SkyCompass extends LitElement {
               <g data-tooltip=${ttMoon}>
                 <title>${ttMoon}</title>
                 <circle class="moon-outline" cx=${moonX} cy=${moonY} r=${MOON_R}></circle>
-                <circle class="moon-lit" cx=${moonX} cy=${moonY} r=${MOON_R} mask="url(#moon-phase-mask)"></circle>
+                <image
+                  class="moon-img"
+                  href=${MOON_IMAGE}
+                  x=${moonX - MOON_R}
+                  y=${moonY - MOON_R}
+                  width=${MOON_R * 2}
+                  height=${MOON_R * 2}
+                  mask="url(#moon-phase-mask)"
+                ></image>
               </g>
             `
                 : nothing
@@ -314,7 +348,14 @@ export class SkyCompass extends LitElement {
 
             <g data-tooltip=${ttSun}>
               <title>${ttSun}</title>
-              <circle class=${sunDotClass} cx=${sunPt.x * OUTER_R} cy=${sunPt.y * OUTER_R} r="7"></circle>
+              <image
+                class="sun-img ${sunState}"
+                href=${SUN_IMAGE}
+                x=${sunPt.x * OUTER_R - 9}
+                y=${sunPt.y * OUTER_R - 9}
+                width="18"
+                height="18"
+              ></image>
             </g>
           `}
         </svg>
@@ -736,22 +777,20 @@ export class SkyCompass extends LitElement {
       fill: var(--secondary-text-color);
       font-weight: 500;
     }
-    .sun {
-      fill: var(--secondary-text-color);
-      transition: fill 0.3s ease;
+    /* Real solar-disc image marker (see SUN_IMAGE). State modifiers mirror the
+       old .sun.* dot: a gold glow while the sun is hitting the window, and a
+       dimmed/desaturated disc below the horizon. */
+    .sun-img {
+      transition:
+        opacity 0.3s ease,
+        filter 0.3s ease;
     }
-    .sun.up {
-      fill: #ffe680;
-    }
-    .sun.valid {
-      fill: var(--warning-color, gold);
+    .sun-img.valid {
       filter: drop-shadow(0 0 4px var(--warning-color, gold));
     }
-    /* Below the horizon: dim amber filled disc — keeps the sun's warm
-       identity while reading clearly different from the grey moon disc. */
-    .sun.night {
-      fill: var(--warning-color, #d4a017);
-      opacity: 0.55;
+    .sun-img.night {
+      opacity: 0.5;
+      filter: grayscale(0.35) brightness(0.8);
     }
     .legend {
       display: flex;
@@ -862,16 +901,19 @@ export class SkyCompass extends LitElement {
       text-align: center;
       padding: 20px;
     }
-    /* The sun path is one dashed polyline per above-horizon run; a single dash
-       pattern spans the whole arc so spacing stays even regardless of sample
-       density. Stroke is a per-run gradient that fades sunrise gold → sunset
-       grey along the time axis (see sunPathGradients in render). */
+    /* The sun path is a thin spine + directional block-arrow chevrons per
+       above-horizon run. The spine carries the per-run gradient (sunrise gold →
+       sunset grey, see sunPathGradients in render) and sits faint beneath the
+       chevrons, which point in the direction of the sun's travel. */
     .sun-path-line {
       fill: none;
-      stroke-width: 1.4;
+      stroke-width: 1;
       stroke-linecap: round;
-      stroke-dasharray: 2 8;
-      opacity: 0.9;
+      opacity: 0.45;
+    }
+    .sun-path-chevron {
+      stroke: none;
+      opacity: 0.95;
     }
     .moon-outline {
       fill: none;
@@ -879,9 +921,9 @@ export class SkyCompass extends LitElement {
       stroke-width: 0.8;
       opacity: 0.5;
     }
-    .moon-lit {
-      fill: var(--secondary-text-color);
-      opacity: 0.75;
+    /* Photographic moon disc, clipped to the lit fraction by moon-phase-mask. */
+    .moon-img {
+      opacity: 0.95;
     }
     .dot.moon-dot {
       background: var(--secondary-text-color);

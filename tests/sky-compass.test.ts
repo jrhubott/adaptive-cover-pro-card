@@ -142,27 +142,27 @@ describe('acp-sky-compass (single entry)', () => {
     expect(el.shadowRoot!.textContent).toContain('No Adaptive Cover Pro entries selected');
   });
 
-  it('above-horizon sun renders a filled disc, not the night ring', async () => {
+  it('above-horizon sun renders the solar-disc image, not the night state', async () => {
     const d = makeDiscovered('entry1', 'Kitchen');
     const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
     // helper defaults elevation to 30 (above horizon)
     const el = await mountCompass([d], hass);
-    const dot = el.shadowRoot!.querySelector('circle.sun') as SVGCircleElement;
-    expect(dot).toBeTruthy();
-    expect(dot.classList.contains('night')).toBe(false);
+    const sun = el.shadowRoot!.querySelector('image.sun-img') as SVGImageElement;
+    expect(sun).toBeTruthy();
+    expect(sun.getAttribute('href') ?? '').toContain('data:image/png');
+    expect(sun.classList.contains('night')).toBe(false);
   });
 
-  it('below-horizon sun renders the dim amber hollow ring (sun night)', async () => {
+  it('below-horizon sun dims the solar-disc image (night state)', async () => {
     const d = makeDiscovered('entry1', 'Kitchen');
     const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
     hass.states['sensor.sun_pos_entry1'].attributes.elevation = -10;
     const el = await mountCompass([d], hass);
-    // The `night` modifier drives the dim amber fill that sets it apart from
-    // the moon's grey disc.
-    const dot = el.shadowRoot!.querySelector('circle.sun.night') as SVGCircleElement;
-    expect(dot).toBeTruthy();
-    expect(el.shadowRoot!.querySelector('circle.sun.up')).toBeNull();
-    expect(el.shadowRoot!.querySelector('circle.sun.valid')).toBeNull();
+    // The `night` modifier dims/desaturates the disc so it reads as below-horizon.
+    const sun = el.shadowRoot!.querySelector('image.sun-img.night') as SVGImageElement;
+    expect(sun).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('image.sun-img.up')).toBeNull();
+    expect(el.shadowRoot!.querySelector('image.sun-img.valid')).toBeNull();
   });
 });
 
@@ -816,17 +816,18 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     expect(swatch).not.toMatch(/background:\s*gold\b/);
   });
 
-  it('valid sun dot and SVG .sun.valid share the same theme token', () => {
-    const svgValid = cssBlock('.sun.valid ');
+  it('valid sun glow and the legend dot share the warning theme token', () => {
+    // The SVG sun is now a photographic disc image; its "valid" (hitting the
+    // window) state is a gold drop-shadow glow, which shares the warning token
+    // with the legend's valid sun dot.
+    const imgValid = cssBlock('.sun-img.valid ');
     const dotValid = cssBlock('.dot.sun.valid ');
-    expect(svgValid).toMatch(/var\(--warning-color/);
+    expect(imgValid).toMatch(/var\(--warning-color/);
     expect(dotValid).toMatch(/var\(--warning-color/);
   });
 
-  it('up (not hitting) sun dot and SVG .sun.up share the same light-gold value', () => {
-    const svgUp = cssBlock('.sun.up ');
+  it('legend up (not hitting) sun dot keeps the light-gold value', () => {
     const dotUp = cssBlock('.dot.sun.up ');
-    expect(svgUp).toContain('#ffe680');
     expect(dotUp).toContain('#ffe680');
   });
 });
