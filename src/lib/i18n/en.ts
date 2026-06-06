@@ -97,6 +97,7 @@ export const en = {
     sun_path_tooltip: 'Sun path (today)',
     in_fov_check: '✓ in FOV',
     in_fov: 'in FOV',
+    in_fov_tooltip: 'Sun is currently within this window’s field of view',
     none: '—',
     sun: 'Sun',
     moon: 'Moon',

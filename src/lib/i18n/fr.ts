@@ -106,6 +106,7 @@ export const fr: EnDict = {
     sun_path_tooltip: "Trajectoire solaire (aujourd'hui)",
     in_fov_check: '✓ dans le champ de vision',
     in_fov: 'dans le champ de vision',
+    in_fov_tooltip: 'Le soleil est actuellement dans le champ de vision de cette fenêtre',
     none: '—',
     sun: 'Soleil',
     moon: 'Lune',

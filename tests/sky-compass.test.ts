@@ -226,6 +226,23 @@ describe('acp-sky-compass (multi-entry overlay)', () => {
     const fovs = el.shadowRoot!.querySelectorAll('path.fov');
     expect(fovs.length).toBe(1);
   });
+
+  it('multi-entry stats ✓ carries an explanatory tooltip (#128 follow-up)', async () => {
+    const d1 = makeDiscovered('entry1', 'Kitchen');
+    const d2 = makeDiscovered('entry2', 'Living');
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 },
+      { sensorId: 'sensor.sun_pos_entry2', windowAzimuth: 90 },
+    ]);
+    const el = await mountCompass([d1, d2], hass);
+    const ticks = el.shadowRoot!.querySelectorAll('.entry-row .status.in-fov');
+    expect(ticks.length).toBe(2);
+    ticks.forEach((tick) => {
+      expect(tick.textContent?.trim()).toBe('✓');
+      const title = tick.getAttribute('title') ?? '';
+      expect(title).toContain('field of view');
+    });
+  });
 });
 
 describe('acp-sky-compass coverColors', () => {
