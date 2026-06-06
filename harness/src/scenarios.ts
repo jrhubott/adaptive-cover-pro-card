@@ -513,6 +513,18 @@ export const SCENARIOS: Scenario[] = [
       return c;
     },
   },
+  {
+    id: 'climate-standby',
+    label: 'Climate standby — outside operating window',
+    description:
+      'Climate mode is on but the status sensor is unknown (sun not currently on the window). The climate panel shows the "Standby" state instead of "Unknown / Active: —".',
+    build: () => {
+      const c = baseConfig('2026-06-21', 8 * 60);
+      c.scenario = 'climate-standby';
+      c.entries[0].flags.climate_strategy = 'unknown';
+      return c;
+    },
+  },
 ];
 
 export function findScenario(id: string): Scenario | undefined {

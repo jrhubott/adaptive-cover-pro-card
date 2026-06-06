@@ -222,18 +222,24 @@ function addEntryStates(
     { friendly_name: `${entry.title} Force Override Triggers` },
   );
 
-  states[id('climate_status_sensor')] = mkState(id('climate_status_sensor'), f.climate_strategy, {
-    friendly_name: `${entry.title} Climate Status`,
-    active_temperature: f.indoor_temp,
-    temperature_unit: '°C',
-    indoor_temperature: f.indoor_temp,
-    outdoor_temperature: f.outdoor_temp,
-    temp_switch: f.climate_strategy === 'winter_mode',
-    is_presence: true,
-    is_sunny: sun.elevation > 0,
-    lux_active: sun.elevation > 5,
-    irradiance_active: sun.elevation > 10,
-  });
+  states[id('climate_status_sensor')] = mkState(
+    id('climate_status_sensor'),
+    f.climate_strategy,
+    f.climate_strategy === 'unknown'
+      ? { friendly_name: `${entry.title} Climate Status` }
+      : {
+          friendly_name: `${entry.title} Climate Status`,
+          active_temperature: f.indoor_temp,
+          temperature_unit: '°C',
+          indoor_temperature: f.indoor_temp,
+          outdoor_temperature: f.outdoor_temp,
+          temp_switch: f.climate_strategy === 'winter_mode',
+          is_presence: true,
+          is_sunny: sun.elevation > 0,
+          lux_active: sun.elevation > 5,
+          irradiance_active: sun.elevation > 10,
+        },
+  );
 
   const { forecast, events } = buildForecast(entry, samples);
   states[id('position_forecast_sensor')] = mkState(

@@ -39,6 +39,24 @@ export class ClimatePanel extends LitElement {
     const st = this.hass.states[id];
     if (!st || st.state === 'unavailable') return nothing;
 
+    if (st.state === 'unknown' || st.state === '') {
+      const modeId = this.discovered.entities.climate_mode_switch;
+      const modeOff = modeId ? this.hass.states[modeId]?.state === 'off' : false;
+      const label = modeOff ? t('climate.mode_off', this.hass) : t('climate.standby', this.hass);
+      const icon = modeOff ? 'mdi:power-off' : 'mdi:thermostat';
+      return html`
+        <div class="wrap">
+          <div class="head">
+            <span class="label">${t('climate.title', this.hass)}</span>
+          </div>
+          <div class="strategy standby">
+            <ha-icon icon=${icon}></ha-icon>
+            <span class="strategy-name dim">${label}</span>
+          </div>
+        </div>
+      `;
+    }
+
     const strategy = st.state;
     const attrs = (st.attributes as unknown as ClimateAttrs) ?? {};
     const icon = STRATEGY_ICONS[strategy] ?? 'mdi:thermostat';
@@ -150,6 +168,9 @@ export class ClimatePanel extends LitElement {
     .strategy ha-icon {
       --mdc-icon-size: 20px;
       color: var(--primary-color);
+    }
+    .strategy.standby ha-icon {
+      color: var(--secondary-text-color);
     }
     .temps {
       display: flex;
