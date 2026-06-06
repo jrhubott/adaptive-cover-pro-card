@@ -804,6 +804,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       border: 1px solid transparent;
       white-space: nowrap;
       align-self: center;
+      cursor: help;
     }
     /* Clamping axis: not-clamping → hollow/outline (transparent fill + purple border). */
     .acp-floor-chip.is-armed {

@@ -134,15 +134,17 @@ export class ElevationChart extends LitElement {
       const runBars = runs.map((w) => ({
         x0: xAt(samples[w.startIdx].t),
         x1: xAt(samples[w.endIdx].t),
-        range: `${formatClock(samples[w.startIdx].t.toISOString())} → ${formatClock(
+        range: `${formatClock(samples[w.startIdx].t.toISOString(), time_zone)} → ${formatClock(
           samples[w.endIdx].t.toISOString(),
+          time_zone,
         )}`,
       }));
       const label = runs
         .map(
           (w) =>
-            `${formatClock(samples[w.startIdx].t.toISOString())} → ${formatClock(
+            `${formatClock(samples[w.startIdx].t.toISOString(), time_zone)} → ${formatClock(
               samples[w.endIdx].t.toISOString(),
+              time_zone,
             )}`,
         )
         .join(', ');
@@ -270,8 +272,13 @@ export class ElevationChart extends LitElement {
             <polyline class="curve" points=${curvePoints} />
 
             <!-- current-time cursor + sun dot, drawn last so they sit on top of
-                 the curve AND the ribbon bars. -->
-            <line class="now" x1=${nowX} y1=${PAD_T} x2=${nowX} y2=${nowY2} />
+                 the curve AND the ribbon bars. A wide transparent hit-line widens
+                 the hover target so the thin now-line is easy to tooltip. -->
+            <g class="now-group">
+              <title>${formatClock(now.toISOString(), time_zone)}</title>
+              <line class="now-hit" x1=${nowX} y1=${PAD_T} x2=${nowX} y2=${nowY2} />
+              <line class="now" x1=${nowX} y1=${PAD_T} x2=${nowX} y2=${nowY2} />
+            </g>
             ${
               currentY !== null
                 ? svg`<circle class="sun-dot ${sunDotState}" cx=${nowX} cy=${currentY} r="4" />`
@@ -378,10 +385,12 @@ export class ElevationChart extends LitElement {
     .ribbon-track {
       fill: var(--divider-color);
       fill-opacity: 0.25;
+      cursor: help;
     }
     .ribbon-bar {
       fill: var(--warning-color, gold);
       fill-opacity: 0.85;
+      cursor: help;
     }
     .curve {
       fill: none;
@@ -393,6 +402,12 @@ export class ElevationChart extends LitElement {
     .now {
       stroke: var(--accent-color, crimson);
       stroke-width: 1.25;
+      pointer-events: none;
+    }
+    .now-hit {
+      stroke: transparent;
+      stroke-width: 10;
+      cursor: help;
     }
     /* Colour states mirror acp-sky-compass .sun.* so the sun reads the same
        across both visuals. */

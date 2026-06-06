@@ -190,6 +190,7 @@ export class DecisionStrip extends LitElement {
       line-height: 1.3;
       padding: 2px 4px 4px;
       color: var(--primary-text-color);
+      cursor: help;
     }
     :host([compact]) .summary {
       font-size: 0.75rem;

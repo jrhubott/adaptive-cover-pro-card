@@ -36,6 +36,18 @@ describe('formatters', () => {
     expect(formatClock('nonsense')).toBe('—');
   });
 
+  it('formatClock honours an explicit timeZone', () => {
+    const iso = '2026-01-01T14:30:00Z';
+    // Same instant, two zones → different clock strings (NY UTC-5, Tokyo UTC+9).
+    // Assert format-agnostically (locale may be 12h or 24h) — just that the zone
+    // shifts the result and both are valid clock strings.
+    const ny = formatClock(iso, 'America/New_York');
+    const tokyo = formatClock(iso, 'Asia/Tokyo');
+    expect(ny).toMatch(/\d{1,2}:\d{2}/);
+    expect(tokyo).toMatch(/\d{1,2}:\d{2}/);
+    expect(ny).not.toBe(tokyo);
+  });
+
   it('formatDuration handles seconds/minutes/hours', () => {
     expect(formatDuration(30)).toBe('30s');
     expect(formatDuration(90)).toBe('1m 30s');

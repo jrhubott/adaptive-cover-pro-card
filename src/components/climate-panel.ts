@@ -197,6 +197,7 @@ export class ClimatePanel extends LitElement {
       border-radius: 999px;
       font-size: 0.72rem;
       background: var(--secondary-background-color, rgba(0, 0, 0, 0.04));
+      cursor: help;
     }
     .chip.on {
       background: var(--primary-color);

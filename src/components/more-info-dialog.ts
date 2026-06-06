@@ -593,6 +593,7 @@ export class MoreInfoDialog extends LitElement {
       border-radius: 999px;
       background: rgba(156, 39, 176, 0.22);
       color: #6a1b9a;
+      cursor: help;
     }
     /* Priority axis: floor whose priority ≤ manual-override is bypassable by a
        manual ↓ → subdued. Per-slot rows have no clamping notion, so no fill/outline. */
