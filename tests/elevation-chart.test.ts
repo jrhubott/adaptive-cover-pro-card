@@ -277,7 +277,7 @@ describe('acp-elevation-chart: multi-window ribbon', () => {
     expect(trackTitles.some((tx) => tx.includes('Office'))).toBe(true);
   });
 
-  it('stacks window rows disjoint and ordered, all below the plot block', async () => {
+  it('stacks window rows disjoint and ordered, inside the plot grid', async () => {
     const el = await mount({
       hass: twoWindowHass(),
       discoveredList: [discoveredSouth, discoveredWest],
@@ -291,12 +291,17 @@ describe('acp-elevation-chart: multi-window ribbon', () => {
     const westTop = Math.min(...west.map((r) => r.top));
     // Window 0 sits in a higher row than window 1 (non-overlapping y-ranges).
     expect(southBottom).toBeLessThanOrEqual(westTop + 0.01);
-    // All ribbon bars live below the plot block.
+    // The ribbon now lives INSIDE the plot, anchored to the bottom band just
+    // above the time axis (not appended below the plot block).
+    const axisY = VIEWBOX_H - PAD_B;
     const allTops = [...south, ...west].map((r) => r.top);
-    expect(Math.min(...allTops)).toBeGreaterThanOrEqual(VIEWBOX_H);
+    const allBottoms = [...south, ...west].map((r) => r.bottom);
+    expect(Math.max(...allBottoms)).toBeLessThanOrEqual(axisY + 0.01);
+    // Bottom-anchored: rows sit in the lower half of the plot.
+    expect(Math.min(...allTops)).toBeGreaterThan(axisY / 2);
   });
 
-  it('grows the viewBox height with window count and sets inline aspect-ratio', async () => {
+  it('keeps the viewBox height fixed at 160 with no inline aspect-ratio, any window count', async () => {
     const two = await mount({
       hass: twoWindowHass(),
       discoveredList: [discoveredSouth, discoveredWest],
@@ -311,20 +316,24 @@ describe('acp-elevation-chart: multi-window ribbon', () => {
       discoveredList: [discoveredSouth, discoveredWest, discoveredEast],
       coverColors: ['#ff7043', '#7e57c2', '#26a69a'],
     });
-    expect(svgViewBoxHeight(two)).toBeGreaterThan(160);
-    expect(svgViewBoxHeight(three)).toBeGreaterThan(svgViewBoxHeight(two));
+    // The ribbon is overlaid inside the plot, so the viewBox no longer grows
+    // with window count and there's no dynamic inline aspect-ratio.
+    expect(svgViewBoxHeight(two)).toBe(160);
+    expect(svgViewBoxHeight(three)).toBe(160);
     const style = two.shadowRoot!.querySelector('svg')!.getAttribute('style') ?? '';
-    expect(style).toMatch(/aspect-ratio/);
+    expect(style).not.toMatch(/aspect-ratio/);
   });
 
-  it('extends the now-cursor through the ribbon in multi mode', async () => {
+  it('ends the now-cursor at the time axis in multi mode (ribbon is in-plot)', async () => {
     const el = await mount({
       hass: twoWindowHass(),
       discoveredList: [discoveredSouth, discoveredWest],
       coverColors: ['#ff7043', '#7e57c2'],
     });
     const now = el.shadowRoot!.querySelector('line.now')!;
-    expect(parseFloat(now.getAttribute('y2')!)).toBeGreaterThan(VIEWBOX_H - PAD_B);
+    // Ribbon moved inside the plot, so the cursor stops at the axis like the
+    // single-window case rather than extending into an appended strip below.
+    expect(parseFloat(now.getAttribute('y2')!)).toBeCloseTo(VIEWBOX_H - PAD_B);
   });
 
   it('renders NO per-window legend in the head (the compass legend covers it)', async () => {
@@ -341,26 +350,22 @@ describe('acp-elevation-chart: multi-window ribbon', () => {
     expect(head.textContent ?? '').not.toContain('Office');
   });
 
-  it('keeps the viewBox tight to the ribbon (no dead space below the last row)', async () => {
+  it('anchors the ribbon band to the bottom of the plot, just above the time axis', async () => {
     const el = await mount({
       hass: twoWindowHass(),
       discoveredList: [discoveredSouth, discoveredWest],
       coverColors: ['#ff7043', '#7e57c2'],
     });
-    const height = svgViewBoxHeight(el);
-    // The lowest ribbon element (track) bottom must sit just above the viewBox
-    // floor — a regression guard against double-counting VIEWBOX_H, which left
-    // ~160 units of empty space (and an over-long now-cursor) below the ribbon.
+    // viewBox stays a fixed 400x160 — the ribbon is overlaid, not appended.
+    expect(svgViewBoxHeight(el)).toBe(160);
+    const axisY = VIEWBOX_H - PAD_B;
+    // The lowest ribbon track bottom sits just above the time axis (a small
+    // inset), inside the plot — not below the plot block.
     const trackBottoms = Array.from(el.shadowRoot!.querySelectorAll('rect.ribbon-track')).map(
       (r) => parseFloat(r.getAttribute('y')!) + parseFloat(r.getAttribute('height')!),
     );
     const lowest = Math.max(...trackBottoms);
-    expect(height - lowest).toBeLessThanOrEqual(8);
-    // The now-cursor ends at the ribbon floor, not far below it.
-    const now = el.shadowRoot!.querySelector('line.now')!;
-    const y2 = parseFloat(now.getAttribute('y2')!);
-    expect(y2).toBeGreaterThan(VIEWBOX_H - PAD_B);
-    expect(y2).toBeLessThanOrEqual(height);
-    expect(Math.abs(y2 - lowest)).toBeLessThanOrEqual(8);
+    expect(lowest).toBeLessThanOrEqual(axisY + 0.01);
+    expect(axisY - lowest).toBeLessThanOrEqual(8);
   });
 });

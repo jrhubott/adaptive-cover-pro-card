@@ -16,11 +16,11 @@ const PAD_R = 8;
 const PAD_T = 10;
 const PAD_B = 22;
 
-// Per-window FOV ribbon (multi-window only), stacked below the plot block.
-const RIBBON_TOP_PAD = 6;
+// Per-window FOV ribbon (multi-window only), overlaid inside the plot grid as a
+// band anchored just above the time axis (reclaims the old below-plot strip).
 const RIBBON_ROW_H = 8;
 const RIBBON_GAP = 3;
-const RIBBON_BOTTOM_PAD = 4;
+const RIBBON_BOTTOM_INSET = 3;
 
 @customElement('acp-elevation-chart')
 export class ElevationChart extends LitElement {
@@ -156,17 +156,17 @@ export class ElevationChart extends LitElement {
 
     const anyFov = windows.some((w) => w.runs.length > 0);
 
-    // Ribbon layout (multi-window only). Rows are placed below the plot block
-    // (y origin = VIEWBOX_H). totalH grows the svg so the ribbon is never
-    // squished; an inline aspect-ratio matches the dynamic viewBox.
-    // ribbonLayout works in coordinates relative to the plot block; rows are
-    // offset by VIEWBOX_H at render time. (Passing an absolute `top` here would
-    // double-count VIEWBOX_H in `height` and inflate totalH — and the cursor.)
+    // Ribbon layout (multi-window only). Rows are now overlaid INSIDE the plot
+    // grid as a band anchored to the bottom (just above the time axis), so the
+    // viewBox stays a fixed 400x160 and no strip is appended below the chart.
+    // ribbonLayout gives row offsets relative to the band top (no extra pads);
+    // each row is offset by ribbonBandTop at render time.
     const ribbon = multi
-      ? ribbonLayout(windows.length, RIBBON_TOP_PAD, RIBBON_ROW_H, RIBBON_GAP, RIBBON_BOTTOM_PAD)
+      ? ribbonLayout(windows.length, 0, RIBBON_ROW_H, RIBBON_GAP, 0)
       : { rows: [], height: 0 };
-    const totalH = multi ? VIEWBOX_H + ribbon.height : VIEWBOX_H;
-    const nowY2 = multi ? totalH - RIBBON_BOTTOM_PAD : VIEWBOX_H - PAD_B;
+    const ribbonBandTop = plotBottom - ribbon.height - RIBBON_BOTTOM_INSET;
+    const totalH = VIEWBOX_H;
+    const nowY2 = VIEWBOX_H - PAD_B;
 
     return html`
       <div class="wrap">
@@ -185,11 +185,7 @@ export class ElevationChart extends LitElement {
                 : html`<span class="dim">${t('elevation.no_fov_today', this.hass)}</span>`
           }
         </div>
-        <svg
-          viewBox="0 0 ${VIEWBOX_W} ${totalH}"
-          preserveAspectRatio="none"
-          style=${multi ? `aspect-ratio: ${VIEWBOX_W} / ${totalH}` : nothing}
-        >
+        <svg viewBox="0 0 ${VIEWBOX_W} ${totalH}" preserveAspectRatio="none">
           ${svg`
             <!-- y-axis gridlines -->
             ${[0, 30, 60, 90].map(
@@ -228,15 +224,14 @@ export class ElevationChart extends LitElement {
                   )
             }
 
-            <!-- elevation curve -->
-            <polyline class="curve" points=${curvePoints} />
-
             <!-- Per-window FOV ribbon (multi-window only): one row per window,
                  a faint full-width track plus color-keyed bars for in-FOV runs,
-                 sharing the plot's xAt() time scale. -->
+                 sharing the plot's xAt() time scale. Overlaid as a band anchored
+                 to the bottom of the plot; drawn BEFORE the curve so the blue
+                 curve stays crisp on top. -->
             ${ribbon.rows.flatMap((row, i) => {
               const w = windows[i];
-              const rowY = VIEWBOX_H + row.y;
+              const rowY = ribbonBandTop + row.y;
               // Track tooltip names the window so empty rows are identifiable;
               // bar tooltips add that run's exact clock range (the numbers we
               // dropped from the head legend live here on hover instead).
@@ -271,9 +266,11 @@ export class ElevationChart extends LitElement {
               return [track, ...bars];
             })}
 
+            <!-- elevation curve (drawn after the ribbon so it sits on top) -->
+            <polyline class="curve" points=${curvePoints} />
+
             <!-- current-time cursor + sun dot, drawn last so they sit on top of
-                 the curve AND the ribbon bars (extends through the ribbon in
-                 multi). -->
+                 the curve AND the ribbon bars. -->
             <line class="now" x1=${nowX} y1=${PAD_T} x2=${nowX} y2=${nowY2} />
             ${
               currentY !== null
