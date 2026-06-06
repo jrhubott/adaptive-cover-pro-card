@@ -113,7 +113,8 @@ export type BadgeKind =
   | 'custom_position'
   | 'solar'
   | 'motion'
-  | 'off';
+  | 'off'
+  | 'off_schedule';
 
 /**
  * Map a normalized winner-handler name to its badge kind. Anything not in this
@@ -154,6 +155,7 @@ export const BADGE_TOKENS: Record<BadgeKind, BadgeTokens> = {
   solar: { label: 'Solar tracking', bg: 'rgba(76, 175, 80, 0.22)', fg: '#1b5e20' },
   motion: { label: 'Motion', bg: 'rgba(255, 235, 59, 0.22)', fg: '#827717' },
   off: { label: 'Off', bg: 'rgba(97, 97, 97, 0.28)', fg: '#212121' },
+  off_schedule: { label: 'Off-schedule', bg: 'rgba(96, 125, 139, 0.22)', fg: '#37474f' },
 };
 
 /**
@@ -174,6 +176,7 @@ export const BADGE_I18N_KEYS: Record<BadgeKind, string> = {
   solar: 'badge.solar',
   motion: 'badge.motion',
   off: 'badge.off',
+  off_schedule: 'badge.off_schedule',
 };
 
 /**
@@ -191,6 +194,7 @@ export const BADGE_ICONS: Record<BadgeKind, string> = {
   solar: 'mdi:white-balance-sunny',
   motion: 'mdi:motion-sensor',
   off: 'mdi:power',
+  off_schedule: 'mdi:clock-alert-outline',
 };
 
 /** Logical slots the card binds to. */

@@ -165,6 +165,93 @@ describe('resolveTileBadgeKind', () => {
     ).toBeNull();
   });
 
+  it('returns off_schedule when in_time_window is false and auto would otherwise show', () => {
+    expect(
+      resolveTileBadgeKind({
+        ...base,
+        winner: 'default',
+        badges: undefined,
+        showMotionIcon: true,
+        inTimeWindow: false,
+      }),
+    ).toBe('off_schedule');
+    // A specific automatic handler winning still yields off_schedule.
+    expect(
+      resolveTileBadgeKind({
+        ...base,
+        winner: 'solar',
+        badges: undefined,
+        showMotionIcon: true,
+        inTimeWindow: false,
+      }),
+    ).toBe('off_schedule');
+  });
+
+  it('does not show off_schedule when in_time_window is true/undefined', () => {
+    expect(
+      resolveTileBadgeKind({
+        ...base,
+        winner: 'solar',
+        badges: undefined,
+        showMotionIcon: true,
+        inTimeWindow: true,
+      }),
+    ).toBe('solar');
+    expect(
+      resolveTileBadgeKind({ ...base, winner: 'solar', badges: undefined, showMotionIcon: true }),
+    ).toBe('solar');
+  });
+
+  it('off_schedule does not override the integration-disabled Off badge', () => {
+    expect(
+      resolveTileBadgeKind({
+        winner: 'solar',
+        integrationEnabled: false,
+        manualActive: false,
+        badges: undefined,
+        showMotionIcon: true,
+        inTimeWindow: false,
+      }),
+    ).toBe('off');
+  });
+
+  it('off_schedule does not override an active manual override', () => {
+    expect(
+      resolveTileBadgeKind({
+        winner: 'solar',
+        integrationEnabled: true,
+        manualActive: true,
+        badges: undefined,
+        showMotionIcon: true,
+        inTimeWindow: false,
+      }),
+    ).toBe('manual');
+  });
+
+  it('off_schedule does not override a force winner', () => {
+    expect(
+      resolveTileBadgeKind({
+        ...base,
+        winner: 'force',
+        badges: undefined,
+        showMotionIcon: true,
+        inTimeWindow: false,
+      }),
+    ).toBe('force');
+  });
+
+  it('is hidden when badges.off_schedule is false (falls back to the handler kind)', () => {
+    expect(
+      resolveTileBadgeKind({
+        ...base,
+        winner: 'solar',
+        badges: { off_schedule: false },
+        showMotionIcon: true,
+        inTimeWindow: false,
+      }),
+    ).toBe('solar');
+  });
+
   it('does not touch a manual override that outranks the motion winner', () => {
     // manualActive forces the manual kind before motion is ever considered.
     expect(

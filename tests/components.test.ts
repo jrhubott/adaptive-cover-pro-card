@@ -100,6 +100,49 @@ describe('acp-decision-strip', () => {
     await flush(el);
     expect(el.shadowRoot!.querySelector('.placeholder')).toBeTruthy();
   });
+
+  function mountWithTrace(inTimeWindow: boolean | undefined, includeAttr = true): Promise<LitLike> {
+    return (async () => {
+      const el = await mount<LitLike>('acp-decision-strip');
+      const attributes: Record<string, unknown> = {
+        reason: 'fallback',
+        trace: [{ handler: 'DefaultHandler', matched: true, reason: 'fallback', position: 60 }],
+      };
+      if (includeAttr) attributes.in_time_window = inTimeWindow;
+      el.hass = {
+        states: { 'sensor.d_trace': { state: 'default', attributes } },
+      } as unknown as HomeAssistant;
+      el.discovered = {
+        ...baseDiscovered,
+        entities: { decision_trace_sensor: 'sensor.d_trace' },
+      };
+      await flush(el);
+      return el;
+    })();
+  }
+
+  it('renders the off-schedule banner when in_time_window is false', async () => {
+    const el = await mountWithTrace(false);
+    const banner = el.shadowRoot!.querySelector('.off-schedule');
+    expect(banner).toBeTruthy();
+    expect(banner!.textContent).toContain('Outside schedule');
+    expect(banner!.getAttribute('title')).toContain('schedule window is not active');
+  });
+
+  it('hides the off-schedule banner when in_time_window is true', async () => {
+    const el = await mountWithTrace(true);
+    expect(el.shadowRoot!.querySelector('.off-schedule')).toBeNull();
+  });
+
+  it('hides the off-schedule banner when in_time_window is undefined', async () => {
+    const el = await mountWithTrace(undefined);
+    expect(el.shadowRoot!.querySelector('.off-schedule')).toBeNull();
+  });
+
+  it('hides the off-schedule banner when in_time_window is absent (older integration)', async () => {
+    const el = await mountWithTrace(undefined, false);
+    expect(el.shadowRoot!.querySelector('.off-schedule')).toBeNull();
+  });
 });
 
 describe('acp-cover-bar', () => {

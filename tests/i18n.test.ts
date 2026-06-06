@@ -121,6 +121,31 @@ describe('locale-table parity', () => {
   });
 });
 
+describe('outside-schedule i18n', () => {
+  it('decision.outside_schedule resolves to a non-key string in EN and FR', () => {
+    const enVal = t('decision.outside_schedule', { locale: { language: 'en' } });
+    const frVal = t('decision.outside_schedule', { locale: { language: 'fr' } });
+    expect(enVal).not.toBe('decision.outside_schedule');
+    expect(frVal).not.toBe('decision.outside_schedule');
+    expect(enVal.length).toBeGreaterThan(0);
+    expect(frVal.length).toBeGreaterThan(0);
+  });
+
+  it('decision.outside_schedule_tooltip resolves to a non-key string in EN and FR', () => {
+    const enVal = t('decision.outside_schedule_tooltip', { locale: { language: 'en' } });
+    const frVal = t('decision.outside_schedule_tooltip', { locale: { language: 'fr' } });
+    expect(enVal).not.toBe('decision.outside_schedule_tooltip');
+    expect(frVal).not.toBe('decision.outside_schedule_tooltip');
+  });
+
+  it('badge.off_schedule resolves to a non-key string in EN and FR', () => {
+    const enVal = t('badge.off_schedule', { locale: { language: 'en' } });
+    const frVal = t('badge.off_schedule', { locale: { language: 'fr' } });
+    expect(enVal).not.toBe('badge.off_schedule');
+    expect(frVal).not.toBe('badge.off_schedule');
+  });
+});
+
 describe('forecast.solar_only_note i18n', () => {
   it('resolves to a non-key string in EN', () => {
     const result = t('forecast.solar_only_note', { locale: { language: 'en' } });

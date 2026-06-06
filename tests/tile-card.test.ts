@@ -260,6 +260,55 @@ describe('adaptive-cover-pro-tile-card render', () => {
     expect(el.shadowRoot!.querySelector('acp-tile-badge')).toBeFalsy();
   });
 
+  it('renders the Off-schedule badge when in_time_window is false (issue #128)', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'one-line' },
+      makeHass({
+        decisionState: 'solar',
+        decisionAttrs: {
+          trace: [{ handler: 'solar', matched: true, reason: '', position: 60 }],
+          in_time_window: false,
+        },
+      }),
+    );
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).toBe('Off-schedule');
+  });
+
+  it('does NOT render the Off-schedule badge when in_time_window is true', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'one-line' },
+      makeHass({
+        decisionState: 'solar',
+        decisionAttrs: {
+          trace: [{ handler: 'solar', matched: true, reason: '', position: 60 }],
+          in_time_window: true,
+        },
+      }),
+    );
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).not.toBe('Off-schedule');
+    expect(text).toBe('Solar tracking');
+  });
+
+  it('does NOT render the Off-schedule badge when in_time_window is absent (older integration)', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'one-line' },
+      makeHass({
+        decisionState: 'solar',
+        decisionAttrs: {
+          trace: [{ handler: 'solar', matched: true, reason: '', position: 60 }],
+        },
+      }),
+    );
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).not.toBe('Off-schedule');
+  });
+
   it('makes the badge resumable when manual_override_binary is on', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },

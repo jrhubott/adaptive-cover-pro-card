@@ -62,6 +62,7 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
     climate?: boolean;
     glare_zone?: boolean;
     cloud?: boolean;
+    off_schedule?: boolean;
   };
   /** Render the sky compass inside the more-info dialog's Advanced section
    *  (default true). */

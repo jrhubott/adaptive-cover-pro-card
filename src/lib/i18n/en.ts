@@ -24,6 +24,7 @@ export const en = {
     solar: 'Solar tracking',
     motion: 'Motion idle',
     off: 'Off',
+    off_schedule: 'Off-schedule',
     floor_suffix: ' ↥',
   },
   forecast: {
@@ -134,6 +135,9 @@ export const en = {
     summary_tooltip: 'Why this position?',
     not_evaluated: 'not evaluated',
     floor_suffix: ' floor',
+    outside_schedule: 'Outside schedule — automatic control paused',
+    outside_schedule_tooltip:
+      'The configured schedule window is not active, so automatic positioning is paused.',
   },
   header: {
     on: 'ON',

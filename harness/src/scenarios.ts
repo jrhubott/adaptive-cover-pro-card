@@ -514,6 +514,21 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'outside-schedule',
+    label: 'Outside schedule — auto paused',
+    description:
+      'The configured Schedule & Timing clock window is not active (in_time_window false), so automatic control is paused. The decision strip shows the muted "Outside schedule" banner and the tile shows the "Off-schedule" badge. The default position wins.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'outside-schedule';
+      c.entries[0].flags.in_time_window = false;
+      // Default position wins so the banner + badge read cleanly.
+      c.entries[0].target_position = 60;
+      c.entries[0].covers[0].position = 60;
+      return c;
+    },
+  },
+  {
     id: 'climate-standby',
     label: 'Climate standby — outside operating window',
     description:

@@ -32,6 +32,7 @@ export const fr: EnDict = {
     solar: 'Suivi solaire',
     motion: 'Inactivité',
     off: 'Off',
+    off_schedule: 'Hors planning',
     floor_suffix: ' ↥',
   },
   forecast: {
@@ -143,6 +144,9 @@ export const fr: EnDict = {
     summary_tooltip: 'Pourquoi cette position ?',
     not_evaluated: 'non évalué',
     floor_suffix: ' plancher',
+    outside_schedule: 'Hors planning — contrôle automatique en pause',
+    outside_schedule_tooltip:
+      "La fenêtre de planning configurée n'est pas active, le positionnement automatique est donc en pause.",
   },
   header: {
     on: 'ON',

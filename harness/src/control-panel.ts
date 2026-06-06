@@ -538,6 +538,9 @@ export class AcpHarnessControlPanel extends LitElement {
             ${this._checkbox('Glare active', e.flags.glare_active, (v) =>
               this._patchFlags(idx, { glare_active: v }),
             )}
+            ${this._checkbox('In schedule window', e.flags.in_time_window, (v) =>
+              this._patchFlags(idx, { in_time_window: v }),
+            )}
             ${this._numberSlider('Default position %', e.flags.default_position, 0, 100, 1, (v) =>
               this._patchFlags(idx, { default_position: v }),
             )}

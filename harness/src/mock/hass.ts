@@ -35,6 +35,10 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'badge.solar': 'Solar tracking',
   'badge.motion': 'Motion',
   'badge.off': 'Off',
+  'badge.off_schedule': 'Off-schedule',
+  'decision.outside_schedule': 'Outside schedule — automatic control paused',
+  'decision.outside_schedule_tooltip':
+    'The configured schedule window is not active, so automatic positioning is paused.',
   'root.loading_registry': 'Loading entity registry…',
   'root.no_entities_title': 'No matching entities',
   'root.footer_version': 'adaptive-cover-pro-card v{version}',

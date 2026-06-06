@@ -88,8 +88,45 @@ export function winnerBadgeKind(opts: {
  * which case there is nothing to show and this returns `null` (blank badge).
  *
  * For every non-`motion` winner this is exactly {@link winnerBadgeKind}.
+ *
+ * The "Off-schedule" badge (kind `off_schedule`, issue #128) layers on top: when
+ * the configured schedule window is not active (`inTimeWindow === false`),
+ * automatic positioning is paused, so the tile surfaces `off_schedule` in place
+ * of the ordinary automatic-handler kind. It is orthogonal to the user-disabled
+ * `bypass_auto_control` path and intentionally does NOT override the higher
+ * "active intent" kinds — `off` (integration disabled), `manual` (override
+ * active), or `force` (forced position). It can be opted out via
+ * `badges.off_schedule === false`.
  */
 export function resolveTileBadgeKind(opts: {
+  winner: string;
+  integrationEnabled: boolean;
+  manualActive: boolean;
+  badges: BadgesConfig | undefined;
+  showMotionIcon: boolean;
+  /** Schedule & Timing clock window active. `false` → automatic control paused
+   *  (off-schedule). `true`/`undefined` → schedule not constraining. */
+  inTimeWindow?: boolean;
+}): BadgeKind | null {
+  const kind = resolveWinnerKind(opts);
+  // Off-schedule is shown only when auto would otherwise be running — never over
+  // the integration-disabled, manual, or force states (those reflect a stronger
+  // active intent the user should still see).
+  if (
+    opts.inTimeWindow === false &&
+    opts.badges?.off_schedule !== false &&
+    kind !== 'off' &&
+    kind !== 'manual' &&
+    kind !== 'force'
+  ) {
+    return 'off_schedule';
+  }
+  return kind;
+}
+
+/** The motion-suppression + Auto-fallback resolution, before the off-schedule
+ *  layer is applied. */
+function resolveWinnerKind(opts: {
   winner: string;
   integrationEnabled: boolean;
   manualActive: boolean;
