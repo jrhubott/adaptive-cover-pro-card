@@ -83,6 +83,8 @@ export const en = {
     sunny: 'Sunny',
     lux: 'Lux',
     irradiance: 'Irradiance',
+    mode_off: 'Climate mode off',
+    standby: 'Standby',
   },
   compass: {
     placeholder_no_entries: 'No Adaptive Cover Pro entries selected.',
@@ -203,7 +205,7 @@ export const en = {
       section_overrides_desc: 'Manual, force, motion tiles + reset button',
       section_climate_label: 'Climate panel',
       section_climate_desc:
-        'Summer/winter/intermediate strategy (auto-hidden if climate mode is off)',
+        'Summer/winter/intermediate strategy; shows standby when climate mode is off or inactive',
       controls: 'Controls',
       controls_hint: 'Render as read-only (visible but not clickable).',
       integration_pill_label: 'Integration ON/OFF pill',

@@ -3,7 +3,7 @@ import type { HandlerName } from '../../src/const';
 export type CoverType = 'cover_blind' | 'cover_awning' | 'cover_tilt';
 
 export type MotionStatusValue = 'idle' | 'motion_detected' | 'timeout_pending';
-export type ClimateStrategy = 'summer_mode' | 'winter_mode' | 'intermediate';
+export type ClimateStrategy = 'summer_mode' | 'winter_mode' | 'intermediate' | 'unknown';
 export type DecisionMode = 'derived' | 'scripted';
 
 export interface CustomPositionSlotCfg {

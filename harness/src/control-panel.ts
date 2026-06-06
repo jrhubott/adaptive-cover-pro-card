@@ -519,7 +519,9 @@ export class AcpHarnessControlPanel extends LitElement {
                     climate_strategy: (ev.target as HTMLSelectElement).value as ClimateStrategy,
                   })}
               >
-                ${(['summer_mode', 'winter_mode', 'intermediate'] as ClimateStrategy[]).map(
+                ${(
+                  ['summer_mode', 'winter_mode', 'intermediate', 'unknown'] as ClimateStrategy[]
+                ).map(
                   (v) =>
                     html`<option value=${v} ?selected=${e.flags.climate_strategy === v}>
                       ${v}

@@ -92,6 +92,8 @@ export const fr: EnDict = {
     sunny: 'Ensoleillé',
     lux: 'Lux',
     irradiance: 'Irradiance',
+    mode_off: 'Mode climatique désactivé',
+    standby: 'En veille',
   },
   compass: {
     placeholder_no_entries: 'Aucune instance Adaptive Cover Pro sélectionnée.',
@@ -216,7 +218,7 @@ export const fr: EnDict = {
       section_overrides_desc: 'Tuiles Manuel, Forcé, Mouvement + bouton de réinitialisation',
       section_climate_label: 'Panneau climatique',
       section_climate_desc:
-        'Stratégie été/hiver/intermédiaire (masqué automatiquement si le mode climatique est désactivé)',
+        'Stratégie été/hiver/intermédiaire ; affiche le mode veille si le mode climatique est désactivé ou inactif',
       controls: 'Commandes',
       controls_hint: 'Afficher en lecture seule (visible mais non cliquable).',
       integration_pill_label: "Bouton ON/OFF de l'intégration",
