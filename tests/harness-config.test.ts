@@ -12,6 +12,7 @@ import type { HarnessConfig } from '../harness/src/types';
 
 interface CardStageLike extends HTMLElement {
   config: HarnessConfig;
+  _rootConfig(): Record<string, unknown>;
   _compassConfig(): Record<string, unknown>;
   _tileConfig(entryId: string): Record<string, unknown>;
 }
@@ -143,6 +144,27 @@ describe('schedule window scenarios (issue #128 Track B)', () => {
     const cfg = scenario!.build();
     const { schedule_start_minutes, schedule_end_minutes } = cfg.entries[0].flags;
     expect(schedule_start_minutes === null || schedule_end_minutes === null).toBe(true);
+  });
+});
+
+describe('cover colors + actual-vs-target harness plumbing (issue #132)', () => {
+  it('card-stage threads cover_colors (entry color) into the root card config', () => {
+    const el = document.createElement('acp-harness-card-stage') as unknown as CardStageLike;
+    const cfg = defaultScenarioConfig();
+    el.config = cfg;
+    expect(el._rootConfig().cover_colors).toEqual([cfg.entries[0].color]);
+  });
+
+  it('exposes a "compass-actual-vs-target" scenario whose actual mean ≠ target', () => {
+    const scenario = findScenario('compass-actual-vs-target');
+    expect(scenario).toBeTruthy();
+    const cfg = scenario!.build();
+    const entry = cfg.entries[0];
+    const positions = entry.covers
+      .map((c) => c.position)
+      .filter((p): p is number => typeof p === 'number');
+    const mean = positions.reduce((a, b) => a + b, 0) / positions.length;
+    expect(mean).not.toBe(entry.target_position);
   });
 });
 

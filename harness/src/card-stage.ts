@@ -116,6 +116,7 @@ export class AcpHarnessCardStage extends LitElement {
       show_moon: r.show_moon,
       hide_inactive_handlers: r.hide_inactive_handlers,
       show_decision_summary: r.show_decision_summary,
+      cover_colors: [this.config.entries[0].color],
       north_offset: r.north_offset,
     };
   }

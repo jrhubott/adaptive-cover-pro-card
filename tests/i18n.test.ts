@@ -121,6 +121,34 @@ describe('locale-table parity', () => {
   });
 });
 
+describe('cover position i18n (issue #132)', () => {
+  const keys = [
+    'compass.cover_position',
+    'compass.cover_position_target',
+    'compass.cover_position_target_awning',
+    'compass.cover_position_actual',
+  ];
+  for (const key of keys) {
+    it(`${key} resolves to a non-key string in EN and FR`, () => {
+      const enVal = t(key, { locale: { language: 'en' } });
+      const frVal = t(key, { locale: { language: 'fr' } });
+      expect(enVal).not.toBe(key);
+      expect(frVal).not.toBe(key);
+      expect(enVal.length).toBeGreaterThan(0);
+      expect(frVal.length).toBeGreaterThan(0);
+    });
+  }
+
+  it('the removed cover_closed / cover_extended keys are gone from both locales', () => {
+    expect((en.compass as Record<string, string>)['cover_closed']).toBeUndefined();
+    expect((en.compass as Record<string, string>)['cover_extended']).toBeUndefined();
+    expect((en.compass as Record<string, string>)['cover_closed_tooltip']).toBeUndefined();
+    expect((fr.compass as Record<string, string>)['cover_closed']).toBeUndefined();
+    expect((fr.compass as Record<string, string>)['cover_extended']).toBeUndefined();
+    expect((fr.compass as Record<string, string>)['cover_closed_tooltip']).toBeUndefined();
+  });
+});
+
 describe('outside-schedule i18n', () => {
   it('decision.outside_schedule resolves to a non-key string in EN and FR', () => {
     const enVal = t('decision.outside_schedule', { locale: { language: 'en' } });

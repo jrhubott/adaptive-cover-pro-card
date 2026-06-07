@@ -571,6 +571,20 @@ export const SCENARIOS: Scenario[] = [
       return c;
     },
   },
+  {
+    id: 'compass-actual-vs-target',
+    label: 'Compass — actual vs target divergence',
+    description:
+      'The cover is mid-travel: target is 30% but the cover is still at 80%. The sky compass draws a solid target wedge plus a fainter dashed actual wedge so the divergence reads at a glance. The custom overlay color carries through the main card.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'compass-actual-vs-target';
+      c.entries[0].target_position = 30;
+      c.entries[0].covers[0].position = 80;
+      c.entries[0].color = '#ec407a';
+      return c;
+    },
+  },
 ];
 
 export function findScenario(id: string): Scenario | undefined {

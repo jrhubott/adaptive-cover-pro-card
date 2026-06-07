@@ -380,6 +380,35 @@ export function scheduleZones(
 }
 
 /**
+ * Aggregate a map of per-cover actual positions into a single value by taking
+ * the arithmetic mean of all non-null entries. Returns null when the map is
+ * empty or every value is null (so callers can gracefully omit the actual
+ * wedge). A single 0 yields 0, not null.
+ */
+export function aggregateActualPosition(map: Record<string, number | null>): number | null {
+  const vals = Object.values(map).filter((v): v is number => typeof v === 'number');
+  if (vals.length === 0) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+/**
+ * Outer radius of a cover-fill wedge for a given position (0–100) and cover
+ * type, clamped to the FOV's outer radius. Blinds/tilts close from the rim
+ * inward (fraction = 1 − pos/100); awnings extend from the centre outward
+ * (fraction = pos/100). The result is `min(outerR × fraction, fovOuterR)` —
+ * callers decide whether the wedge draws by comparing against the inner radius.
+ */
+export function coverWedgeOuterRadius(
+  pos: number,
+  coverType: string,
+  outerR: number,
+  fovOuterR: number,
+): number {
+  const fraction = coverType === 'cover_awning' ? pos / 100 : 1 - pos / 100;
+  return Math.min(outerR * fraction, fovOuterR);
+}
+
+/**
  * Convert the integration's blind_spot_range (FOV-left-relative offsets,
  * [fov_left − blind_spot_right, fov_left − blind_spot_left]) into absolute
  * compass bearings [startAzi, endAzi] suitable for wedgePath.
