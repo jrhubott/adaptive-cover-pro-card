@@ -79,7 +79,7 @@ export function buildStates(cfg: HarnessConfig): GeneratedStates {
           });
     decisions.set(entry.entry_id, decision);
 
-    addEntryStates(states, entry, sun, decision, samples, now);
+    addEntryStates(states, entry, sun, decision, samples, now, dayStart, tz);
     addCoverStates(states, entry);
   }
 
@@ -93,6 +93,8 @@ function addEntryStates(
   decision: DecisionResult,
   samples: SunSample[],
   now: Date,
+  dayStart: Date,
+  _tz: string,
 ): void {
   const id = (role: Parameters<typeof entityIdFor>[1]) => entityIdFor(entry, role);
   const f = entry.flags;
@@ -174,9 +176,26 @@ function addEntryStates(
     },
   );
 
+  // Schedule window as tz-aware ISO datetimes built from the scenario day + the
+  // per-entry flag minutes. The end is rolled to the next day when end ≤ start,
+  // so the window can span midnight — matching the integration contract.
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const isoAtMinutes = (mins: number, extraMs = 0): string =>
+    new Date(dayStart.getTime() + mins * 60_000 + extraMs).toISOString();
+  const sStart = f.schedule_start_minutes;
+  const sEnd = f.schedule_end_minutes;
+  const scheduleStart = sStart === null ? null : isoAtMinutes(sStart);
+  const scheduleEnd =
+    sEnd === null
+      ? null
+      : sStart !== null && sEnd <= sStart
+        ? isoAtMinutes(sEnd, DAY_MS) // roll a midnight/early end to the next day.
+        : isoAtMinutes(sEnd);
   states[id('control_status_sensor')] = mkState(id('control_status_sensor'), decision.winner, {
     friendly_name: `${entry.title} Control Status`,
     cover_type: entry.cover_type,
+    schedule_start: scheduleStart,
+    schedule_end: scheduleEnd,
   });
 
   states[id('decision_trace_sensor')] = mkState(id('decision_trace_sensor'), decision.winner, {

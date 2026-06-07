@@ -292,6 +292,8 @@ export class AcpHarnessControlPanel extends LitElement {
         glare_active: false,
         is_sunset_active: false,
         in_time_window: true,
+        schedule_start_minutes: 7 * 60 + 30,
+        schedule_end_minutes: 21 * 60,
         default_position: 60,
       },
     };
@@ -537,6 +539,15 @@ export class AcpHarnessControlPanel extends LitElement {
             )}
             ${this._checkbox('Glare active', e.flags.glare_active, (v) =>
               this._patchFlags(idx, { glare_active: v }),
+            )}
+            ${this._checkbox('In schedule window', e.flags.in_time_window, (v) =>
+              this._patchFlags(idx, { in_time_window: v }),
+            )}
+            ${this._scheduleBound('Schedule start', e.flags.schedule_start_minutes, (v) =>
+              this._patchFlags(idx, { schedule_start_minutes: v }),
+            )}
+            ${this._scheduleBound('Schedule end', e.flags.schedule_end_minutes, (v) =>
+              this._patchFlags(idx, { schedule_end_minutes: v }),
             )}
             ${this._numberSlider('Default position %', e.flags.default_position, 0, 100, 1, (v) =>
               this._patchFlags(idx, { default_position: v }),
@@ -896,6 +907,37 @@ export class AcpHarnessControlPanel extends LitElement {
             />`
           : ''}
       </label>
+    `;
+  }
+
+  /** A schedule bound (minutes-from-midnight) with a "no bound" null toggle.
+   *  Unchecking the box sets null (open/blank); checking restores a default. */
+  private _scheduleBound(
+    label: string,
+    value: number | null,
+    onChange: (v: number | null) => void,
+  ): TemplateResult {
+    const hh = value === null ? '' : String(Math.floor(value / 60)).padStart(2, '0');
+    const mm = value === null ? '' : String(value % 60).padStart(2, '0');
+    return html`
+      <label class="row">
+        <span>${label}${value === null ? ' (no bound)' : ` ${hh}:${mm}`}</span>
+        <input
+          type="checkbox"
+          .checked=${value !== null}
+          @change=${(e: Event) => onChange((e.target as HTMLInputElement).checked ? 12 * 60 : null)}
+        />
+      </label>
+      ${value !== null
+        ? html`<input
+            type="range"
+            min="0"
+            max="1439"
+            step="15"
+            .value=${String(value)}
+            @input=${(e: Event) => onChange(parseInt((e.target as HTMLInputElement).value, 10))}
+          />`
+        : ''}
     `;
   }
 

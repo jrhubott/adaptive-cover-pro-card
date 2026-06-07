@@ -644,7 +644,11 @@ export class SkyCompass extends LitElement {
                 <span class="entry-name">${o.d.entry_title}</span>
                 <span>∠${formatDegrees(o.sun.gamma)}</span>
                 <span>W ${formatDegrees(normalizeAzimuth(o.sun.window_azimuth))}</span>
-                ${o.sun.in_fov ? html`<span class="status in-fov">✓</span>` : nothing}
+                ${o.sun.in_fov
+                  ? html`<span class="status in-fov" title=${t('compass.in_fov_tooltip', this.hass)}
+                      >✓</span
+                    >`
+                  : nothing}
               </div>
             `,
           )}

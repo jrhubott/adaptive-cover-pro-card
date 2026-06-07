@@ -62,6 +62,7 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
     climate?: boolean;
     glare_zone?: boolean;
     cloud?: boolean;
+    off_schedule?: boolean;
   };
   /** Render the sky compass inside the more-info dialog's Advanced section
    *  (default true). */
@@ -207,6 +208,18 @@ export interface SunPositionAttributes {
 export interface StartEndSunAttributes {
   azimuth: number;
   elevation: number;
+}
+
+/**
+ * Attributes on the integration's `control_status` sensor that the card reads.
+ * `schedule_start` / `schedule_end` are tz-aware ISO-8601 datetime strings (or
+ * null when a bound is blank/open). A midnight end is rolled to the next-day
+ * datetime upstream, so the in-schedule window may span midnight.
+ */
+export interface ControlStatusAttributes {
+  cover_type?: string;
+  schedule_start?: string | null;
+  schedule_end?: string | null;
 }
 
 export interface CoverPositionAttributes {

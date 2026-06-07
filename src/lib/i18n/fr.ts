@@ -32,6 +32,7 @@ export const fr: EnDict = {
     solar: 'Suivi solaire',
     motion: 'Inactivité',
     off: 'Off',
+    off_schedule: 'Hors planning',
     floor_suffix: ' ↥',
   },
   forecast: {
@@ -105,6 +106,7 @@ export const fr: EnDict = {
     sun_path_tooltip: "Trajectoire solaire (aujourd'hui)",
     in_fov_check: '✓ dans le champ de vision',
     in_fov: 'dans le champ de vision',
+    in_fov_tooltip: 'Le soleil est actuellement dans le champ de vision de cette fenêtre',
     none: '—',
     sun: 'Soleil',
     moon: 'Lune',
@@ -143,6 +145,9 @@ export const fr: EnDict = {
     summary_tooltip: 'Pourquoi cette position ?',
     not_evaluated: 'non évalué',
     floor_suffix: ' plancher',
+    outside_schedule: 'Hors planning — contrôle automatique en pause',
+    outside_schedule_tooltip:
+      "La fenêtre de planning configurée n'est pas active, le positionnement automatique est donc en pause.",
   },
   header: {
     on: 'ON',
@@ -172,6 +177,11 @@ export const fr: EnDict = {
     fov_window_named: '{name} : {windows}',
     no_fov_today: "Pas de soleil dans le champ de vision aujourd'hui",
     placeholder: "Graphique d'élévation solaire indisponible.",
+    schedule: 'Programmation {from} – {to}',
+    schedule_from: 'Programmation à partir de {from}',
+    schedule_until: "Programmation jusqu'à {to}",
+    schedule_start_tooltip: 'Début de programmation',
+    schedule_end_tooltip: 'Fin de programmation',
   },
   root: {
     loading_registry: 'Chargement du registre Adaptive Cover Pro…',

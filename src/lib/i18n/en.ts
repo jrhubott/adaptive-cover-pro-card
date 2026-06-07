@@ -24,6 +24,7 @@ export const en = {
     solar: 'Solar tracking',
     motion: 'Motion idle',
     off: 'Off',
+    off_schedule: 'Off-schedule',
     floor_suffix: ' ↥',
   },
   forecast: {
@@ -96,6 +97,7 @@ export const en = {
     sun_path_tooltip: 'Sun path (today)',
     in_fov_check: '✓ in FOV',
     in_fov: 'in FOV',
+    in_fov_tooltip: 'Sun is currently within this window’s field of view',
     none: '—',
     sun: 'Sun',
     moon: 'Moon',
@@ -134,6 +136,9 @@ export const en = {
     summary_tooltip: 'Why this position?',
     not_evaluated: 'not evaluated',
     floor_suffix: ' floor',
+    outside_schedule: 'Outside schedule — automatic control paused',
+    outside_schedule_tooltip:
+      'The configured schedule window is not active, so automatic positioning is paused.',
   },
   header: {
     on: 'ON',
@@ -163,6 +168,11 @@ export const en = {
     fov_window_named: '{name}: {windows}',
     no_fov_today: 'Sun does not enter FOV today',
     placeholder: 'Sun elevation chart unavailable.',
+    schedule: 'Schedule {from} – {to}',
+    schedule_from: 'Schedule from {from}',
+    schedule_until: 'Schedule until {to}',
+    schedule_start_tooltip: 'Schedule start',
+    schedule_end_tooltip: 'Schedule end',
   },
   root: {
     loading_registry: 'Loading Adaptive Cover Pro registry…',
