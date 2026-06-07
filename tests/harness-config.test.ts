@@ -168,6 +168,43 @@ describe('cover colors + actual-vs-target harness plumbing (issue #132)', () => 
   });
 });
 
+describe('card-stage remounts cards when the entry set changes (multi-window stale-registry fix)', () => {
+  // The cards fetch the mock entity registry once and cache it (the mock's event
+  // subscription is a no-op). When the configured entry set changes the stage
+  // must remount its cards so each refetches the new scenario's registry —
+  // otherwise switching to e.g. the multi-window scenario discovers against the
+  // prior scenario's entities and renders "No matching Adaptive Cover Pro entities".
+  interface StageInternals extends CardStageLike {
+    _compassEl?: HTMLElement;
+    updateComplete: Promise<boolean>;
+  }
+
+  it('remounts the compass card on entry-set change but reuses it otherwise', async () => {
+    const el = document.createElement('acp-harness-card-stage') as unknown as StageInternals;
+    document.body.appendChild(el);
+    try {
+      el.config = defaultScenarioConfig();
+      await el.updateComplete;
+      const first = el._compassEl;
+      expect(first).toBeTruthy();
+
+      // Different entry_ids (multi-window) → remount.
+      el.config = normalizeConfig(findScenario('multi-window')!.build());
+      await el.updateComplete;
+      expect(el._compassEl).toBeTruthy();
+      expect(el._compassEl).not.toBe(first);
+
+      // Same entry set, unrelated config change → reuse the element.
+      const reused = el._compassEl;
+      el.config = { ...el.config, compass: { ...el.config.compass } };
+      await el.updateComplete;
+      expect(el._compassEl).toBe(reused);
+    } finally {
+      el.remove();
+    }
+  });
+});
+
 describe('show_elevation_chart harness plumbing', () => {
   it('default scenario config sets compass.show_elevation_chart and tile.show_elevation_chart to true', () => {
     const cfg = defaultScenarioConfig();
