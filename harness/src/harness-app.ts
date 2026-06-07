@@ -84,9 +84,18 @@ export class AcpHarnessApp extends LitElement {
     this._clearPlayInterval();
   }
 
+  protected willUpdate(changed: Map<string, unknown>): void {
+    // Rebuild hass BEFORE render (not in updated(), which runs after) so the new
+    // scenario's config and its matching mock hass reach the card stage in the
+    // same render. Otherwise hass lags config by one cycle: the stage remounts
+    // its cards against the new entry_ids but pushes the *previous* scenario's
+    // hass, so discovery fetches the stale registry and a multi-entry switch
+    // renders "No matching Adaptive Cover Pro entities".
+    if (changed.has('_config')) this._rebuildHass();
+  }
+
   protected updated(changed: Map<string, unknown>): void {
     if (changed.has('_config')) {
-      this._rebuildHass();
       this._applyTheme();
       this._syncPlayState();
       saveConfig(this._config);

@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
+  aggregateActualPosition,
   arcsOverlap,
   azimuthToCartesian,
   blindSpotBearings,
   clampActiveArcToFov,
+  coverWedgeOuterRadius,
   dayFractionX,
   elevationBandFraction,
   elevationGatedFovBounds,
@@ -575,5 +577,58 @@ describe('scheduleZones', () => {
       expect(z.offSchedule).toEqual([{ x0: 0.125, x1: 0.25 }]);
       expect(z.bars).toEqual([0.25]);
     });
+  });
+});
+
+describe('aggregateActualPosition', () => {
+  it('returns the arithmetic mean of all non-null values', () => {
+    expect(aggregateActualPosition({ a: 80, b: 40 })).toBe(60);
+  });
+
+  it('ignores null values when averaging', () => {
+    expect(aggregateActualPosition({ a: 50, b: null })).toBe(50);
+  });
+
+  it('returns null when every value is null', () => {
+    expect(aggregateActualPosition({ a: null, b: null })).toBeNull();
+  });
+
+  it('returns null for an empty map', () => {
+    expect(aggregateActualPosition({})).toBeNull();
+  });
+
+  it('returns 0 for a single zero value (not null)', () => {
+    expect(aggregateActualPosition({ a: 0 })).toBe(0);
+  });
+});
+
+describe('coverWedgeOuterRadius', () => {
+  const OUTER_R = 110;
+
+  it('blind at position=0 fills the full FOV (clamped to fovOuter)', () => {
+    // 1 - 0/100 = 1 → OUTER_R, clamped to fovOuter when smaller.
+    expect(coverWedgeOuterRadius(0, 'cover_blind', OUTER_R, OUTER_R)).toBe(OUTER_R);
+    expect(coverWedgeOuterRadius(0, 'cover_blind', OUTER_R, 90)).toBe(90);
+  });
+
+  it('blind at position=100 collapses to centre (≤ fovInner side / null per inner gate)', () => {
+    // 1 - 100/100 = 0 → radius 0, which is ≤ any positive fovInner so it does
+    // not draw; the raw radius is 0.
+    expect(coverWedgeOuterRadius(100, 'cover_blind', OUTER_R, OUTER_R)).toBe(0);
+  });
+
+  it('clamps to fovOuterR when the raw cover radius exceeds it', () => {
+    // blind pos=5 → 1 - 0.05 = 0.95 → rawCoverR = 104.5; fovOuter 97.78 → clamp.
+    const fovOuter = 97.78;
+    expect(coverWedgeOuterRadius(5, 'cover_blind', OUTER_R, fovOuter)).toBe(fovOuter);
+  });
+
+  it('awning fraction is position/100 (inverse of blind)', () => {
+    // awning pos=100 → fraction 1 → OUTER_R.
+    expect(coverWedgeOuterRadius(100, 'cover_awning', OUTER_R, OUTER_R)).toBe(OUTER_R);
+    // awning pos=0 → fraction 0 → radius 0.
+    expect(coverWedgeOuterRadius(0, 'cover_awning', OUTER_R, OUTER_R)).toBe(0);
+    // awning pos=50 → fraction 0.5 → 55.
+    expect(coverWedgeOuterRadius(50, 'cover_awning', OUTER_R, OUTER_R)).toBe(55);
   });
 });

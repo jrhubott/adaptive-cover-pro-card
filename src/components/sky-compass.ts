@@ -5,10 +5,12 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { DiscoveredEntities, SunPositionAttributes } from '../types';
 import {
+  aggregateActualPosition,
   arcsOverlap,
   azimuthToCartesian,
   blindSpotBearings,
   clampActiveArcToFov,
+  coverWedgeOuterRadius,
   elevationGatedFovBounds,
   fovBandRadii,
   fovRunBounds,
@@ -41,6 +43,7 @@ interface EntryOverlay {
   sunAzi: number;
   sunInfront: boolean;
   coverPos: number | null;
+  actualPos: number | null;
   coverType: DiscoveredEntities['cover_type'];
   color: string;
   isOverride: boolean;
@@ -96,6 +99,18 @@ export class SkyCompass extends LitElement {
     return Number.isNaN(val) ? null : val;
   }
 
+  /** Mean of the live per-cover positions on the target sensor's
+   *  `actual_positions` attribute. Null when absent, empty, or all-null. */
+  private _actualPositionFor(d: DiscoveredEntities): number | null {
+    const id = d.entities.target_position_sensor;
+    if (!id) return null;
+    const attrs = this.hass.states[id]?.attributes as
+      | { actual_positions?: Record<string, number | null> }
+      | undefined;
+    if (!attrs?.actual_positions) return null;
+    return aggregateActualPosition(attrs.actual_positions);
+  }
+
   private _sunInfrontFor(d: DiscoveredEntities): boolean {
     const id = d.entities.sun_infront_binary;
     if (!id) return false;
@@ -125,6 +140,7 @@ export class SkyCompass extends LitElement {
         sunAzi,
         sunInfront: this._sunInfrontFor(d),
         coverPos: this._coverPositionFor(d),
+        actualPos: this._actualPositionFor(d),
         coverType: d.cover_type,
         color,
         isOverride,
@@ -422,10 +438,14 @@ export class SkyCompass extends LitElement {
       o.sun.max_elevation,
       OUTER_R,
     );
-    const coverFraction =
-      o.coverType === 'cover_awning' ? o.coverPos! / 100 : 1 - o.coverPos! / 100;
-    const rawCoverR = o.coverPos !== null ? OUTER_R * coverFraction : null;
-    const coverOuter = rawCoverR !== null ? Math.min(rawCoverR, fovOuterR) : null;
+    const coverOuter =
+      o.coverPos !== null
+        ? coverWedgeOuterRadius(o.coverPos, o.coverType, OUTER_R, fovOuterR)
+        : null;
+    const actualOuter =
+      o.actualPos !== null
+        ? coverWedgeOuterRadius(o.actualPos, o.coverType, OUTER_R, fovOuterR)
+        : null;
     const bsBearings = o.sun.blind_spot_range
       ? blindSpotBearings(windowAzi, o.sun.blind_spot_range as [number, number])
       : null;
@@ -446,13 +466,23 @@ export class SkyCompass extends LitElement {
       coverOuter !== null && coverOuter > fovInnerR
         ? wedgePath(wedgeStart, wedgeEnd, coverOuter, fovInnerR, northOffsetDeg)
         : '';
+    const actualPath =
+      actualOuter !== null && actualOuter > fovInnerR
+        ? wedgePath(wedgeStart, wedgeEnd, actualOuter, fovInnerR, northOffsetDeg)
+        : '';
 
     // Other FOV crossings for today. A window facing toward the pole catches the
     // sun on both sides of the window normal, so the day has more than one
     // disjoint "sun in FOV" run. The integration's start/end sensors describe
     // only the active/primary arc; derive the rest from the sampled sun path and
     // draw a wedge per run that doesn't overlap the primary wedge.
-    const extraWedges: Array<{ fov: string; cover: string; from: number; to: number }> = [];
+    const extraWedges: Array<{
+      fov: string;
+      cover: string;
+      actual: string;
+      from: number;
+      to: number;
+    }> = [];
     for (const run of findFovWindows(samples, windowAzi, o.sun.fov_left, o.sun.fov_right)) {
       const b = fovRunBounds(samples, run.startIdx, run.endIdx, o.sun.min_elevation);
       if (!b || arcsOverlap(b.wedgeStart, b.wedgeEnd, wedgeStart, wedgeEnd)) continue;
@@ -461,6 +491,10 @@ export class SkyCompass extends LitElement {
         cover:
           this.showCoverFill && coverOuter !== null && coverOuter > fovInnerR
             ? wedgePath(b.wedgeStart, b.wedgeEnd, coverOuter, fovInnerR, northOffsetDeg)
+            : '',
+        actual:
+          this.showCoverFill && actualOuter !== null && actualOuter > fovInnerR
+            ? wedgePath(b.wedgeStart, b.wedgeEnd, actualOuter, fovInnerR, northOffsetDeg)
             : '',
         from: b.wedgeStart,
         to: b.wedgeEnd,
@@ -489,12 +523,22 @@ export class SkyCompass extends LitElement {
     const ttWindow = `${label}${t('compass.window_normal_tooltip', this.hass, {
       bearing: formatDegrees(windowAzi),
     })}`;
-    const ttCoverFill =
-      o.coverPos !== null
-        ? o.coverType === 'cover_awning'
-          ? `${label}${t('compass.cover_extended', this.hass, { pct: o.coverPos })}`
-          : `${label}${t('compass.cover_closed_tooltip', this.hass, { pct: o.coverPos })}`
-        : '';
+    // Two-line cover tooltip: a target line (awnings phrase it as "extended")
+    // plus an actual line appended only when a live aggregate exists (#132).
+    const ttCoverLines: string[] = [];
+    if (o.coverPos !== null) {
+      const targetKey =
+        o.coverType === 'cover_awning'
+          ? 'compass.cover_position_target_awning'
+          : 'compass.cover_position_target';
+      ttCoverLines.push(`${label}${t(targetKey, this.hass, { pct: o.coverPos })}`);
+      if (o.actualPos !== null) {
+        ttCoverLines.push(
+          t('compass.cover_position_actual', this.hass, { pct: Math.round(o.actualPos) }),
+        );
+      }
+    }
+    const ttCoverFill = ttCoverLines.join('\n');
     const ttBlindSpot = bsBearings
       ? `${label}${t('compass.blind_spot', this.hass, {
           from: formatDegrees(bsBearings[0]),
@@ -502,12 +546,18 @@ export class SkyCompass extends LitElement {
         })}`
       : '';
 
-    const inlineColor = multi || o.isOverride;
-    const fovStyle = inlineColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
-    const coverStyle = inlineColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
-    const blindStyle = inlineColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
-    const arrowStyle = inlineColor ? `stroke: ${o.color};` : '';
-    const arrowBaseStyle = inlineColor ? `fill: ${o.color};` : '';
+    // In multi-entry mode the entry color is an *identity* — the whole wedge
+    // group (FOV, cover, blind, window) shares it so entries are distinguishable.
+    // In single-entry mode there is nothing to distinguish, so a cover-color
+    // override recolors only the cover wedge; FOV/blind/window keep their
+    // semantic colors (otherwise the legend shows several identical swatches).
+    const groupColor = multi;
+    const coverColor = multi || o.isOverride;
+    const fovStyle = groupColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
+    const coverStyle = coverColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
+    const blindStyle = groupColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
+    const arrowStyle = groupColor ? `stroke: ${o.color};` : '';
+    const arrowBaseStyle = groupColor ? `fill: ${o.color};` : '';
 
     const showCover = this.showCoverFill && coverPath !== '';
     const showBlind = this.showBlindSpot && !!blindSpot;
@@ -543,6 +593,7 @@ export class SkyCompass extends LitElement {
           <title>${ttExtra}</title>
           <path class="fov-extra" style=${fovStyle} d=${w.fov}></path>
           ${w.cover ? svg`<path class="cover-fill-extra" style=${coverStyle} d=${w.cover}></path>` : nothing}
+          ${w.actual ? svg`<path class="cover-actual-extra" style=${coverStyle} d=${w.actual}></path>` : nothing}
         </g>`;
       })}
       <g class="arrow-group" data-tooltip=${ttWindow} style=${showArrow ? '' : hideStyle}>
@@ -553,6 +604,11 @@ export class SkyCompass extends LitElement {
       <g class="cover-group" data-tooltip=${ttCoverFill} style=${showCover ? '' : hideStyle}>
         <title>${ttCoverFill}</title>
         <path class="cover-fill" style=${coverStyle} d=${coverPath}></path>
+        ${
+          this.showCoverFill && actualPath
+            ? svg`<path class="cover-actual" style=${coverStyle} d=${actualPath}></path>`
+            : nothing
+        }
       </g>
       <g class="blind-group" data-tooltip=${ttBlindSpot} style=${showBlind ? '' : hideStyle}>
         <title>${ttBlindSpot}</title>
@@ -601,7 +657,11 @@ export class SkyCompass extends LitElement {
       <div><span class="swatch fov"></span> ${t('compass.window_fov', this.hass)}</div>
       ${this.showCoverFill
         ? html`<div>
-            <span class="swatch cover-fill-swatch"></span> ${t('compass.cover_closed', this.hass)}
+            <span
+              class="swatch cover-fill-swatch"
+              style=${overlays[0]?.isOverride ? `background: ${overlays[0].color}` : ''}
+            ></span>
+            ${t('compass.cover_position', this.hass)}
           </div>`
         : nothing}
       ${this.showWindowArrow
@@ -759,6 +819,23 @@ export class SkyCompass extends LitElement {
       stroke: var(--primary-color);
       stroke-width: 1;
       stroke-opacity: 0.6;
+      transition:
+        fill 0.3s ease,
+        fill-opacity 0.3s ease,
+        stroke 0.3s ease,
+        stroke-opacity 0.3s ease;
+    }
+    /* Live/actual cover position drawn over the solid target wedge: same fill
+       colour but fainter and dashed, so when actual == target it disappears
+       into the target wedge and only a divergence reads as a second ring. */
+    .cover-actual,
+    .cover-actual-extra {
+      fill: var(--primary-color);
+      fill-opacity: 0.15;
+      stroke: var(--primary-color);
+      stroke-width: 1;
+      stroke-opacity: 0.6;
+      stroke-dasharray: 3 2;
       transition:
         fill 0.3s ease,
         fill-opacity 0.3s ease,

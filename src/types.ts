@@ -18,6 +18,9 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
    *  strip's row grid. Defaults to true. */
   show_decision_summary?: boolean;
   north_offset?: number;
+  /** Per-overlay color overrides for the embedded sky compass, indexed by
+   *  discovery order. Same shape as `SkyCompassCardConfig.cover_colors`. */
+  cover_colors?: (string | null)[];
   controls?: {
     integration_enabled?: boolean;
     automatic_control?: boolean;

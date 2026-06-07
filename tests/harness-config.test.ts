@@ -12,6 +12,7 @@ import type { HarnessConfig } from '../harness/src/types';
 
 interface CardStageLike extends HTMLElement {
   config: HarnessConfig;
+  _rootConfig(): Record<string, unknown>;
   _compassConfig(): Record<string, unknown>;
   _tileConfig(entryId: string): Record<string, unknown>;
 }
@@ -143,6 +144,64 @@ describe('schedule window scenarios (issue #128 Track B)', () => {
     const cfg = scenario!.build();
     const { schedule_start_minutes, schedule_end_minutes } = cfg.entries[0].flags;
     expect(schedule_start_minutes === null || schedule_end_minutes === null).toBe(true);
+  });
+});
+
+describe('cover colors + actual-vs-target harness plumbing (issue #132)', () => {
+  it('card-stage threads cover_colors (entry color) into the root card config', () => {
+    const el = document.createElement('acp-harness-card-stage') as unknown as CardStageLike;
+    const cfg = defaultScenarioConfig();
+    el.config = cfg;
+    expect(el._rootConfig().cover_colors).toEqual([cfg.entries[0].color]);
+  });
+
+  it('exposes a "compass-actual-vs-target" scenario whose actual mean ≠ target', () => {
+    const scenario = findScenario('compass-actual-vs-target');
+    expect(scenario).toBeTruthy();
+    const cfg = scenario!.build();
+    const entry = cfg.entries[0];
+    const positions = entry.covers
+      .map((c) => c.position)
+      .filter((p): p is number => typeof p === 'number');
+    const mean = positions.reduce((a, b) => a + b, 0) / positions.length;
+    expect(mean).not.toBe(entry.target_position);
+  });
+});
+
+describe('card-stage remounts cards when the entry set changes (multi-window stale-registry fix)', () => {
+  // The cards fetch the mock entity registry once and cache it (the mock's event
+  // subscription is a no-op). When the configured entry set changes the stage
+  // must remount its cards so each refetches the new scenario's registry —
+  // otherwise switching to e.g. the multi-window scenario discovers against the
+  // prior scenario's entities and renders "No matching Adaptive Cover Pro entities".
+  interface StageInternals extends CardStageLike {
+    _compassEl?: HTMLElement;
+    updateComplete: Promise<boolean>;
+  }
+
+  it('remounts the compass card on entry-set change but reuses it otherwise', async () => {
+    const el = document.createElement('acp-harness-card-stage') as unknown as StageInternals;
+    document.body.appendChild(el);
+    try {
+      el.config = defaultScenarioConfig();
+      await el.updateComplete;
+      const first = el._compassEl;
+      expect(first).toBeTruthy();
+
+      // Different entry_ids (multi-window) → remount.
+      el.config = normalizeConfig(findScenario('multi-window')!.build());
+      await el.updateComplete;
+      expect(el._compassEl).toBeTruthy();
+      expect(el._compassEl).not.toBe(first);
+
+      // Same entry set, unrelated config change → reuse the element.
+      const reused = el._compassEl;
+      el.config = { ...el.config, compass: { ...el.config.compass } };
+      await el.updateComplete;
+      expect(el._compassEl).toBe(reused);
+    } finally {
+      el.remove();
+    }
   });
 });
 

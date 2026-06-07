@@ -54,6 +54,7 @@ function makeHass(
     minElevation?: number;
     maxElevation?: number;
     coverPos?: number;
+    actualPositions?: Record<string, number | null>;
     targetSensorId?: string;
     startSensorId?: string;
     startAzimuth?: number;
@@ -87,7 +88,10 @@ function makeHass(
       },
     };
     if (e.targetSensorId !== undefined && e.coverPos !== undefined) {
-      states[e.targetSensorId] = { state: String(e.coverPos), attributes: {} };
+      states[e.targetSensorId] = {
+        state: String(e.coverPos),
+        attributes: e.actualPositions !== undefined ? { actual_positions: e.actualPositions } : {},
+      };
     }
     if (e.startSensorId !== undefined) {
       states[e.startSensorId] = {
@@ -245,13 +249,44 @@ describe('acp-sky-compass (multi-entry overlay)', () => {
   });
 });
 
-describe('acp-sky-compass coverColors', () => {
-  it('applies override color as inline style on single-entry compass FOV', async () => {
+describe('acp-sky-compass cover legend wording (#132)', () => {
+  it('legend shows "Cover position", not "Cover closed"', async () => {
     const d = makeDiscovered('entry1', 'Kitchen');
     const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
+    const el = await mountCompass([d], hass);
+    const text = el.shadowRoot!.textContent ?? '';
+    expect(text).toContain('Cover position');
+    expect(text).not.toContain('Cover closed');
+  });
+});
+
+describe('acp-sky-compass coverColors', () => {
+  it('single-entry override colors the cover wedge but not the FOV', async () => {
+    // #132 review: a cover-color override on a single-entry compass recolors only
+    // the cover wedge. FOV/window/blind keep their semantic colors (the legend
+    // would otherwise show three identical swatches).
+    const targetSensorId = 'sensor.target_pos_entry1';
+    const d = makeDiscovered('entry1', 'Kitchen', { targetSensorId });
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, coverPos: 40, targetSensorId },
+    ]);
     const el = await mountCompass([d], hass, { coverColors: ['#ff3366'] });
+    const cover = el.shadowRoot!.querySelector('path.cover-fill') as SVGPathElement;
+    expect(cover.getAttribute('style') ?? '').toContain('#ff3366');
     const fov = el.shadowRoot!.querySelector('path.fov') as SVGPathElement;
-    expect(fov.getAttribute('style') ?? '').toContain('#ff3366');
+    expect(fov.getAttribute('style') ?? '').not.toContain('#ff3366');
+  });
+
+  it('single-entry override colors the legend cover swatch to match the wedge', async () => {
+    const targetSensorId = 'sensor.target_pos_entry1';
+    const d = makeDiscovered('entry1', 'Kitchen', { targetSensorId });
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, coverPos: 40, targetSensorId },
+    ]);
+    const el = await mountCompass([d], hass, { coverColors: ['#ff3366'] });
+    const swatch = el.shadowRoot!.querySelector('.swatch.cover-fill-swatch') as HTMLElement | null;
+    expect(swatch).not.toBeNull();
+    expect(swatch!.getAttribute('style') ?? '').toContain('#ff3366');
   });
 
   it('null slot falls back to palette color in multi-entry compass', async () => {
@@ -757,7 +792,7 @@ describe('acp-sky-compass cover-fill polarity by cover_type', () => {
     expect(coverFill!.getAttribute('d')).toBe(expected);
   });
 
-  it('tooltip: cover_awning shows "Cover extended" and cover_blind shows "Cover closed"', async () => {
+  it('tooltip: cover_awning target line uses "extended", cover_blind uses plain target', async () => {
     const targetAwning = 'sensor.target_pos_awning7';
     const discAwning = makeDiscovered('awning7', 'Awning', {
       targetSensorId: targetAwning,
@@ -773,7 +808,7 @@ describe('acp-sky-compass cover-fill polarity by cover_type', () => {
     ]);
     const elAwning = await mountCompass([discAwning], hassAwning);
     const awningTitle = elAwning.shadowRoot!.querySelector('g.cover-group > title');
-    expect(awningTitle?.textContent ?? '').toContain('Cover extended: 75%');
+    expect(awningTitle?.textContent ?? '').toContain('Target (extended): 75%');
 
     const targetBlind = 'sensor.target_pos_blind7';
     const discBlind = makeDiscovered('blind7', 'Blind', {
@@ -790,7 +825,126 @@ describe('acp-sky-compass cover-fill polarity by cover_type', () => {
     ]);
     const elBlind = await mountCompass([discBlind], hassBlind);
     const blindTitle = elBlind.shadowRoot!.querySelector('g.cover-group > title');
-    expect(blindTitle?.textContent ?? '').toContain('Cover closed: 75%');
+    expect(blindTitle?.textContent ?? '').toContain('Target: 75%');
+    expect(blindTitle?.textContent ?? '').not.toContain('extended');
+  });
+});
+
+describe('acp-sky-compass cover tooltip target + actual lines (#132)', () => {
+  const sensorId = 'sensor.sun_pos_tt';
+  const targetSensorId = 'sensor.target_pos_tt';
+
+  it('appends an Actual line when an actual aggregate exists', async () => {
+    const disc = makeDiscovered('tt', 'Kitchen', { targetSensorId });
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 180,
+        coverPos: 30,
+        targetSensorId,
+        actualPositions: { 'cover.x': 80 },
+      },
+    ]);
+    const el = await mountCompass([disc], hass);
+    const tt = el.shadowRoot!.querySelector('g.cover-group > title')?.textContent ?? '';
+    expect(tt).toContain('Target: 30%');
+    expect(tt).toContain('Actual: 80%');
+  });
+
+  it('shows only the target line when no actual aggregate exists', async () => {
+    const disc = makeDiscovered('tt', 'Kitchen', { targetSensorId });
+    const hass = makeHass([{ sensorId, windowAzimuth: 180, coverPos: 30, targetSensorId }]);
+    const el = await mountCompass([disc], hass);
+    const tt = el.shadowRoot!.querySelector('g.cover-group > title')?.textContent ?? '';
+    expect(tt).toContain('Target: 30%');
+    expect(tt).not.toContain('Actual');
+  });
+});
+
+describe('acp-sky-compass actual-vs-target dual wedge (#132)', () => {
+  // windowAzimuth=180, fov ±45 → fovStart=135, fovEnd=225, full FOV wedge.
+  const sensorId = 'sensor.sun_pos_dual';
+  const targetSensorId = 'sensor.target_pos_dual';
+  const disc = () => makeDiscovered('dual', 'Kitchen', { targetSensorId });
+
+  it('renders both cover-fill (target) and cover-actual when they diverge', async () => {
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 180,
+        coverPos: 30,
+        targetSensorId,
+        actualPositions: { 'cover.x': 80 },
+      },
+    ]);
+    const el = await mountCompass([disc()], hass);
+    const fill = el.shadowRoot!.querySelector('path.cover-fill') as SVGPathElement | null;
+    const actual = el.shadowRoot!.querySelector('path.cover-actual') as SVGPathElement | null;
+    expect(fill).not.toBeNull();
+    expect(actual).not.toBeNull();
+    expect(fill!.getAttribute('d')).not.toBe(actual!.getAttribute('d'));
+  });
+
+  it('cover-actual equals cover-fill when actual mean == target', async () => {
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 180,
+        coverPos: 30,
+        targetSensorId,
+        actualPositions: { 'cover.x': 30 },
+      },
+    ]);
+    const el = await mountCompass([disc()], hass);
+    const fill = el.shadowRoot!.querySelector('path.cover-fill') as SVGPathElement | null;
+    const actual = el.shadowRoot!.querySelector('path.cover-actual') as SVGPathElement | null;
+    expect(actual).not.toBeNull();
+    expect(actual!.getAttribute('d')).toBe(fill!.getAttribute('d'));
+  });
+
+  it('omits cover-actual when actual_positions is empty', async () => {
+    const hass = makeHass([
+      { sensorId, windowAzimuth: 180, coverPos: 30, targetSensorId, actualPositions: {} },
+    ]);
+    const el = await mountCompass([disc()], hass);
+    expect(el.shadowRoot!.querySelector('path.cover-actual')).toBeNull();
+    // Target wedge still present.
+    expect(el.shadowRoot!.querySelector('path.cover-fill')).not.toBeNull();
+  });
+
+  it('omits cover-actual when every actual value is null', async () => {
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 180,
+        coverPos: 30,
+        targetSensorId,
+        actualPositions: { 'cover.x': null },
+      },
+    ]);
+    const el = await mountCompass([disc()], hass);
+    expect(el.shadowRoot!.querySelector('path.cover-actual')).toBeNull();
+  });
+
+  it('omits cover-actual when the target sensor carries no actual_positions attribute', async () => {
+    const hass = makeHass([{ sensorId, windowAzimuth: 180, coverPos: 30, targetSensorId }]);
+    const el = await mountCompass([disc()], hass);
+    expect(el.shadowRoot!.querySelector('path.cover-actual')).toBeNull();
+    expect(el.shadowRoot!.querySelector('path.cover-fill')).not.toBeNull();
+  });
+
+  it('does not render cover-actual when showCoverFill is off', async () => {
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 180,
+        coverPos: 30,
+        targetSensorId,
+        actualPositions: { 'cover.x': 80 },
+      },
+    ]);
+    const el = await mountCompass([disc()], hass, { showCoverFill: false });
+    expect(el.shadowRoot!.querySelector('path.cover-actual')).toBeNull();
   });
 });
 

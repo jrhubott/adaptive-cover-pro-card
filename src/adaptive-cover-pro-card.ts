@@ -304,6 +304,7 @@ export class AdaptiveCoverProCard extends LitElement {
                 .showStats=${this._config.show_compass_stats ?? true}
                 .showLegend=${this._config.show_compass_legend ?? true}
                 .showMoon=${this._config.show_moon ?? false}
+                .coverColors=${this._config.cover_colors ?? []}
                 .northOffsetDeg=${normalizeAzimuth(this._config.north_offset ?? 0)}
               ></acp-sky-compass>`
             : nothing}
