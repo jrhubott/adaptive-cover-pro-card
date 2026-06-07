@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
+  aggregateActualPosition,
   arcsOverlap,
   azimuthToCartesian,
   blindSpotBearings,
   clampActiveArcToFov,
+  coverWedgeOuterRadius,
   dayFractionX,
   elevationBandFraction,
   elevationGatedFovBounds,
@@ -12,6 +14,7 @@ import {
   fovRunBounds,
   normalizeAzimuth,
   ribbonLayout,
+  scheduleZones,
   sunDotPosition,
   wedgePath,
 } from '../src/lib/geometry';
@@ -496,5 +499,136 @@ describe('geometry — dayFractionX', () => {
 
   it('clamps above-day inputs to width', () => {
     expect(dayFractionX(dayStart + DAY_MS + 1, dayStart, WIDTH)).toBe(WIDTH);
+  });
+});
+
+describe('scheduleZones', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const dayStart = Date.UTC(2026, 5, 6, 0, 0, 0); // 2026-06-06 00:00 UTC
+  const at = (h: number, m = 0): Date => new Date(dayStart + (h * 60 + m) * 60_000);
+
+  describe('normal in-day window (start < end)', () => {
+    it('off-schedule is the two edge bands [0,startFrac] and [endFrac,1]', () => {
+      const z = scheduleZones(at(6), at(18), dayStart, DAY);
+      expect(z.offSchedule).toEqual([
+        { x0: 0, x1: 0.25 },
+        { x0: 0.75, x1: 1 },
+      ]);
+    });
+
+    it('emits a drawable bar at each true in-domain bound', () => {
+      const z = scheduleZones(at(6), at(18), dayStart, DAY);
+      expect(z.bars).toEqual([0.25, 0.75]);
+    });
+  });
+
+  describe('midnight-spanning window (end ≤ start)', () => {
+    it('off-schedule is the single middle band [endFrac, startFrac]', () => {
+      // In-schedule 21:00 → 06:00 (next day). Off-schedule is the daytime gap.
+      const z = scheduleZones(at(21), new Date(dayStart + DAY + 6 * 3600_000), dayStart, DAY);
+      expect(z.offSchedule).toEqual([{ x0: 0.25, x1: 0.875 }]);
+    });
+
+    it('treats a same-day end equal-or-before start as midnight-spanning', () => {
+      // end exactly 00:00 next day (rolled): endFrac would be 1.0 → clamps, no
+      // off band on the right; here use end < start in-day to exercise middle.
+      const z = scheduleZones(at(20), at(8), dayStart, DAY);
+      // start 20:00 → 0.8333, end 08:00 → 0.3333; middle band [0.333, 0.833].
+      expect(z.offSchedule).toEqual([{ x0: 8 / 24, x1: 20 / 24 }]);
+      expect(z.bars).toEqual([20 / 24, 8 / 24]);
+    });
+  });
+
+  describe('open-ended / null bounds', () => {
+    it('null end: open to the right — off-schedule [0,startFrac], left bar only', () => {
+      const z = scheduleZones(at(6), null, dayStart, DAY);
+      expect(z.offSchedule).toEqual([{ x0: 0, x1: 0.25 }]);
+      expect(z.bars).toEqual([0.25]);
+    });
+
+    it('null start: open to the left — off-schedule [endFrac,1], right bar only', () => {
+      const z = scheduleZones(null, at(18), dayStart, DAY);
+      expect(z.offSchedule).toEqual([{ x0: 0.75, x1: 1 }]);
+      expect(z.bars).toEqual([0.75]);
+    });
+
+    it('both null: empty (no zones, no bars)', () => {
+      const z = scheduleZones(null, null, dayStart, DAY);
+      expect(z.offSchedule).toEqual([]);
+      expect(z.bars).toEqual([]);
+    });
+  });
+
+  describe('out-of-domain bounds clamp the zone and omit the bar', () => {
+    it('start before today (frac < 0): gray clamps to 0, no left bar', () => {
+      const z = scheduleZones(new Date(dayStart - 2 * 3600_000), at(18), dayStart, DAY);
+      // start frac = −2/24 → clamp to 0; window is in-day so off-schedule is the
+      // two edge bands but the left band collapses (csf=0) and is dropped.
+      expect(z.offSchedule).toEqual([{ x0: 0.75, x1: 1 }]);
+      expect(z.bars).toEqual([0.75]);
+    });
+
+    it('end rolled to next day (frac > 1): wraps to its clock time, no right bar', () => {
+      const z = scheduleZones(at(6), new Date(dayStart + DAY + 3 * 3600_000), dayStart, DAY);
+      // In-schedule 06:00 → 03:00 next day (a next-day-rolled end). The end's
+      // clock time (03:00 → 0.125) wraps onto today, making the window
+      // midnight-spanning: off-schedule is the 03:00–06:00 gap. The rolled end
+      // lands past the right edge (true frac 1.125), so it draws no bar.
+      expect(z.offSchedule).toEqual([{ x0: 0.125, x1: 0.25 }]);
+      expect(z.bars).toEqual([0.25]);
+    });
+  });
+});
+
+describe('aggregateActualPosition', () => {
+  it('returns the arithmetic mean of all non-null values', () => {
+    expect(aggregateActualPosition({ a: 80, b: 40 })).toBe(60);
+  });
+
+  it('ignores null values when averaging', () => {
+    expect(aggregateActualPosition({ a: 50, b: null })).toBe(50);
+  });
+
+  it('returns null when every value is null', () => {
+    expect(aggregateActualPosition({ a: null, b: null })).toBeNull();
+  });
+
+  it('returns null for an empty map', () => {
+    expect(aggregateActualPosition({})).toBeNull();
+  });
+
+  it('returns 0 for a single zero value (not null)', () => {
+    expect(aggregateActualPosition({ a: 0 })).toBe(0);
+  });
+});
+
+describe('coverWedgeOuterRadius', () => {
+  const OUTER_R = 110;
+
+  it('blind at position=0 fills the full FOV (clamped to fovOuter)', () => {
+    // 1 - 0/100 = 1 → OUTER_R, clamped to fovOuter when smaller.
+    expect(coverWedgeOuterRadius(0, 'cover_blind', OUTER_R, OUTER_R)).toBe(OUTER_R);
+    expect(coverWedgeOuterRadius(0, 'cover_blind', OUTER_R, 90)).toBe(90);
+  });
+
+  it('blind at position=100 collapses to centre (≤ fovInner side / null per inner gate)', () => {
+    // 1 - 100/100 = 0 → radius 0, which is ≤ any positive fovInner so it does
+    // not draw; the raw radius is 0.
+    expect(coverWedgeOuterRadius(100, 'cover_blind', OUTER_R, OUTER_R)).toBe(0);
+  });
+
+  it('clamps to fovOuterR when the raw cover radius exceeds it', () => {
+    // blind pos=5 → 1 - 0.05 = 0.95 → rawCoverR = 104.5; fovOuter 97.78 → clamp.
+    const fovOuter = 97.78;
+    expect(coverWedgeOuterRadius(5, 'cover_blind', OUTER_R, fovOuter)).toBe(fovOuter);
+  });
+
+  it('awning fraction is position/100 (inverse of blind)', () => {
+    // awning pos=100 → fraction 1 → OUTER_R.
+    expect(coverWedgeOuterRadius(100, 'cover_awning', OUTER_R, OUTER_R)).toBe(OUTER_R);
+    // awning pos=0 → fraction 0 → radius 0.
+    expect(coverWedgeOuterRadius(0, 'cover_awning', OUTER_R, OUTER_R)).toBe(0);
+    // awning pos=50 → fraction 0.5 → 55.
+    expect(coverWedgeOuterRadius(50, 'cover_awning', OUTER_R, OUTER_R)).toBe(55);
   });
 });

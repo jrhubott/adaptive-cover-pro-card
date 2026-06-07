@@ -294,6 +294,120 @@ export function ribbonLayout(
   return { rows, height };
 }
 
+export interface ScheduleZones {
+  /** Off-schedule spans as clamped fractions in [0,1], left-to-right. */
+  offSchedule: Array<{ x0: number; x1: number }>;
+  /** Drawable vertical-bar fractions: only bounds whose TRUE fraction lies
+   *  strictly inside (0,1). A bound clamped to an edge yields no bar. */
+  bars: number[];
+}
+
+/**
+ * Map a schedule [start, end] onto today's [dayStart, dayStart+dayMs] x-domain,
+ * returning the OFF-schedule spans (the parts to gray out) plus the drawable
+ * start/end bar fractions.
+ *
+ * Fractions are `(t − dayStart) / dayMs`. A bound's TRUE fraction is computed
+ * first (may be < 0 or > 1 when an offset/next-day datetime pushes it outside
+ * today); off-schedule spans are then clamped to [0,1]. A bar is emitted only
+ * when the true fraction is strictly inside (0,1) — a bound that clamps to an
+ * edge contributes a gray span but no bar (there is no line to draw at the
+ * very edge of the plot).
+ *
+ * BARS use the raw TRUE fraction `(t − dayStart)/dayMs`: a bound that lands
+ * outside today (true frac ≤ 0 or ≥ 1 — a next-day-rolled end, or a start that
+ * began yesterday) draws no vertical bar, only a gray span clamped to the edge.
+ *
+ * ZONE fractions resolve each bound to today's domain:
+ *  - A START before today (frac < 0) clamps to the left edge 0 (the window was
+ *    already open at midnight). A START after today (frac > 1) clamps to 1.
+ *  - An END after today (frac > 1) is the integration's next-day-rolled midnight
+ *    end: its clock time wraps back onto today (frac mod 1), making the window
+ *    midnight-spanning. An END before today (frac < 0) clamps to 0.
+ *
+ * Window shapes (using resolved zone fractions s, e):
+ *  - Normal (s ≤ e): off-schedule is the two edge bands [0, s] ∪ [e, 1].
+ *  - Midnight-spanning (s > e — end < start, or end rolled to the next day):
+ *    in-schedule wraps midnight, off-schedule is the single MIDDLE band [e, s].
+ *  - Null start: open to the left — off-schedule is [e, 1], no left bar.
+ *    Null end: symmetric ([0, s], no right bar). Both null: empty.
+ */
+export function scheduleZones(
+  start: Date | null,
+  end: Date | null,
+  dayStartMs: number,
+  dayMs: number,
+): ScheduleZones {
+  if (!start && !end) return { offSchedule: [], bars: [] };
+
+  const trueFrac = (d: Date): number => (d.getTime() - dayStartMs) / dayMs;
+  const clamp01 = (v: number): number => Math.max(0, Math.min(1, v));
+  // Resolve a START's zone fraction: clamp to the nearest edge if outside today.
+  const startZone = (f: number): number => clamp01(f);
+  // Resolve an END's zone fraction: a next-day-rolled end (f > 1) wraps to its
+  // clock time on today; an end before today clamps to 0.
+  const endZone = (f: number): number => (f > 1 ? f - Math.floor(f) : clamp01(f));
+  // A bar is drawable only when its true fraction sits strictly inside (0,1).
+  const barFor = (f: number): number[] => (f > 0 && f < 1 ? [f] : []);
+
+  // Open-ended: only one bound configured.
+  if (start && !end) {
+    const sf = trueFrac(start);
+    return { offSchedule: [{ x0: 0, x1: startZone(sf) }], bars: barFor(sf) };
+  }
+  if (!start && end) {
+    const ef = trueFrac(end);
+    return { offSchedule: [{ x0: endZone(ef), x1: 1 }], bars: barFor(ef) };
+  }
+
+  // Both bounds present.
+  const sf = trueFrac(start!);
+  const ef = trueFrac(end!);
+  const s = startZone(sf);
+  const e = endZone(ef);
+  const bars = [...barFor(sf), ...barFor(ef)];
+
+  if (s > e) {
+    // Midnight-spanning: in-schedule wraps midnight, off-schedule is the middle.
+    return { offSchedule: [{ x0: e, x1: s }], bars };
+  }
+
+  // Normal in-day window: off-schedule is the two edge bands.
+  const offSchedule: Array<{ x0: number; x1: number }> = [];
+  if (s > 0) offSchedule.push({ x0: 0, x1: s });
+  if (e < 1) offSchedule.push({ x0: e, x1: 1 });
+  return { offSchedule, bars };
+}
+
+/**
+ * Aggregate a map of per-cover actual positions into a single value by taking
+ * the arithmetic mean of all non-null entries. Returns null when the map is
+ * empty or every value is null (so callers can gracefully omit the actual
+ * wedge). A single 0 yields 0, not null.
+ */
+export function aggregateActualPosition(map: Record<string, number | null>): number | null {
+  const vals = Object.values(map).filter((v): v is number => typeof v === 'number');
+  if (vals.length === 0) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+/**
+ * Outer radius of a cover-fill wedge for a given position (0–100) and cover
+ * type, clamped to the FOV's outer radius. Blinds/tilts close from the rim
+ * inward (fraction = 1 − pos/100); awnings extend from the centre outward
+ * (fraction = pos/100). The result is `min(outerR × fraction, fovOuterR)` —
+ * callers decide whether the wedge draws by comparing against the inner radius.
+ */
+export function coverWedgeOuterRadius(
+  pos: number,
+  coverType: string,
+  outerR: number,
+  fovOuterR: number,
+): number {
+  const fraction = coverType === 'cover_awning' ? pos / 100 : 1 - pos / 100;
+  return Math.min(outerR * fraction, fovOuterR);
+}
+
 /**
  * Convert the integration's blind_spot_range (FOV-left-relative offsets,
  * [fov_left − blind_spot_right, fov_left − blind_spot_left]) into absolute

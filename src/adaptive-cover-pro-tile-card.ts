@@ -248,6 +248,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       manualActive,
       badges: cfg.badges,
       showMotionIcon: cfg.show_motion_icon !== false,
+      inTimeWindow: traceAttrs?.in_time_window,
     });
     const solarCtx = buildSolarActiveContext(traceAttrs?.trace, winner);
     const winnerVisible =
@@ -804,6 +805,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       border: 1px solid transparent;
       white-space: nowrap;
       align-self: center;
+      cursor: help;
     }
     /* Clamping axis: not-clamping → hollow/outline (transparent fill + purple border). */
     .acp-floor-chip.is-armed {

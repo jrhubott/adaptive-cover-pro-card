@@ -3,6 +3,7 @@ import '../src/components/decision-strip';
 import '../src/components/cover-bar';
 import '../src/components/overrides-panel';
 import '../src/components/header-pill';
+import '../src/components/climate-panel';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities } from '../src/types';
 
@@ -98,6 +99,49 @@ describe('acp-decision-strip', () => {
     el.discovered = { ...baseDiscovered, entities: {} };
     await flush(el);
     expect(el.shadowRoot!.querySelector('.placeholder')).toBeTruthy();
+  });
+
+  function mountWithTrace(inTimeWindow: boolean | undefined, includeAttr = true): Promise<LitLike> {
+    return (async () => {
+      const el = await mount<LitLike>('acp-decision-strip');
+      const attributes: Record<string, unknown> = {
+        reason: 'fallback',
+        trace: [{ handler: 'DefaultHandler', matched: true, reason: 'fallback', position: 60 }],
+      };
+      if (includeAttr) attributes.in_time_window = inTimeWindow;
+      el.hass = {
+        states: { 'sensor.d_trace': { state: 'default', attributes } },
+      } as unknown as HomeAssistant;
+      el.discovered = {
+        ...baseDiscovered,
+        entities: { decision_trace_sensor: 'sensor.d_trace' },
+      };
+      await flush(el);
+      return el;
+    })();
+  }
+
+  it('renders the off-schedule banner when in_time_window is false', async () => {
+    const el = await mountWithTrace(false);
+    const banner = el.shadowRoot!.querySelector('.off-schedule');
+    expect(banner).toBeTruthy();
+    expect(banner!.textContent).toContain('Outside schedule');
+    expect(banner!.getAttribute('title')).toContain('schedule window is not active');
+  });
+
+  it('hides the off-schedule banner when in_time_window is true', async () => {
+    const el = await mountWithTrace(true);
+    expect(el.shadowRoot!.querySelector('.off-schedule')).toBeNull();
+  });
+
+  it('hides the off-schedule banner when in_time_window is undefined', async () => {
+    const el = await mountWithTrace(undefined);
+    expect(el.shadowRoot!.querySelector('.off-schedule')).toBeNull();
+  });
+
+  it('hides the off-schedule banner when in_time_window is absent (older integration)', async () => {
+    const el = await mountWithTrace(undefined, false);
+    expect(el.shadowRoot!.querySelector('.off-schedule')).toBeNull();
   });
 });
 
@@ -289,5 +333,107 @@ describe('compact attribute propagation', () => {
     el.compact = false;
     await flush(el);
     expect(el.hasAttribute('compact')).toBe(false);
+  });
+});
+
+describe('acp-climate-panel', () => {
+  function makeHass(
+    sensorState: string,
+    sensorAttrs: Record<string, unknown> = {},
+    switchState?: string,
+  ): HomeAssistant {
+    const states: Record<string, unknown> = {
+      'sensor.climate': {
+        entity_id: 'sensor.climate',
+        state: sensorState,
+        attributes: { friendly_name: 'Climate Status', ...sensorAttrs },
+        last_changed: new Date().toISOString(),
+        last_updated: new Date().toISOString(),
+        context: { id: 'test' },
+      },
+    };
+    if (switchState !== undefined) {
+      states['switch.climate_mode'] = {
+        entity_id: 'switch.climate_mode',
+        state: switchState,
+        attributes: { friendly_name: 'Climate Mode' },
+        last_changed: new Date().toISOString(),
+        last_updated: new Date().toISOString(),
+        context: { id: 'test' },
+      };
+    }
+    return { states } as unknown as HomeAssistant;
+  }
+
+  function makeDiscovered(withSwitch: boolean): DiscoveredEntities {
+    return {
+      ...baseDiscovered,
+      entities: {
+        climate_status_sensor: 'sensor.climate',
+        ...(withSwitch ? { climate_mode_switch: 'switch.climate_mode' } : {}),
+      },
+    };
+  }
+
+  it('unknown state + switch off → shows "Climate mode off" label, no temps, no Active line', async () => {
+    const el = await mount<LitLike>('acp-climate-panel');
+    el.hass = makeHass('unknown', {}, 'off');
+    el.discovered = makeDiscovered(true);
+    await flush(el);
+    const wrap = el.shadowRoot!.querySelector('.wrap');
+    expect(wrap).toBeTruthy();
+    const strategyName = el.shadowRoot!.querySelector('.strategy-name');
+    expect(strategyName?.textContent?.trim()).toBe('Climate mode off');
+    expect(el.shadowRoot!.querySelector('.temps')).toBeNull();
+    const headDim = el.shadowRoot!.querySelector('.head .dim');
+    expect(headDim).toBeNull();
+  });
+
+  it('unknown state + switch on → shows "Standby" label', async () => {
+    const el = await mount<LitLike>('acp-climate-panel');
+    el.hass = makeHass('unknown', {}, 'on');
+    el.discovered = makeDiscovered(true);
+    await flush(el);
+    const strategyName = el.shadowRoot!.querySelector('.strategy-name');
+    expect(strategyName?.textContent?.trim()).toBe('Standby');
+  });
+
+  it('unknown state + no switch entity → shows "Standby" label', async () => {
+    const el = await mount<LitLike>('acp-climate-panel');
+    el.hass = makeHass('unknown');
+    el.discovered = makeDiscovered(false);
+    await flush(el);
+    const strategyName = el.shadowRoot!.querySelector('.strategy-name');
+    expect(strategyName?.textContent?.trim()).toBe('Standby');
+  });
+
+  it('unavailable state → .wrap is null (returns nothing)', async () => {
+    const el = await mount<LitLike>('acp-climate-panel');
+    el.hass = makeHass('unavailable');
+    el.discovered = makeDiscovered(false);
+    await flush(el);
+    expect(el.shadowRoot!.querySelector('.wrap')).toBeNull();
+  });
+
+  it('no climate_status_sensor role → .wrap is null', async () => {
+    const el = await mount<LitLike>('acp-climate-panel');
+    el.hass = { states: {} } as unknown as HomeAssistant;
+    el.discovered = { ...baseDiscovered, entities: {} };
+    await flush(el);
+    expect(el.shadowRoot!.querySelector('.wrap')).toBeNull();
+  });
+
+  it('summer_mode state (valid, with attrs) → .wrap present AND .strategy present', async () => {
+    const el = await mount<LitLike>('acp-climate-panel');
+    el.hass = makeHass('summer_mode', {
+      active_temperature: 24,
+      temperature_unit: '°C',
+      indoor_temperature: 23,
+      outdoor_temperature: 28,
+    });
+    el.discovered = makeDiscovered(false);
+    await flush(el);
+    expect(el.shadowRoot!.querySelector('.wrap')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('.strategy')).toBeTruthy();
   });
 });

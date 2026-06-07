@@ -22,6 +22,7 @@ export class DecisionStrip extends LitElement {
     steps: Map<string, TraceRow>;
     enabledHandlers: string[] | undefined;
     summary: string;
+    inTimeWindow: boolean | undefined;
   } | null {
     const id = this.discovered.entities.decision_trace_sensor;
     if (!id) return null;
@@ -47,6 +48,7 @@ export class DecisionStrip extends LitElement {
       steps,
       enabledHandlers: attrs.enabled_handlers,
       summary: buildDecisionSentence(attrs.trace, attrs, st.state, labels),
+      inTimeWindow: attrs.in_time_window,
     };
   }
 
@@ -71,6 +73,14 @@ export class DecisionStrip extends LitElement {
           <span class="label">${t('decision.pipeline', this.hass)}</span>
           <span class="winner">${t('decision.winner', this.hass, { name: trace.winner })}</span>
         </div>
+        ${trace.inTimeWindow === false
+          ? html`<div
+              class="off-schedule"
+              title=${t('decision.outside_schedule_tooltip', this.hass)}
+            >
+              ${t('decision.outside_schedule', this.hass)}
+            </div>`
+          : nothing}
         ${this.showSummary && trace.summary
           ? html`<div class="summary" title=${t('decision.summary_tooltip', this.hass)}>
               ${trace.summary}
@@ -190,10 +200,24 @@ export class DecisionStrip extends LitElement {
       line-height: 1.3;
       padding: 2px 4px 4px;
       color: var(--primary-text-color);
+      cursor: help;
     }
     :host([compact]) .summary {
       font-size: 0.75rem;
       padding: 0 2px 2px;
+    }
+    .off-schedule {
+      font-size: 0.78rem;
+      color: var(--secondary-text-color);
+      padding: 3px 8px;
+      border-radius: 4px;
+      border-left: 3px solid var(--secondary-text-color);
+      background: rgba(127, 127, 127, 0.08);
+      cursor: help;
+    }
+    :host([compact]) .off-schedule {
+      font-size: 0.72rem;
+      padding: 2px 6px;
     }
     .dim {
       color: var(--secondary-text-color);

@@ -121,6 +121,85 @@ describe('locale-table parity', () => {
   });
 });
 
+describe('cover position i18n (issue #132)', () => {
+  const keys = [
+    'compass.cover_position',
+    'compass.cover_position_target',
+    'compass.cover_position_target_awning',
+    'compass.cover_position_actual',
+  ];
+  for (const key of keys) {
+    it(`${key} resolves to a non-key string in EN and FR`, () => {
+      const enVal = t(key, { locale: { language: 'en' } });
+      const frVal = t(key, { locale: { language: 'fr' } });
+      expect(enVal).not.toBe(key);
+      expect(frVal).not.toBe(key);
+      expect(enVal.length).toBeGreaterThan(0);
+      expect(frVal.length).toBeGreaterThan(0);
+    });
+  }
+
+  it('the removed cover_closed / cover_extended keys are gone from both locales', () => {
+    expect((en.compass as Record<string, string>)['cover_closed']).toBeUndefined();
+    expect((en.compass as Record<string, string>)['cover_extended']).toBeUndefined();
+    expect((en.compass as Record<string, string>)['cover_closed_tooltip']).toBeUndefined();
+    expect((fr.compass as Record<string, string>)['cover_closed']).toBeUndefined();
+    expect((fr.compass as Record<string, string>)['cover_extended']).toBeUndefined();
+    expect((fr.compass as Record<string, string>)['cover_closed_tooltip']).toBeUndefined();
+  });
+});
+
+describe('outside-schedule i18n', () => {
+  it('decision.outside_schedule resolves to a non-key string in EN and FR', () => {
+    const enVal = t('decision.outside_schedule', { locale: { language: 'en' } });
+    const frVal = t('decision.outside_schedule', { locale: { language: 'fr' } });
+    expect(enVal).not.toBe('decision.outside_schedule');
+    expect(frVal).not.toBe('decision.outside_schedule');
+    expect(enVal.length).toBeGreaterThan(0);
+    expect(frVal.length).toBeGreaterThan(0);
+  });
+
+  it('decision.outside_schedule_tooltip resolves to a non-key string in EN and FR', () => {
+    const enVal = t('decision.outside_schedule_tooltip', { locale: { language: 'en' } });
+    const frVal = t('decision.outside_schedule_tooltip', { locale: { language: 'fr' } });
+    expect(enVal).not.toBe('decision.outside_schedule_tooltip');
+    expect(frVal).not.toBe('decision.outside_schedule_tooltip');
+  });
+
+  it('badge.off_schedule resolves to a non-key string in EN and FR', () => {
+    const enVal = t('badge.off_schedule', { locale: { language: 'en' } });
+    const frVal = t('badge.off_schedule', { locale: { language: 'fr' } });
+    expect(enVal).not.toBe('badge.off_schedule');
+    expect(frVal).not.toBe('badge.off_schedule');
+  });
+});
+
+describe('elevation schedule i18n (issue #128)', () => {
+  const keys = [
+    'elevation.schedule',
+    'elevation.schedule_from',
+    'elevation.schedule_until',
+    'elevation.schedule_start_tooltip',
+    'elevation.schedule_end_tooltip',
+  ];
+  for (const key of keys) {
+    it(`${key} resolves to a non-key string in EN and FR`, () => {
+      const enVal = t(key, { locale: { language: 'en' } });
+      const frVal = t(key, { locale: { language: 'fr' } });
+      expect(enVal).not.toBe(key);
+      expect(frVal).not.toBe(key);
+      expect(enVal.length).toBeGreaterThan(0);
+      expect(frVal.length).toBeGreaterThan(0);
+    });
+  }
+
+  it('elevation.schedule interpolates {from} and {to}', () => {
+    expect(
+      t('elevation.schedule', { locale: { language: 'en' } }, { from: '07:30', to: '21:00' }),
+    ).toBe('Schedule 07:30 – 21:00');
+  });
+});
+
 describe('forecast.solar_only_note i18n', () => {
   it('resolves to a non-key string in EN', () => {
     const result = t('forecast.solar_only_note', { locale: { language: 'en' } });

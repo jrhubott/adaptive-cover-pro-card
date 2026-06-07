@@ -2,9 +2,9 @@ import { LitElement, html, css, svg, nothing, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
-import type { DiscoveredEntities, SunPositionAttributes } from '../types';
+import type { ControlStatusAttributes, DiscoveredEntities, SunPositionAttributes } from '../types';
 import { findFovWindows, sampleDay, startOfDayInZone, type SunSample } from '../lib/sun-model';
-import { elevationBandFraction, ribbonLayout } from '../lib/geometry';
+import { elevationBandFraction, ribbonLayout, scheduleZones } from '../lib/geometry';
 import { resolveCoverColor } from '../lib/palette';
 import { formatClock } from '../lib/formatters';
 import { t } from '../lib/i18n';
@@ -16,11 +16,20 @@ const PAD_R = 8;
 const PAD_T = 10;
 const PAD_B = 22;
 
-// Per-window FOV ribbon (multi-window only), stacked below the plot block.
-const RIBBON_TOP_PAD = 6;
+// Per-window FOV ribbon (multi-window only), overlaid inside the plot grid as a
+// band anchored just above the time axis (reclaims the old below-plot strip).
 const RIBBON_ROW_H = 8;
 const RIBBON_GAP = 3;
-const RIBBON_BOTTOM_PAD = 4;
+const RIBBON_BOTTOM_INSET = 3;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Parse a schedule bound (tz-aware ISO or null/missing) to a Date, or null. */
+function parseScheduleBound(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
 @customElement('acp-elevation-chart')
 export class ElevationChart extends LitElement {
@@ -41,6 +50,19 @@ export class ElevationChart extends LitElement {
     const id = this.discoveredList[0]?.entities.sun_infront_binary;
     if (!id) return false;
     return this.hass.states[id]?.state === 'on';
+  }
+
+  /** Schedule start/end bounds from the first entry's control_status sensor.
+   *  Returns null when the sensor is absent (older integration). */
+  private _scheduleBounds(): { start: Date | null; end: Date | null } | null {
+    const id = this.discoveredList[0]?.entities.control_status_sensor;
+    if (!id) return null;
+    const attrs = this.hass.states[id]?.attributes as ControlStatusAttributes | undefined;
+    if (!attrs) return null;
+    return {
+      start: parseScheduleBound(attrs.schedule_start),
+      end: parseScheduleBound(attrs.schedule_end),
+    };
   }
 
   protected render(): TemplateResult | typeof nothing {
@@ -93,6 +115,48 @@ export class ElevationChart extends LitElement {
 
     const multi = this.discoveredList.length > 1;
 
+    // Schedule window overlay (issue #128). Off-schedule gray zones + thin
+    // start/end bars come from the integration's control_status sensor; absent
+    // sensor or both-bounds-null renders nothing. Geometry lives in
+    // scheduleZones (handles normal / midnight-spanning / open-ended / clamp).
+    const bounds = this._scheduleBounds();
+    const schedule = bounds
+      ? scheduleZones(bounds.start, bounds.end, day.getTime(), DAY_MS)
+      : { offSchedule: [], bars: [] };
+    const fracToX = (frac: number): number => PAD_L + frac * (VIEWBOX_W - PAD_L - PAD_R);
+    const scheduleZoneRects = schedule.offSchedule.map((z) => ({
+      x: fracToX(z.x0),
+      width: fracToX(z.x1) - fracToX(z.x0),
+    }));
+    // Each drawable bar gets its clock-time label. Match a bar fraction back to
+    // the bound it came from (start vs end) for the right tooltip + tick.
+    const startFrac =
+      bounds?.start && day ? (bounds.start.getTime() - day.getTime()) / DAY_MS : null;
+    const scheduleBars = schedule.bars.map((frac) => {
+      const iso =
+        startFrac !== null && Math.abs(frac - startFrac) < 1e-9
+          ? bounds!.start!.toISOString()
+          : bounds!.end!.toISOString();
+      const isStart = startFrac !== null && Math.abs(frac - startFrac) < 1e-9;
+      return {
+        x: fracToX(frac),
+        label: formatClock(iso, time_zone),
+        tooltip: isStart
+          ? t('elevation.schedule_start_tooltip', this.hass)
+          : t('elevation.schedule_end_tooltip', this.hass),
+      };
+    });
+    // Head summary line: "Schedule 07:30 – 21:00" with open-ended variants.
+    const scheduleSummary = ((): string | null => {
+      if (!bounds) return null;
+      const from = bounds.start ? formatClock(bounds.start.toISOString(), time_zone) : null;
+      const to = bounds.end ? formatClock(bounds.end.toISOString(), time_zone) : null;
+      if (from && to) return t('elevation.schedule', this.hass, { from, to });
+      if (from) return t('elevation.schedule_from', this.hass, { from });
+      if (to) return t('elevation.schedule_until', this.hass, { to });
+      return null;
+    })();
+
     // Per-window data. The day samples, curve, axes, horizon, now-cursor and
     // sun-dot are shared (sun geometry). In single-window mode the FOV band is
     // drawn IN the plot (legacy). In multi-window mode the plot stays pristine
@@ -134,15 +198,17 @@ export class ElevationChart extends LitElement {
       const runBars = runs.map((w) => ({
         x0: xAt(samples[w.startIdx].t),
         x1: xAt(samples[w.endIdx].t),
-        range: `${formatClock(samples[w.startIdx].t.toISOString())} → ${formatClock(
+        range: `${formatClock(samples[w.startIdx].t.toISOString(), time_zone)} → ${formatClock(
           samples[w.endIdx].t.toISOString(),
+          time_zone,
         )}`,
       }));
       const label = runs
         .map(
           (w) =>
-            `${formatClock(samples[w.startIdx].t.toISOString())} → ${formatClock(
+            `${formatClock(samples[w.startIdx].t.toISOString(), time_zone)} → ${formatClock(
               samples[w.endIdx].t.toISOString(),
+              time_zone,
             )}`,
         )
         .join(', ');
@@ -156,40 +222,41 @@ export class ElevationChart extends LitElement {
 
     const anyFov = windows.some((w) => w.runs.length > 0);
 
-    // Ribbon layout (multi-window only). Rows are placed below the plot block
-    // (y origin = VIEWBOX_H). totalH grows the svg so the ribbon is never
-    // squished; an inline aspect-ratio matches the dynamic viewBox.
-    // ribbonLayout works in coordinates relative to the plot block; rows are
-    // offset by VIEWBOX_H at render time. (Passing an absolute `top` here would
-    // double-count VIEWBOX_H in `height` and inflate totalH — and the cursor.)
+    // Ribbon layout (multi-window only). Rows are now overlaid INSIDE the plot
+    // grid as a band anchored to the bottom (just above the time axis), so the
+    // viewBox stays a fixed 400x160 and no strip is appended below the chart.
+    // ribbonLayout gives row offsets relative to the band top (no extra pads);
+    // each row is offset by ribbonBandTop at render time.
     const ribbon = multi
-      ? ribbonLayout(windows.length, RIBBON_TOP_PAD, RIBBON_ROW_H, RIBBON_GAP, RIBBON_BOTTOM_PAD)
+      ? ribbonLayout(windows.length, 0, RIBBON_ROW_H, RIBBON_GAP, 0)
       : { rows: [], height: 0 };
-    const totalH = multi ? VIEWBOX_H + ribbon.height : VIEWBOX_H;
-    const nowY2 = multi ? totalH - RIBBON_BOTTOM_PAD : VIEWBOX_H - PAD_B;
+    const ribbonBandTop = plotBottom - ribbon.height - RIBBON_BOTTOM_INSET;
+    const totalH = VIEWBOX_H;
+    const nowY2 = VIEWBOX_H - PAD_B;
 
     return html`
       <div class="wrap">
         <div class="head">
           <span class="label">${t('elevation.title', this.hass)}</span>
-          ${
-            // Multi-window: no per-window legend here — the sky-compass legend
-            // above already keys each window's colour. The ribbon below carries
-            // the timing. Single-window keeps its inline FOV-time summary.
-            multi
-              ? nothing
-              : anyFov
-                ? html`<span class="dim"
-                    >${t('elevation.fov_windows', this.hass, { windows: windows[0].label })}</span
-                  >`
-                : html`<span class="dim">${t('elevation.no_fov_today', this.hass)}</span>`
-          }
+          <span class="head-meta">
+            ${
+              // Multi-window: no per-window legend here — the sky-compass legend
+              // above already keys each window's colour. The ribbon below carries
+              // the timing. Single-window keeps its inline FOV-time summary.
+              multi
+                ? nothing
+                : anyFov
+                  ? html`<span class="dim"
+                      >${t('elevation.fov_windows', this.hass, { windows: windows[0].label })}</span
+                    >`
+                  : html`<span class="dim">${t('elevation.no_fov_today', this.hass)}</span>`
+            }
+            ${scheduleSummary
+              ? html`<span class="dim schedule">${scheduleSummary}</span>`
+              : nothing}
+          </span>
         </div>
-        <svg
-          viewBox="0 0 ${VIEWBOX_W} ${totalH}"
-          preserveAspectRatio="none"
-          style=${multi ? `aspect-ratio: ${VIEWBOX_W} / ${totalH}` : nothing}
-        >
+        <svg viewBox="0 0 ${VIEWBOX_W} ${totalH}" preserveAspectRatio="none">
           ${svg`
             <!-- y-axis gridlines -->
             ${[0, 30, 60, 90].map(
@@ -228,15 +295,14 @@ export class ElevationChart extends LitElement {
                   )
             }
 
-            <!-- elevation curve -->
-            <polyline class="curve" points=${curvePoints} />
-
             <!-- Per-window FOV ribbon (multi-window only): one row per window,
                  a faint full-width track plus color-keyed bars for in-FOV runs,
-                 sharing the plot's xAt() time scale. -->
+                 sharing the plot's xAt() time scale. Overlaid as a band anchored
+                 to the bottom of the plot; drawn BEFORE the curve so the blue
+                 curve stays crisp on top. -->
             ${ribbon.rows.flatMap((row, i) => {
               const w = windows[i];
-              const rowY = VIEWBOX_H + row.y;
+              const rowY = ribbonBandTop + row.y;
               // Track tooltip names the window so empty rows are identifiable;
               // bar tooltips add that run's exact clock range (the numbers we
               // dropped from the head legend live here on hover instead).
@@ -271,10 +337,47 @@ export class ElevationChart extends LitElement {
               return [track, ...bars];
             })}
 
+            <!-- Schedule window overlay (issue #128): faint off-schedule gray
+                 zone(s) + thin start/end bars with a clock-time tick. Rendered
+                 PRE-CURVE so the sun curve and now-line paint on top. The tick
+                 label sits slightly higher than the axis ticks (its own class)
+                 so it doesn't read as an axis tick. -->
+            ${scheduleZoneRects.map(
+              (z) => svg`<rect
+                class="off-schedule-zone"
+                x=${z.x}
+                y=${PAD_T}
+                width=${z.width}
+                height=${VIEWBOX_H - PAD_B - PAD_T}
+              />`,
+            )}
+            ${scheduleBars.flatMap((b) => [
+              svg`<line
+                class="schedule-bar"
+                x1=${b.x}
+                y1=${PAD_T}
+                x2=${b.x}
+                y2=${VIEWBOX_H - PAD_B}
+              ><title>${b.tooltip}</title></line>`,
+              svg`<text
+                class="schedule-tick"
+                x=${b.x}
+                y=${PAD_T + 7}
+                text-anchor="middle"
+              >${b.label}</text>`,
+            ])}
+
+            <!-- elevation curve (drawn after the ribbon so it sits on top) -->
+            <polyline class="curve" points=${curvePoints} />
+
             <!-- current-time cursor + sun dot, drawn last so they sit on top of
-                 the curve AND the ribbon bars (extends through the ribbon in
-                 multi). -->
-            <line class="now" x1=${nowX} y1=${PAD_T} x2=${nowX} y2=${nowY2} />
+                 the curve AND the ribbon bars. A wide transparent hit-line widens
+                 the hover target so the thin now-line is easy to tooltip. -->
+            <g class="now-group">
+              <title>${formatClock(now.toISOString(), time_zone)}</title>
+              <line class="now-hit" x1=${nowX} y1=${PAD_T} x2=${nowX} y2=${nowY2} />
+              <line class="now" x1=${nowX} y1=${PAD_T} x2=${nowX} y2=${nowY2} />
+            </g>
             ${
               currentY !== null
                 ? svg`<circle class="sun-dot ${sunDotState}" cx=${nowX} cy=${currentY} r="4" />`
@@ -339,6 +442,13 @@ export class ElevationChart extends LitElement {
       letter-spacing: 0.05em;
       text-transform: uppercase;
     }
+    .head-meta {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 1px;
+      text-align: right;
+    }
     svg {
       width: 100%;
       height: auto;
@@ -378,13 +488,29 @@ export class ElevationChart extends LitElement {
       fill: var(--warning-color, gold);
       fill-opacity: 0.18;
     }
+    .off-schedule-zone {
+      fill: var(--divider-color);
+      fill-opacity: 0.12;
+      pointer-events: none;
+    }
+    .schedule-bar {
+      stroke: var(--divider-color);
+      stroke-width: 1;
+      cursor: help;
+    }
+    .schedule-tick {
+      font-size: 8px;
+      fill: var(--secondary-text-color);
+    }
     .ribbon-track {
       fill: var(--divider-color);
       fill-opacity: 0.25;
+      cursor: help;
     }
     .ribbon-bar {
       fill: var(--warning-color, gold);
       fill-opacity: 0.85;
+      cursor: help;
     }
     .curve {
       fill: none;
@@ -396,6 +522,12 @@ export class ElevationChart extends LitElement {
     .now {
       stroke: var(--accent-color, crimson);
       stroke-width: 1.25;
+      pointer-events: none;
+    }
+    .now-hit {
+      stroke: transparent;
+      stroke-width: 10;
+      cursor: help;
     }
     /* Colour states mirror acp-sky-compass .sun.* so the sun reads the same
        across both visuals. */

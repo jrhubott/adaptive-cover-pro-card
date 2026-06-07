@@ -6,6 +6,7 @@ import { CARD_EDITOR_NAME } from './const';
 import type { ControlFlags } from './const';
 import { fetchAcpConfigEntries, type AcpConfigEntry } from './lib/config-entries';
 import { renderEditorFooter } from './lib/editor-footer';
+import { colorForIndex } from './lib/palette';
 import { t } from './lib/i18n';
 import type { AdaptiveCoverProCardConfig, CardSection } from './types';
 
@@ -149,6 +150,19 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
     this._emit({ ...cfg, controls: { ...cfg.controls, [key]: enabled } });
   }
 
+  // The main card embeds a single sky-compass overlay, so cover colors are a
+  // single slot bound to index 0 of the cover_colors array.
+  private _onCoverColorChange(value: string): void {
+    const cfg = this._config ?? { type: '', entry_id: '' };
+    this._emit({ ...cfg, cover_colors: [value] });
+  }
+
+  private _onCoverColorReset(): void {
+    const cfg = { ...(this._config ?? { type: '', entry_id: '' }) };
+    delete (cfg as { cover_colors?: unknown }).cover_colors;
+    this._emit(cfg);
+  }
+
   protected render(): TemplateResult | typeof nothing {
     if (!this._config) return nothing;
     const activeSections = new Set(this._currentSections);
@@ -229,6 +243,44 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
             </span>
           </label>
         </div>
+
+        ${this._config.entry_id
+          ? html`
+              <div class="section">
+                <label class="field-label">${t('editor.compass.cover_colors', this.hass)}</label>
+                <div class="hint">${t('editor.compass.cover_colors_hint', this.hass)}</div>
+                ${(() => {
+                  const override = this._config!.cover_colors?.[0] ?? null;
+                  const resolved = override ?? colorForIndex(0);
+                  return html`
+                    <div class="color-row">
+                      <input
+                        type="color"
+                        .value=${resolved}
+                        @change=${(e: Event) =>
+                          this._onCoverColorChange((e.target as HTMLInputElement).value)}
+                      />
+                      <span class="toggle-text">
+                        <span class="toggle-desc"
+                          >${override
+                            ? override
+                            : t('editor.compass.default_color', this.hass)}</span
+                        >
+                      </span>
+                      <button
+                        type="button"
+                        class="reset-btn"
+                        ?disabled=${!override}
+                        @click=${() => this._onCoverColorReset()}
+                      >
+                        ${t('editor.common.reset', this.hass)}
+                      </button>
+                    </div>
+                  `;
+                })()}
+              </div>
+            `
+          : nothing}
 
         <div class="section">
           <label class="field-label">${t('editor.main.display', this.hass)}</label>
@@ -433,6 +485,39 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
     .toggle-desc {
       font-size: 0.74rem;
       color: var(--secondary-text-color);
+    }
+    .color-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 4px 0;
+    }
+    .color-row input[type='color'] {
+      width: 32px;
+      height: 32px;
+      border: 1px solid var(--divider-color);
+      border-radius: 4px;
+      padding: 2px;
+      background: none;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .color-row .toggle-text {
+      flex: 1;
+    }
+    .reset-btn {
+      background: none;
+      border: 1px solid var(--divider-color);
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: 0.78rem;
+      color: var(--secondary-text-color);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .reset-btn:disabled {
+      opacity: 0.35;
+      cursor: default;
     }
     code {
       background: var(--code-editor-background-color, rgba(0, 0, 0, 0.08));

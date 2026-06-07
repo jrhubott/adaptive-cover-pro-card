@@ -48,11 +48,11 @@ export function formatDegrees(value: number | null | undefined): string {
  * Format an ISO datetime as "HH:MM" local time.
  * Returns "—" for null/undefined/invalid.
  */
-export function formatClock(iso: string | null | undefined): string {
+export function formatClock(iso: string | null | undefined, timeZone?: string): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone });
 }
 
 /** Format seconds as "Xm Ys" or "Xh Ym" for >1h. Negative values treated as 0. */

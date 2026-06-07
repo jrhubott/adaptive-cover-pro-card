@@ -17,6 +17,7 @@ export class AcpHarnessCardStage extends LitElement {
   private _rootEl?: CardElement;
   private _compassEl?: CardElement;
   private _tileEls: CardElement[] = [];
+  private _entrySig?: string;
 
   protected render(): TemplateResult {
     return html`
@@ -46,6 +47,24 @@ export class AcpHarnessCardStage extends LitElement {
   }
 
   private _syncCards(): void {
+    // The mock entity registry is rebuilt per scenario, but each card fetches it
+    // once and caches it — the mock's event subscription is a no-op, so the cards
+    // never see an entity_registry_updated event and never refetch. When the
+    // configured entry set changes, tear down every card so each remounts and
+    // refetches the registry for the new entries. Without this, discovery runs
+    // against the previous scenario's entities and a switch to e.g. the
+    // multi-window scenario renders "No matching Adaptive Cover Pro entities".
+    const entrySig = this.config.entries.map((e) => e.entry_id).join(',');
+    if (this._entrySig !== undefined && entrySig !== this._entrySig) {
+      this._rootEl?.remove();
+      this._rootEl = undefined;
+      this._compassEl?.remove();
+      this._compassEl = undefined;
+      for (const el of this._tileEls) el.remove();
+      this._tileEls = [];
+    }
+    this._entrySig = entrySig;
+
     const rootHost = this.renderRoot.querySelector<HTMLElement>('#root-host');
     if (this.config.root.enabled && rootHost) {
       if (!this._rootEl) {
@@ -116,6 +135,7 @@ export class AcpHarnessCardStage extends LitElement {
       show_moon: r.show_moon,
       hide_inactive_handlers: r.hide_inactive_handlers,
       show_decision_summary: r.show_decision_summary,
+      cover_colors: [this.config.entries[0].color],
       north_offset: r.north_offset,
     };
   }
