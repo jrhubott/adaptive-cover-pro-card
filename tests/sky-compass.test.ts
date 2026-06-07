@@ -261,12 +261,32 @@ describe('acp-sky-compass cover legend wording (#132)', () => {
 });
 
 describe('acp-sky-compass coverColors', () => {
-  it('applies override color as inline style on single-entry compass FOV', async () => {
-    const d = makeDiscovered('entry1', 'Kitchen');
-    const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
+  it('single-entry override colors the cover wedge but not the FOV', async () => {
+    // #132 review: a cover-color override on a single-entry compass recolors only
+    // the cover wedge. FOV/window/blind keep their semantic colors (the legend
+    // would otherwise show three identical swatches).
+    const targetSensorId = 'sensor.target_pos_entry1';
+    const d = makeDiscovered('entry1', 'Kitchen', { targetSensorId });
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, coverPos: 40, targetSensorId },
+    ]);
     const el = await mountCompass([d], hass, { coverColors: ['#ff3366'] });
+    const cover = el.shadowRoot!.querySelector('path.cover-fill') as SVGPathElement;
+    expect(cover.getAttribute('style') ?? '').toContain('#ff3366');
     const fov = el.shadowRoot!.querySelector('path.fov') as SVGPathElement;
-    expect(fov.getAttribute('style') ?? '').toContain('#ff3366');
+    expect(fov.getAttribute('style') ?? '').not.toContain('#ff3366');
+  });
+
+  it('single-entry override colors the legend cover swatch to match the wedge', async () => {
+    const targetSensorId = 'sensor.target_pos_entry1';
+    const d = makeDiscovered('entry1', 'Kitchen', { targetSensorId });
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, coverPos: 40, targetSensorId },
+    ]);
+    const el = await mountCompass([d], hass, { coverColors: ['#ff3366'] });
+    const swatch = el.shadowRoot!.querySelector('.swatch.cover-fill-swatch') as HTMLElement | null;
+    expect(swatch).not.toBeNull();
+    expect(swatch!.getAttribute('style') ?? '').toContain('#ff3366');
   });
 
   it('null slot falls back to palette color in multi-entry compass', async () => {

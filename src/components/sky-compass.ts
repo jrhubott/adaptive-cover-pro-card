@@ -546,12 +546,18 @@ export class SkyCompass extends LitElement {
         })}`
       : '';
 
-    const inlineColor = multi || o.isOverride;
-    const fovStyle = inlineColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
-    const coverStyle = inlineColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
-    const blindStyle = inlineColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
-    const arrowStyle = inlineColor ? `stroke: ${o.color};` : '';
-    const arrowBaseStyle = inlineColor ? `fill: ${o.color};` : '';
+    // In multi-entry mode the entry color is an *identity* — the whole wedge
+    // group (FOV, cover, blind, window) shares it so entries are distinguishable.
+    // In single-entry mode there is nothing to distinguish, so a cover-color
+    // override recolors only the cover wedge; FOV/blind/window keep their
+    // semantic colors (otherwise the legend shows several identical swatches).
+    const groupColor = multi;
+    const coverColor = multi || o.isOverride;
+    const fovStyle = groupColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
+    const coverStyle = coverColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
+    const blindStyle = groupColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
+    const arrowStyle = groupColor ? `stroke: ${o.color};` : '';
+    const arrowBaseStyle = groupColor ? `fill: ${o.color};` : '';
 
     const showCover = this.showCoverFill && coverPath !== '';
     const showBlind = this.showBlindSpot && !!blindSpot;
@@ -651,7 +657,11 @@ export class SkyCompass extends LitElement {
       <div><span class="swatch fov"></span> ${t('compass.window_fov', this.hass)}</div>
       ${this.showCoverFill
         ? html`<div>
-            <span class="swatch cover-fill-swatch"></span> ${t('compass.cover_position', this.hass)}
+            <span
+              class="swatch cover-fill-swatch"
+              style=${overlays[0]?.isOverride ? `background: ${overlays[0].color}` : ''}
+            ></span>
+            ${t('compass.cover_position', this.hass)}
           </div>`
         : nothing}
       ${this.showWindowArrow
