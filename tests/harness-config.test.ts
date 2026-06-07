@@ -85,6 +85,25 @@ describe('control-panel in_time_window toggle (issue #128)', () => {
     expect(emitted).toBeTruthy();
     expect(emitted!.entries[0].flags.in_time_window).toBe(false);
   });
+
+  it('renders a schedule-end "no bound" toggle that nulls the end when unchecked', async () => {
+    const el = await mountControlPanel(defaultScenarioConfig());
+    let emitted: HarnessConfig | undefined;
+    el.addEventListener('config-change', (e) => {
+      emitted = (e as CustomEvent<{ config: HarnessConfig }>).detail.config;
+    });
+    // The label carries the formatted bound; match by prefix.
+    const rows = Array.from(el.shadowRoot!.querySelectorAll('label.row'));
+    const endRow = rows.find((r) =>
+      r.querySelector('span')?.textContent?.trim().startsWith('Schedule end'),
+    );
+    expect(endRow).toBeTruthy();
+    const toggle = endRow!.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    expect(toggle.checked).toBe(true); // default scenario has an end bound
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event('change'));
+    expect(emitted!.entries[0].flags.schedule_end_minutes).toBeNull();
+  });
 });
 
 describe('outside-schedule scenario (issue #128)', () => {
@@ -93,6 +112,37 @@ describe('outside-schedule scenario (issue #128)', () => {
     expect(scenario).toBeTruthy();
     const cfg = scenario!.build();
     expect(cfg.entries[0].flags.in_time_window).toBe(false);
+  });
+
+  it('outside-schedule carries a concrete schedule window (start + end minutes)', () => {
+    const cfg = findScenario('outside-schedule')!.build();
+    expect(cfg.entries[0].flags.schedule_start_minutes).toBe(7 * 60 + 30);
+    expect(cfg.entries[0].flags.schedule_end_minutes).toBe(21 * 60);
+  });
+});
+
+describe('schedule window scenarios (issue #128 Track B)', () => {
+  it('default entry flags include a schedule window', () => {
+    const cfg = defaultScenarioConfig();
+    expect(cfg.entries[0].flags.schedule_start_minutes).toBe(7 * 60 + 30);
+    expect(cfg.entries[0].flags.schedule_end_minutes).toBe(21 * 60);
+  });
+
+  it('exposes a midnight-spanning scenario (end ≤ start)', () => {
+    const scenario = findScenario('schedule-spans-midnight');
+    expect(scenario).toBeTruthy();
+    const cfg = scenario!.build();
+    const start = cfg.entries[0].flags.schedule_start_minutes!;
+    const end = cfg.entries[0].flags.schedule_end_minutes!;
+    expect(end).toBeLessThanOrEqual(start);
+  });
+
+  it('exposes an open-ended scenario (one bound null)', () => {
+    const scenario = findScenario('schedule-open-ended');
+    expect(scenario).toBeTruthy();
+    const cfg = scenario!.build();
+    const { schedule_start_minutes, schedule_end_minutes } = cfg.entries[0].flags;
+    expect(schedule_start_minutes === null || schedule_end_minutes === null).toBe(true);
   });
 });
 

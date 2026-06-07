@@ -177,6 +177,11 @@ export const fr: EnDict = {
     fov_window_named: '{name} : {windows}',
     no_fov_today: "Pas de soleil dans le champ de vision aujourd'hui",
     placeholder: "Graphique d'élévation solaire indisponible.",
+    schedule: 'Programmation {from} – {to}',
+    schedule_from: 'Programmation à partir de {from}',
+    schedule_until: "Programmation jusqu'à {to}",
+    schedule_start_tooltip: 'Début de programmation',
+    schedule_end_tooltip: 'Fin de programmation',
   },
   root: {
     loading_registry: 'Chargement du registre Adaptive Cover Pro…',

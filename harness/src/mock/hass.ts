@@ -39,6 +39,11 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'decision.outside_schedule': 'Outside schedule — automatic control paused',
   'decision.outside_schedule_tooltip':
     'The configured schedule window is not active, so automatic positioning is paused.',
+  'elevation.schedule': 'Schedule {from} – {to}',
+  'elevation.schedule_from': 'Schedule from {from}',
+  'elevation.schedule_until': 'Schedule until {to}',
+  'elevation.schedule_start_tooltip': 'Schedule start',
+  'elevation.schedule_end_tooltip': 'Schedule end',
   'compass.in_fov_tooltip': 'Sun is currently within this window’s field of view',
   'root.loading_registry': 'Loading entity registry…',
   'root.no_entities_title': 'No matching entities',

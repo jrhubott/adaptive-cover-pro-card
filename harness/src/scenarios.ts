@@ -120,6 +120,8 @@ function makeEntry(
       glare_active: false,
       is_sunset_active: false,
       in_time_window: true,
+      schedule_start_minutes: 7 * 60 + 30, // 07:30
+      schedule_end_minutes: 21 * 60, // 21:00
       default_position: 60,
       ...overrides.flags,
     },
@@ -517,14 +519,43 @@ export const SCENARIOS: Scenario[] = [
     id: 'outside-schedule',
     label: 'Outside schedule — auto paused',
     description:
-      'The configured Schedule & Timing clock window is not active (in_time_window false), so automatic control is paused. The decision strip shows the muted "Outside schedule" banner and the tile shows the "Off-schedule" badge. The default position wins.',
+      'The configured Schedule & Timing clock window (07:30–21:00) is not active right now (in_time_window false), so automatic control is paused. The "Sun today" chart shows the faint off-schedule zones bracketing the window with start/end bars + clock ticks; the decision strip shows the muted "Outside schedule" banner and the tile shows the "Off-schedule" badge. Default position wins. Set the time before 07:30 or after 21:00 to land literally outside the window.',
     build: () => {
-      const c = baseConfig('2026-06-21', 12 * 60);
+      const c = baseConfig('2026-06-21', 6 * 60); // 06:00 — before the 07:30 start.
       c.scenario = 'outside-schedule';
       c.entries[0].flags.in_time_window = false;
+      c.entries[0].flags.schedule_start_minutes = 7 * 60 + 30; // 07:30
+      c.entries[0].flags.schedule_end_minutes = 21 * 60; // 21:00
       // Default position wins so the banner + badge read cleanly.
       c.entries[0].target_position = 60;
       c.entries[0].covers[0].position = 60;
+      return c;
+    },
+  },
+  {
+    id: 'schedule-spans-midnight',
+    label: 'Schedule spans midnight (21:00 → 06:00)',
+    description:
+      'An overnight schedule whose end rolls to the next day. The "Sun today" chart draws a single gray off-schedule band across the daytime gap (06:00–21:00) with both clock bars; in-schedule wraps midnight. Drag the time across midnight to watch in_time_window flip.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60); // noon — inside the daytime off-schedule gap.
+      c.scenario = 'schedule-spans-midnight';
+      c.entries[0].flags.schedule_start_minutes = 21 * 60; // 21:00
+      c.entries[0].flags.schedule_end_minutes = 6 * 60; // 06:00 (rolls to next day)
+      c.entries[0].flags.in_time_window = false; // noon is outside the overnight window.
+      return c;
+    },
+  },
+  {
+    id: 'schedule-open-ended',
+    label: 'Schedule open-ended (no end set)',
+    description:
+      'A schedule with a start (07:30) but no end bound. The "Sun today" chart grays only the pre-start zone and draws a single start bar; the head reads "Schedule from 07:30". Toggle the schedule end "no bound" control to exercise the open path.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'schedule-open-ended';
+      c.entries[0].flags.schedule_start_minutes = 7 * 60 + 30; // 07:30
+      c.entries[0].flags.schedule_end_minutes = null; // open-ended
       return c;
     },
   },

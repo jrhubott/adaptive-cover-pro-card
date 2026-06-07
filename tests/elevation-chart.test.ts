@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import '../src/components/elevation-chart';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities, SunPositionAttributes } from '../src/types';
+import { formatClock } from '../src/lib/formatters';
 
 const VIEWBOX_H = 160;
 const PAD_B = 22;
@@ -367,5 +368,134 @@ describe('acp-elevation-chart: multi-window ribbon', () => {
     const lowest = Math.max(...trackBottoms);
     expect(lowest).toBeLessThanOrEqual(axisY + 0.01);
     expect(axisY - lowest).toBeLessThanOrEqual(8);
+  });
+});
+
+// Build a tz-aware UTC ISO datetime at HH:MM on TODAY (the chart anchors its
+// x-domain to the start of today in the configured zone). dayOffset rolls the
+// datetime to a later day (e.g. a next-day-rolled midnight end).
+function todayIso(hour: number, minute = 0, dayOffset = 0): string {
+  const d = new Date();
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + dayOffset, hour, minute, 0),
+  ).toISOString();
+}
+
+const discoveredWithControl: DiscoveredEntities = {
+  entry_id: 'entry1',
+  entry_title: 'Test',
+  cover_type: 'cover_blind',
+  entities: { sun_sensor: 'sensor.sun_position', control_status_sensor: 'sensor.control_status' },
+  managed_covers: [],
+};
+
+function scheduleHass(scheduleAttrs: Record<string, unknown> | null): HomeAssistant {
+  const states: Record<string, unknown> = {
+    'sensor.sun_position': {
+      state: '30',
+      attributes: {
+        elevation: 30,
+        gamma: 0,
+        window_azimuth: 180,
+        fov_left: 90,
+        fov_right: 90,
+        azimuth_min: 90,
+        azimuth_max: 270,
+        in_fov: true,
+      },
+    },
+  };
+  if (scheduleAttrs) {
+    states['sensor.control_status'] = { state: 'solar', attributes: scheduleAttrs };
+  }
+  return {
+    config: { latitude: 52.0, longitude: 4.0, time_zone: 'UTC' },
+    states,
+  } as unknown as HomeAssistant;
+}
+
+describe('acp-elevation-chart: schedule window (issue #128)', () => {
+  it('renders off-schedule zones and start/end bars when both bounds are present', async () => {
+    const el = await mount({
+      hass: scheduleHass({
+        schedule_start: todayIso(7, 30),
+        schedule_end: todayIso(21, 0),
+      }),
+      discoveredList: [discoveredWithControl],
+    });
+    // Normal in-day window 07:30–21:00 → two off-schedule edge bands.
+    expect(el.shadowRoot!.querySelectorAll('rect.off-schedule-zone').length).toBe(2);
+    // A start bar and an end bar (both true fractions are in-domain).
+    expect(el.shadowRoot!.querySelectorAll('line.schedule-bar').length).toBe(2);
+  });
+
+  it('labels each schedule bar with its clock time in a tick distinct from axis ticks', async () => {
+    const startIso = todayIso(7, 30);
+    const endIso = todayIso(21, 0);
+    const el = await mount({
+      hass: scheduleHass({ schedule_start: startIso, schedule_end: endIso }),
+      discoveredList: [discoveredWithControl],
+    });
+    const tickTexts = Array.from(el.shadowRoot!.querySelectorAll('text.schedule-tick')).map(
+      (t) => t.textContent ?? '',
+    );
+    expect(tickTexts.length).toBe(2);
+    expect(tickTexts.join(' ')).toContain(formatClock(startIso, 'UTC'));
+    expect(tickTexts.join(' ')).toContain(formatClock(endIso, 'UTC'));
+  });
+
+  it('renders nothing schedule-related when control_status_sensor is absent', async () => {
+    const el = await mount({
+      hass: scheduleHass(null),
+      discoveredList: [discovered], // no control_status_sensor on this entry
+    });
+    expect(el.shadowRoot!.querySelectorAll('rect.off-schedule-zone').length).toBe(0);
+    expect(el.shadowRoot!.querySelectorAll('line.schedule-bar').length).toBe(0);
+    // The sun curve still renders — chart is otherwise unchanged.
+    expect(el.shadowRoot!.querySelector('polyline.curve')).toBeTruthy();
+  });
+
+  it('renders nothing schedule-related when both bounds are null', async () => {
+    const el = await mount({
+      hass: scheduleHass({ schedule_start: null, schedule_end: null }),
+      discoveredList: [discoveredWithControl],
+    });
+    expect(el.shadowRoot!.querySelectorAll('rect.off-schedule-zone').length).toBe(0);
+    expect(el.shadowRoot!.querySelectorAll('line.schedule-bar').length).toBe(0);
+    expect(el.shadowRoot!.querySelector('polyline.curve')).toBeTruthy();
+  });
+
+  it('renders a single bar + single zone for an open-ended (null end) window', async () => {
+    const el = await mount({
+      hass: scheduleHass({ schedule_start: todayIso(7, 30), schedule_end: null }),
+      discoveredList: [discoveredWithControl],
+    });
+    expect(el.shadowRoot!.querySelectorAll('rect.off-schedule-zone').length).toBe(1);
+    expect(el.shadowRoot!.querySelectorAll('line.schedule-bar').length).toBe(1);
+  });
+
+  it('renders the schedule summary in the head for a normal window', async () => {
+    const startIso = todayIso(7, 30);
+    const endIso = todayIso(21, 0);
+    const el = await mount({
+      hass: scheduleHass({ schedule_start: startIso, schedule_end: endIso }),
+      discoveredList: [discoveredWithControl],
+    });
+    const head = el.shadowRoot!.querySelector('.head')!;
+    expect(head.textContent ?? '').toContain(formatClock(startIso, 'UTC'));
+    expect(head.textContent ?? '').toContain(formatClock(endIso, 'UTC'));
+    expect(head.textContent ?? '').toContain('Schedule');
+  });
+
+  it('renders an open-ended head summary when one bound is null', async () => {
+    const endIso = todayIso(21, 0);
+    const el = await mount({
+      hass: scheduleHass({ schedule_start: null, schedule_end: endIso }),
+      discoveredList: [discoveredWithControl],
+    });
+    const head = el.shadowRoot!.querySelector('.head')!;
+    expect(head.textContent ?? '').toContain(formatClock(endIso, 'UTC'));
+    // "Schedule until 21:00" — no start time present.
+    expect(head.textContent ?? '').toMatch(/until/i);
   });
 });

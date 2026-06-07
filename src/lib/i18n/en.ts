@@ -168,6 +168,11 @@ export const en = {
     fov_window_named: '{name}: {windows}',
     no_fov_today: 'Sun does not enter FOV today',
     placeholder: 'Sun elevation chart unavailable.',
+    schedule: 'Schedule {from} – {to}',
+    schedule_from: 'Schedule from {from}',
+    schedule_until: 'Schedule until {to}',
+    schedule_start_tooltip: 'Schedule start',
+    schedule_end_tooltip: 'Schedule end',
   },
   root: {
     loading_registry: 'Loading Adaptive Cover Pro registry…',

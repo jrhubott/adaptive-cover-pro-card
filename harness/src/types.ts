@@ -67,6 +67,13 @@ export interface HarnessEntry {
     glare_active: boolean;
     is_sunset_active: boolean;
     in_time_window: boolean;
+    /** Schedule window start as minutes-from-midnight (0..1439), or null for a
+     *  blank/open start. Emitted as a tz-aware ISO datetime on control_status. */
+    schedule_start_minutes: number | null;
+    /** Schedule window end as minutes-from-midnight, or null for no end. When
+     *  end ≤ start it is rolled to the next day (midnight-spanning), matching
+     *  the integration. */
+    schedule_end_minutes: number | null;
     default_position: number;
   };
 }
