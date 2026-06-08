@@ -17,6 +17,10 @@ export interface DecisionResult {
   trace: DecisionStep[];
   reason: string;
   attrs: Omit<DecisionTraceAttributes, 'trace' | 'reason'>;
+  /** Azimuth-only FOV membership, mirroring the integration's
+   *  `sun_position.in_fov` (distinct from `attrs.in_field_of_view`, which mirrors
+   *  full `sun_validity.valid`). state-gen feeds this onto the sun sensor. */
+  azimuthInFov: boolean;
 }
 
 /**
@@ -72,11 +76,16 @@ export function decide(input: DecisionInput): DecisionResult {
     sun_azimuth: sunAzimuth,
     sun_elevation: sunElevation,
     gamma: gammaFor(sunAzimuth, entry.window_azimuth),
-    in_field_of_view: inFov,
+    // Mirror the integration: decision_trace.in_field_of_view is full validity
+    // (`sun_validity.valid`), NOT azimuth-only FOV. The azimuth-only value goes
+    // onto the sun sensor's `in_fov` via DecisionResult.azimuthInFov.
+    in_field_of_view: directSunValid,
     elevation_valid: elevationValid,
     in_blind_spot: inBlindSpot,
     sunset_window_active: f.is_sunset_active,
     direct_sun_valid: directSunValid,
+    // 3-way state derived with the integration formula (builder.py).
+    sun_state: directSunValid ? 'hitting' : inFov ? 'in_fov_not_valid' : 'outside_fov',
     custom_position_active_slot: winner === 'custom_position' ? activeSlot(entry) : undefined,
     custom_position_minimum_mode:
       winner === 'custom_position' ? activeSlotMinMode(entry) : undefined,
@@ -93,7 +102,7 @@ export function decide(input: DecisionInput): DecisionResult {
     })),
   };
 
-  return { winner, position, trace, reason, attrs };
+  return { winner, position, trace, reason, attrs, azimuthInFov: inFov };
 }
 
 interface HandlerEval {
@@ -266,11 +275,16 @@ export function scriptedDecision(
   // lets the Auto-badge suppression case (issue #110) be exercised even while
   // automatic control stays on.
   const customBypass = winner === 'custom_position' && activeSlotMinMode(entry) === false;
+  const aziInFov = azimuthInFov(sunAzimuth, entry.window_azimuth, entry.fov_left, entry.fov_right);
+  // Scripted winners (e.g. manual/motion) are not solar, so direct_sun_valid is
+  // false; the 3-way state is then in_fov_not_valid or outside_fov per azimuth.
+  const directSunValid = false;
   return {
     winner,
     position: entry.target_position,
     trace,
     reason: `Scripted winner: ${winner}`,
+    azimuthInFov: aziInFov,
     attrs: {
       enabled_handlers: [...HANDLER_ORDER],
       bypass_auto_control: !f.automatic_control || customBypass,
@@ -280,16 +294,13 @@ export function scriptedDecision(
       sun_azimuth: sunAzimuth,
       sun_elevation: sunElevation,
       gamma: gammaFor(sunAzimuth, entry.window_azimuth),
-      in_field_of_view: azimuthInFov(
-        sunAzimuth,
-        entry.window_azimuth,
-        entry.fov_left,
-        entry.fov_right,
-      ),
+      // Full-validity semantics (mirror integration), not azimuth-only FOV.
+      in_field_of_view: directSunValid,
       elevation_valid: sunElevation > 0,
       in_blind_spot: false,
       sunset_window_active: f.is_sunset_active,
-      direct_sun_valid: false,
+      direct_sun_valid: directSunValid,
+      sun_state: directSunValid ? 'hitting' : aziInFov ? 'in_fov_not_valid' : 'outside_fov',
       custom_position_slots: entry.slots.map((s) => ({
         slot: s.slot,
         enabled: s.enabled,

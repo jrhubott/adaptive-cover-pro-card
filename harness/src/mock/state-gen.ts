@@ -128,7 +128,9 @@ function addEntryStates(
     fov_right: entry.fov_right,
     azimuth_min: entry.window_azimuth - entry.fov_left,
     azimuth_max: entry.window_azimuth + entry.fov_right,
-    in_fov: decision.attrs.in_field_of_view,
+    // Azimuth-only FOV (mirror integration sun_position.in_fov), NOT full
+    // validity — the card's dot reads this for the in_fov_not_valid split.
+    in_fov: decision.azimuthInFov,
     min_elevation: entry.min_elevation,
     max_elevation: entry.max_elevation,
     blind_spot_range: entry.blind_spot_range,
@@ -274,7 +276,8 @@ function addEntryStates(
   // Binary sensors
   states[id('sun_infront_binary')] = mkState(
     id('sun_infront_binary'),
-    decision.attrs.in_field_of_view ? 'on' : 'off',
+    // Mirror integration coordinator: sun_motion == direct_sun_valid.
+    decision.attrs.direct_sun_valid ? 'on' : 'off',
     { friendly_name: `${entry.title} Sun In Front`, device_class: 'motion' },
   );
   states[id('manual_override_binary')] = mkState(

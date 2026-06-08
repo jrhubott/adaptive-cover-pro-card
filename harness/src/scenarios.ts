@@ -585,6 +585,54 @@ export const SCENARIOS: Scenario[] = [
       return c;
     },
   },
+  {
+    id: 'sun-hitting-window',
+    label: 'Sun hitting window (repro #137)',
+    description:
+      'High elevation, sun azimuth in FOV, solar handler wins, direct_sun_valid true → sun dot must be orange/gold (hitting), NOT light-yellow. Reproduces issue #137.',
+    build: () => {
+      // Summer noon at the default location: sun high (~66°) and roughly south
+      // (~180°). The wide off-axis FOV (window 141°, ±90/103°) spans ~51–244°,
+      // so the sun is inside it and unblocked → direct_sun_valid true → hitting.
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'sun-hitting-window';
+      c.decisionMode = 'derived';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Living Room',
+          window_azimuth: 141,
+          fov_left: 90,
+          fov_right: 103,
+        }),
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'sun-in-fov-not-valid',
+    label: 'Sun in FOV but not hitting (#137 contrast)',
+    description:
+      'Same azimuth-in-FOV geometry as the hitting case, but the sun is above max_elevation so direct_sun_valid is false → sun dot must be light-yellow (in FOV, not hitting), distinct from the orange hitting state.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'sun-in-fov-not-valid';
+      c.decisionMode = 'derived';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Living Room',
+          window_azimuth: 141,
+          fov_left: 90,
+          fov_right: 103,
+          // Cap elevation below the real noon sun so it is in FOV (azimuth) but
+          // elevation-invalid → direct_sun_valid false → in_fov_not_valid.
+          max_elevation: 40,
+        }),
+      ];
+      return c;
+    },
+  },
 ];
 
 export function findScenario(id: string): Scenario | undefined {
