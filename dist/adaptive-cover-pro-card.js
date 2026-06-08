@@ -1209,6 +1209,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     `}_bar(e,t,o,i){const s=this.hass.states[e]?.attributes?.friendly_name??e,n=t??0,a=o??0;return q`
       <div class="cover ${i?"mismatch":""}">
         <div class="name" title=${e}>${s}</div>
+        <div class="num">${wt(t)}</div>
         <div
           class="track"
           @click=${t=>this._handleTrackClick(t,e)}
@@ -1221,7 +1222,6 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
                 title=${De("covers.target_tooltip",this.hass,{pct:a})}
               ></div>`:U}
         </div>
-        <div class="num">${wt(t)}</div>
         ${i?q`<ha-icon class="warn" icon="mdi:alert-circle-outline"></ha-icon>`:U}
       </div>
     `}_handleTrackClick(e,t){const o=e.currentTarget.getBoundingClientRect(),i=Math.round((e.clientX-o.left)/o.width*100),s=Math.max(0,Math.min(100,i));this._setPosition(t,s)}};var io;oo.styles=a`
@@ -1248,7 +1248,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     }
     .cover {
       display: grid;
-      grid-template-columns: minmax(80px, 1fr) 3fr 48px auto;
+      grid-template-columns: minmax(80px, 1fr) 48px 3fr auto;
       gap: 8px;
       align-items: center;
       font-size: 0.82rem;
@@ -1279,7 +1279,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     }
     .fill {
       height: 100%;
-      background: var(--primary-color);
+      background: color-mix(in srgb, var(--primary-color) 35%, transparent);
       transition: width 0.3s ease;
     }
     .marker {

@@ -1,8 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import '../src/components/cover-bar';
+import { CoverBar } from '../src/components/cover-bar';
 import { INTEGRATION_DOMAIN } from '../src/const';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities } from '../src/types';
+import type { CSSResult } from 'lit';
 
 interface CoverBarLike extends HTMLElement {
   updateComplete: Promise<boolean>;
@@ -17,6 +19,49 @@ const baseDiscovered: DiscoveredEntities = {
   entities: {},
   managed_covers: [],
 };
+
+describe('acp-cover-bar fill style — issue #135', () => {
+  it('fill CSS uses color-mix for reduced opacity', () => {
+    const styles = (CoverBar as unknown as { styles: CSSResult }).styles.cssText;
+    expect(styles).toContain('color-mix');
+  });
+
+  it('renders the percent label before the track', async () => {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    document.body.appendChild(el);
+
+    el.hass = {
+      states: {
+        'sensor.cover_position': {
+          state: '31',
+          attributes: {
+            actual_positions: { 'cover.living_room': 31 },
+          },
+        },
+        'cover.living_room': {
+          state: 'open',
+          attributes: { friendly_name: 'Living Room' },
+        },
+      },
+      callService: vi.fn(),
+    } as unknown as HomeAssistant;
+
+    el.discovered = {
+      ...baseDiscovered,
+      entities: { target_position_sensor: 'sensor.cover_position' },
+    };
+
+    await el.updateComplete;
+
+    const cover = el.shadowRoot!.querySelector('.cover')!;
+    const children = Array.from(cover.children);
+    const numIdx = children.findIndex((c) => c.classList.contains('num'));
+    const trackIdx = children.findIndex((c) => c.classList.contains('track'));
+    expect(numIdx).toBeGreaterThanOrEqual(0);
+    expect(trackIdx).toBeGreaterThanOrEqual(0);
+    expect(numIdx).toBeLessThan(trackIdx);
+  });
+});
 
 describe('acp-cover-bar track-click → set_position', () => {
   it('calls adaptive_cover_pro.set_position when the track is clicked', async () => {
