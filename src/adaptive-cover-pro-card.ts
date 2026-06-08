@@ -329,6 +329,7 @@ export class AdaptiveCoverProCard extends LitElement {
                 .hass=${this.hass}
                 .discovered=${discovered}
                 ?compact=${!!this._config.compact}
+                .coverColor=${this._config.cover_colors?.[0] ?? null}
               ></acp-cover-bar>`
             : nothing}
           ${sections.includes('overrides')

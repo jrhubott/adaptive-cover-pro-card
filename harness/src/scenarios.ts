@@ -638,7 +638,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'cover-bar-open-style',
     label: 'Cover bar — two-tone open/closed fill (issue #135)',
     description:
-      'Cover at 69% open. The bar splits into two segments matching the sky compass: the open portion (left) is gold like the FOV wedge, the closed portion (right) is blue like the cover wedge. The percent label sits left of the track.',
+      "Cover at 69% open. The bar splits into two segments matching the sky compass: the open portion (left) is gold like the FOV wedge, the closed portion (right) uses the selected cover colour like the cover wedge. Change entry 0's colour in the control panel to watch both the compass wedge and the bar's closed segment track it. The percent label sits left of the track.",
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'cover-bar-open-style';

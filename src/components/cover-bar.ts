@@ -12,6 +12,10 @@ export class CoverBar extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ attribute: false }) public discovered!: DiscoveredEntities;
   @property({ type: Boolean, reflect: true }) public compact = false;
+  /** User-selected cover colour (config `cover_colors[0]`) — recolours the
+   *  closed segment to match the compass cover wedge. Null falls back to
+   *  `--primary-color`, exactly like the compass in single-entry mode. */
+  @property({ attribute: false }) public coverColor: string | null = null;
 
   private _target(): { target: number | null; covers: Record<string, number | null> } {
     const id = this.discovered.entities.target_position_sensor;
@@ -59,7 +63,7 @@ export class CoverBar extends LitElement {
       return html`<div class="placeholder">${t('covers.placeholder', this.hass)}</div>`;
     }
     return html`
-      <div class="wrap">
+      <div class="wrap" style=${this.coverColor ? `--acp-cover-color:${this.coverColor}` : nothing}>
         <div class="head">
           <span class="label">${t('covers.title', this.hass)}</span>
           <span class="target"
@@ -177,12 +181,12 @@ export class CoverBar extends LitElement {
       background: color-mix(in srgb, var(--warning-color, gold) 22%, transparent);
       transition: width 0.3s ease;
     }
-    /* Closed portion — blue, matching the compass cover wedge
-       (--primary-color at fill-opacity 0.3). */
+    /* Closed portion — the user-selected cover colour, falling back to blue
+       (--primary-color), matching the compass cover wedge at fill-opacity 0.3. */
     .fill-closed {
       height: 100%;
       flex-shrink: 0;
-      background: color-mix(in srgb, var(--primary-color) 30%, transparent);
+      background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 30%, transparent);
       transition: width 0.3s ease;
     }
     .marker {

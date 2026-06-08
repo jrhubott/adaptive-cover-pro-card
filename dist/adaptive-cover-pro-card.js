@@ -1196,8 +1196,8 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     .dim {
       color: var(--secondary-text-color);
     }
-  `,e([ge({attribute:!1})],to.prototype,"hass",void 0),e([ge({attribute:!1})],to.prototype,"discovered",void 0),e([ge({type:Boolean,reflect:!0})],to.prototype,"compact",void 0),to=e([he("acp-climate-panel")],to);let oo=class extends ce{constructor(){super(...arguments),this.compact=!1}_target(){const e=this.discovered.entities.target_position_sensor;if(!e)return{target:null,covers:{}};const t=this.hass.states[e];if(!t)return{target:null,covers:{}};const o=parseFloat(t.state),i=t.attributes;return{target:Number.isNaN(o)?null:o,covers:i?.actual_positions??{}}}_mismatched(){const e=this.discovered.entities.position_mismatch_binary;if(!e)return new Set;const t=this.hass.states[e];if("on"!==t?.state)return new Set;const o=t.attributes.entities;return o?new Set(Object.entries(o).filter(([,e])=>e.mismatch).map(([e])=>e)):new Set}_setPosition(e,t){this.hass.callService($e,"set_position",{position:t},{entity_id:e})}render(){if(!this.hass||!this.discovered)return U;const{target:e,covers:t}=this._target(),o=this._mismatched(),i=Object.entries(t);return 0===i.length?q`<div class="placeholder">${De("covers.placeholder",this.hass)}</div>`:q`
-      <div class="wrap">
+  `,e([ge({attribute:!1})],to.prototype,"hass",void 0),e([ge({attribute:!1})],to.prototype,"discovered",void 0),e([ge({type:Boolean,reflect:!0})],to.prototype,"compact",void 0),to=e([he("acp-climate-panel")],to);let oo=class extends ce{constructor(){super(...arguments),this.compact=!1,this.coverColor=null}_target(){const e=this.discovered.entities.target_position_sensor;if(!e)return{target:null,covers:{}};const t=this.hass.states[e];if(!t)return{target:null,covers:{}};const o=parseFloat(t.state),i=t.attributes;return{target:Number.isNaN(o)?null:o,covers:i?.actual_positions??{}}}_mismatched(){const e=this.discovered.entities.position_mismatch_binary;if(!e)return new Set;const t=this.hass.states[e];if("on"!==t?.state)return new Set;const o=t.attributes.entities;return o?new Set(Object.entries(o).filter(([,e])=>e.mismatch).map(([e])=>e)):new Set}_setPosition(e,t){this.hass.callService($e,"set_position",{position:t},{entity_id:e})}render(){if(!this.hass||!this.discovered)return U;const{target:e,covers:t}=this._target(),o=this._mismatched(),i=Object.entries(t);return 0===i.length?q`<div class="placeholder">${De("covers.placeholder",this.hass)}</div>`:q`
+      <div class="wrap" style=${this.coverColor?`--acp-cover-color:${this.coverColor}`:U}>
         <div class="head">
           <span class="label">${De("covers.title",this.hass)}</span>
           <span class="target"
@@ -1287,12 +1287,12 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
       background: color-mix(in srgb, var(--warning-color, gold) 22%, transparent);
       transition: width 0.3s ease;
     }
-    /* Closed portion — blue, matching the compass cover wedge
-       (--primary-color at fill-opacity 0.3). */
+    /* Closed portion — the user-selected cover colour, falling back to blue
+       (--primary-color), matching the compass cover wedge at fill-opacity 0.3. */
     .fill-closed {
       height: 100%;
       flex-shrink: 0;
-      background: color-mix(in srgb, var(--primary-color) 30%, transparent);
+      background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 30%, transparent);
       transition: width 0.3s ease;
     }
     .marker {
@@ -1322,7 +1322,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
       text-align: center;
       padding: 16px;
     }
-  `,e([ge({attribute:!1})],oo.prototype,"hass",void 0),e([ge({attribute:!1})],oo.prototype,"discovered",void 0),e([ge({type:Boolean,reflect:!0})],oo.prototype,"compact",void 0),oo=e([he("acp-cover-bar")],oo);const so=864e5;let no=io=class extends ce{constructor(){super(...arguments),this.samples=[],this.events=[],this.now=Date.now(),this._hoverIdx=null,this._onPointerMove=e=>{const t=e.currentTarget.getBoundingClientRect();if(t.width<=0)return;const o=(e.clientX-t.left)/t.width,i=Math.max(0,Math.min(1,o))*io.VIEW_W;this._hoverIdx=this._nearestSampleIdx(i)},this._onPointerLeave=()=>{this._hoverIdx=null}}render(){if(!this.samples||0===this.samples.length)return U;const{VIEW_W:e,VIEW_H:t,TOP_PAD:o,EVENT_HIT_W:i}=io,s=t-o,n=mt(new Date(this.now)).getTime(),a=t=>Le(t,n,e),r=this.samples.map(e=>{const t=Date.parse(e.t);return{t:t,x:a(t),y:o+(1-ao(e.position)/100)*s,sample:e,inDay:!Number.isNaN(t)&&t>=n&&t<=n+so}}),l=r.filter(e=>e.inDay).map(e=>`${e.x.toFixed(1)},${e.y.toFixed(1)}`).join(" "),c=(this.events??[]).map(e=>{const s=Date.parse(e.t);if(Number.isNaN(s)||s<n||s>n+so)return null;const r=a(s),l=`evt-${e.kind}`,c=function(e,t){const o=`forecast.event.${e.kind}`,i=De(o,t),s=i===o?e.label??e.kind:i,n=$t(e.t);return"—"===n?s:`${s} — ${n}`}(e,this.hass);return W`<g class="event-group" data-tooltip=${c}>
+  `,e([ge({attribute:!1})],oo.prototype,"hass",void 0),e([ge({attribute:!1})],oo.prototype,"discovered",void 0),e([ge({type:Boolean,reflect:!0})],oo.prototype,"compact",void 0),e([ge({attribute:!1})],oo.prototype,"coverColor",void 0),oo=e([he("acp-cover-bar")],oo);const so=864e5;let no=io=class extends ce{constructor(){super(...arguments),this.samples=[],this.events=[],this.now=Date.now(),this._hoverIdx=null,this._onPointerMove=e=>{const t=e.currentTarget.getBoundingClientRect();if(t.width<=0)return;const o=(e.clientX-t.left)/t.width,i=Math.max(0,Math.min(1,o))*io.VIEW_W;this._hoverIdx=this._nearestSampleIdx(i)},this._onPointerLeave=()=>{this._hoverIdx=null}}render(){if(!this.samples||0===this.samples.length)return U;const{VIEW_W:e,VIEW_H:t,TOP_PAD:o,EVENT_HIT_W:i}=io,s=t-o,n=mt(new Date(this.now)).getTime(),a=t=>Le(t,n,e),r=this.samples.map(e=>{const t=Date.parse(e.t);return{t:t,x:a(t),y:o+(1-ao(e.position)/100)*s,sample:e,inDay:!Number.isNaN(t)&&t>=n&&t<=n+so}}),l=r.filter(e=>e.inDay).map(e=>`${e.x.toFixed(1)},${e.y.toFixed(1)}`).join(" "),c=(this.events??[]).map(e=>{const s=Date.parse(e.t);if(Number.isNaN(s)||s<n||s>n+so)return null;const r=a(s),l=`evt-${e.kind}`,c=function(e,t){const o=`forecast.event.${e.kind}`,i=De(o,t),s=i===o?e.label??e.kind:i,n=$t(e.t);return"—"===n?s:`${s} — ${n}`}(e,this.hass);return W`<g class="event-group" data-tooltip=${c}>
           <title>${c}</title>
           <line
             class="event-hit"
@@ -3041,6 +3041,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
                 .hass=${this.hass}
                 .discovered=${e}
                 ?compact=${!!this._config.compact}
+                .coverColor=${this._config.cover_colors?.[0]??null}
               ></acp-cover-bar>`:U}
           ${i.includes("overrides")?q`<acp-overrides-panel
                 .hass=${this.hass}

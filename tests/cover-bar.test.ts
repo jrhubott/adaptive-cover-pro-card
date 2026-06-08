@@ -104,6 +104,43 @@ describe('acp-cover-bar two-tone fill — issue #135 follow-up', () => {
     expect(open.style.width).toBe('69%');
     expect(closed.style.width).toBe('31%');
   });
+
+  it('closed segment falls back to --primary-color when no cover colour is set', () => {
+    const styles = (CoverBar as unknown as { styles: CSSResult }).styles.cssText;
+    expect(styles).toMatch(/\.fill-closed\s*{[^}]*--acp-cover-color,\s*var\(--primary-color\)/);
+  });
+
+  it('applies the user-selected cover colour as the --acp-cover-color var', async () => {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike & {
+      coverColor?: string | null;
+    };
+    document.body.appendChild(el);
+
+    el.hass = {
+      states: {
+        'sensor.cover_position': {
+          state: '69',
+          attributes: { actual_positions: { 'cover.gauche': 69 } },
+        },
+        'cover.gauche': {
+          state: 'open',
+          attributes: { friendly_name: 'Gauche cover' },
+        },
+      },
+      callService: vi.fn(),
+    } as unknown as HomeAssistant;
+
+    el.discovered = {
+      ...baseDiscovered,
+      entities: { target_position_sensor: 'sensor.cover_position' },
+    };
+    el.coverColor = '#ff7043';
+
+    await el.updateComplete;
+
+    const wrap = el.shadowRoot!.querySelector('.wrap') as HTMLElement;
+    expect(wrap.style.getPropertyValue('--acp-cover-color')).toBe('#ff7043');
+  });
 });
 
 describe('acp-cover-bar track-click → set_position', () => {
