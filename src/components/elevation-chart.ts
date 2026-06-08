@@ -518,7 +518,7 @@ export class ElevationChart extends LitElement {
     .schedule-bar {
       stroke: var(--divider-color);
       stroke-width: 1;
-      cursor: help;
+      cursor: default;
     }
     .schedule-tick {
       font-size: 8px;
@@ -527,12 +527,12 @@ export class ElevationChart extends LitElement {
     .ribbon-track {
       fill: var(--divider-color);
       fill-opacity: 0.25;
-      cursor: help;
+      cursor: default;
     }
     .ribbon-bar {
       fill: var(--warning-color, gold);
       fill-opacity: 0.85;
-      cursor: help;
+      cursor: default;
     }
     .curve {
       fill: none;
@@ -549,7 +549,7 @@ export class ElevationChart extends LitElement {
     .now-hit {
       stroke: transparent;
       stroke-width: 10;
-      cursor: help;
+      cursor: default;
     }
     /* Colour states mirror acp-sky-compass .sun.* so the sun reads the same
        across both visuals. */

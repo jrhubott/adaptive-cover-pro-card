@@ -482,7 +482,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
       opacity: 0.6;
     }
     g[data-tooltip] {
-      cursor: help;
+      cursor: default;
     }
   `,e([ge({attribute:!1})],It.prototype,"hass",void 0),e([ge({attribute:!1})],It.prototype,"discovered_list",void 0),e([ge({type:Boolean,reflect:!0})],It.prototype,"compact",void 0),e([ge({attribute:!1})],It.prototype,"showStats",void 0),e([ge({attribute:!1})],It.prototype,"showLegend",void 0),e([ge({attribute:!1})],It.prototype,"showMoon",void 0),e([ge({attribute:!1})],It.prototype,"showCardinals",void 0),e([ge({attribute:!1})],It.prototype,"showBlindSpot",void 0),e([ge({attribute:!1})],It.prototype,"showSunPath",void 0),e([ge({attribute:!1})],It.prototype,"showSunriseSunset",void 0),e([ge({attribute:!1})],It.prototype,"showCoverFill",void 0),e([ge({attribute:!1})],It.prototype,"showWindowArrow",void 0),e([ge({attribute:!1})],It.prototype,"coverColors",void 0),e([ge({attribute:!1})],It.prototype,"northOffsetDeg",void 0),e([me()],It.prototype,"_hiddenEntries",void 0),It=e([he("acp-sky-compass")],It);const Ft=32,Pt=864e5;function jt(e){if(!e)return null;const t=new Date(e);return Number.isNaN(t.getTime())?null:t}let Rt=class extends ce{constructor(){super(...arguments),this.discoveredList=[],this.coverColors=[],this.compact=!1}_sunAttrsFor(e){const t=e.entities.sun_sensor;if(!t)return null;const o=this.hass.states[t];return o?o.attributes:null}_sunDotTraceInputs(){const e=this.discoveredList[0]?.entities.decision_trace_sensor,t=e?this.hass.states[e]?.attributes:void 0;return{sunState:t?.sun_state??null,directSunValid:t?.direct_sun_valid??!1}}_scheduleBounds(){const e=this.discoveredList[0]?.entities.control_status_sensor;if(!e)return null;const t=this.hass.states[e]?.attributes;return t?{start:jt(t.schedule_start),end:jt(t.schedule_end)}:null}render(){if(!this.hass||0===this.discoveredList.length)return U;const e=this._sunAttrsFor(this.discoveredList[0]),{latitude:t,longitude:o,time_zone:i}=this.hass.config??{};if(void 0===t||void 0===o||!e)return q`<div class="placeholder">${De("elevation.placeholder",this.hass)}</div>`;const s=_t(i),n=gt(t,o,s),a=new Date,r=e=>{const t=e.getTime()-s.getTime();return Ft+t/864e5*360},l=e=>138-(e- -10)/100*128,c=n.map(e=>`${r(e.t).toFixed(1)},${l(e.elevation).toFixed(1)}`).join(" "),d=l(0),h=r(a),u=this._interpAt(n,a),p=u?l(u.elevation):null,g=!u||u.elevation<=0,m=this._sunDotTraceInputs(),_=Ct[Et({belowHorizon:g,sunState:m.sunState,directSunValid:m.directSunValid,inFov:!0===e.in_fov})].replace(/^sun /,""),f=e=>138-128*e,v=this.discoveredList.length>1,y=this._scheduleBounds(),b=y?function(e,t,o,i){if(!e&&!t)return{offSchedule:[],bars:[]};const s=e=>(e.getTime()-o)/i,n=e=>Math.max(0,Math.min(1,e)),a=e=>n(e),r=e=>e>1?e-Math.floor(e):n(e),l=e=>e>0&&e<1?[e]:[];if(e&&!t){const t=s(e);return{offSchedule:[{x0:0,x1:a(t)}],bars:l(t)}}if(!e&&t){const e=s(t);return{offSchedule:[{x0:r(e),x1:1}],bars:l(e)}}const c=s(e),d=s(t),h=a(c),u=r(d),p=[...l(c),...l(d)];if(h>u)return{offSchedule:[{x0:u,x1:h}],bars:p};const g=[];return h>0&&g.push({x0:0,x1:h}),u<1&&g.push({x0:u,x1:1}),{offSchedule:g,bars:p}}(y.start,y.end,s.getTime(),Pt):{offSchedule:[],bars:[]},w=e=>Ft+360*e,x=b.offSchedule.map(e=>({x:w(e.x0),width:w(e.x1)-w(e.x0)})),$=y?.start&&s?(y.start.getTime()-s.getTime())/Pt:null,A=b.bars.map(e=>{const t=null!==$&&Math.abs(e-$)<1e-9?y.start.toISOString():y.end.toISOString(),o=null!==$&&Math.abs(e-$)<1e-9;return{x:w(e),label:$t(t,i),tooltip:De(o?"elevation.schedule_start_tooltip":"elevation.schedule_end_tooltip",this.hass)}}),k=(()=>{if(!y)return null;const e=y.start?$t(y.start.toISOString(),i):null,t=y.end?$t(y.end.toISOString(),i):null;return e&&t?De("elevation.schedule",this.hass,{from:e,to:t}):e?De("elevation.schedule_from",this.hass,{from:e}):t?De("elevation.schedule_until",this.hass,{to:t}):null})(),C=this.discoveredList.map((e,t)=>{const o=this._sunAttrsFor(e),{color:s,isOverride:a}=Ot(this.coverColors?.[t],t),l=a;if(!o)return{d:e,runs:[],inPlotBands:[],runBars:[],label:"",color:s,inlineFill:l};const c=vt(n,o.window_azimuth,o.fov_left,o.fov_right),d="number"==typeof o.min_elevation,h="number"==typeof o.max_elevation,{loFrac:u,hiFrac:p}=function(e,t){if(void 0!==e&&void 0!==t&&e>t)return{loFrac:0,hiFrac:1};const o=e=>Math.max(0,Math.min(1,(e- -10)/100));return{loFrac:void 0!==e?o(e):0,hiFrac:void 0!==t?o(t):1}}(o.min_elevation,o.max_elevation),g=d||h?f(p):10,m=d||h?f(u):138,_=g,y=Math.max(0,m-g),b=c.map(e=>({x0:r(n[e.startIdx].t),x1:r(n[e.endIdx].t),y:_,height:y})),w=c.map(e=>({x0:r(n[e.startIdx].t),x1:r(n[e.endIdx].t),range:`${$t(n[e.startIdx].t.toISOString(),i)} → ${$t(n[e.endIdx].t.toISOString(),i)}`})),x=c.map(e=>`${$t(n[e.startIdx].t.toISOString(),i)} → ${$t(n[e.endIdx].t.toISOString(),i)}`).join(", "),$=[];return v||(d&&$.push(m),h&&$.push(g)),{d:e,runs:c,inPlotBands:b,runBars:w,label:x,color:s,inlineFill:l,limitLines:$}}),E=C.some(e=>e.runs.length>0),S=v?function(e){if(e<=0)return{rows:[],height:0};const t=Array.from({length:e},(e,t)=>({y:0+11*t,height:8}));return{rows:t,height:0+8*e+3*(e-1)+0}}(C.length):{rows:[],height:0},z=138-S.height-3;return q`
       <div class="wrap">
@@ -664,7 +664,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     .schedule-bar {
       stroke: var(--divider-color);
       stroke-width: 1;
-      cursor: help;
+      cursor: default;
     }
     .schedule-tick {
       font-size: 8px;
@@ -673,12 +673,12 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     .ribbon-track {
       fill: var(--divider-color);
       fill-opacity: 0.25;
-      cursor: help;
+      cursor: default;
     }
     .ribbon-bar {
       fill: var(--warning-color, gold);
       fill-opacity: 0.85;
-      cursor: help;
+      cursor: default;
     }
     .curve {
       fill: none;
@@ -695,7 +695,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     .now-hit {
       stroke: transparent;
       stroke-width: 10;
-      cursor: help;
+      cursor: default;
     }
     /* Colour states mirror acp-sky-compass .sun.* so the sun reads the same
        across both visuals. */
@@ -847,7 +847,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
       line-height: 1.3;
       padding: 2px 4px 4px;
       color: var(--primary-text-color);
-      cursor: help;
+      cursor: default;
     }
     :host([compact]) .summary {
       font-size: 0.75rem;
@@ -860,7 +860,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
       border-radius: 4px;
       border-left: 3px solid var(--secondary-text-color);
       background: rgba(127, 127, 127, 0.08);
-      cursor: help;
+      cursor: default;
     }
     :host([compact]) .off-schedule {
       font-size: 0.72rem;
@@ -1181,7 +1181,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
       border-radius: 999px;
       font-size: 0.72rem;
       background: var(--secondary-background-color, rgba(0, 0, 0, 0.04));
-      cursor: help;
+      cursor: default;
     }
     .chip.on {
       background: var(--primary-color);
@@ -1258,7 +1258,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      cursor: help;
+      cursor: default;
     }
     .track {
       position: relative;
@@ -1391,7 +1391,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
       vector-effect: non-scaling-stroke;
     }
     .event-group {
-      cursor: help;
+      cursor: default;
     }
     .event-hit {
       stroke: transparent;
@@ -1774,7 +1774,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
       border-radius: 999px;
       background: rgba(156, 39, 176, 0.22);
       color: #6a1b9a;
-      cursor: help;
+      cursor: default;
     }
     /* Priority axis: floor whose priority ≤ manual-override is bypassable by a
        manual ↓ → subdued. Per-slot rows have no clamping notion, so no fill/outline. */
@@ -2266,7 +2266,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
       border: 1px solid transparent;
       white-space: nowrap;
       align-self: center;
-      cursor: help;
+      cursor: default;
     }
     /* Clamping axis: not-clamping → hollow/outline (transparent fill + purple border). */
     .acp-floor-chip.is-armed {

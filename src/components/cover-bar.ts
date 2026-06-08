@@ -152,7 +152,7 @@ export class CoverBar extends LitElement {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      cursor: help;
+      cursor: default;
     }
     .track {
       position: relative;

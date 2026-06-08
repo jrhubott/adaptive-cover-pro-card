@@ -1056,7 +1056,7 @@ export class SkyCompass extends LitElement {
       opacity: 0.6;
     }
     g[data-tooltip] {
-      cursor: help;
+      cursor: default;
     }
   `;
 }

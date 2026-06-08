@@ -1460,3 +1460,13 @@ describe('acp-sky-compass (multiple FOV crossings)', () => {
     expect(titleText).toContain('Active sun arc');
   });
 });
+
+describe('acp-sky-compass tooltip cursor', () => {
+  // Regression guard: tooltip carriers must use cursor: default, not cursor: help
+  // (issue #134 — the question-mark cursor confuses users).
+  const cssText = (SkyCompass as unknown as { styles: { cssText: string } }).styles.cssText;
+
+  it('g[data-tooltip] uses cursor: default, not cursor: help', () => {
+    expect(cssText).not.toContain('cursor: help');
+  });
+});
