@@ -27,6 +27,7 @@ import {
   type SunSample,
 } from '../lib/sun-model';
 import { formatDegrees } from '../lib/formatters';
+import { sunDotState, SUN_DOT_CLASS, type SunDotState } from '../lib/sun-dot-state';
 import { resolveCoverColor } from '../lib/palette';
 import { MOON_IMAGE } from '../lib/moon-image';
 import { t } from '../lib/i18n';
@@ -42,6 +43,7 @@ interface EntryOverlay {
   sun: SunPositionAttributes;
   sunAzi: number;
   sunInfront: boolean;
+  dotState: SunDotState;
   coverPos: number | null;
   actualPos: number | null;
   coverType: DiscoveredEntities['cover_type'];
@@ -117,6 +119,23 @@ export class SkyCompass extends LitElement {
     return this.hass.states[id]?.state === 'on';
   }
 
+  /** Authoritative-first 3-way sun-dot state for one entry. Reads the
+   *  decision_trace sensor's `sun_state` (new) / `direct_sun_valid` plus the
+   *  sun_position sensor's azimuth-only `in_fov` and feeds the shared helper. */
+  private _sunDotStateFor(d: DiscoveredEntities, sun: SunPositionAttributes): SunDotState {
+    const dt = d.entities.decision_trace_sensor
+      ? (this.hass.states[d.entities.decision_trace_sensor]?.attributes as
+          | { sun_state?: string; direct_sun_valid?: boolean }
+          | undefined)
+      : undefined;
+    return sunDotState({
+      belowHorizon: sun.elevation <= 0,
+      sunState: dt?.sun_state ?? null,
+      directSunValid: dt?.direct_sun_valid ?? false,
+      inFov: sun.in_fov === true,
+    });
+  }
+
   private _readActiveAzimuth(entityId: string | undefined): number | null {
     if (!entityId) return null;
     const state = this.hass.states[entityId];
@@ -139,6 +158,7 @@ export class SkyCompass extends LitElement {
         sun,
         sunAzi,
         sunInfront: this._sunInfrontFor(d),
+        dotState: this._sunDotStateFor(d, sun),
         coverPos: this._coverPositionFor(d),
         actualPos: this._actualPositionFor(d),
         coverType: d.cover_type,
@@ -170,9 +190,23 @@ export class SkyCompass extends LitElement {
     const sunAzi = first.sunAzi;
     const sunElev = first.sun.elevation;
     const sunPt = sunDotPosition(sunAzi, sunElev, o);
-    const anyValid = overlays.some((ov) => ov.sunInfront);
-    const belowHorizon = sunElev <= 0;
-    const sunDotClass = belowHorizon ? 'sun night' : anyValid ? 'sun valid' : 'sun up';
+    // Aggregate the per-overlay 3-way state, picking the most-active window
+    // (hitting > in_fov_not_valid > outside_fov). 'night' is shared across
+    // overlays (same sun) so it short-circuits via any overlay.
+    const STATE_RANK: Record<SunDotState, number> = {
+      night: -1,
+      outside_fov: 0,
+      in_fov_not_valid: 1,
+      hitting: 2,
+    };
+    const aggregateState: SunDotState =
+      sunElev <= 0
+        ? 'night'
+        : overlays.reduce<SunDotState>(
+            (best, ov) => (STATE_RANK[ov.dotState] > STATE_RANK[best] ? ov.dotState : best),
+            'outside_fov',
+          );
+    const sunDotClass = SUN_DOT_CLASS[aggregateState];
 
     const { latitude, longitude, time_zone } = this.hass.config as unknown as {
       latitude?: number;
@@ -642,7 +676,8 @@ export class SkyCompass extends LitElement {
               </button>
             `,
           )}
-          <div><span class="dot sun valid"></span> ${t('compass.sun', this.hass)}</div>
+          <div><span class="dot sun valid"></span> ${t('compass.sun_hitting', this.hass)}</div>
+          <div><span class="dot sun in-fov"></span> ${t('compass.in_fov', this.hass)}</div>
           ${this.showMoon
             ? html`<div><span class="dot moon-dot"></span> ${t('compass.moon', this.hass)}</div>`
             : nothing}
@@ -650,7 +685,8 @@ export class SkyCompass extends LitElement {
       `;
     }
     return html`<div class="legend">
-      <div><span class="dot sun valid"></span> ${t('compass.sun', this.hass)}</div>
+      <div><span class="dot sun valid"></span> ${t('compass.sun_hitting', this.hass)}</div>
+      <div><span class="dot sun in-fov"></span> ${t('compass.in_fov', this.hass)}</div>
       ${this.showMoon
         ? html`<div><span class="dot moon-dot"></span> ${t('compass.moon', this.hass)}</div>`
         : nothing}
@@ -867,6 +903,12 @@ export class SkyCompass extends LitElement {
       transition: fill 0.3s ease;
     }
     .sun.up {
+      /* outside FOV, above horizon — neutral/dim */
+      fill: var(--secondary-text-color);
+      opacity: 0.7;
+    }
+    .sun.in-fov {
+      /* in FOV but not hitting — light yellow */
       fill: #ffe680;
     }
     .sun.valid {
@@ -933,8 +975,12 @@ export class SkyCompass extends LitElement {
     .dot.sun.valid {
       background: var(--warning-color, gold);
     }
-    .dot.sun.up {
+    .dot.sun.in-fov {
       background: #ffe680;
+    }
+    .dot.sun.up {
+      background: var(--secondary-text-color);
+      opacity: 0.7;
     }
     .swatch.cover-fill-swatch {
       background: var(--primary-color);

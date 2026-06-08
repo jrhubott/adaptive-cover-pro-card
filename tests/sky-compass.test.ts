@@ -28,6 +28,7 @@ function makeDiscovered(
     startSensorId?: string;
     endSensorId?: string;
     coverType?: DiscoveredEntities['cover_type'];
+    decisionTraceSensorId?: string;
   } = {},
 ): DiscoveredEntities {
   return {
@@ -39,6 +40,7 @@ function makeDiscovered(
       ...(opts.targetSensorId ? { target_position_sensor: opts.targetSensorId } : {}),
       ...(opts.startSensorId ? { start_sensor: opts.startSensorId } : {}),
       ...(opts.endSensorId ? { end_sensor: opts.endSensorId } : {}),
+      ...(opts.decisionTraceSensorId ? { decision_trace_sensor: opts.decisionTraceSensorId } : {}),
     },
     managed_covers: [],
   };
@@ -64,6 +66,10 @@ function makeHass(
     endAzimuth?: number;
     endElevation?: number;
     endState?: string;
+    inFov?: boolean;
+    decisionTraceSensorId?: string;
+    sunState?: string;
+    directSunValid?: boolean;
   }[],
   opts: { omitLocation?: boolean } = {},
 ): HomeAssistant {
@@ -81,12 +87,21 @@ function makeHass(
         fov_right: fovRight,
         azimuth_min: e.windowAzimuth - fovLeft,
         azimuth_max: e.windowAzimuth + fovRight,
-        in_fov: true,
+        in_fov: e.inFov ?? true,
         blind_spot_range: e.blindSpot ?? null,
         ...(e.minElevation !== undefined ? { min_elevation: e.minElevation } : {}),
         ...(e.maxElevation !== undefined ? { max_elevation: e.maxElevation } : {}),
       },
     };
+    if (e.decisionTraceSensorId !== undefined) {
+      states[e.decisionTraceSensorId] = {
+        state: 'ok',
+        attributes: {
+          ...(e.sunState !== undefined ? { sun_state: e.sunState } : {}),
+          ...(e.directSunValid !== undefined ? { direct_sun_valid: e.directSunValid } : {}),
+        },
+      };
+    }
     if (e.targetSensorId !== undefined && e.coverPos !== undefined) {
       states[e.targetSensorId] = {
         state: String(e.coverPos),
@@ -173,6 +188,116 @@ describe('acp-sky-compass (single entry)', () => {
     expect(sun).toBeTruthy();
     expect(el.shadowRoot!.querySelector('circle.sun.up')).toBeNull();
     expect(el.shadowRoot!.querySelector('circle.sun.valid')).toBeNull();
+  });
+});
+
+describe('acp-sky-compass sun-dot 3-way state', () => {
+  it('renders "sun valid" (hitting) when sun_state is hitting', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen', {
+      decisionTraceSensorId: 'sensor.dt_entry1',
+    });
+    const hass = makeHass([
+      {
+        sensorId: 'sensor.sun_pos_entry1',
+        windowAzimuth: 180,
+        inFov: true,
+        decisionTraceSensorId: 'sensor.dt_entry1',
+        sunState: 'hitting',
+        directSunValid: true,
+      },
+    ]);
+    const el = await mountCompass([d], hass);
+    expect(el.shadowRoot!.querySelector('circle.sun.valid')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('circle.sun.in-fov')).toBeNull();
+    expect(el.shadowRoot!.querySelector('circle.sun.up')).toBeNull();
+  });
+
+  it('renders "sun in-fov" (light yellow) when in FOV but not valid', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen', {
+      decisionTraceSensorId: 'sensor.dt_entry1',
+    });
+    const hass = makeHass([
+      {
+        sensorId: 'sensor.sun_pos_entry1',
+        windowAzimuth: 180,
+        inFov: true,
+        decisionTraceSensorId: 'sensor.dt_entry1',
+        sunState: 'in_fov_not_valid',
+        directSunValid: false,
+      },
+    ]);
+    const el = await mountCompass([d], hass);
+    expect(el.shadowRoot!.querySelector('circle.sun.in-fov')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('circle.sun.valid')).toBeNull();
+    expect(el.shadowRoot!.querySelector('circle.sun.up')).toBeNull();
+  });
+
+  it('renders "sun up" (dim neutral) when outside FOV', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen', {
+      decisionTraceSensorId: 'sensor.dt_entry1',
+    });
+    const hass = makeHass([
+      {
+        sensorId: 'sensor.sun_pos_entry1',
+        windowAzimuth: 180,
+        inFov: false,
+        decisionTraceSensorId: 'sensor.dt_entry1',
+        sunState: 'outside_fov',
+        directSunValid: false,
+      },
+    ]);
+    const el = await mountCompass([d], hass);
+    expect(el.shadowRoot!.querySelector('circle.sun.up')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('circle.sun.in-fov')).toBeNull();
+    expect(el.shadowRoot!.querySelector('circle.sun.valid')).toBeNull();
+  });
+
+  it('falls back to deriving from direct_sun_valid + in_fov when sun_state absent', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen', {
+      decisionTraceSensorId: 'sensor.dt_entry1',
+    });
+    const hass = makeHass([
+      {
+        sensorId: 'sensor.sun_pos_entry1',
+        windowAzimuth: 180,
+        inFov: true,
+        decisionTraceSensorId: 'sensor.dt_entry1',
+        directSunValid: false, // no sunState attr -> derive: in_fov && !valid
+      },
+    ]);
+    const el = await mountCompass([d], hass);
+    expect(el.shadowRoot!.querySelector('circle.sun.in-fov')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('circle.sun.valid')).toBeNull();
+  });
+
+  it('picks the most-active state across overlapping windows (hitting wins)', async () => {
+    const d1 = makeDiscovered('entry1', 'Kitchen', {
+      decisionTraceSensorId: 'sensor.dt_entry1',
+    });
+    const d2 = makeDiscovered('entry2', 'Office', {
+      decisionTraceSensorId: 'sensor.dt_entry2',
+    });
+    const hass = makeHass([
+      {
+        sensorId: 'sensor.sun_pos_entry1',
+        windowAzimuth: 180,
+        inFov: true,
+        decisionTraceSensorId: 'sensor.dt_entry1',
+        sunState: 'in_fov_not_valid',
+        directSunValid: false,
+      },
+      {
+        sensorId: 'sensor.sun_pos_entry2',
+        windowAzimuth: 180,
+        inFov: true,
+        decisionTraceSensorId: 'sensor.dt_entry2',
+        sunState: 'hitting',
+        directSunValid: true,
+      },
+    ]);
+    const el = await mountCompass([d1, d2], hass);
+    expect(el.shadowRoot!.querySelector('circle.sun.valid')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('circle.sun.in-fov')).toBeNull();
   });
 });
 
@@ -963,24 +1088,23 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     return cssText.slice(open + 1, close);
   }
 
-  it('legend renders a single Sun entry (one .dot.sun swatch)', async () => {
+  it('legend renders two Sun swatches: hitting (valid) and in-FOV', async () => {
     const d = makeDiscovered('entry1', 'Kitchen');
     const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
     const el = await mountCompass([d], hass);
     const dots = Array.from(el.shadowRoot!.querySelectorAll('.legend .dot.sun'));
-    expect(dots.length).toBe(1);
-    // The single swatch uses the gold "valid" token, not the bare grey dot.
-    expect(dots[0].classList.contains('valid')).toBe(true);
+    expect(dots.length).toBe(2);
+    expect(dots.some((dot) => dot.classList.contains('valid'))).toBe(true);
+    expect(dots.some((dot) => dot.classList.contains('in-fov'))).toBe(true);
   });
 
-  it('legend labels the sun with a single plain "Sun" entry', async () => {
+  it('legend labels the sun swatches "Sun (hitting window)" and "in FOV"', async () => {
     const d = makeDiscovered('entry1', 'Kitchen');
     const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
     const el = await mountCompass([d], hass);
     const text = el.shadowRoot!.textContent ?? '';
-    expect(text).toContain('Sun');
-    expect(text).not.toContain('Sun (hitting window)');
-    expect(text).not.toContain('Sun (up, not hitting)');
+    expect(text).toContain('Sun (hitting window)');
+    expect(text).toContain('in FOV');
     expect(text).not.toContain('Sun (below horizon)');
   });
 
@@ -999,9 +1123,14 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     expect(dotValid).toMatch(/var\(--warning-color/);
   });
 
-  it('legend up (not hitting) sun dot keeps the light-gold value', () => {
+  it('legend in-FOV (not hitting) sun dot keeps the light-gold value', () => {
+    const dotInFov = cssBlock('.dot.sun.in-fov ');
+    expect(dotInFov).toContain('#ffe680');
+  });
+
+  it('legend outside-FOV sun dot uses a dim neutral token', () => {
     const dotUp = cssBlock('.dot.sun.up ');
-    expect(dotUp).toContain('#ffe680');
+    expect(dotUp).toMatch(/var\(--secondary-text-color/);
   });
 });
 
