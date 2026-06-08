@@ -63,6 +63,49 @@ describe('acp-cover-bar fill style — issue #135', () => {
   });
 });
 
+describe('acp-cover-bar two-tone fill — issue #135 follow-up', () => {
+  it('open segment is gold and closed segment is blue, matching the compass', () => {
+    const styles = (CoverBar as unknown as { styles: CSSResult }).styles.cssText;
+    // Open portion (.fill) borrows the compass FOV gold (--warning-color);
+    // closed portion (.fill-closed) borrows the compass cover blue (--primary-color).
+    expect(styles).toMatch(/\.fill\s*{[^}]*--warning-color/);
+    expect(styles).toMatch(/\.fill-closed\s*{[^}]*--primary-color/);
+  });
+
+  it('splits the track into open + closed widths summing to 100%', async () => {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    document.body.appendChild(el);
+
+    el.hass = {
+      states: {
+        'sensor.cover_position': {
+          state: '69',
+          attributes: {
+            actual_positions: { 'cover.gauche': 69 },
+          },
+        },
+        'cover.gauche': {
+          state: 'open',
+          attributes: { friendly_name: 'Gauche cover' },
+        },
+      },
+      callService: vi.fn(),
+    } as unknown as HomeAssistant;
+
+    el.discovered = {
+      ...baseDiscovered,
+      entities: { target_position_sensor: 'sensor.cover_position' },
+    };
+
+    await el.updateComplete;
+
+    const open = el.shadowRoot!.querySelector('.fill') as HTMLElement;
+    const closed = el.shadowRoot!.querySelector('.fill-closed') as HTMLElement;
+    expect(open.style.width).toBe('69%');
+    expect(closed.style.width).toBe('31%');
+  });
+});
+
 describe('acp-cover-bar track-click → set_position', () => {
   it('calls adaptive_cover_pro.set_position when the track is clicked', async () => {
     const callService = vi.fn();

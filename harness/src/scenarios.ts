@@ -636,14 +636,14 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: 'cover-bar-open-style',
-    label: 'Cover bar — reduced-opacity fill (issue #135)',
+    label: 'Cover bar — two-tone open/closed fill (issue #135)',
     description:
-      'Cover at 31% open. The bar fill appears at ~35% opacity matching the compass cover wedge. The percent label sits left of the track (between the cover name and the bar).',
+      'Cover at 69% open. The bar splits into two segments matching the sky compass: the open portion (left) is gold like the FOV wedge, the closed portion (right) is blue like the cover wedge. The percent label sits left of the track.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'cover-bar-open-style';
-      c.entries[0].target_position = 31;
-      c.entries[0].covers[0].position = 31;
+      c.entries[0].target_position = 69;
+      c.entries[0].covers[0].position = 69;
       return c;
     },
   },

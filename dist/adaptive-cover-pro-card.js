@@ -1216,6 +1216,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
           title=${De("covers.click_to_set",this.hass)}
         >
           <div class="fill" style="width:${n}%"></div>
+          <div class="fill-closed" style="width:${100-n}%"></div>
           ${null!==o?q`<div
                 class="marker"
                 style="left:${a}%"
@@ -1261,6 +1262,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     }
     .track {
       position: relative;
+      display: flex;
       height: 10px;
       background: var(--secondary-background-color, rgba(0, 0, 0, 0.08));
       border-radius: 6px;
@@ -1277,9 +1279,20 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     :host([compact]) .head {
       display: none;
     }
+    /* Open portion of the cover — gold, matching the compass FOV wedge
+       (--warning-color at fill-opacity 0.22). */
     .fill {
       height: 100%;
-      background: color-mix(in srgb, var(--primary-color) 35%, transparent);
+      flex-shrink: 0;
+      background: color-mix(in srgb, var(--warning-color, gold) 22%, transparent);
+      transition: width 0.3s ease;
+    }
+    /* Closed portion — blue, matching the compass cover wedge
+       (--primary-color at fill-opacity 0.3). */
+    .fill-closed {
+      height: 100%;
+      flex-shrink: 0;
+      background: color-mix(in srgb, var(--primary-color) 30%, transparent);
       transition: width 0.3s ease;
     }
     .marker {
@@ -1298,8 +1311,11 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
       color: var(--warning-color, orange);
       --mdc-icon-size: 16px;
     }
+    /* On a position mismatch the open segment is already gold, so recoloring it
+       gold would be invisible — flag the divergence with the error colour and
+       lean on the warn icon at the end of the row. */
     .mismatch .fill {
-      background: var(--warning-color, orange);
+      background: color-mix(in srgb, var(--error-color, crimson) 35%, transparent);
     }
     .placeholder {
       color: var(--secondary-text-color);
