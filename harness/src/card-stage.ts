@@ -36,9 +36,17 @@ export class AcpHarnessCardStage extends LitElement {
         <span class="hint">(one per entry — open to see more-info dialog with forecast)</span>
       </h2>
       ${this.config.tile.enabled
-        ? html`<div class="tile-row" id="tile-host"></div>`
+        ? html`<div class="tile-row" id="tile-host" style=${this._tileRowStyle()}></div>`
         : html`<p class="disabled">Disabled — toggle in Per-card config.</p>`}
     `;
+  }
+
+  /** When a tile width is simulated (issue #136), pin every tile to exactly
+   *  that many px so the card receives a narrow inline-size; 0 falls back to
+   *  the auto-fill grid (≥360px tiles). */
+  private _tileRowStyle(): string {
+    const w = this.config.tile.tileWidth;
+    return w > 0 ? `grid-template-columns: repeat(auto-fill, ${w}px); justify-content: start;` : '';
   }
 
   protected updated(changed: Map<string, unknown>): void {

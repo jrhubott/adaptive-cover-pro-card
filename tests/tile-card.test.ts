@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import '../src/adaptive-cover-pro-tile-card';
+import { AdaptiveCoverProTileCard } from '../src/adaptive-cover-pro-tile-card';
 import { INTEGRATION_DOMAIN } from '../src/const';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { AdaptiveCoverProTileCardConfig } from '../src/types';
@@ -1384,5 +1384,36 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
     expect(chip).toBeTruthy();
     // Should show the highest floor (45%), not the lower one (20%)
     expect(chip!.textContent?.trim()).toMatch(/45%/);
+  });
+});
+
+describe('adaptive-cover-pro-tile-card narrow-column responsiveness (#136)', () => {
+  // happy-dom has no layout engine, so these lock the DOM contract the CSS relies
+  // on (structural guard) and assert the container-query mechanism is present in
+  // the stylesheet. Actual visual reflow is verified via the harness + build.
+  it('keeps all three controls and the full title in detailed layout (regression guard)', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', name: 'Centre Gauche' },
+      makeHass(),
+    );
+    expect(el.shadowRoot!.querySelectorAll('.controls button').length).toBe(3);
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title).toBeTruthy();
+    // The full name stays in the DOM — the narrow fix must free space via the
+    // grid, never by dropping or clipping the title element's text content.
+    expect(title!.textContent?.trim()).toBe('Centre Gauche');
+  });
+
+  it('declares an inline-size container so the column width drives the layout', () => {
+    const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
+    expect(css).toContain('container-type: inline-size');
+  });
+
+  it('reflows the detailed controls onto their own full-width row at a narrow breakpoint', () => {
+    const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
+    expect(css).toContain('@container');
+    // The narrow detailed grid moves controls to a row of their own — this
+    // 'controls'-spanning template area exists only in the narrow reflow.
+    expect(css).toContain('controls controls controls');
   });
 });
