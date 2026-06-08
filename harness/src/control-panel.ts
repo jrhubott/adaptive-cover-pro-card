@@ -851,6 +851,14 @@ export class AcpHarnessControlPanel extends LitElement {
             )}
           </select>
         </label>
+        ${this._numberSlider(
+          'tile width px (0 = auto)',
+          this.config.tile.tileWidth,
+          0,
+          480,
+          10,
+          (v) => this._emit({ ...this.config, tile: { ...this.config.tile, tileWidth: v } }),
+        )}
       </fieldset>
     `;
   }

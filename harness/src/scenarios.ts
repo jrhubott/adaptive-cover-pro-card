@@ -69,6 +69,7 @@ function defaultTile(): HarnessConfig['tile'] {
     show_elevation_chart: true,
     show_motion_icon: true,
     layout: 'detailed',
+    tileWidth: 0,
   };
 }
 
@@ -633,6 +634,35 @@ export const SCENARIOS: Scenario[] = [
       return c;
     },
   },
+  {
+    id: 'narrow-column-tiles',
+    label: 'Narrow column tiles (repro #136)',
+    description:
+      'Four detailed tiles with long names pinned to a 260px-wide column, mimicking a narrow HA "Sections" layout. The fixed ↑■▼ control column starves the name, truncating "Centre Gauche" → "C…". Drag the tile width control up to ~360px to watch the names recover. Use this to verify the narrow-column responsive fix.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'narrow-column-tiles';
+      c.tile.layout = 'detailed';
+      c.tile.tileWidth = 260;
+      c.entries = [
+        makeEntry({ entry_id: 'gauche', title: 'Gauche', window_azimuth: 135, color: '#ff7043' }),
+        makeEntry({
+          entry_id: 'centre_gauche',
+          title: 'Centre Gauche',
+          window_azimuth: 180,
+          color: '#26a69a',
+        }),
+        makeEntry({
+          entry_id: 'centre_droite',
+          title: 'Centre Droite',
+          window_azimuth: 180,
+          color: '#7e57c2',
+        }),
+        makeEntry({ entry_id: 'droite', title: 'Droite', window_azimuth: 225, color: '#42a5f5' }),
+      ];
+      return c;
+    },
+  },
 ];
 
 export function findScenario(id: string): Scenario | undefined {
@@ -655,6 +685,7 @@ export function normalizeConfig(cfg: HarnessConfig): HarnessConfig {
     tile: {
       ...cfg.tile,
       badges: { ...defaultBadges(), ...(cfg.tile?.badges ?? {}) },
+      tileWidth: cfg.tile?.tileWidth ?? 0,
     },
   };
 }
