@@ -84,6 +84,7 @@ export class CoverBar extends LitElement {
     return html`
       <div class="cover ${mismatch ? 'mismatch' : ''}">
         <div class="name" title=${entityId}>${friendly}</div>
+        <div class="num">${formatPercent(actual)}</div>
         <div
           class="track"
           @click=${(e: MouseEvent) => this._handleTrackClick(e, entityId)}
@@ -98,7 +99,6 @@ export class CoverBar extends LitElement {
               ></div>`
             : nothing}
         </div>
-        <div class="num">${formatPercent(actual)}</div>
         ${mismatch
           ? html`<ha-icon class="warn" icon="mdi:alert-circle-outline"></ha-icon>`
           : nothing}
@@ -138,7 +138,7 @@ export class CoverBar extends LitElement {
     }
     .cover {
       display: grid;
-      grid-template-columns: minmax(80px, 1fr) 3fr 48px auto;
+      grid-template-columns: minmax(80px, 1fr) 48px 3fr auto;
       gap: 8px;
       align-items: center;
       font-size: 0.82rem;
@@ -169,7 +169,7 @@ export class CoverBar extends LitElement {
     }
     .fill {
       height: 100%;
-      background: var(--primary-color);
+      background: color-mix(in srgb, var(--primary-color) 35%, transparent);
       transition: width 0.3s ease;
     }
     .marker {
