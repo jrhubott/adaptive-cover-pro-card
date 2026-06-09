@@ -3,6 +3,7 @@ import '../src/components/sky-compass';
 import { SkyCompass } from '../src/components/sky-compass';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities } from '../src/types';
+import { coverWedgeOuterRadius, normalizeAzimuth, wedgePath } from '../src/lib/geometry';
 
 interface SkyCompassLike extends HTMLElement {
   updateComplete: Promise<boolean>;
@@ -29,6 +30,7 @@ function makeDiscovered(
     endSensorId?: string;
     coverType?: DiscoveredEntities['cover_type'];
     decisionTraceSensorId?: string;
+    overrideBinaryId?: string;
   } = {},
 ): DiscoveredEntities {
   return {
@@ -41,6 +43,7 @@ function makeDiscovered(
       ...(opts.startSensorId ? { start_sensor: opts.startSensorId } : {}),
       ...(opts.endSensorId ? { end_sensor: opts.endSensorId } : {}),
       ...(opts.decisionTraceSensorId ? { decision_trace_sensor: opts.decisionTraceSensorId } : {}),
+      ...(opts.overrideBinaryId ? { manual_override_binary: opts.overrideBinaryId } : {}),
     },
     managed_covers: [],
   };
@@ -57,6 +60,9 @@ function makeHass(
     maxElevation?: number;
     coverPos?: number;
     actualPositions?: Record<string, number | null>;
+    rawCalculatedPosition?: number;
+    overrideBinaryId?: string;
+    manualOverride?: boolean;
     targetSensorId?: string;
     startSensorId?: string;
     startAzimuth?: number;
@@ -105,7 +111,18 @@ function makeHass(
     if (e.targetSensorId !== undefined && e.coverPos !== undefined) {
       states[e.targetSensorId] = {
         state: String(e.coverPos),
-        attributes: e.actualPositions !== undefined ? { actual_positions: e.actualPositions } : {},
+        attributes: {
+          ...(e.actualPositions !== undefined ? { actual_positions: e.actualPositions } : {}),
+          ...(e.rawCalculatedPosition !== undefined
+            ? { raw_calculated_position: e.rawCalculatedPosition }
+            : {}),
+        },
+      };
+    }
+    if (e.overrideBinaryId !== undefined) {
+      states[e.overrideBinaryId] = {
+        state: e.manualOverride ? 'on' : 'off',
+        attributes: {},
       };
     }
     if (e.startSensorId !== undefined) {
@@ -1070,6 +1087,150 @@ describe('acp-sky-compass actual-vs-target dual wedge (#132)', () => {
     ]);
     const el = await mountCompass([disc()], hass, { showCoverFill: false });
     expect(el.shadowRoot!.querySelector('path.cover-actual')).toBeNull();
+  });
+});
+
+describe('acp-sky-compass manual-override divergence (#132 Problem A)', () => {
+  // windowAzimuth=180, fov ±45 → fovStart=135, fovEnd=225, full FOV wedge.
+  // No elevation limits → fovOuterR=110, fovInnerR=0.
+  const sensorId = 'sensor.sun_pos_ov';
+  const targetSensorId = 'sensor.target_pos_ov';
+  const overrideBinaryId = 'binary_sensor.manual_override_ov';
+  const disc = () => makeDiscovered('ov', 'Kitchen', { targetSensorId, overrideBinaryId });
+
+  // During override the Cover_Position sensor STATE returns the held position
+  // (80); the integration still publishes the solar would-be target as the
+  // raw_calculated_position attribute (20). The target wedge must move to the
+  // solar target while the actual ring stays at held.
+  it('draws the target wedge at the solar target and actual ring at held', async () => {
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 180,
+        coverPos: 80, // sensor STATE = held position during override
+        rawCalculatedPosition: 20, // solar would-be target
+        actualPositions: { 'cover.x': 80 }, // covers physically at held
+        targetSensorId,
+        overrideBinaryId,
+        manualOverride: true,
+      },
+    ]);
+    const el = await mountCompass([disc()], hass);
+    const fill = el.shadowRoot!.querySelector('path.cover-fill') as SVGPathElement | null;
+    const actual = el.shadowRoot!.querySelector('path.cover-actual') as SVGPathElement | null;
+    expect(fill).not.toBeNull();
+    expect(actual).not.toBeNull();
+    // Two distinct wedges: target (solar=20) ≠ actual ring (held=80).
+    const fillD = fill!.getAttribute('d')!;
+    const actualD = actual!.getAttribute('d')!;
+    expect(fillD).not.toBe(actualD);
+    // Target wedge radius reflects the SOLAR target (20% → blind 80% open →
+    // outer radius 88), the actual ring reflects HELD (80% → 20% open → 22).
+    const solarTargetPath = wedgePath(
+      normalizeAzimuth(135),
+      normalizeAzimuth(225),
+      coverWedgeOuterRadius(20, 'cover_blind', 110, 110),
+      0,
+      0,
+    );
+    const heldPath = wedgePath(
+      normalizeAzimuth(135),
+      normalizeAzimuth(225),
+      coverWedgeOuterRadius(80, 'cover_blind', 110, 110),
+      0,
+      0,
+    );
+    expect(fillD).toBe(solarTargetPath);
+    expect(actualD).toBe(heldPath);
+  });
+
+  it('tooltip shows the solar target line and the held/actual line as distinct values', async () => {
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 180,
+        coverPos: 80,
+        rawCalculatedPosition: 20,
+        actualPositions: { 'cover.x': 80 },
+        targetSensorId,
+        overrideBinaryId,
+        manualOverride: true,
+      },
+    ]);
+    const el = await mountCompass([disc()], hass);
+    const tt = el.shadowRoot!.querySelector('g.cover-group > title')?.textContent ?? '';
+    // Target line = solar would-be (20%); Actual line = held (80%).
+    expect(tt).toContain('Target: 20%');
+    expect(tt).toContain('Actual: 80%');
+  });
+
+  it('single wedge when override active but raw_calculated_position is absent', async () => {
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 180,
+        coverPos: 80,
+        // no rawCalculatedPosition published
+        actualPositions: { 'cover.x': 80 },
+        targetSensorId,
+        overrideBinaryId,
+        manualOverride: true,
+      },
+    ]);
+    const el = await mountCompass([disc()], hass);
+    const fill = el.shadowRoot!.querySelector('path.cover-fill') as SVGPathElement | null;
+    const actual = el.shadowRoot!.querySelector('path.cover-actual') as SVGPathElement | null;
+    expect(fill).not.toBeNull();
+    expect(actual).not.toBeNull();
+    // No divergence data → target and actual ring coincide (current behavior).
+    expect(actual!.getAttribute('d')).toBe(fill!.getAttribute('d'));
+  });
+
+  it('single wedge when raw_calculated_position equals the held position', async () => {
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 180,
+        coverPos: 80,
+        rawCalculatedPosition: 80, // solar == held, no divergence
+        actualPositions: { 'cover.x': 80 },
+        targetSensorId,
+        overrideBinaryId,
+        manualOverride: true,
+      },
+    ]);
+    const el = await mountCompass([disc()], hass);
+    const fill = el.shadowRoot!.querySelector('path.cover-fill') as SVGPathElement | null;
+    const actual = el.shadowRoot!.querySelector('path.cover-actual') as SVGPathElement | null;
+    expect(actual!.getAttribute('d')).toBe(fill!.getAttribute('d'));
+  });
+
+  it('single wedge when raw_calculated_position differs but override is NOT active', async () => {
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 180,
+        coverPos: 80,
+        rawCalculatedPosition: 20, // diverges, but override off → ignore it
+        actualPositions: { 'cover.x': 80 },
+        targetSensorId,
+        overrideBinaryId,
+        manualOverride: false,
+      },
+    ]);
+    const el = await mountCompass([disc()], hass);
+    const fill = el.shadowRoot!.querySelector('path.cover-fill') as SVGPathElement | null;
+    const actual = el.shadowRoot!.querySelector('path.cover-actual') as SVGPathElement | null;
+    // Target wedge stays at the sensor STATE (80), actual ring at held (80).
+    expect(actual!.getAttribute('d')).toBe(fill!.getAttribute('d'));
+    const heldPath = wedgePath(
+      normalizeAzimuth(135),
+      normalizeAzimuth(225),
+      coverWedgeOuterRadius(80, 'cover_blind', 110, 110),
+      0,
+      0,
+    );
+    expect(fill!.getAttribute('d')).toBe(heldPath);
   });
 });
 

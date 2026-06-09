@@ -13,6 +13,7 @@ import {
   fovBandRadii,
   fovRunBounds,
   normalizeAzimuth,
+  overrideDivergenceTarget,
   ribbonLayout,
   scheduleZones,
   sunDotPosition,
@@ -630,5 +631,36 @@ describe('coverWedgeOuterRadius', () => {
     expect(coverWedgeOuterRadius(0, 'cover_awning', OUTER_R, OUTER_R)).toBe(0);
     // awning pos=50 → fraction 0.5 → 55.
     expect(coverWedgeOuterRadius(50, 'cover_awning', OUTER_R, OUTER_R)).toBe(55);
+  });
+});
+
+describe('overrideDivergenceTarget', () => {
+  it('returns the solar target when override is active and it differs from held', () => {
+    expect(overrideDivergenceTarget(true, 20, 80)).toBe(20);
+  });
+
+  it('returns 0 (a valid divergent target) when held is non-zero', () => {
+    // 0 is a legitimate solar target; only the held==rawCalc guard suppresses it.
+    expect(overrideDivergenceTarget(true, 0, 80)).toBe(0);
+  });
+
+  it('returns null when override is not active', () => {
+    expect(overrideDivergenceTarget(false, 20, 80)).toBeNull();
+  });
+
+  it('returns null when raw_calculated_position equals the held position', () => {
+    // Guards the integration default (e.g. both 0 outside the time window).
+    expect(overrideDivergenceTarget(true, 80, 80)).toBeNull();
+    expect(overrideDivergenceTarget(true, 0, 0)).toBeNull();
+  });
+
+  it('returns null when raw_calculated_position is absent', () => {
+    expect(overrideDivergenceTarget(true, null, 80)).toBeNull();
+    expect(overrideDivergenceTarget(true, undefined, 80)).toBeNull();
+  });
+
+  it('returns null when raw_calculated_position is non-finite', () => {
+    expect(overrideDivergenceTarget(true, NaN, 80)).toBeNull();
+    expect(overrideDivergenceTarget(true, Infinity, 80)).toBeNull();
   });
 });

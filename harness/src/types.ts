@@ -56,6 +56,11 @@ export interface HarnessEntry {
     manual_override: boolean;
     /** Minutes from "now" when the manual override expires. */
     manual_override_minutes_from_now: number;
+    /** During a manual override the integration's Cover_Position sensor STATE
+     *  returns this HELD position, while `raw_calculated_position` keeps the
+     *  solar would-be target (`target_position`). null = no divergence (held
+     *  tracks the solar target, the pre-#132 collapse behavior). */
+    held_position: number | null;
     force_override_triggers: number;
     motion_status: MotionStatusValue;
     /** Minutes from now when motion timeout fires. */
