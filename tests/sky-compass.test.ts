@@ -1279,23 +1279,23 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     return cssText.slice(open + 1, close);
   }
 
-  it('legend renders two Sun swatches: hitting (valid) and in-FOV', async () => {
+  it('legend renders a single Sun swatch (valid)', async () => {
     const d = makeDiscovered('entry1', 'Kitchen');
     const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
     const el = await mountCompass([d], hass);
     const dots = Array.from(el.shadowRoot!.querySelectorAll('.legend .dot.sun'));
-    expect(dots.length).toBe(2);
-    expect(dots.some((dot) => dot.classList.contains('valid'))).toBe(true);
-    expect(dots.some((dot) => dot.classList.contains('in-fov'))).toBe(true);
+    expect(dots.length).toBe(1);
+    expect(dots[0].classList.contains('valid')).toBe(true);
+    expect(dots.some((dot) => dot.classList.contains('in-fov'))).toBe(false);
   });
 
-  it('legend labels the sun swatches "Sun (hitting window)" and "in FOV"', async () => {
+  it('legend labels the single sun swatch "Sun"', async () => {
     const d = makeDiscovered('entry1', 'Kitchen');
     const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
     const el = await mountCompass([d], hass);
     const text = el.shadowRoot!.textContent ?? '';
-    expect(text).toContain('Sun (hitting window)');
-    expect(text).toContain('in FOV');
+    expect(text).toContain('Sun');
+    expect(text).not.toContain('Sun (hitting window)');
     expect(text).not.toContain('Sun (below horizon)');
   });
 
@@ -1312,11 +1312,6 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     const dotValid = cssBlock('.dot.sun.valid ');
     expect(circleValid).toMatch(/var\(--warning-color/);
     expect(dotValid).toMatch(/var\(--warning-color/);
-  });
-
-  it('legend in-FOV (not hitting) sun dot keeps the light-gold value', () => {
-    const dotInFov = cssBlock('.dot.sun.in-fov ');
-    expect(dotInFov).toContain('#ffe680');
   });
 
   it('legend outside-FOV sun dot uses a dim neutral token', () => {

@@ -101,7 +101,6 @@ export const en = {
     none: '—',
     sun: 'Sun',
     moon: 'Moon',
-    sun_hitting: 'Sun (hitting window)',
     sun_up_not_hitting: 'Sun (up, not hitting)',
     sun_below_horizon: 'Sun (below horizon)',
     window_fov: 'Window FOV',

@@ -110,7 +110,6 @@ export const fr: EnDict = {
     none: '—',
     sun: 'Soleil',
     moon: 'Lune',
-    sun_hitting: 'Soleil (frappe la fenêtre)',
     sun_up_not_hitting: 'Soleil (levé, ne frappe pas)',
     sun_below_horizon: 'Soleil (sous l’horizon)',
     window_fov: 'Champ de vision',

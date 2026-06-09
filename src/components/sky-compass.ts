@@ -708,8 +708,7 @@ export class SkyCompass extends LitElement {
               </button>
             `,
           )}
-          <div><span class="dot sun valid"></span> ${t('compass.sun_hitting', this.hass)}</div>
-          <div><span class="dot sun in-fov"></span> ${t('compass.in_fov', this.hass)}</div>
+          <div><span class="dot sun valid"></span> ${t('compass.sun', this.hass)}</div>
           ${this.showMoon
             ? html`<div><span class="dot moon-dot"></span> ${t('compass.moon', this.hass)}</div>`
             : nothing}
@@ -717,8 +716,7 @@ export class SkyCompass extends LitElement {
       `;
     }
     return html`<div class="legend">
-      <div><span class="dot sun valid"></span> ${t('compass.sun_hitting', this.hass)}</div>
-      <div><span class="dot sun in-fov"></span> ${t('compass.in_fov', this.hass)}</div>
+      <div><span class="dot sun valid"></span> ${t('compass.sun', this.hass)}</div>
       ${this.showMoon
         ? html`<div><span class="dot moon-dot"></span> ${t('compass.moon', this.hass)}</div>`
         : nothing}
@@ -1012,9 +1010,6 @@ export class SkyCompass extends LitElement {
     }
     .dot.sun.valid {
       background: var(--warning-color, gold);
-    }
-    .dot.sun.in-fov {
-      background: #ffe680;
     }
     .dot.sun.up {
       background: var(--secondary-text-color);
