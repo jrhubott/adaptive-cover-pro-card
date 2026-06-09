@@ -614,10 +614,10 @@ export class SkyCompass extends LitElement {
 
     // In multi-entry mode the entry color is an *identity* — the whole wedge
     // group (FOV, cover, blind, window) shares it so entries are distinguishable.
-    // In single-entry mode there is nothing to distinguish, so a cover-color
-    // override recolors only the cover wedge; FOV/blind/window keep their
-    // semantic colors (otherwise the legend shows several identical swatches).
-    const groupColor = multi;
+    // In single-entry mode a cover-color override recolors the whole group too
+    // (FOV/cover/blind/window take the chosen shade), so the main card matches
+    // the standalone card. With no override the group keeps its themed colors.
+    const groupColor = multi || o.isOverride;
     const coverColor = multi || o.isOverride;
     const fovStyle = groupColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
     const coverStyle = coverColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
@@ -722,7 +722,13 @@ export class SkyCompass extends LitElement {
       ${this.showMoon
         ? html`<div><span class="dot moon-dot"></span> ${t('compass.moon', this.hass)}</div>`
         : nothing}
-      <div><span class="swatch fov"></span> ${t('compass.window_fov', this.hass)}</div>
+      <div>
+        <span
+          class="swatch fov"
+          style=${overlays[0]?.isOverride ? `background: ${overlays[0].color}` : ''}
+        ></span>
+        ${t('compass.window_fov', this.hass)}
+      </div>
       ${this.showCoverFill
         ? html`<div>
             <span

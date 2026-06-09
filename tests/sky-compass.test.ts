@@ -403,10 +403,10 @@ describe('acp-sky-compass cover legend wording (#132)', () => {
 });
 
 describe('acp-sky-compass coverColors', () => {
-  it('single-entry override colors the cover wedge but not the FOV', async () => {
-    // #132 review: a cover-color override on a single-entry compass recolors only
-    // the cover wedge. FOV/window/blind keep their semantic colors (the legend
-    // would otherwise show three identical swatches).
+  it('single-entry override colors both the cover wedge and the FOV', async () => {
+    // #132 Problem B: a cover-color override on a single-entry compass recolors
+    // the cover wedge AND the FOV/window uniformly, so the main card matches the
+    // standalone (multi-entry) card and the reporter's request.
     const targetSensorId = 'sensor.target_pos_entry1';
     const d = makeDiscovered('entry1', 'Kitchen', { targetSensorId });
     const hass = makeHass([
@@ -416,7 +416,7 @@ describe('acp-sky-compass coverColors', () => {
     const cover = el.shadowRoot!.querySelector('path.cover-fill') as SVGPathElement;
     expect(cover.getAttribute('style') ?? '').toContain('#ff3366');
     const fov = el.shadowRoot!.querySelector('path.fov') as SVGPathElement;
-    expect(fov.getAttribute('style') ?? '').not.toContain('#ff3366');
+    expect(fov.getAttribute('style') ?? '').toContain('#ff3366');
   });
 
   it('single-entry override colors the legend cover swatch to match the wedge', async () => {
@@ -429,6 +429,36 @@ describe('acp-sky-compass coverColors', () => {
     const swatch = el.shadowRoot!.querySelector('.swatch.cover-fill-swatch') as HTMLElement | null;
     expect(swatch).not.toBeNull();
     expect(swatch!.getAttribute('style') ?? '').toContain('#ff3366');
+  });
+
+  it('single-entry override colors the legend FOV swatch to match the wedge', async () => {
+    // #132 Problem B: when the FOV follows the override color, the legend FOV
+    // swatch must carry the same inline background so legend and plot agree.
+    const targetSensorId = 'sensor.target_pos_entry1';
+    const d = makeDiscovered('entry1', 'Kitchen', { targetSensorId });
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, coverPos: 40, targetSensorId },
+    ]);
+    const el = await mountCompass([d], hass, { coverColors: ['#ff3366'] });
+    const swatch = el.shadowRoot!.querySelector('.swatch.fov') as HTMLElement | null;
+    expect(swatch).not.toBeNull();
+    expect(swatch!.getAttribute('style') ?? '').toContain('#ff3366');
+  });
+
+  it('single-entry WITHOUT override keeps the FOV themed gold (no inline color)', async () => {
+    // #132 Problem B regression: with no cover-color override the default look is
+    // preserved — the FOV path and legend FOV swatch carry no inline color.
+    const targetSensorId = 'sensor.target_pos_entry1';
+    const d = makeDiscovered('entry1', 'Kitchen', { targetSensorId });
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, coverPos: 40, targetSensorId },
+    ]);
+    const el = await mountCompass([d], hass);
+    const fov = el.shadowRoot!.querySelector('path.fov') as SVGPathElement;
+    expect(fov.getAttribute('style') ?? '').toBe('');
+    const swatch = el.shadowRoot!.querySelector('.swatch.fov') as HTMLElement | null;
+    expect(swatch).not.toBeNull();
+    expect(swatch!.getAttribute('style') ?? '').toBe('');
   });
 
   it('null slot falls back to palette color in multi-entry compass', async () => {

@@ -189,6 +189,25 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'single-entry-cover-color',
+    label: 'Single entry — custom cover color',
+    description:
+      'A single-entry main card with a cover-color override. #132 Problem B: the FOV/window follows the chosen shade (not the themed gold), matching the standalone compass card.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'single-entry-cover-color';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Living Room',
+          window_azimuth: 180,
+          color: '#e040fb',
+        }),
+      ];
+      return c;
+    },
+  },
+  {
     id: 'manual-override-active',
     label: 'Manual override active',
     description:
