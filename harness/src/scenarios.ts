@@ -599,6 +599,23 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'issue-128-time-window',
+    label: 'Time window — every schedule surface (issue #128)',
+    description:
+      'One stop to verify the whole "show time window" feature (issue #128) at once. The schedule is 07:30–21:00 and the clock sits at 06:00, before the start, so in_time_window is false. You should see ALL of: (1) tile card "Off-schedule" badge; (2) decision strip muted "Outside schedule — automatic control paused" banner; (3) "Sun today" chart faint gray off-schedule zones bracketing the window; (4) thin start bar @07:30 and end bar @21:00; (5) clock-time ticks on each bar (hover → "Schedule start"/"Schedule end"); (6) chart header "Schedule 07:30 – 21:00". The sky compass is intentionally excluded — it is an azimuth/FOV plot with no time axis. Drag the time past 07:30 to watch in_time_window flip and the banner/badge clear while the chart window stays drawn.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 6 * 60); // 06:00 — before the 07:30 start.
+      c.scenario = 'issue-128-time-window';
+      c.entries[0].flags.in_time_window = false;
+      c.entries[0].flags.schedule_start_minutes = 7 * 60 + 30; // 07:30
+      c.entries[0].flags.schedule_end_minutes = 21 * 60; // 21:00
+      // Default position wins so the banner + badge read cleanly.
+      c.entries[0].target_position = 60;
+      c.entries[0].covers[0].position = 60;
+      return c;
+    },
+  },
+  {
     id: 'climate-standby',
     label: 'Climate standby — outside operating window',
     description:
