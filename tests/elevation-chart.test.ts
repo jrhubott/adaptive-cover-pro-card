@@ -604,11 +604,11 @@ describe('acp-elevation-chart: sun-dot 3-way state (issue #137)', () => {
     expect(dot.classList.contains('valid')).toBe(false);
   });
 
-  it('exposes a .sun-dot.in-fov light-yellow CSS rule', () => {
+  it('exposes a .sun-dot.in-fov gold CSS rule', () => {
     const cssText = (ElevationChart as unknown as { styles: { cssText: string } }).styles.cssText;
     const idx = cssText.indexOf('.sun-dot.in-fov');
     expect(idx).toBeGreaterThan(-1);
     const block = cssText.slice(cssText.indexOf('{', idx), cssText.indexOf('}', idx));
-    expect(block).toContain('#ffe680');
+    expect(block).toContain('var(--warning-color, gold)');
   });
 });
