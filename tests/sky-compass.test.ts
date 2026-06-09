@@ -445,9 +445,10 @@ describe('acp-sky-compass coverColors', () => {
     expect(swatch!.getAttribute('style') ?? '').toContain('#ff3366');
   });
 
-  it('single-entry WITHOUT override keeps the FOV themed gold (no inline color)', async () => {
-    // #132 Problem B regression: with no cover-color override the default look is
-    // preserved — the FOV path and legend FOV swatch carry no inline color.
+  it('single-entry WITHOUT override leaves the FOV on its themed default (no inline color)', async () => {
+    // #132 Problem B regression: with no cover-color override the FOV path and
+    // legend FOV swatch carry no inline color — they fall to the CSS default
+    // (--primary-color since #144, formerly gold).
     const targetSensorId = 'sensor.target_pos_entry1';
     const d = makeDiscovered('entry1', 'Kitchen', { targetSensorId });
     const hass = makeHass([

@@ -259,9 +259,13 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
     }
     .fov,
     .fov-extra {
-      fill: var(--warning-color, gold);
+      /* Default (single-entry, no override): a lighter, more-transparent shade
+         of the cover colour — same identity as the cover wedge, just fainter —
+         matching how multi-entry/override mode already colours the FOV. Keeping
+         it off gold lets the gold sun dot read clearly against it. */
+      fill: var(--primary-color);
       fill-opacity: 0.22;
-      stroke: var(--warning-color, gold);
+      stroke: var(--primary-color);
       stroke-width: 1;
       stroke-opacity: 0.7;
       transition:
@@ -654,7 +658,9 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
       opacity: 0.7;
     }
     .fov-band {
-      fill: var(--warning-color, gold);
+      /* Lighter shade of the cover colour (not gold), so the gold sun-dot reads
+         clearly against it. Matches the sky-compass .fov default. */
+      fill: var(--primary-color);
       fill-opacity: 0.18;
     }
     .off-schedule-zone {
@@ -677,7 +683,9 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
       cursor: default;
     }
     .ribbon-bar {
-      fill: var(--warning-color, gold);
+      /* Fallback only — the ribbon always sets an inline per-window fill. Kept on
+         the cover colour for consistency with the FOV band. */
+      fill: var(--primary-color);
       fill-opacity: 0.85;
       cursor: default;
     }
@@ -1280,20 +1288,20 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
     :host([compact]) .head {
       display: none;
     }
-    /* Open portion of the cover — gold, matching the compass FOV wedge
-       (--warning-color at fill-opacity 0.22). */
+    /* Both segments derive from the cover colour (override, else --primary-color),
+       distinguished by opacity: open is pale, closed is solid — "lighter = more
+       open" — matching the compass FOV (light) vs cover wedge (solid) of the same
+       hue. No gold, so nothing competes with the gold sun on the compass. */
     .fill {
       height: 100%;
       flex-shrink: 0;
-      background: color-mix(in srgb, var(--warning-color, gold) 22%, transparent);
+      background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 18%, transparent);
       transition: width 0.3s ease;
     }
-    /* Closed portion — the user-selected cover colour, falling back to blue
-       (--primary-color), matching the compass cover wedge at fill-opacity 0.3. */
     .fill-closed {
       height: 100%;
       flex-shrink: 0;
-      background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 30%, transparent);
+      background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 50%, transparent);
       transition: width 0.3s ease;
     }
     .marker {

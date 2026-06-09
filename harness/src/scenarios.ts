@@ -192,7 +192,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'single-entry-cover-color',
     label: 'Single entry — custom cover color',
     description:
-      'A single-entry main card with a cover-color override. #132 Problem B: the FOV/window follows the chosen shade (not the themed gold), matching the standalone compass card.',
+      'A single-entry main card with a cover-color override. #132 Problem B: the FOV/window follows the chosen shade (not the themed default), matching the standalone compass card.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'single-entry-cover-color';
@@ -693,7 +693,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'cover-bar-open-style',
     label: 'Cover bar — two-tone open/closed fill (issue #135)',
     description:
-      "Cover at 69% open. The bar splits into two segments matching the sky compass: the open portion (left) is gold like the FOV wedge, the closed portion (right) uses the selected cover colour like the cover wedge. Change entry 0's colour in the control panel to watch both the compass wedge and the bar's closed segment track it. The percent label sits left of the track.",
+      "Cover at 69% open. The bar splits into two segments matching the sky compass: both use the cover colour (default blue, or the override), the open portion (left) a pale shade like the FOV wedge and the closed portion (right) a solid shade like the cover wedge — no gold. Change entry 0's colour in the control panel to watch both compass wedges and both bar segments track it. The percent label sits left of the track.",
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'cover-bar-open-style';

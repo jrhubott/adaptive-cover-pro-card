@@ -865,9 +865,13 @@ export class SkyCompass extends LitElement {
     }
     .fov,
     .fov-extra {
-      fill: var(--warning-color, gold);
+      /* Default (single-entry, no override): a lighter, more-transparent shade
+         of the cover colour — same identity as the cover wedge, just fainter —
+         matching how multi-entry/override mode already colours the FOV. Keeping
+         it off gold lets the gold sun dot read clearly against it. */
+      fill: var(--primary-color);
       fill-opacity: 0.22;
-      stroke: var(--warning-color, gold);
+      stroke: var(--primary-color);
       stroke-width: 1;
       stroke-opacity: 0.7;
       transition:

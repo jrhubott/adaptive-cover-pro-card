@@ -507,7 +507,9 @@ export class ElevationChart extends LitElement {
       opacity: 0.7;
     }
     .fov-band {
-      fill: var(--warning-color, gold);
+      /* Lighter shade of the cover colour (not gold), so the gold sun-dot reads
+         clearly against it. Matches the sky-compass .fov default. */
+      fill: var(--primary-color);
       fill-opacity: 0.18;
     }
     .off-schedule-zone {
@@ -530,7 +532,9 @@ export class ElevationChart extends LitElement {
       cursor: default;
     }
     .ribbon-bar {
-      fill: var(--warning-color, gold);
+      /* Fallback only — the ribbon always sets an inline per-window fill. Kept on
+         the cover colour for consistency with the FOV band. */
+      fill: var(--primary-color);
       fill-opacity: 0.85;
       cursor: default;
     }

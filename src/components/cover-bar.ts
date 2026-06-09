@@ -173,20 +173,20 @@ export class CoverBar extends LitElement {
     :host([compact]) .head {
       display: none;
     }
-    /* Open portion of the cover — gold, matching the compass FOV wedge
-       (--warning-color at fill-opacity 0.22). */
+    /* Both segments derive from the cover colour (override, else --primary-color),
+       distinguished by opacity: open is pale, closed is solid — "lighter = more
+       open" — matching the compass FOV (light) vs cover wedge (solid) of the same
+       hue. No gold, so nothing competes with the gold sun on the compass. */
     .fill {
       height: 100%;
       flex-shrink: 0;
-      background: color-mix(in srgb, var(--warning-color, gold) 22%, transparent);
+      background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 18%, transparent);
       transition: width 0.3s ease;
     }
-    /* Closed portion — the user-selected cover colour, falling back to blue
-       (--primary-color), matching the compass cover wedge at fill-opacity 0.3. */
     .fill-closed {
       height: 100%;
       flex-shrink: 0;
-      background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 30%, transparent);
+      background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 50%, transparent);
       transition: width 0.3s ease;
     }
     .marker {
