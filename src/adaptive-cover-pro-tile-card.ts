@@ -80,17 +80,13 @@ export class AdaptiveCoverProTileCard extends LitElement {
     return 1;
   }
 
-  // Sections-layout grid sizing. One-line layout is a single row; the
-  // detailed layout reserves two. Compact default width, resizable to full.
+  // Sections-layout grid sizing. Defaults to full section width and
+  // content-driven (auto) height; still narrowable via the column handle.
   public getGridOptions() {
-    const oneLine = this._config?.layout === 'one-line';
     return {
-      columns: 6,
-      rows: oneLine ? 1 : 2,
+      columns: 'full',
+      rows: 'auto',
       min_columns: 3,
-      min_rows: 1,
-      max_columns: 12,
-      max_rows: 4,
     };
   }
 
