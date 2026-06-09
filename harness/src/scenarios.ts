@@ -112,6 +112,7 @@ function makeEntry(
       automatic_control: true,
       manual_override: false,
       manual_override_minutes_from_now: 60,
+      held_position: null,
       force_override_triggers: 0,
       motion_status: 'idle',
       motion_timeout_minutes_from_now: 1,
@@ -188,6 +189,25 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'single-entry-cover-color',
+    label: 'Single entry — custom cover color',
+    description:
+      'A single-entry main card with a cover-color override. #132 Problem B: the FOV/window follows the chosen shade (not the themed gold), matching the standalone compass card.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'single-entry-cover-color';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Living Room',
+          window_azimuth: 180,
+          color: '#e040fb',
+        }),
+      ];
+      return c;
+    },
+  },
+  {
     id: 'manual-override-active',
     label: 'Manual override active',
     description:
@@ -198,6 +218,24 @@ export const SCENARIOS: Scenario[] = [
       c.entries[0].flags.manual_override = true;
       c.entries[0].flags.manual_override_minutes_from_now = 60;
       c.entries[0].target_position = 80;
+      c.entries[0].covers[0].position = 80;
+      return c;
+    },
+  },
+  {
+    id: 'manual-override-divergence',
+    label: 'Manual override — solar diverges',
+    description:
+      'Manual override holds the cover at 80% while the sun would have the integration close it to 20%. The sky compass draws the solar-target wedge plus the held/actual ring so you can see where automatic control would put it.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 14 * 60);
+      c.scenario = 'manual-override-divergence';
+      c.entries[0].flags.manual_override = true;
+      c.entries[0].flags.manual_override_minutes_from_now = 60;
+      // target_position is the SOLAR would-be target (surfaces as
+      // raw_calculated_position); held_position is where the user parked it.
+      c.entries[0].target_position = 20;
+      c.entries[0].flags.held_position = 80;
       c.entries[0].covers[0].position = 80;
       return c;
     },

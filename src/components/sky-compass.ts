@@ -15,6 +15,7 @@ import {
   fovBandRadii,
   fovRunBounds,
   normalizeAzimuth,
+  overrideDivergenceTarget,
   sunDotPosition,
   wedgePath,
 } from '../lib/geometry';
@@ -113,6 +114,26 @@ export class SkyCompass extends LitElement {
     return aggregateActualPosition(attrs.actual_positions);
   }
 
+  /** The integration's solar would-be target, published on the target sensor's
+   *  `raw_calculated_position` attribute even while a manual override holds the
+   *  cover. Null when the attribute is absent or non-finite. */
+  private _solarTargetFor(d: DiscoveredEntities): number | null {
+    const id = d.entities.target_position_sensor;
+    if (!id) return null;
+    const attrs = this.hass.states[id]?.attributes as
+      | { raw_calculated_position?: number }
+      | undefined;
+    const val = attrs?.raw_calculated_position;
+    return typeof val === 'number' && Number.isFinite(val) ? val : null;
+  }
+
+  /** True when the discovered manual-override binary sensor is `on`. */
+  private _manualOverrideActive(d: DiscoveredEntities): boolean {
+    const id = d.entities.manual_override_binary;
+    if (!id) return false;
+    return this.hass.states[id]?.state === 'on';
+  }
+
   private _sunInfrontFor(d: DiscoveredEntities): boolean {
     const id = d.entities.sun_infront_binary;
     if (!id) return false;
@@ -153,13 +174,24 @@ export class SkyCompass extends LitElement {
       const sunSensorId = d.entities.sun_sensor;
       const sunAzi = parseFloat(this.hass.states[sunSensorId!]?.state ?? '0');
       const { color, isOverride } = resolveCoverColor(this.coverColors?.[i], i);
+      // During a manual override the Cover_Position sensor STATE returns the
+      // held position, so the target wedge and actual ring would collapse onto
+      // the same value. When the integration still publishes a divergent solar
+      // would-be target (raw_calculated_position), draw the target wedge at the
+      // solar value and keep the actual ring at the held/actual position (#132).
+      const held = this._coverPositionFor(d);
+      const solarTarget = overrideDivergenceTarget(
+        this._manualOverrideActive(d),
+        this._solarTargetFor(d),
+        held,
+      );
       out.push({
         d,
         sun,
         sunAzi,
         sunInfront: this._sunInfrontFor(d),
         dotState: this._sunDotStateFor(d, sun),
-        coverPos: this._coverPositionFor(d),
+        coverPos: solarTarget ?? held,
         actualPos: this._actualPositionFor(d),
         coverType: d.cover_type,
         color,
@@ -582,10 +614,10 @@ export class SkyCompass extends LitElement {
 
     // In multi-entry mode the entry color is an *identity* — the whole wedge
     // group (FOV, cover, blind, window) shares it so entries are distinguishable.
-    // In single-entry mode there is nothing to distinguish, so a cover-color
-    // override recolors only the cover wedge; FOV/blind/window keep their
-    // semantic colors (otherwise the legend shows several identical swatches).
-    const groupColor = multi;
+    // In single-entry mode a cover-color override recolors the whole group too
+    // (FOV/cover/blind/window take the chosen shade), so the main card matches
+    // the standalone card. With no override the group keeps its themed colors.
+    const groupColor = multi || o.isOverride;
     const coverColor = multi || o.isOverride;
     const fovStyle = groupColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
     const coverStyle = coverColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
@@ -690,7 +722,13 @@ export class SkyCompass extends LitElement {
       ${this.showMoon
         ? html`<div><span class="dot moon-dot"></span> ${t('compass.moon', this.hass)}</div>`
         : nothing}
-      <div><span class="swatch fov"></span> ${t('compass.window_fov', this.hass)}</div>
+      <div>
+        <span
+          class="swatch fov"
+          style=${overlays[0]?.isOverride ? `background: ${overlays[0].color}` : ''}
+        ></span>
+        ${t('compass.window_fov', this.hass)}
+      </div>
       ${this.showCoverFill
         ? html`<div>
             <span

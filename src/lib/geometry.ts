@@ -409,6 +409,34 @@ export function coverWedgeOuterRadius(
 }
 
 /**
+ * Decide whether the cover compass should split its single wedge into a
+ * distinct solar-target wedge plus a held/actual ring during a manual override.
+ *
+ * During manual override the integration's `Cover_Position` sensor STATE returns
+ * the held (manually-set) position, so the card's target wedge and actual ring
+ * collapse onto the same value. The integration still publishes the solar
+ * would-be target as the sensor's `raw_calculated_position` attribute. When that
+ * value is present, finite, and differs from the held position, the card should
+ * draw the target wedge at the solar value instead of the held state.
+ *
+ * Returns the solar target to use as the target wedge position when divergence
+ * applies, or `null` to keep current behavior (single wedge at the held state).
+ * Gating on `held` differing from `rawCalc` guards the integration's `0` default
+ * outside the active time window (which would otherwise read as a phantom
+ * divergence whenever the held position is also 0).
+ */
+export function overrideDivergenceTarget(
+  overrideActive: boolean,
+  rawCalc: number | null | undefined,
+  held: number | null,
+): number | null {
+  if (!overrideActive) return null;
+  if (rawCalc === null || rawCalc === undefined || !Number.isFinite(rawCalc)) return null;
+  if (rawCalc === held) return null;
+  return rawCalc;
+}
+
+/**
  * Convert the integration's blind_spot_range (FOV-left-relative offsets,
  * [fov_left − blind_spot_right, fov_left − blind_spot_left]) into absolute
  * compass bearings [startAzi, endAzi] suitable for wedgePath.
