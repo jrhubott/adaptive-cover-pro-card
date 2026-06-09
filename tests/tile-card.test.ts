@@ -1417,3 +1417,29 @@ describe('adaptive-cover-pro-tile-card narrow-column responsiveness (#136)', () 
     expect(css).toContain('controls controls controls');
   });
 });
+
+interface GridOptions {
+  columns: number | string;
+  rows: number | string;
+  min_columns: number;
+}
+interface GridTileLike extends CardLike {
+  getGridOptions(): GridOptions;
+}
+
+describe('AdaptiveCoverProTileCard.getGridOptions', () => {
+  it('defaults to full section width and content-driven (auto) height', () => {
+    const card = makeCard() as GridTileLike;
+    card.setConfig({ type: TYPE, entry_id: ENTRY });
+    const opts = card.getGridOptions();
+    expect(opts.columns).toBe('full');
+    expect(opts.rows).toBe('auto');
+    expect(opts.min_columns).toBe(3);
+  });
+
+  it('keeps the auto-height default regardless of layout mode', () => {
+    const card = makeCard() as GridTileLike;
+    card.setConfig({ type: TYPE, entry_id: ENTRY, layout: 'one-line' });
+    expect(card.getGridOptions().rows).toBe('auto');
+  });
+});

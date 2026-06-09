@@ -247,3 +247,40 @@ describe('adaptive-cover-pro-sky-compass-card — elevation chart toggle', () =>
     expect(chart.coverColors).toEqual(['#ff7043', '#7e57c2']);
   });
 });
+
+interface GridOptions {
+  columns: number;
+  rows: number;
+  min_columns: number;
+  min_rows: number;
+  max_columns: number;
+  max_rows: number;
+}
+interface GridCompassLike extends CardLike {
+  getGridOptions(): GridOptions;
+}
+
+describe('adaptive-cover-pro-sky-compass-card getGridOptions', () => {
+  it('spans the full section width with resize bounds', () => {
+    const card = makeCard() as GridCompassLike;
+    card.setConfig({ type: 'custom:adaptive-cover-pro-sky-compass-card', entry_ids: [ENTRY] });
+    const opts = card.getGridOptions();
+    expect(opts.columns).toBe(12);
+    expect(opts.min_columns).toBe(6);
+    expect(opts.max_columns).toBe(12);
+    expect(opts.min_rows).toBeLessThanOrEqual(opts.rows);
+    expect(opts.max_rows).toBeGreaterThanOrEqual(opts.rows);
+  });
+
+  it('reserves more rows when the elevation chart is shown', () => {
+    const withChart = makeCard() as GridCompassLike;
+    withChart.setConfig({ type: 'custom:adaptive-cover-pro-sky-compass-card', entry_ids: [ENTRY] });
+    const withoutChart = makeCard() as GridCompassLike;
+    withoutChart.setConfig({
+      type: 'custom:adaptive-cover-pro-sky-compass-card',
+      entry_ids: [ENTRY],
+      show_elevation_chart: false,
+    });
+    expect(withChart.getGridOptions().rows).toBeGreaterThan(withoutChart.getGridOptions().rows);
+  });
+});

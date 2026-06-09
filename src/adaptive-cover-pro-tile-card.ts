@@ -80,6 +80,16 @@ export class AdaptiveCoverProTileCard extends LitElement {
     return 1;
   }
 
+  // Sections-layout grid sizing. Defaults to full section width and
+  // content-driven (auto) height; still narrowable via the column handle.
+  public getGridOptions() {
+    return {
+      columns: 'full',
+      rows: 'auto',
+      min_columns: 3,
+    };
+  }
+
   public static async getStubConfig(hass: HomeAssistant): Promise<AdaptiveCoverProTileCardConfig> {
     let entry_id = '';
     try {
@@ -584,10 +594,18 @@ export class AdaptiveCoverProTileCard extends LitElement {
   public static styles = css`
     :host {
       display: block;
+      height: 100%;
     }
     ha-card {
       padding: 6px 10px;
       overflow: hidden;
+      height: 100%;
+      box-sizing: border-box;
+      /* Center the tile body vertically so a taller-than-default grid cell
+         (Sections drag-resize) keeps the content centered rather than top-aligned. */
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
       /* In HA's "Sections" view the tile width is driven by the dashboard
          column, not the viewport, so @media can't see the squeeze. Make the
          card a query container (issue #136) so the detailed layout can reflow

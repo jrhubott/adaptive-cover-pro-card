@@ -75,6 +75,20 @@ export class AdaptiveCoverProCard extends LitElement {
     return 6;
   }
 
+  // Sections-layout grid sizing. Default height grows with the number of
+  // visible sections; full section width with generous resize bounds.
+  public getGridOptions() {
+    const n = this._sections.length; // 1..6 visible sections
+    return {
+      columns: 12,
+      rows: Math.max(4, n * 2 + 2),
+      min_columns: 6,
+      min_rows: 3,
+      max_columns: 12,
+      max_rows: 30,
+    };
+  }
+
   public static async getConfigElement(): Promise<HTMLElement> {
     return document.createElement(CARD_EDITOR_NAME);
   }
@@ -355,12 +369,15 @@ export class AdaptiveCoverProCard extends LitElement {
   public static styles = css`
     :host {
       display: block;
+      height: 100%;
     }
     ha-card {
       padding: 12px 14px 10px;
       display: flex;
       flex-direction: column;
       gap: 10px;
+      height: 100%;
+      box-sizing: border-box;
     }
     .header {
       display: flex;

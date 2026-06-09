@@ -97,3 +97,44 @@ describe('adaptive-cover-pro-card cover_colors (issue #132)', () => {
     expect(compass.coverColors).toEqual([]);
   });
 });
+
+interface GridOptions {
+  columns: number;
+  rows: number;
+  min_columns: number;
+  min_rows: number;
+  max_columns: number;
+  max_rows: number;
+}
+interface GridCardLike extends CardLike {
+  getGridOptions(): GridOptions;
+}
+
+describe('AdaptiveCoverProCard.getGridOptions', () => {
+  it('spans the full section width with resize bounds', () => {
+    const card = document.createElement('adaptive-cover-pro-card') as GridCardLike;
+    card.setConfig({ type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY });
+    const opts = card.getGridOptions();
+    expect(opts.columns).toBe(12);
+    expect(opts.min_columns).toBe(6);
+    expect(opts.max_columns).toBe(12);
+    expect(opts.min_rows).toBeLessThanOrEqual(opts.rows);
+    expect(opts.max_rows).toBeGreaterThanOrEqual(opts.rows);
+  });
+
+  it('grows the default row count with the number of visible sections', () => {
+    const oneSection = document.createElement('adaptive-cover-pro-card') as GridCardLike;
+    oneSection.setConfig({
+      type: 'custom:adaptive-cover-pro-card',
+      entry_id: ENTRY,
+      show_sections: ['covers'],
+    });
+    const allSections = document.createElement('adaptive-cover-pro-card') as GridCardLike;
+    allSections.setConfig({
+      type: 'custom:adaptive-cover-pro-card',
+      entry_id: ENTRY,
+      show_sections: ['sky', 'elevation', 'decision', 'covers', 'overrides', 'climate'],
+    });
+    expect(allSections.getGridOptions().rows).toBeGreaterThan(oneSection.getGridOptions().rows);
+  });
+});
