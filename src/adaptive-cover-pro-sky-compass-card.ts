@@ -45,6 +45,20 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
     return 4;
   }
 
+  // Sections-layout grid sizing. Taller default when the elevation chart is
+  // shown; near-square compass spans the full section width by default.
+  public getGridOptions() {
+    const withChart = this._config?.show_elevation_chart !== false;
+    return {
+      columns: 12,
+      rows: withChart ? 8 : 6,
+      min_columns: 6,
+      min_rows: 4,
+      max_columns: 12,
+      max_rows: 16,
+    };
+  }
+
   public static async getConfigElement(): Promise<HTMLElement> {
     return document.createElement(SKY_COMPASS_CARD_EDITOR_NAME);
   }
@@ -185,12 +199,15 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
   public static styles = css`
     :host {
       display: block;
+      height: 100%;
     }
     ha-card {
       padding: 12px 14px 10px;
       display: flex;
       flex-direction: column;
       gap: 8px;
+      height: 100%;
+      box-sizing: border-box;
     }
     .card-header {
       font-size: 1.05rem;
