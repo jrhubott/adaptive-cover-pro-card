@@ -112,7 +112,7 @@ describe('acp-elevation-chart: single-window (legacy, unchanged)', () => {
     expect(parseFloat(rect!.getAttribute('height')!)).toBeCloseTo(128);
   });
 
-  it('keeps legacy gold fill (no inline style) for a single window', async () => {
+  it('keeps the themed default fill (no inline style) for a single window', async () => {
     const el = await mount({ hass: hass({}), discoveredList: [discovered] });
     const rect = el.shadowRoot!.querySelector('rect.fov-band');
     expect(rect).toBeTruthy();
