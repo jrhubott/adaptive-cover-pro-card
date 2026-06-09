@@ -1422,6 +1422,7 @@ interface GridOptions {
   columns: number | string;
   rows: number | string;
   min_columns: number;
+  min_rows: number;
 }
 interface GridTileLike extends CardLike {
   getGridOptions(): GridOptions;
@@ -1435,6 +1436,18 @@ describe('AdaptiveCoverProTileCard.getGridOptions', () => {
     expect(opts.columns).toBe('full');
     expect(opts.rows).toBe('auto');
     expect(opts.min_columns).toBe(3);
+  });
+
+  it('floors detailed (default) layout at 2 rows so controls never clip', () => {
+    const card = makeCard() as GridTileLike;
+    card.setConfig({ type: TYPE, entry_id: ENTRY });
+    expect(card.getGridOptions().min_rows).toBe(2);
+  });
+
+  it('lets the one-line layout shrink to a single row', () => {
+    const card = makeCard() as GridTileLike;
+    card.setConfig({ type: TYPE, entry_id: ENTRY, layout: 'one-line' });
+    expect(card.getGridOptions().min_rows).toBe(1);
   });
 
   it('keeps the auto-height default regardless of layout mode', () => {

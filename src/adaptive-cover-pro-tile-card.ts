@@ -82,11 +82,15 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
   // Sections-layout grid sizing. Defaults to full section width and
   // content-driven (auto) height; still narrowable via the column handle.
+  // The detailed layout is two text rows tall, so it floors at 2 grid rows —
+  // dragging it to 1 row would clip the controls. one-line fits in a single row.
   public getGridOptions() {
+    const detailed = this._config?.layout !== 'one-line';
     return {
       columns: 'full',
       rows: 'auto',
       min_columns: 3,
+      min_rows: detailed ? 2 : 1,
     };
   }
 
