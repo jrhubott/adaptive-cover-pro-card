@@ -939,20 +939,20 @@ export class SkyCompass extends LitElement {
       transition: fill 0.3s ease;
     }
     .sun.up {
-      /* outside FOV, above horizon — neutral/dim */
-      fill: var(--secondary-text-color);
-      opacity: 0.7;
+      /* outside FOV, above horizon — light yellow */
+      fill: #ffe680;
     }
     .sun.in-fov {
-      /* in FOV but not hitting — light yellow */
-      fill: #ffe680;
+      /* in FOV but not hitting — plain gold (no glow) */
+      fill: var(--warning-color, gold);
     }
     .sun.valid {
       fill: var(--warning-color, gold);
       filter: drop-shadow(0 0 4px var(--warning-color, gold));
     }
     .sun.night {
-      fill: var(--warning-color, #d4a017);
+      /* below horizon — dim grey */
+      fill: var(--secondary-text-color);
       opacity: 0.55;
     }
     .legend {
