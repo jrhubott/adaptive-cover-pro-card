@@ -283,6 +283,7 @@ export class AcpHarnessControlPanel extends LitElement {
         automatic_control: true,
         manual_override: false,
         manual_override_minutes_from_now: 60,
+        held_position: null,
         force_override_triggers: 0,
         motion_status: 'idle',
         motion_timeout_minutes_from_now: 1,
@@ -851,6 +852,14 @@ export class AcpHarnessControlPanel extends LitElement {
             )}
           </select>
         </label>
+        ${this._numberSlider(
+          'tile width px (0 = auto)',
+          this.config.tile.tileWidth,
+          0,
+          480,
+          10,
+          (v) => this._emit({ ...this.config, tile: { ...this.config.tile, tileWidth: v } }),
+        )}
       </fieldset>
     `;
   }

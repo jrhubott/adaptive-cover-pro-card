@@ -200,7 +200,7 @@ export class DecisionStrip extends LitElement {
       line-height: 1.3;
       padding: 2px 4px 4px;
       color: var(--primary-text-color);
-      cursor: help;
+      cursor: default;
     }
     :host([compact]) .summary {
       font-size: 0.75rem;
@@ -213,7 +213,7 @@ export class DecisionStrip extends LitElement {
       border-radius: 4px;
       border-left: 3px solid var(--secondary-text-color);
       background: rgba(127, 127, 127, 0.08);
-      cursor: help;
+      cursor: default;
     }
     :host([compact]) .off-schedule {
       font-size: 0.72rem;

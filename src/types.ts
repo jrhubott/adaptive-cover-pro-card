@@ -150,6 +150,11 @@ export interface DecisionTraceAttributes {
   in_blind_spot: boolean;
   sunset_window_active: boolean;
   direct_sun_valid: boolean;
+  /** Authoritative 3-way sun state ('outside_fov' | 'in_fov_not_valid' |
+   *  'hitting') the card uses for the sun-dot colour. Integration v2.x+; absent
+   *  on older builds — the card falls back to deriving from direct_sun_valid +
+   *  sun_position.in_fov. */
+  sun_state?: string;
   /** 1-based slot number of the winning Custom Position handler.
    *  Integration v2.22.1+; absent when any other handler wins. */
   custom_position_active_slot?: 1 | 2 | 3 | 4;

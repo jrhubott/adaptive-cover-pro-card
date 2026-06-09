@@ -5,6 +5,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import type { ControlStatusAttributes, DiscoveredEntities, SunPositionAttributes } from '../types';
 import { findFovWindows, sampleDay, startOfDayInZone, type SunSample } from '../lib/sun-model';
 import { elevationBandFraction, ribbonLayout, scheduleZones } from '../lib/geometry';
+import { sunDotState, SUN_DOT_CLASS } from '../lib/sun-dot-state';
 import { resolveCoverColor } from '../lib/palette';
 import { formatClock } from '../lib/formatters';
 import { t } from '../lib/i18n';
@@ -46,10 +47,19 @@ export class ElevationChart extends LitElement {
     return st.attributes as unknown as SunPositionAttributes;
   }
 
-  private _sunInfront(): boolean {
-    const id = this.discoveredList[0]?.entities.sun_infront_binary;
-    if (!id) return false;
-    return this.hass.states[id]?.state === 'on';
+  /** Decision-trace inputs for the shared 3-way sun-dot classifier. Reads the
+   *  first entry's decision_trace sensor (`sun_state` / `direct_sun_valid`). */
+  private _sunDotTraceInputs(): { sunState: string | null; directSunValid: boolean } {
+    const id = this.discoveredList[0]?.entities.decision_trace_sensor;
+    const attrs = id
+      ? (this.hass.states[id]?.attributes as
+          | { sun_state?: string; direct_sun_valid?: boolean }
+          | undefined)
+      : undefined;
+    return {
+      sunState: attrs?.sun_state ?? null,
+      directSunValid: attrs?.direct_sun_valid ?? false,
+    };
   }
 
   /** Schedule start/end bounds from the first entry's control_status sensor.
@@ -102,11 +112,23 @@ export class ElevationChart extends LitElement {
     const nowX = xAt(now);
     const currentSample = this._interpAt(samples, now);
     const currentY = currentSample ? yAt(currentSample.elevation) : null;
-    // Mirror the sky compass sun-dot colour states: dim amber below the
-    // horizon, gold while the sun is hitting the window, light gold when up
-    // but not hitting.
+    // Mirror the sky compass sun-dot 3-way colour states: dim amber below the
+    // horizon, orange/gold while hitting, light-yellow in FOV but not hitting,
+    // dim neutral outside FOV. Sourced from the authoritative decision_trace
+    // (sun_state) with a fallback derivation for older integrations.
     const sunBelowHorizon = currentSample ? currentSample.elevation <= 0 : true;
-    const sunDotState = sunBelowHorizon ? 'night' : this._sunInfront() ? 'valid' : 'up';
+    const traceInputs = this._sunDotTraceInputs();
+    const sunDotCls = SUN_DOT_CLASS[
+      sunDotState({
+        belowHorizon: sunBelowHorizon,
+        sunState: traceInputs.sunState,
+        directSunValid: traceInputs.directSunValid,
+        inFov: firstAttrs.in_fov === true,
+      })
+    ]
+      // SUN_DOT_CLASS values are the compass classes ('sun valid' etc.); the
+      // chart's circle uses the bare state suffix, so strip the 'sun ' prefix.
+      .replace(/^sun /, '');
 
     const plotTop = PAD_T;
     const plotBottom = VIEWBOX_H - PAD_B;
@@ -380,7 +402,7 @@ export class ElevationChart extends LitElement {
             </g>
             ${
               currentY !== null
-                ? svg`<circle class="sun-dot ${sunDotState}" cx=${nowX} cy=${currentY} r="4" />`
+                ? svg`<circle class="sun-dot ${sunDotCls}" cx=${nowX} cy=${currentY} r="4" />`
                 : nothing
             }
 
@@ -496,7 +518,7 @@ export class ElevationChart extends LitElement {
     .schedule-bar {
       stroke: var(--divider-color);
       stroke-width: 1;
-      cursor: help;
+      cursor: default;
     }
     .schedule-tick {
       font-size: 8px;
@@ -505,12 +527,12 @@ export class ElevationChart extends LitElement {
     .ribbon-track {
       fill: var(--divider-color);
       fill-opacity: 0.25;
-      cursor: help;
+      cursor: default;
     }
     .ribbon-bar {
       fill: var(--warning-color, gold);
       fill-opacity: 0.85;
-      cursor: help;
+      cursor: default;
     }
     .curve {
       fill: none;
@@ -527,7 +549,7 @@ export class ElevationChart extends LitElement {
     .now-hit {
       stroke: transparent;
       stroke-width: 10;
-      cursor: help;
+      cursor: default;
     }
     /* Colour states mirror acp-sky-compass .sun.* so the sun reads the same
        across both visuals. */
@@ -536,6 +558,12 @@ export class ElevationChart extends LitElement {
       transition: fill 0.3s ease;
     }
     .sun-dot.up {
+      /* outside FOV, above horizon — neutral/dim */
+      fill: var(--secondary-text-color);
+      opacity: 0.7;
+    }
+    .sun-dot.in-fov {
+      /* in FOV but not hitting — light yellow */
       fill: #ffe680;
     }
     .sun-dot.valid {

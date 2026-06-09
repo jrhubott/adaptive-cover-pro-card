@@ -69,6 +69,7 @@ function defaultTile(): HarnessConfig['tile'] {
     show_elevation_chart: true,
     show_motion_icon: true,
     layout: 'detailed',
+    tileWidth: 0,
   };
 }
 
@@ -111,6 +112,7 @@ function makeEntry(
       automatic_control: true,
       manual_override: false,
       manual_override_minutes_from_now: 60,
+      held_position: null,
       force_override_triggers: 0,
       motion_status: 'idle',
       motion_timeout_minutes_from_now: 1,
@@ -187,6 +189,25 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'single-entry-cover-color',
+    label: 'Single entry — custom cover color',
+    description:
+      'A single-entry main card with a cover-color override. #132 Problem B: the FOV/window follows the chosen shade (not the themed gold), matching the standalone compass card.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'single-entry-cover-color';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Living Room',
+          window_azimuth: 180,
+          color: '#e040fb',
+        }),
+      ];
+      return c;
+    },
+  },
+  {
     id: 'manual-override-active',
     label: 'Manual override active',
     description:
@@ -197,6 +218,24 @@ export const SCENARIOS: Scenario[] = [
       c.entries[0].flags.manual_override = true;
       c.entries[0].flags.manual_override_minutes_from_now = 60;
       c.entries[0].target_position = 80;
+      c.entries[0].covers[0].position = 80;
+      return c;
+    },
+  },
+  {
+    id: 'manual-override-divergence',
+    label: 'Manual override — solar diverges',
+    description:
+      'Manual override holds the cover at 80% while the sun would have the integration close it to 20%. The sky compass draws the solar-target wedge plus the held/actual ring so you can see where automatic control would put it.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 14 * 60);
+      c.scenario = 'manual-override-divergence';
+      c.entries[0].flags.manual_override = true;
+      c.entries[0].flags.manual_override_minutes_from_now = 60;
+      // target_position is the SOLAR would-be target (surfaces as
+      // raw_calculated_position); held_position is where the user parked it.
+      c.entries[0].target_position = 20;
+      c.entries[0].flags.held_position = 80;
       c.entries[0].covers[0].position = 80;
       return c;
     },
@@ -585,6 +624,96 @@ export const SCENARIOS: Scenario[] = [
       return c;
     },
   },
+  {
+    id: 'sun-hitting-window',
+    label: 'Sun hitting window (repro #137)',
+    description:
+      'High elevation, sun azimuth in FOV, solar handler wins, direct_sun_valid true → sun dot must be orange/gold (hitting), NOT light-yellow. Reproduces issue #137.',
+    build: () => {
+      // Summer noon at the default location: sun high (~66°) and roughly south
+      // (~180°). The wide off-axis FOV (window 141°, ±90/103°) spans ~51–244°,
+      // so the sun is inside it and unblocked → direct_sun_valid true → hitting.
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'sun-hitting-window';
+      c.decisionMode = 'derived';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Living Room',
+          window_azimuth: 141,
+          fov_left: 90,
+          fov_right: 103,
+        }),
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'sun-in-fov-not-valid',
+    label: 'Sun in FOV but not hitting (#137 contrast)',
+    description:
+      'Same azimuth-in-FOV geometry as the hitting case, but the sun is above max_elevation so direct_sun_valid is false → sun dot must be light-yellow (in FOV, not hitting), distinct from the orange hitting state.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'sun-in-fov-not-valid';
+      c.decisionMode = 'derived';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Living Room',
+          window_azimuth: 141,
+          fov_left: 90,
+          fov_right: 103,
+          // Cap elevation below the real noon sun so it is in FOV (azimuth) but
+          // elevation-invalid → direct_sun_valid false → in_fov_not_valid.
+          max_elevation: 40,
+        }),
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'cover-bar-open-style',
+    label: 'Cover bar — two-tone open/closed fill (issue #135)',
+    description:
+      "Cover at 69% open. The bar splits into two segments matching the sky compass: the open portion (left) is gold like the FOV wedge, the closed portion (right) uses the selected cover colour like the cover wedge. Change entry 0's colour in the control panel to watch both the compass wedge and the bar's closed segment track it. The percent label sits left of the track.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'cover-bar-open-style';
+      c.entries[0].target_position = 69;
+      c.entries[0].covers[0].position = 69;
+      return c;
+    },
+  },
+  {
+    id: 'narrow-column-tiles',
+    label: 'Narrow column tiles (repro #136)',
+    description:
+      'Four detailed tiles with long names pinned to a 260px-wide column, mimicking a narrow HA "Sections" layout. The fixed ↑■▼ control column starves the name, truncating "Centre Gauche" → "C…". Drag the tile width control up to ~360px to watch the names recover. Use this to verify the narrow-column responsive fix.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'narrow-column-tiles';
+      c.tile.layout = 'detailed';
+      c.tile.tileWidth = 260;
+      c.entries = [
+        makeEntry({ entry_id: 'gauche', title: 'Gauche', window_azimuth: 135, color: '#ff7043' }),
+        makeEntry({
+          entry_id: 'centre_gauche',
+          title: 'Centre Gauche',
+          window_azimuth: 180,
+          color: '#26a69a',
+        }),
+        makeEntry({
+          entry_id: 'centre_droite',
+          title: 'Centre Droite',
+          window_azimuth: 180,
+          color: '#7e57c2',
+        }),
+        makeEntry({ entry_id: 'droite', title: 'Droite', window_azimuth: 225, color: '#42a5f5' }),
+      ];
+      return c;
+    },
+  },
 ];
 
 export function findScenario(id: string): Scenario | undefined {
@@ -607,6 +736,7 @@ export function normalizeConfig(cfg: HarnessConfig): HarnessConfig {
     tile: {
       ...cfg.tile,
       badges: { ...defaultBadges(), ...(cfg.tile?.badges ?? {}) },
+      tileWidth: cfg.tile?.tileWidth ?? 0,
     },
   };
 }

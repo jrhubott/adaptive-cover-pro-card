@@ -99,25 +99,33 @@ function addEntryStates(
   const id = (role: Parameters<typeof entityIdFor>[1]) => entityIdFor(entry, role);
   const f = entry.flags;
 
+  // During a manual override with a held position distinct from the solar
+  // target, the integration's Cover_Position sensor STATE returns the HELD
+  // position while `raw_calculated_position` keeps the solar would-be target
+  // (decision.position). Model that divergence so the compass can draw both the
+  // solar-target wedge and the held/actual ring (#132). Otherwise the state is
+  // the (solar) target and held tracks it (the pre-#132 collapse).
+  const held = f.manual_override && f.held_position !== null ? f.held_position : null;
+  const coverState = held !== null ? held : entry.target_position;
+
   const actualPositions: Record<string, number | null> = {};
-  for (const c of entry.covers) actualPositions[c.entity_id] = c.position;
+  for (const c of entry.covers) {
+    // Covers physically sit at the held position during a divergent override.
+    actualPositions[c.entity_id] = held !== null ? held : c.position;
+  }
   const allAtTarget = entry.covers.every(
     (c) => c.position !== null && Math.abs(c.position - entry.target_position) <= 1,
   );
 
-  states[id('target_position_sensor')] = mkState(
-    id('target_position_sensor'),
-    String(entry.target_position),
-    {
-      friendly_name: `${entry.title} Cover Position`,
-      unit_of_measurement: '%',
-      actual_positions: actualPositions,
-      all_at_target: allAtTarget,
-      control_method: decision.winner,
-      reason: decision.reason,
-      raw_calculated_position: decision.position,
-    },
-  );
+  states[id('target_position_sensor')] = mkState(id('target_position_sensor'), String(coverState), {
+    friendly_name: `${entry.title} Cover Position`,
+    unit_of_measurement: '%',
+    actual_positions: actualPositions,
+    all_at_target: allAtTarget,
+    control_method: decision.winner,
+    reason: decision.reason,
+    raw_calculated_position: decision.position,
+  });
 
   states[id('sun_sensor')] = mkState(id('sun_sensor'), sun.azimuth.toFixed(2), {
     friendly_name: `${entry.title} Sun Position`,
@@ -128,7 +136,9 @@ function addEntryStates(
     fov_right: entry.fov_right,
     azimuth_min: entry.window_azimuth - entry.fov_left,
     azimuth_max: entry.window_azimuth + entry.fov_right,
-    in_fov: decision.attrs.in_field_of_view,
+    // Azimuth-only FOV (mirror integration sun_position.in_fov), NOT full
+    // validity — the card's dot reads this for the in_fov_not_valid split.
+    in_fov: decision.azimuthInFov,
     min_elevation: entry.min_elevation,
     max_elevation: entry.max_elevation,
     blind_spot_range: entry.blind_spot_range,
@@ -274,7 +284,8 @@ function addEntryStates(
   // Binary sensors
   states[id('sun_infront_binary')] = mkState(
     id('sun_infront_binary'),
-    decision.attrs.in_field_of_view ? 'on' : 'off',
+    // Mirror integration coordinator: sun_motion == direct_sun_valid.
+    decision.attrs.direct_sun_valid ? 'on' : 'off',
     { friendly_name: `${entry.title} Sun In Front`, device_class: 'motion' },
   );
   states[id('manual_override_binary')] = mkState(

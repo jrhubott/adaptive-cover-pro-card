@@ -213,7 +213,7 @@ export class ForecastStrip extends LitElement {
       vector-effect: non-scaling-stroke;
     }
     .event-group {
-      cursor: help;
+      cursor: default;
     }
     .event-hit {
       stroke: transparent;

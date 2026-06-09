@@ -12,6 +12,10 @@ export class CoverBar extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ attribute: false }) public discovered!: DiscoveredEntities;
   @property({ type: Boolean, reflect: true }) public compact = false;
+  /** User-selected cover colour (config `cover_colors[0]`) — recolours the
+   *  closed segment to match the compass cover wedge. Null falls back to
+   *  `--primary-color`, exactly like the compass in single-entry mode. */
+  @property({ attribute: false }) public coverColor: string | null = null;
 
   private _target(): { target: number | null; covers: Record<string, number | null> } {
     const id = this.discovered.entities.target_position_sensor;
@@ -59,7 +63,7 @@ export class CoverBar extends LitElement {
       return html`<div class="placeholder">${t('covers.placeholder', this.hass)}</div>`;
     }
     return html`
-      <div class="wrap">
+      <div class="wrap" style=${this.coverColor ? `--acp-cover-color:${this.coverColor}` : nothing}>
         <div class="head">
           <span class="label">${t('covers.title', this.hass)}</span>
           <span class="target"
@@ -84,12 +88,14 @@ export class CoverBar extends LitElement {
     return html`
       <div class="cover ${mismatch ? 'mismatch' : ''}">
         <div class="name" title=${entityId}>${friendly}</div>
+        <div class="num">${formatPercent(actual)}</div>
         <div
           class="track"
           @click=${(e: MouseEvent) => this._handleTrackClick(e, entityId)}
           title=${t('covers.click_to_set', this.hass)}
         >
           <div class="fill" style="width:${actualPct}%"></div>
+          <div class="fill-closed" style="width:${100 - actualPct}%"></div>
           ${target !== null
             ? html`<div
                 class="marker"
@@ -98,7 +104,6 @@ export class CoverBar extends LitElement {
               ></div>`
             : nothing}
         </div>
-        <div class="num">${formatPercent(actual)}</div>
         ${mismatch
           ? html`<ha-icon class="warn" icon="mdi:alert-circle-outline"></ha-icon>`
           : nothing}
@@ -138,7 +143,7 @@ export class CoverBar extends LitElement {
     }
     .cover {
       display: grid;
-      grid-template-columns: minmax(80px, 1fr) 3fr 48px auto;
+      grid-template-columns: minmax(80px, 1fr) 48px 3fr auto;
       gap: 8px;
       align-items: center;
       font-size: 0.82rem;
@@ -147,10 +152,11 @@ export class CoverBar extends LitElement {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      cursor: help;
+      cursor: default;
     }
     .track {
       position: relative;
+      display: flex;
       height: 10px;
       background: var(--secondary-background-color, rgba(0, 0, 0, 0.08));
       border-radius: 6px;
@@ -167,9 +173,20 @@ export class CoverBar extends LitElement {
     :host([compact]) .head {
       display: none;
     }
+    /* Open portion of the cover — gold, matching the compass FOV wedge
+       (--warning-color at fill-opacity 0.22). */
     .fill {
       height: 100%;
-      background: var(--primary-color);
+      flex-shrink: 0;
+      background: color-mix(in srgb, var(--warning-color, gold) 22%, transparent);
+      transition: width 0.3s ease;
+    }
+    /* Closed portion — the user-selected cover colour, falling back to blue
+       (--primary-color), matching the compass cover wedge at fill-opacity 0.3. */
+    .fill-closed {
+      height: 100%;
+      flex-shrink: 0;
+      background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 30%, transparent);
       transition: width 0.3s ease;
     }
     .marker {
@@ -188,8 +205,11 @@ export class CoverBar extends LitElement {
       color: var(--warning-color, orange);
       --mdc-icon-size: 16px;
     }
+    /* On a position mismatch the open segment is already gold, so recoloring it
+       gold would be invisible — flag the divergence with the error colour and
+       lean on the warn icon at the end of the row. */
     .mismatch .fill {
-      background: var(--warning-color, orange);
+      background: color-mix(in srgb, var(--error-color, crimson) 35%, transparent);
     }
     .placeholder {
       color: var(--secondary-text-color);

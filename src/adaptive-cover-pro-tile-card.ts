@@ -80,6 +80,16 @@ export class AdaptiveCoverProTileCard extends LitElement {
     return 1;
   }
 
+  // Sections-layout grid sizing. Defaults to full section width and
+  // content-driven (auto) height; still narrowable via the column handle.
+  public getGridOptions() {
+    return {
+      columns: 'full',
+      rows: 'auto',
+      min_columns: 3,
+    };
+  }
+
   public static async getStubConfig(hass: HomeAssistant): Promise<AdaptiveCoverProTileCardConfig> {
     let entry_id = '';
     try {
@@ -584,10 +594,23 @@ export class AdaptiveCoverProTileCard extends LitElement {
   public static styles = css`
     :host {
       display: block;
+      height: 100%;
     }
     ha-card {
       padding: 6px 10px;
       overflow: hidden;
+      height: 100%;
+      box-sizing: border-box;
+      /* Center the tile body vertically so a taller-than-default grid cell
+         (Sections drag-resize) keeps the content centered rather than top-aligned. */
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      /* In HA's "Sections" view the tile width is driven by the dashboard
+         column, not the viewport, so @media can't see the squeeze. Make the
+         card a query container (issue #136) so the detailed layout can reflow
+         its controls onto their own row once the column gets narrow. */
+      container-type: inline-size;
     }
     .tile-body {
       display: grid;
@@ -805,7 +828,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       border: 1px solid transparent;
       white-space: nowrap;
       align-self: center;
-      cursor: help;
+      cursor: default;
     }
     /* Clamping axis: not-clamping → hollow/outline (transparent fill + purple border). */
     .acp-floor-chip.is-armed {
@@ -851,6 +874,47 @@ export class AdaptiveCoverProTileCard extends LitElement {
         'icon label       auto-line   controls'
         'icon detail-line detail-line controls'
         'icon resume      resume      resume';
+    }
+    /* Narrow column (issue #136): when the dashboard column squeezes the tile,
+       the fixed ~180px ↑■▼ control block starves the name. Drop the controls to
+       their own full-width row beneath the name/detail lines so the name gets
+       the whole column. Each detailed grid variant is re-asserted here at equal
+       specificity — placed after the wide rules so it wins when the query
+       matches (the file's grid rules rely on source order, not just
+       specificity). The breakpoint sits below the harness's 360px tile floor so
+       only genuinely narrow columns reflow. */
+    @container (max-width: 340px) {
+      .tile-body.detailed,
+      .tile-body.detailed.has-state-label,
+      .tile-body.detailed.has-floor-chip {
+        grid-template-columns: 24px minmax(0, 1fr) auto;
+        grid-template-rows: auto auto auto;
+        grid-template-areas:
+          'icon label       auto-line'
+          'icon detail-line detail-line'
+          'controls controls controls';
+      }
+      .tile-body.detailed.has-row3.has-floor-chip {
+        grid-template-columns: 24px minmax(0, 1fr) auto;
+        grid-template-rows: auto auto auto auto;
+        grid-template-areas:
+          'icon label       auto-line'
+          'icon detail-line detail-line'
+          'icon resume      resume'
+          'controls controls controls';
+      }
+      /* Controls now own a full-width row — spread the three buttons across it
+         and trim their fixed 56px width so they share the space evenly. */
+      .tile-body.detailed .controls {
+        margin-top: 4px;
+        gap: 6px;
+        justify-content: space-between;
+      }
+      .tile-body.detailed .controls button {
+        flex: 1 1 0;
+        width: auto;
+        height: 40px;
+      }
     }
     .empty {
       padding: 12px;

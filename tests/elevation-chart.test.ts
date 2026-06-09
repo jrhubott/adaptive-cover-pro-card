@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import '../src/components/elevation-chart';
+import { ElevationChart } from '../src/components/elevation-chart';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities, SunPositionAttributes } from '../src/types';
 import { formatClock } from '../src/lib/formatters';
@@ -497,5 +498,117 @@ describe('acp-elevation-chart: schedule window (issue #128)', () => {
     expect(head.textContent ?? '').toContain(formatClock(endIso, 'UTC'));
     // "Schedule until 21:00" — no start time present.
     expect(head.textContent ?? '').toMatch(/until/i);
+  });
+});
+
+describe('acp-elevation-chart: sun-dot 3-way state (issue #137)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // Pin `now` to local noon at the equator so the interpolated sun sample is
+  // reliably above the horizon and the sun-dot renders deterministically.
+  function dayHass(opts: {
+    sunState?: string;
+    directSunValid?: boolean;
+    inFov?: boolean;
+    withDecisionTrace?: boolean;
+  }): HomeAssistant {
+    const now = new Date();
+    vi.setSystemTime(
+      new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 12, 0, 0)),
+    );
+    const states: Record<string, unknown> = {
+      'sensor.sun_position': {
+        state: '180',
+        attributes: {
+          elevation: 80,
+          gamma: 0,
+          window_azimuth: 180,
+          fov_left: 90,
+          fov_right: 90,
+          azimuth_min: 90,
+          azimuth_max: 270,
+          in_fov: opts.inFov ?? true,
+        },
+      },
+    };
+    if (opts.withDecisionTrace !== false) {
+      states['sensor.decision_trace'] = {
+        state: 'ok',
+        attributes: {
+          ...(opts.sunState !== undefined ? { sun_state: opts.sunState } : {}),
+          ...(opts.directSunValid !== undefined ? { direct_sun_valid: opts.directSunValid } : {}),
+        },
+      };
+    }
+    return {
+      config: { latitude: 0, longitude: 0, time_zone: 'UTC' },
+      states,
+    } as unknown as HomeAssistant;
+  }
+
+  const discoveredWithTrace: DiscoveredEntities = {
+    entry_id: 'entry1',
+    entry_title: 'Test',
+    cover_type: 'cover_blind',
+    entities: {
+      sun_sensor: 'sensor.sun_position',
+      decision_trace_sensor: 'sensor.decision_trace',
+    },
+    managed_covers: [],
+  };
+
+  it('renders sun-dot "valid" when hitting', async () => {
+    const el = await mount({
+      hass: dayHass({ sunState: 'hitting', directSunValid: true, inFov: true }),
+      discoveredList: [discoveredWithTrace],
+    });
+    const dot = el.shadowRoot!.querySelector('circle.sun-dot') as SVGCircleElement;
+    expect(dot).toBeTruthy();
+    expect(dot.classList.contains('valid')).toBe(true);
+    expect(dot.classList.contains('in-fov')).toBe(false);
+  });
+
+  it('renders sun-dot "in-fov" when in FOV but not hitting', async () => {
+    const el = await mount({
+      hass: dayHass({ sunState: 'in_fov_not_valid', directSunValid: false, inFov: true }),
+      discoveredList: [discoveredWithTrace],
+    });
+    const dot = el.shadowRoot!.querySelector('circle.sun-dot') as SVGCircleElement;
+    expect(dot).toBeTruthy();
+    expect(dot.classList.contains('in-fov')).toBe(true);
+    expect(dot.classList.contains('valid')).toBe(false);
+    expect(dot.classList.contains('up')).toBe(false);
+  });
+
+  it('renders sun-dot "up" when outside FOV', async () => {
+    const el = await mount({
+      hass: dayHass({ sunState: 'outside_fov', directSunValid: false, inFov: false }),
+      discoveredList: [discoveredWithTrace],
+    });
+    const dot = el.shadowRoot!.querySelector('circle.sun-dot') as SVGCircleElement;
+    expect(dot).toBeTruthy();
+    expect(dot.classList.contains('up')).toBe(true);
+    expect(dot.classList.contains('in-fov')).toBe(false);
+  });
+
+  it('falls back to deriving from direct_sun_valid + in_fov when sun_state absent', async () => {
+    const el = await mount({
+      hass: dayHass({ directSunValid: false, inFov: true }),
+      discoveredList: [discoveredWithTrace],
+    });
+    const dot = el.shadowRoot!.querySelector('circle.sun-dot') as SVGCircleElement;
+    expect(dot).toBeTruthy();
+    expect(dot.classList.contains('in-fov')).toBe(true);
+    expect(dot.classList.contains('valid')).toBe(false);
+  });
+
+  it('exposes a .sun-dot.in-fov light-yellow CSS rule', () => {
+    const cssText = (ElevationChart as unknown as { styles: { cssText: string } }).styles.cssText;
+    const idx = cssText.indexOf('.sun-dot.in-fov');
+    expect(idx).toBeGreaterThan(-1);
+    const block = cssText.slice(cssText.indexOf('{', idx), cssText.indexOf('}', idx));
+    expect(block).toContain('#ffe680');
   });
 });
