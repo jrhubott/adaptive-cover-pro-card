@@ -243,6 +243,38 @@ describe('card-stage activeCard filter (one tab per card)', () => {
     }
   });
 
+  it('re-attaches tiles to the fresh tile-host after navigating away and back', async () => {
+    // Switching tabs makes Lit destroy and recreate the conditional #tile-host
+    // div. The retained tile elements must be re-parented onto the new host on
+    // return — otherwise (entry count unchanged) neither create/remove loop runs
+    // and the tile tab renders blank.
+    interface TileStage extends FilterableStage {
+      _tileEls: HTMLElement[];
+    }
+    const el = document.createElement('acp-harness-card-stage') as unknown as TileStage;
+    document.body.appendChild(el);
+    try {
+      el.config = defaultScenarioConfig();
+      el.activeCard = 'tile';
+      await el.updateComplete;
+      const sr = (el as unknown as { shadowRoot: ShadowRoot }).shadowRoot;
+      const want = el.config.entries.length;
+      expect(sr.getElementById('tile-host')!.childElementCount).toBe(want);
+
+      // Away…
+      el.activeCard = 'root';
+      await el.updateComplete;
+      // …and back: the tile-host is a brand-new div and must receive the tiles.
+      el.activeCard = 'tile';
+      await el.updateComplete;
+      const host = sr.getElementById('tile-host')!;
+      expect(host.childElementCount).toBe(want);
+      for (const t of el._tileEls) expect(t.parentElement).toBe(host);
+    } finally {
+      el.remove();
+    }
+  });
+
   it('pushes hass to a card mounted on a tab switch (not just on hass/config change)', async () => {
     const el = document.createElement('acp-harness-card-stage') as unknown as FilterableStage;
     document.body.appendChild(el);

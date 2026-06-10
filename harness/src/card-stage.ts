@@ -138,6 +138,11 @@ export class AcpHarnessCardStage extends LitElement {
         this._tileEls.push(el);
       }
       this._tileEls.forEach((el, i) => {
+        // Switching tabs destroys and recreates the conditional #tile-host div,
+        // detaching the retained tiles. When the entry count is unchanged the
+        // create/remove loops above don't run, so re-parent here (as the root and
+        // compass cards do) or the tile tab renders blank on return.
+        if (el.parentElement !== tileHost) tileHost.appendChild(el);
         el.setConfig?.(this._tileConfig(this.config.entries[i].entry_id));
       });
     } else if (this._tileEls.length && !this.config.tile.enabled) {

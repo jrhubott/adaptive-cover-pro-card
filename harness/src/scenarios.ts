@@ -192,7 +192,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'single-entry-cover-color',
     label: 'Single entry — custom cover color',
     description:
-      'A single-entry main card with a cover-color override. #132 Problem B: the FOV/window follows the chosen shade (not the themed default), matching the standalone compass card.',
+      'A single-entry main card with a cover-color override. #132 Problem B: the FOV/window follows the chosen shade (not the themed default), matching the standalone compass card. Legend check: every swatch — FOV, cover position, AND window normal — carries the override color, and the cover-position swatch reads the darker FOV+cover composite.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'single-entry-cover-color';
