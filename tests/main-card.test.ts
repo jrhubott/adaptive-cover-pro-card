@@ -96,6 +96,22 @@ describe('adaptive-cover-pro-card cover_colors (issue #132)', () => {
     expect(compass).toBeTruthy();
     expect(compass.coverColors).toEqual([]);
   });
+
+  it('forwards cover_colors to the embedded Sun Today elevation chart', async () => {
+    // The standalone sky-compass card already wires this; the root card must too
+    // so the override carries into the Sun Today chart, not just the compass.
+    const el = await mountWithRegistry({
+      type: 'custom:adaptive-cover-pro-card',
+      entry_id: ENTRY,
+      cover_colors: ['#ff3366'],
+    });
+    interface ChartEl extends HTMLElement {
+      coverColors?: unknown[];
+    }
+    const chart = el.shadowRoot!.querySelector('acp-elevation-chart') as ChartEl;
+    expect(chart).toBeTruthy();
+    expect(chart.coverColors).toEqual(['#ff3366']);
+  });
 });
 
 interface GridOptions {

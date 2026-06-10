@@ -462,6 +462,32 @@ describe('acp-sky-compass coverColors', () => {
     expect(swatch!.getAttribute('style') ?? '').toBe('');
   });
 
+  it('single-entry override colors the legend window-normal swatch to match the line', async () => {
+    // The plotted window line follows the override color via arrowStyle; the
+    // legend window-normal swatch must carry the same inline background so the
+    // legend and plot agree (it previously stayed stuck on --primary-color).
+    const targetSensorId = 'sensor.target_pos_entry1';
+    const d = makeDiscovered('entry1', 'Kitchen', { targetSensorId });
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, coverPos: 40, targetSensorId },
+    ]);
+    const el = await mountCompass([d], hass, { coverColors: ['#ff3366'] });
+    const line = el.shadowRoot!.querySelector('path.window') as SVGPathElement;
+    expect(line.getAttribute('style') ?? '').toContain('#ff3366');
+    const swatch = el.shadowRoot!.querySelector('.swatch.window-swatch') as HTMLElement | null;
+    expect(swatch).not.toBeNull();
+    expect(swatch!.getAttribute('style') ?? '').toContain('#ff3366');
+  });
+
+  it('single-entry WITHOUT override leaves the window-normal swatch on its theme default', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
+    const el = await mountCompass([d], hass);
+    const swatch = el.shadowRoot!.querySelector('.swatch.window-swatch') as HTMLElement | null;
+    expect(swatch).not.toBeNull();
+    expect(swatch!.getAttribute('style') ?? '').toBe('');
+  });
+
   it('null slot falls back to palette color in multi-entry compass', async () => {
     const d1 = makeDiscovered('entry1', 'Kitchen');
     const d2 = makeDiscovered('entry2', 'Living');
@@ -1306,6 +1332,14 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     expect(fov).toMatch(/var\(--warning-color/);
     expect(swatch).toMatch(/var\(--warning-color/);
     expect(swatch).not.toMatch(/background:\s*gold\b/);
+  });
+
+  it('cover swatch opacity matches the FOV+cover composite the plot shows', () => {
+    // The cover wedge is drawn over the FOV wedge, so the visible cover region is
+    // 1 − (1−0.22)(1−0.30) ≈ 0.45. The legend swatch carries that composite alpha
+    // (not the bare 0.30 cover fill) so it reads the same darker shade.
+    const swatch = cssBlock('.swatch.cover-fill-swatch ');
+    expect(swatch).toMatch(/opacity:\s*0\.45/);
   });
 
   it('valid sun glow and the legend dot share the warning theme token', () => {

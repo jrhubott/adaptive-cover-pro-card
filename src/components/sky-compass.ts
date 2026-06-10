@@ -738,7 +738,11 @@ export class SkyCompass extends LitElement {
         : nothing}
       ${this.showWindowArrow
         ? html`<div>
-            <span class="swatch window-swatch"></span> ${t('compass.window_normal', this.hass)}
+            <span
+              class="swatch window-swatch"
+              style=${overlays[0]?.isOverride ? `background: ${overlays[0].color}` : ''}
+            ></span>
+            ${t('compass.window_normal', this.hass)}
           </div>`
         : nothing}
     </div>`;
@@ -1021,7 +1025,11 @@ export class SkyCompass extends LitElement {
     }
     .swatch.cover-fill-swatch {
       background: var(--primary-color);
-      opacity: 0.35;
+      /* The cover wedge is drawn ON TOP of the FOV wedge in the same arc, so the
+         visible cover region is the two fills composited: the FOV's 0.22 plus the
+         cover's 0.30 → 1 − (1−0.22)(1−0.30) ≈ 0.45. Matching that here keeps the
+         legend swatch the same darker shade the reader sees in the plot. */
+      opacity: 0.45;
       border-radius: 2px;
     }
     .swatch.window-swatch {

@@ -327,6 +327,7 @@ export class AdaptiveCoverProCard extends LitElement {
                 .hass=${this.hass}
                 .discoveredList=${[discovered]}
                 ?compact=${!!this._config.compact}
+                .coverColors=${this._config.cover_colors ?? []}
               ></acp-elevation-chart>`
             : nothing}
           ${sections.includes('decision')
