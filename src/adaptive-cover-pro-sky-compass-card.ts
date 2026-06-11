@@ -46,12 +46,18 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
   }
 
   // Sections-layout grid sizing. Taller default when the elevation chart is
-  // shown; near-square compass spans the full section width by default.
+  // shown; near-square compass spans the full section width by default. The
+  // legend grows one row per pair of entries past three, so a 6-cover card
+  // reserves enough height to show every legend entry (issue #146) — capped at
+  // max_rows; beyond that the ha-card scrolls.
   public getGridOptions() {
     const withChart = this._config?.show_elevation_chart !== false;
+    const n = this._config?.entry_ids?.length ?? 1;
+    const base = withChart ? 8 : 6;
+    const extra = Math.ceil(Math.max(0, n - 3) / 2);
     return {
       columns: 12,
-      rows: withChart ? 8 : 6,
+      rows: Math.min(16, base + extra),
       min_columns: 6,
       min_rows: 4,
       max_columns: 12,
@@ -208,6 +214,13 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
       gap: 8px;
       height: 100%;
       box-sizing: border-box;
+      overflow: auto;
+    }
+    /* Let the flex children shrink below their content height so the card can
+       scroll its overflow instead of clipping it (issue #146). */
+    acp-sky-compass,
+    acp-elevation-chart {
+      min-height: 0;
     }
     .card-header {
       font-size: 1.05rem;

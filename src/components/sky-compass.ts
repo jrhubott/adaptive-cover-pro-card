@@ -850,6 +850,8 @@ export class SkyCompass extends LitElement {
       .compass .stats {
         flex: 0 1 auto;
         min-width: 0;
+        max-height: 100%;
+        overflow-y: auto;
         flex-direction: column;
         align-items: flex-start;
         justify-content: center;

@@ -382,7 +382,7 @@ export class AdaptiveCoverProCard extends LitElement {
     }
     .header {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 8px;
       font-weight: 500;
     }

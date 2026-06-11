@@ -174,4 +174,9 @@ export interface HarnessConfig {
   root: RootCardOptions;
   compass: SkyCompassCardOptions;
   tile: TileCardOptions;
+  /** Fixed stage height in px for the Sky Compass card, mimicking HA's
+   *  fixed grid-row height in a Sections dashboard. 0 = grow freely (the
+   *  harness default). A positive value caps the compass card-host and clips
+   *  overflow so the issue #146 clip is reproducible. */
+  stageHeight: number;
 }

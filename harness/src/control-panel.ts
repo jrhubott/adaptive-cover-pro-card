@@ -784,6 +784,14 @@ export class AcpHarnessControlPanel extends LitElement {
           (v) =>
             this._emit({ ...this.config, compass: { ...this.config.compass, north_offset: v } }),
         )}
+        ${this._numberSlider(
+          'stage height px (0 = grow)',
+          this.config.stageHeight,
+          0,
+          800,
+          20,
+          (v) => this._emit({ ...this.config, stageHeight: v }),
+        )}
       </fieldset>
 
       <fieldset class="entry">

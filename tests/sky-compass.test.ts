@@ -1353,6 +1353,14 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     const dotUp = cssBlock('.dot.sun.up ');
     expect(dotUp).toMatch(/var\(--secondary-text-color/);
   });
+
+  it('caps the side-column legend height and scrolls overflow (issue #146)', () => {
+    // @container side-column rule: with 6+ covers the stacked legend can grow
+    // taller than the compass; cap it and let it scroll instead of clipping.
+    const sideColumn = cssBlock('.compass .legend');
+    expect(sideColumn).toMatch(/max-height/);
+    expect(sideColumn).toMatch(/overflow-y:\s*auto/);
+  });
 });
 
 describe('acp-sky-compass active sun arc (start/end sensor azimuths)', () => {

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import '../src/adaptive-cover-pro-sky-compass-card';
+import { AdaptiveCoverProSkyCompassCard } from '../src/adaptive-cover-pro-sky-compass-card';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { SkyCompassCardConfig } from '../src/types';
 import type { EntityRegistryEntry } from '../src/lib/entity-registry';
@@ -282,5 +283,41 @@ describe('adaptive-cover-pro-sky-compass-card getGridOptions', () => {
       show_elevation_chart: false,
     });
     expect(withChart.getGridOptions().rows).toBeGreaterThan(withoutChart.getGridOptions().rows);
+  });
+
+  it('grows rows as the entry count climbs, capped at max_rows (issue #146)', () => {
+    const oneEntry = makeCard() as GridCompassLike;
+    oneEntry.setConfig({ type: 'custom:adaptive-cover-pro-sky-compass-card', entry_ids: [ENTRY] });
+    const sixEntry = makeCard() as GridCompassLike;
+    sixEntry.setConfig({
+      type: 'custom:adaptive-cover-pro-sky-compass-card',
+      entry_ids: ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'],
+    });
+    const six = sixEntry.getGridOptions();
+    expect(six.rows).toBeGreaterThan(oneEntry.getGridOptions().rows);
+    expect(six.rows).toBeLessThanOrEqual(six.max_rows);
+  });
+});
+
+describe('adaptive-cover-pro-sky-compass-card styles (overflow handling, issue #146)', () => {
+  // styles is a Lit CSSResult; .cssText is plain text we can grep.
+  const cssText = (AdaptiveCoverProSkyCompassCard as unknown as { styles: { cssText: string } })
+    .styles.cssText;
+
+  function cssBlock(selector: string): string {
+    const idx = cssText.indexOf(selector);
+    if (idx < 0) throw new Error(`Selector not found in styles: ${selector}`);
+    const open = cssText.indexOf('{', idx);
+    const close = cssText.indexOf('}', open);
+    if (open < 0 || close < 0) throw new Error(`Malformed block for ${selector}`);
+    return cssText.slice(open + 1, close);
+  }
+
+  it('lets the ha-card scroll instead of clipping (overflow set)', () => {
+    expect(cssBlock('ha-card')).toMatch(/overflow/);
+  });
+
+  it('lets flex children shrink so the card can scroll (min-height: 0)', () => {
+    expect(cssBlock('acp-sky-compass')).toMatch(/min-height:\s*0/);
   });
 });
