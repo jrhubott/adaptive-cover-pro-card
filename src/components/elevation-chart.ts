@@ -160,8 +160,14 @@ export class ElevationChart extends LitElement {
           ? bounds!.start!.toISOString()
           : bounds!.end!.toISOString();
       const isStart = startFrac !== null && Math.abs(frac - startFrac) < 1e-9;
+      const xVal = fracToX(frac);
+      // Anchor edge ticks inward so a near-right-edge schedule label (e.g.
+      // 21:57) sits inside the viewBox instead of clipping past it (issue #146).
+      const anchor: 'start' | 'middle' | 'end' =
+        xVal >= VIEWBOX_W - PAD_R - 1 ? 'end' : xVal <= PAD_L + 1 ? 'start' : 'middle';
       return {
-        x: fracToX(frac),
+        x: xVal,
+        anchor,
         label: formatClock(iso, time_zone),
         tooltip: isStart
           ? t('elevation.schedule_start_tooltip', this.hass)
@@ -385,7 +391,7 @@ export class ElevationChart extends LitElement {
                 class="schedule-tick"
                 x=${b.x}
                 y=${PAD_T + 7}
-                text-anchor="middle"
+                text-anchor=${b.anchor}
               >${b.label}</text>`,
             ])}
 
@@ -447,11 +453,14 @@ export class ElevationChart extends LitElement {
   public static styles = css`
     :host {
       display: block;
+      width: 100%;
+      min-width: 0;
     }
     .wrap {
       display: flex;
       flex-direction: column;
       gap: 4px;
+      min-width: 0;
     }
     .head {
       display: flex;
@@ -507,7 +516,9 @@ export class ElevationChart extends LitElement {
       opacity: 0.7;
     }
     .fov-band {
-      fill: var(--warning-color, gold);
+      /* Lighter shade of the cover colour (not gold), so the gold sun-dot reads
+         clearly against it. Matches the sky-compass .fov default. */
+      fill: var(--primary-color);
       fill-opacity: 0.18;
     }
     .off-schedule-zone {
@@ -530,7 +541,9 @@ export class ElevationChart extends LitElement {
       cursor: default;
     }
     .ribbon-bar {
-      fill: var(--warning-color, gold);
+      /* Fallback only — the ribbon always sets an inline per-window fill. Kept on
+         the cover colour for consistency with the FOV band. */
+      fill: var(--primary-color);
       fill-opacity: 0.85;
       cursor: default;
     }

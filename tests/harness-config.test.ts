@@ -205,6 +205,98 @@ describe('card-stage remounts cards when the entry set changes (multi-window sta
   });
 });
 
+describe('card-stage activeCard filter (one tab per card)', () => {
+  interface FilterableStage extends CardStageLike {
+    activeCard?: 'root' | 'compass' | 'tile';
+    hass?: unknown;
+    _compassEl?: { hass?: unknown };
+    updateComplete: Promise<boolean>;
+  }
+
+  function hosts(el: FilterableStage): { root: boolean; compass: boolean; tile: boolean } {
+    const sr = (el as unknown as { shadowRoot: ShadowRoot }).shadowRoot;
+    return {
+      root: !!sr.getElementById('root-host'),
+      compass: !!sr.getElementById('compass-host'),
+      tile: !!sr.getElementById('tile-host'),
+    };
+  }
+
+  it('renders only the active card, and all cards when unset', async () => {
+    const el = document.createElement('acp-harness-card-stage') as unknown as FilterableStage;
+    document.body.appendChild(el);
+    try {
+      el.config = defaultScenarioConfig();
+      await el.updateComplete;
+      // Unset (the contract the threading/remount tests + capture scripts rely on).
+      expect(hosts(el)).toEqual({ root: true, compass: true, tile: true });
+
+      el.activeCard = 'tile';
+      await el.updateComplete;
+      expect(hosts(el)).toEqual({ root: false, compass: false, tile: true });
+
+      el.activeCard = 'root';
+      await el.updateComplete;
+      expect(hosts(el)).toEqual({ root: true, compass: false, tile: false });
+    } finally {
+      el.remove();
+    }
+  });
+
+  it('re-attaches tiles to the fresh tile-host after navigating away and back', async () => {
+    // Switching tabs makes Lit destroy and recreate the conditional #tile-host
+    // div. The retained tile elements must be re-parented onto the new host on
+    // return — otherwise (entry count unchanged) neither create/remove loop runs
+    // and the tile tab renders blank.
+    interface TileStage extends FilterableStage {
+      _tileEls: HTMLElement[];
+    }
+    const el = document.createElement('acp-harness-card-stage') as unknown as TileStage;
+    document.body.appendChild(el);
+    try {
+      el.config = defaultScenarioConfig();
+      el.activeCard = 'tile';
+      await el.updateComplete;
+      const sr = (el as unknown as { shadowRoot: ShadowRoot }).shadowRoot;
+      const want = el.config.entries.length;
+      expect(sr.getElementById('tile-host')!.childElementCount).toBe(want);
+
+      // Away…
+      el.activeCard = 'root';
+      await el.updateComplete;
+      // …and back: the tile-host is a brand-new div and must receive the tiles.
+      el.activeCard = 'tile';
+      await el.updateComplete;
+      const host = sr.getElementById('tile-host')!;
+      expect(host.childElementCount).toBe(want);
+      for (const t of el._tileEls) expect(t.parentElement).toBe(host);
+    } finally {
+      el.remove();
+    }
+  });
+
+  it('pushes hass to a card mounted on a tab switch (not just on hass/config change)', async () => {
+    const el = document.createElement('acp-harness-card-stage') as unknown as FilterableStage;
+    document.body.appendChild(el);
+    try {
+      const hass = { fake: true };
+      el.config = defaultScenarioConfig();
+      el.hass = hass;
+      el.activeCard = 'root';
+      await el.updateComplete;
+
+      // Switching to compass mounts a card that never existed before; only
+      // activeCard changed, so hass must still reach the freshly created element.
+      el.activeCard = 'compass';
+      await el.updateComplete;
+      expect(el._compassEl).toBeTruthy();
+      expect(el._compassEl!.hass).toBe(hass);
+    } finally {
+      el.remove();
+    }
+  });
+});
+
 describe('show_elevation_chart harness plumbing', () => {
   it('default scenario config sets compass.show_elevation_chart and tile.show_elevation_chart to true', () => {
     const cfg = defaultScenarioConfig();

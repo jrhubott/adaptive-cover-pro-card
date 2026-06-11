@@ -738,7 +738,11 @@ export class SkyCompass extends LitElement {
         : nothing}
       ${this.showWindowArrow
         ? html`<div>
-            <span class="swatch window-swatch"></span> ${t('compass.window_normal', this.hass)}
+            <span
+              class="swatch window-swatch"
+              style=${overlays[0]?.isOverride ? `background: ${overlays[0].color}` : ''}
+            ></span>
+            ${t('compass.window_normal', this.hass)}
           </div>`
         : nothing}
     </div>`;
@@ -865,9 +869,13 @@ export class SkyCompass extends LitElement {
     }
     .fov,
     .fov-extra {
-      fill: var(--warning-color, gold);
+      /* Default (single-entry, no override): a lighter, more-transparent shade
+         of the cover colour — same identity as the cover wedge, just fainter —
+         matching how multi-entry/override mode already colours the FOV. Keeping
+         it off gold lets the gold sun dot read clearly against it. */
+      fill: var(--primary-color);
       fill-opacity: 0.22;
-      stroke: var(--warning-color, gold);
+      stroke: var(--primary-color);
       stroke-width: 1;
       stroke-opacity: 0.7;
       transition:
@@ -1017,7 +1025,11 @@ export class SkyCompass extends LitElement {
     }
     .swatch.cover-fill-swatch {
       background: var(--primary-color);
-      opacity: 0.35;
+      /* The cover wedge is drawn ON TOP of the FOV wedge in the same arc, so the
+         visible cover region is the two fills composited: the FOV's 0.22 plus the
+         cover's 0.30 → 1 − (1−0.22)(1−0.30) ≈ 0.45. Matching that here keeps the
+         legend swatch the same darker shade the reader sees in the plot. */
+      opacity: 0.45;
       border-radius: 2px;
     }
     .swatch.window-swatch {

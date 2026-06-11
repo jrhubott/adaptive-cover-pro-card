@@ -25,6 +25,7 @@ import type {
 import type { ConfigChangeDetail } from './control-panel';
 import './control-panel';
 import './card-stage';
+import './badge-gallery';
 import './service-log';
 
 /** A shallow-by-section partial of {@link HarnessConfig} accepted by the capture bridge. */
@@ -68,6 +69,12 @@ export class AcpHarnessApp extends LitElement {
   @state() private _hass!: HomeAssistant;
   @state() private _log: ServiceCall[] = [];
   @state() private _shareToast: string | null = null;
+  // Which stage view is shown. In-memory only — resets to "root" on reload.
+  @state() private _tab: 'root' | 'compass' | 'tile' | 'badges' = 'root';
+
+  // Capture mode (?capture URL param) keeps card-stage rendering all enabled
+  // cards so the screenshot/time-lapse scripts work unchanged.
+  private _capture = false;
 
   private _playInterval: ReturnType<typeof setInterval> | null = null;
   private _shareToastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -76,7 +83,10 @@ export class AcpHarnessApp extends LitElement {
     super.connectedCallback();
     this._rebuildHass();
     this._applyTheme();
-    if (new URLSearchParams(location.search).has('capture')) this._installCaptureBridge();
+    if (new URLSearchParams(location.search).has('capture')) {
+      this._capture = true;
+      this._installCaptureBridge();
+    }
   }
 
   disconnectedCallback(): void {
@@ -238,6 +248,40 @@ export class AcpHarnessApp extends LitElement {
     }, 3000);
   }
 
+  private _tabButton(id: typeof this._tab, label: string): TemplateResult {
+    return html`<button
+      class="tab ${this._tab === id ? 'active' : ''}"
+      @click=${() => (this._tab = id)}
+    >
+      ${label}
+    </button>`;
+  }
+
+  private _renderStage(): TemplateResult {
+    const showGallery = this._tab === 'badges' && !this._capture;
+    // Capture mode renders all enabled cards (activeCard undefined) so the
+    // screenshot scripts keep working; otherwise show only the active card tab.
+    const card = this._tab === 'badges' ? undefined : this._tab;
+    return html`
+      ${this._capture
+        ? // The capture scripts screenshot a single card's bounding box; a sticky
+          // tab bar would paint over the top of that card. Drop it entirely in
+          // capture mode (which renders all enabled cards, not a tab selection).
+          ''
+        : html`<nav class="tabs">
+            ${this._tabButton('root', 'Root')} ${this._tabButton('compass', 'Sky compass')}
+            ${this._tabButton('tile', 'Tile')} ${this._tabButton('badges', 'Badge gallery')}
+          </nav>`}
+      ${showGallery
+        ? html`<acp-harness-badge-gallery .hass=${this._hass}></acp-harness-badge-gallery>`
+        : html`<acp-harness-card-stage
+            .hass=${this._hass}
+            .config=${this._config}
+            .activeCard=${this._capture ? undefined : card}
+          ></acp-harness-card-stage>`}
+    `;
+  }
+
   protected render(): TemplateResult {
     return html`
       <div class="layout">
@@ -267,12 +311,7 @@ export class AcpHarnessApp extends LitElement {
             @config-change=${this._onConfigChange}
           ></acp-harness-control-panel>
         </aside>
-        <main class="stage">
-          <acp-harness-card-stage
-            .hass=${this._hass}
-            .config=${this._config}
-          ></acp-harness-card-stage>
-        </main>
+        <main class="stage">${this._renderStage()}</main>
         <section class="log">
           <acp-harness-service-log
             .calls=${this._log}
@@ -357,6 +396,35 @@ export class AcpHarnessApp extends LitElement {
     .stage {
       grid-area: stage;
       overflow-y: auto;
+    }
+    .tabs {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      display: flex;
+      gap: 4px;
+      padding: 8px 12px 0;
+      background: var(--card-background-color, #fff);
+      border-bottom: 1px solid var(--harness-border);
+    }
+    .tab {
+      font: inherit;
+      font-size: 0.8rem;
+      padding: 6px 14px;
+      border: 1px solid var(--harness-border);
+      border-bottom: none;
+      border-radius: 6px 6px 0 0;
+      background: transparent;
+      color: var(--secondary-text-color);
+      cursor: pointer;
+    }
+    .tab:hover {
+      background: var(--secondary-background-color);
+    }
+    .tab.active {
+      color: var(--primary-text-color);
+      background: var(--secondary-background-color);
+      font-weight: 600;
     }
     .log {
       grid-area: log;

@@ -45,17 +45,16 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
     return 4;
   }
 
-  // Sections-layout grid sizing. Taller default when the elevation chart is
-  // shown; near-square compass spans the full section width by default.
+  // Sections-layout grid sizing. The card auto-sizes its height to its content
+  // (`rows: 'auto'`) so the legend, stats, and elevation chart always fit no
+  // matter how many covers are configured — no fixed-height clipping and no
+  // scrollbar (issue #146). Full section width with resize bounds.
   public getGridOptions() {
-    const withChart = this._config?.show_elevation_chart !== false;
     return {
       columns: 12,
-      rows: withChart ? 8 : 6,
+      rows: 'auto',
       min_columns: 6,
-      min_rows: 4,
       max_columns: 12,
-      max_rows: 16,
     };
   }
 
@@ -199,14 +198,12 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
   public static styles = css`
     :host {
       display: block;
-      height: 100%;
     }
     ha-card {
       padding: 12px 14px 10px;
       display: flex;
       flex-direction: column;
       gap: 8px;
-      height: 100%;
       box-sizing: border-box;
     }
     .card-header {

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import '../src/adaptive-cover-pro-sky-compass-card';
+import { AdaptiveCoverProSkyCompassCard } from '../src/adaptive-cover-pro-sky-compass-card';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { SkyCompassCardConfig } from '../src/types';
 import type { EntityRegistryEntry } from '../src/lib/entity-registry';
@@ -250,37 +251,58 @@ describe('adaptive-cover-pro-sky-compass-card — elevation chart toggle', () =>
 
 interface GridOptions {
   columns: number;
-  rows: number;
+  rows: number | string;
   min_columns: number;
-  min_rows: number;
   max_columns: number;
-  max_rows: number;
 }
 interface GridCompassLike extends CardLike {
   getGridOptions(): GridOptions;
 }
 
 describe('adaptive-cover-pro-sky-compass-card getGridOptions', () => {
-  it('spans the full section width with resize bounds', () => {
+  it('spans the full section width and auto-sizes its height (issue #146)', () => {
     const card = makeCard() as GridCompassLike;
     card.setConfig({ type: 'custom:adaptive-cover-pro-sky-compass-card', entry_ids: [ENTRY] });
     const opts = card.getGridOptions();
     expect(opts.columns).toBe(12);
     expect(opts.min_columns).toBe(6);
     expect(opts.max_columns).toBe(12);
-    expect(opts.min_rows).toBeLessThanOrEqual(opts.rows);
-    expect(opts.max_rows).toBeGreaterThanOrEqual(opts.rows);
+    expect(opts.rows).toBe('auto');
   });
 
-  it('reserves more rows when the elevation chart is shown', () => {
-    const withChart = makeCard() as GridCompassLike;
-    withChart.setConfig({ type: 'custom:adaptive-cover-pro-sky-compass-card', entry_ids: [ENTRY] });
-    const withoutChart = makeCard() as GridCompassLike;
-    withoutChart.setConfig({
+  it('stays auto-height regardless of entry count or elevation chart (issue #146)', () => {
+    const oneEntry = makeCard() as GridCompassLike;
+    oneEntry.setConfig({ type: 'custom:adaptive-cover-pro-sky-compass-card', entry_ids: [ENTRY] });
+    const sixNoChart = makeCard() as GridCompassLike;
+    sixNoChart.setConfig({
       type: 'custom:adaptive-cover-pro-sky-compass-card',
-      entry_ids: [ENTRY],
+      entry_ids: ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'],
       show_elevation_chart: false,
     });
-    expect(withChart.getGridOptions().rows).toBeGreaterThan(withoutChart.getGridOptions().rows);
+    expect(oneEntry.getGridOptions().rows).toBe('auto');
+    expect(sixNoChart.getGridOptions().rows).toBe('auto');
+  });
+});
+
+describe('adaptive-cover-pro-sky-compass-card styles (auto height, issue #146)', () => {
+  // styles is a Lit CSSResult; .cssText is plain text we can grep.
+  const cssText = (AdaptiveCoverProSkyCompassCard as unknown as { styles: { cssText: string } })
+    .styles.cssText;
+
+  function cssBlock(selector: string): string {
+    const idx = cssText.indexOf(selector);
+    if (idx < 0) throw new Error(`Selector not found in styles: ${selector}`);
+    const open = cssText.indexOf('{', idx);
+    const close = cssText.indexOf('}', open);
+    if (open < 0 || close < 0) throw new Error(`Malformed block for ${selector}`);
+    return cssText.slice(open + 1, close);
+  }
+
+  it('does not pin the ha-card to a fixed height (auto-sizes to content)', () => {
+    expect(cssBlock('ha-card')).not.toMatch(/height:\s*100%/);
+  });
+
+  it('does not force an overflow scrollbar on the ha-card', () => {
+    expect(cssBlock('ha-card')).not.toMatch(/overflow/);
   });
 });

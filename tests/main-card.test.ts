@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import '../src/adaptive-cover-pro-card';
+import { AdaptiveCoverProCard } from '../src/adaptive-cover-pro-card';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { AdaptiveCoverProCardConfig } from '../src/types';
 import type { EntityRegistryEntry } from '../src/lib/entity-registry';
@@ -96,33 +97,46 @@ describe('adaptive-cover-pro-card cover_colors (issue #132)', () => {
     expect(compass).toBeTruthy();
     expect(compass.coverColors).toEqual([]);
   });
+
+  it('forwards cover_colors to the embedded Sun Today elevation chart', async () => {
+    // The standalone sky-compass card already wires this; the root card must too
+    // so the override carries into the Sun Today chart, not just the compass.
+    const el = await mountWithRegistry({
+      type: 'custom:adaptive-cover-pro-card',
+      entry_id: ENTRY,
+      cover_colors: ['#ff3366'],
+    });
+    interface ChartEl extends HTMLElement {
+      coverColors?: unknown[];
+    }
+    const chart = el.shadowRoot!.querySelector('acp-elevation-chart') as ChartEl;
+    expect(chart).toBeTruthy();
+    expect(chart.coverColors).toEqual(['#ff3366']);
+  });
 });
 
 interface GridOptions {
   columns: number;
-  rows: number;
+  rows: number | string;
   min_columns: number;
-  min_rows: number;
   max_columns: number;
-  max_rows: number;
 }
 interface GridCardLike extends CardLike {
   getGridOptions(): GridOptions;
 }
 
 describe('AdaptiveCoverProCard.getGridOptions', () => {
-  it('spans the full section width with resize bounds', () => {
+  it('spans the full section width and auto-sizes its height (issue #146)', () => {
     const card = document.createElement('adaptive-cover-pro-card') as GridCardLike;
     card.setConfig({ type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY });
     const opts = card.getGridOptions();
     expect(opts.columns).toBe(12);
     expect(opts.min_columns).toBe(6);
     expect(opts.max_columns).toBe(12);
-    expect(opts.min_rows).toBeLessThanOrEqual(opts.rows);
-    expect(opts.max_rows).toBeGreaterThanOrEqual(opts.rows);
+    expect(opts.rows).toBe('auto');
   });
 
-  it('grows the default row count with the number of visible sections', () => {
+  it('stays auto-height regardless of the number of visible sections (issue #146)', () => {
     const oneSection = document.createElement('adaptive-cover-pro-card') as GridCardLike;
     oneSection.setConfig({
       type: 'custom:adaptive-cover-pro-card',
@@ -135,6 +149,28 @@ describe('AdaptiveCoverProCard.getGridOptions', () => {
       entry_id: ENTRY,
       show_sections: ['sky', 'elevation', 'decision', 'covers', 'overrides', 'climate'],
     });
-    expect(allSections.getGridOptions().rows).toBeGreaterThan(oneSection.getGridOptions().rows);
+    expect(oneSection.getGridOptions().rows).toBe('auto');
+    expect(allSections.getGridOptions().rows).toBe('auto');
+  });
+});
+
+describe('header layout — long entry title', () => {
+  it('renders the header with a title span', async () => {
+    const el = await mountWithRegistry({
+      type: 'custom:adaptive-cover-pro-card',
+      entry_id: ENTRY,
+    });
+    const header = el.shadowRoot!.querySelector('.header');
+    expect(header).toBeTruthy();
+    const title = header!.querySelector('.title');
+    expect(title).toBeTruthy();
+  });
+
+  it('header does not use align-items: center (which clips wrapped titles)', () => {
+    // CSS layout overflow is not catchable by happy-dom, but we can assert that
+    // the LitElement.styles CSSResult does not contain the clipping combination.
+    const styles = (AdaptiveCoverProCard as unknown as { styles: { cssText: string } }).styles
+      .cssText;
+    expect(styles).toMatch(/\.header\s*\{[^}]*align-items:\s*flex-start/);
   });
 });

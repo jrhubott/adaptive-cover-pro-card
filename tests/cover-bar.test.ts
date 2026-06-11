@@ -64,12 +64,17 @@ describe('acp-cover-bar fill style — issue #135', () => {
 });
 
 describe('acp-cover-bar two-tone fill — issue #135 follow-up', () => {
-  it('open segment is gold and closed segment is blue, matching the compass', () => {
+  it('both segments derive from the cover colour — open pale, closed solid', () => {
     const styles = (CoverBar as unknown as { styles: CSSResult }).styles.cssText;
-    // Open portion (.fill) borrows the compass FOV gold (--warning-color);
-    // closed portion (.fill-closed) borrows the compass cover blue (--primary-color).
-    expect(styles).toMatch(/\.fill\s*{[^}]*--warning-color/);
-    expect(styles).toMatch(/\.fill-closed\s*{[^}]*--primary-color/);
+    // Open portion (.fill) and closed portion (.fill-closed) share the cover hue
+    // (override, else --primary-color); no gold, so nothing competes with the
+    // gold sun on the compass. Open is the fainter mix, closed the stronger.
+    expect(styles).toMatch(/\.fill\s*{[^}]*--acp-cover-color,\s*var\(--primary-color\)\)\s*18%/);
+    expect(styles).toMatch(
+      /\.fill-closed\s*{[^}]*--acp-cover-color,\s*var\(--primary-color\)\)\s*50%/,
+    );
+    // The fills no longer borrow the FOV gold (.warn still uses --warning-color).
+    expect(styles).not.toMatch(/\.fill[^}]*--warning-color/);
   });
 
   it('splits the track into open + closed widths summing to 100%', async () => {

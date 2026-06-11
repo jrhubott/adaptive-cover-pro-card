@@ -13,31 +13,56 @@ interface CardElement extends HTMLElement {
 export class AcpHarnessCardStage extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
   @property({ attribute: false }) config!: HarnessConfig;
+  /** When set, render only this card; undefined renders all enabled cards
+   *  (the contract the config tests and capture scripts rely on). */
+  @property({ attribute: false }) activeCard?: 'root' | 'compass' | 'tile';
 
   private _rootEl?: CardElement;
   private _compassEl?: CardElement;
   private _tileEls: CardElement[] = [];
   private _entrySig?: string;
 
+  /** True when `card` should render — either it's the active card, or no active
+   *  card is set (render-all mode for the config tests and capture scripts). */
+  private _shows(card: 'root' | 'compass' | 'tile'): boolean {
+    return this.activeCard === undefined || this.activeCard === card;
+  }
+
   protected render(): TemplateResult {
     return html`
-      <h2 class="card-heading">Root card · <code>custom:${CARD_NAME}</code></h2>
-      ${this.config.root.enabled
-        ? html`<div class="card-host" id="root-host"></div>`
-        : html`<p class="disabled">Disabled — toggle in Per-card config.</p>`}
-
-      <h2 class="card-heading">Sky compass card · <code>custom:${SKY_COMPASS_CARD_NAME}</code></h2>
-      ${this.config.compass.enabled
-        ? html`<div class="card-host" id="compass-host"></div>`
-        : html`<p class="disabled">Disabled — toggle in Per-card config.</p>`}
-
-      <h2 class="card-heading">
-        Tile card · <code>custom:${TILE_CARD_NAME}</code>
-        <span class="hint">(one per entry — open to see more-info dialog with forecast)</span>
-      </h2>
-      ${this.config.tile.enabled
-        ? html`<div class="tile-row" id="tile-host" style=${this._tileRowStyle()}></div>`
-        : html`<p class="disabled">Disabled — toggle in Per-card config.</p>`}
+      ${this._shows('root')
+        ? html`
+            <h2 class="card-heading">Root card · <code>custom:${CARD_NAME}</code></h2>
+            ${this.config.root.enabled
+              ? html`<div class="card-host" id="root-host"></div>`
+              : html`<p class="disabled">Disabled — toggle in Per-card config.</p>`}
+          `
+        : ''}
+      ${this._shows('compass')
+        ? html`
+            <h2 class="card-heading">
+              Sky compass card · <code>custom:${SKY_COMPASS_CARD_NAME}</code>
+            </h2>
+            ${this.config.compass.enabled
+              ? html`<div
+                  class="card-host"
+                  id="compass-host"
+                  style=${this._compassHostStyle()}
+                ></div>`
+              : html`<p class="disabled">Disabled — toggle in Per-card config.</p>`}
+          `
+        : ''}
+      ${this._shows('tile')
+        ? html`
+            <h2 class="card-heading">
+              Tile card · <code>custom:${TILE_CARD_NAME}</code>
+              <span class="hint">(one per entry — open to see more-info dialog with forecast)</span>
+            </h2>
+            ${this.config.tile.enabled
+              ? html`<div class="tile-row" id="tile-host" style=${this._tileRowStyle()}></div>`
+              : html`<p class="disabled">Disabled — toggle in Per-card config.</p>`}
+          `
+        : ''}
     `;
   }
 
@@ -49,9 +74,19 @@ export class AcpHarnessCardStage extends LitElement {
     return w > 0 ? `grid-template-columns: repeat(auto-fill, ${w}px); justify-content: start;` : '';
   }
 
+  /** When a stage height is simulated (issue #146), cap the compass card-host
+   *  to a fixed pixel height and clip overflow, mimicking HA's fixed grid-row
+   *  height in a Sections dashboard; 0 lets the card grow freely. */
+  private _compassHostStyle(): string {
+    const h = this.config.stageHeight;
+    return h > 0 ? `height: ${h}px; overflow: hidden;` : '';
+  }
+
   protected updated(changed: Map<string, unknown>): void {
-    if (changed.has('config') || !this._rootEl) this._syncCards();
-    if (changed.has('hass') || changed.has('config')) this._pushHass();
+    if (changed.has('config') || changed.has('activeCard') || !this._rootEl) this._syncCards();
+    // Push hass on activeCard change too: switching tabs mounts a card that was
+    // never created before, and without this it would render blank (no hass).
+    if (changed.has('hass') || changed.has('config') || changed.has('activeCard')) this._pushHass();
   }
 
   private _syncCards(): void {
@@ -115,6 +150,11 @@ export class AcpHarnessCardStage extends LitElement {
         this._tileEls.push(el);
       }
       this._tileEls.forEach((el, i) => {
+        // Switching tabs destroys and recreates the conditional #tile-host div,
+        // detaching the retained tiles. When the entry count is unchanged the
+        // create/remove loops above don't run, so re-parent here (as the root and
+        // compass cards do) or the tile tab renders blank on return.
+        if (el.parentElement !== tileHost) tileHost.appendChild(el);
         el.setConfig?.(this._tileConfig(this.config.entries[i].entry_id));
       });
     } else if (this._tileEls.length && !this.config.tile.enabled) {
