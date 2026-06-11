@@ -1354,12 +1354,16 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     expect(dotUp).toMatch(/var\(--secondary-text-color/);
   });
 
-  it('caps the side-column legend height and scrolls overflow (issue #146)', () => {
-    // @container side-column rule: with 6+ covers the stacked legend can grow
-    // taller than the compass; cap it and let it scroll instead of clipping.
+  it('does not pin a percentage max-height on the side-column legend (issue #146)', () => {
+    // @container side-column rule: a percentage `max-height: 100%` against a
+    // flex parent with no definite height decouples the .compass box from the
+    // legend's true height, so a tall 6-cover legend spills past the compass
+    // and overlaps the elevation chart below it. The card-level overflow:auto
+    // + grow-by-rows handle the constrained case instead, so the legend must
+    // contribute its full height here and never carry the fragile cap.
     const sideColumn = cssBlock('.compass .legend');
-    expect(sideColumn).toMatch(/max-height/);
-    expect(sideColumn).toMatch(/overflow-y:\s*auto/);
+    expect(sideColumn).not.toMatch(/max-height:\s*100%/);
+    expect(sideColumn).not.toMatch(/overflow-y:\s*auto/);
   });
 });
 
