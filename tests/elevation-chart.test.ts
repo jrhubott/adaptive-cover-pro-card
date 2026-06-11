@@ -612,3 +612,51 @@ describe('acp-elevation-chart: sun-dot 3-way state (issue #137)', () => {
     expect(block).toContain('var(--warning-color, gold)');
   });
 });
+
+describe('acp-elevation-chart: width-respect styles (issue #146)', () => {
+  const cssText = (ElevationChart as unknown as { styles: { cssText: string } }).styles.cssText;
+
+  function cssBlock(selector: string): string {
+    const idx = cssText.indexOf(selector);
+    if (idx < 0) throw new Error(`Selector not found in styles: ${selector}`);
+    const open = cssText.indexOf('{', idx);
+    const close = cssText.indexOf('}', open);
+    if (open < 0 || close < 0) throw new Error(`Malformed block for ${selector}`);
+    return cssText.slice(open + 1, close);
+  }
+
+  it('lets the flex wrap shrink to the card width (min-width: 0)', () => {
+    expect(cssBlock('.wrap')).toMatch(/min-width:\s*0/);
+  });
+
+  it('makes :host full-width and shrinkable so the chart cannot push past the card', () => {
+    const host = cssBlock(':host');
+    expect(host).toMatch(/width:\s*100%/);
+    expect(host).toMatch(/min-width:\s*0/);
+  });
+});
+
+describe('acp-elevation-chart: schedule-tick edge anchoring (issue #146)', () => {
+  it('anchors a right-edge schedule tick inward (end) and a left-edge one outward', async () => {
+    // End near 23:59 lands at the right viewBox edge; start near 00:01 at the
+    // left. Inward anchoring keeps the labels inside the viewBox (no clip).
+    const el = await mount({
+      hass: scheduleHass({
+        schedule_start: todayIso(0, 1),
+        schedule_end: todayIso(23, 59),
+      }),
+      discoveredList: [discoveredWithControl],
+    });
+    const ticks = Array.from(
+      el.shadowRoot!.querySelectorAll('text.schedule-tick'),
+    ) as SVGTextElement[];
+    expect(ticks.length).toBe(2);
+    const byX = ticks
+      .map((t) => ({ x: Number(t.getAttribute('x')), anchor: t.getAttribute('text-anchor') }))
+      .sort((a, b) => a.x - b.x);
+    const leftmost = byX[0];
+    const rightmost = byX[byX.length - 1];
+    expect(rightmost.anchor).toBe('end');
+    expect(['start', 'middle']).toContain(leftmost.anchor);
+  });
+});

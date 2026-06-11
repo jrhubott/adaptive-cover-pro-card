@@ -146,6 +146,7 @@ function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): Harne
     root: defaultRoot(),
     compass: defaultCompass(),
     tile: defaultTile(),
+    stageHeight: 0,
   };
 }
 
@@ -542,6 +543,71 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'six-covers-overflow',
+    label: 'Six covers — Sky card overflow (issue #146)',
+    description:
+      'Six entries spread SE→SW so several are in-FOV at once: a tall stacked legend plus the elevation chart. Set the Sky stage height cap to clip the card and reproduce the legend/chart overflow.',
+    build: () => {
+      // Early afternoon with six windows fanned across the southern sky so the
+      // legend stacks six cover swatches + Sun and the chart packs six ribbon
+      // bars — the combination that overflows a fixed-row Sky card.
+      const c = baseConfig('2026-06-21', 13 * 60 + 30);
+      c.scenario = 'six-covers-overflow';
+      c.stageHeight = 360;
+      c.entries = [
+        makeEntry({
+          entry_id: 'terrasse',
+          title: 'Terrasse',
+          window_azimuth: 120,
+          fov_left: 55,
+          fov_right: 55,
+          color: '#ff7043',
+        }),
+        makeEntry({
+          entry_id: 'cuisine',
+          title: 'Cuisine',
+          window_azimuth: 150,
+          fov_left: 55,
+          fov_right: 55,
+          color: '#26a69a',
+        }),
+        makeEntry({
+          entry_id: 'salle_a_manger',
+          title: 'Salle à Manger',
+          window_azimuth: 180,
+          fov_left: 55,
+          fov_right: 55,
+          color: '#7e57c2',
+        }),
+        makeEntry({
+          entry_id: 'sdb_parentale',
+          title: 'Salle de Bain Parentale',
+          window_azimuth: 200,
+          fov_left: 55,
+          fov_right: 55,
+          color: '#42a5f5',
+        }),
+        makeEntry({
+          entry_id: 'sdb_filles',
+          title: 'Salle de Bain Filles',
+          window_azimuth: 220,
+          fov_left: 55,
+          fov_right: 55,
+          color: '#ffca28',
+        }),
+        makeEntry({
+          entry_id: 'chambre_lisa',
+          title: 'Chambre Lisa',
+          window_azimuth: 240,
+          fov_left: 55,
+          fov_right: 55,
+          color: '#ec407a',
+        }),
+      ];
+      return c;
+    },
+  },
+  {
     id: 'winter-night-moonlit',
     label: 'Winter night — sun below horizon',
     description:
@@ -770,6 +836,7 @@ export function defaultScenarioConfig(): HarnessConfig {
 export function normalizeConfig(cfg: HarnessConfig): HarnessConfig {
   return {
     ...cfg,
+    stageHeight: cfg.stageHeight ?? 0,
     tile: {
       ...cfg.tile,
       badges: { ...defaultBadges(), ...(cfg.tile?.badges ?? {}) },

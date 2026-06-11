@@ -44,7 +44,11 @@ export class AcpHarnessCardStage extends LitElement {
               Sky compass card · <code>custom:${SKY_COMPASS_CARD_NAME}</code>
             </h2>
             ${this.config.compass.enabled
-              ? html`<div class="card-host" id="compass-host"></div>`
+              ? html`<div
+                  class="card-host"
+                  id="compass-host"
+                  style=${this._compassHostStyle()}
+                ></div>`
               : html`<p class="disabled">Disabled — toggle in Per-card config.</p>`}
           `
         : ''}
@@ -68,6 +72,14 @@ export class AcpHarnessCardStage extends LitElement {
   private _tileRowStyle(): string {
     const w = this.config.tile.tileWidth;
     return w > 0 ? `grid-template-columns: repeat(auto-fill, ${w}px); justify-content: start;` : '';
+  }
+
+  /** When a stage height is simulated (issue #146), cap the compass card-host
+   *  to a fixed pixel height and clip overflow, mimicking HA's fixed grid-row
+   *  height in a Sections dashboard; 0 lets the card grow freely. */
+  private _compassHostStyle(): string {
+    const h = this.config.stageHeight;
+    return h > 0 ? `height: ${h}px; overflow: hidden;` : '';
   }
 
   protected updated(changed: Map<string, unknown>): void {
