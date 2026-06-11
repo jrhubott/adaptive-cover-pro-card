@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import '../src/adaptive-cover-pro-card';
+import { AdaptiveCoverProCard } from '../src/adaptive-cover-pro-card';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { AdaptiveCoverProCardConfig } from '../src/types';
 import type { EntityRegistryEntry } from '../src/lib/entity-registry';
@@ -152,5 +153,26 @@ describe('AdaptiveCoverProCard.getGridOptions', () => {
       show_sections: ['sky', 'elevation', 'decision', 'covers', 'overrides', 'climate'],
     });
     expect(allSections.getGridOptions().rows).toBeGreaterThan(oneSection.getGridOptions().rows);
+  });
+});
+
+describe('header layout — long entry title', () => {
+  it('renders the header with a title span', async () => {
+    const el = await mountWithRegistry({
+      type: 'custom:adaptive-cover-pro-card',
+      entry_id: ENTRY,
+    });
+    const header = el.shadowRoot!.querySelector('.header');
+    expect(header).toBeTruthy();
+    const title = header!.querySelector('.title');
+    expect(title).toBeTruthy();
+  });
+
+  it('header does not use align-items: center (which clips wrapped titles)', () => {
+    // CSS layout overflow is not catchable by happy-dom, but we can assert that
+    // the LitElement.styles CSSResult does not contain the clipping combination.
+    const styles = (AdaptiveCoverProCard as unknown as { styles: { cssText: string } }).styles
+      .cssText;
+    expect(styles).toMatch(/\.header\s*\{[^}]*align-items:\s*flex-start/);
   });
 });

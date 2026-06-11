@@ -3100,7 +3100,7 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
     }
     .header {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 8px;
       font-weight: 500;
     }

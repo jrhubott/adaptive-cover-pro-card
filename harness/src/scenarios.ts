@@ -703,6 +703,26 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'long-title-wrap',
+    label: 'Long entry title — header wrap (issue #147)',
+    description:
+      'Entry title long enough to wrap onto two lines on a 390px (mobile) viewport. ' +
+      'Regression guard for issue #147: the header must expand its height to accommodate ' +
+      'the second title line without clipping. Verify on mobile simulation in devtools.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'long-title-wrap';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Adaptive Cover - Salle de Bain Parentale',
+          window_azimuth: 180,
+        }),
+      ];
+      return c;
+    },
+  },
+  {
     id: 'narrow-column-tiles',
     label: 'Narrow column tiles (repro #136)',
     description:
