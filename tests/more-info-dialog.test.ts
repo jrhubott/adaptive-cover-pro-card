@@ -369,6 +369,30 @@ describe('acp-more-info-dialog: slot management', () => {
     expect(minModeTags.length).toBe(1);
   });
 
+  it('renders a template chip only for slots with template=true', async () => {
+    const templated = [
+      {
+        ...slots[0],
+        template: true,
+        template_mode: 'or' as const,
+        sensors: ['binary_sensor.a', 'binary_sensor.b'],
+      },
+      { ...slots[1] }, // not templated
+    ];
+    const el = await mount({
+      hass: hass({ traceExtraAttrs: { custom_position_slots: templated } }),
+      discovered: discovered(),
+      open: true,
+    });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    const chips = el.shadowRoot!.querySelectorAll('.slot-row .slot-template');
+    expect(chips.length).toBe(1);
+    // The chip's tooltip surfaces the sensor count and combine mode.
+    expect(chips[0].getAttribute('title')).toContain('2 sensors');
+    expect(chips[0].getAttribute('title')).toContain('or');
+  });
+
   it('floor pill is the ↥ glyph', async () => {
     const el = await mount({
       hass: hass({ traceExtraAttrs: { custom_position_slots: slots } }),

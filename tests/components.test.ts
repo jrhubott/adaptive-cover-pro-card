@@ -181,6 +181,18 @@ describe('acp-cover-bar', () => {
 });
 
 describe('acp-overrides-panel', () => {
+  it('does not render a Force tile (dropped in v2.28.0)', async () => {
+    const el = await mount<LitLike>('acp-overrides-panel');
+    el.hass = { states: {} } as unknown as HomeAssistant;
+    el.discovered = { ...baseDiscovered, entities: {} };
+    await flush(el);
+    const labels = Array.from(el.shadowRoot!.querySelectorAll('.tile-label')).map((n) =>
+      n.textContent!.trim(),
+    );
+    expect(labels).toContain('Manual');
+    expect(labels).not.toContain('Force');
+  });
+
   it('hides the reset button when no reset_override_button is discovered', async () => {
     const el = await mount<LitLike>('acp-overrides-panel');
     el.hass = { states: {} } as unknown as HomeAssistant;

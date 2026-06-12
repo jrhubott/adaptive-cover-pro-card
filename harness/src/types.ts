@@ -7,13 +7,20 @@ export type ClimateStrategy = 'summer_mode' | 'winter_mode' | 'intermediate' | '
 export type DecisionMode = 'derived' | 'scripted';
 
 export interface CustomPositionSlotCfg {
-  slot: 1 | 2 | 3 | 4;
+  slot: 1 | 2 | 3 | 4 | 5;
   enabled: boolean;
   position: number;
   name: string;
   min_mode: boolean;
-  /** Slot priority 1–99 (mirrors the integration). >80 resists a manual ↓. */
+  /** Slot priority (mirrors the integration). >80 resists a manual ↓; the
+   *  v2.28.0 safety slot (slot 5) uses priority 100. */
   priority: number;
+  /** Bound sensors when the slot uses a multi-sensor (template) trigger. */
+  sensors?: string[];
+  /** True when the slot's trigger is a Jinja template. */
+  template?: boolean;
+  /** How a multi-sensor slot combines its sensors. */
+  template_mode?: 'or' | 'and' | null;
 }
 
 export interface ManagedCoverCfg {
@@ -61,7 +68,10 @@ export interface HarnessEntry {
      *  solar would-be target (`target_position`). null = no divergence (held
      *  tracks the solar target, the pre-#132 collapse behavior). */
     held_position: number | null;
-    force_override_triggers: number;
+    /** When true, the priority-100 safety slot (slot 5) is armed and wins as a
+     *  custom_position with bypass_auto_control. Replaces the pre-2.28
+     *  standalone Force Override trigger count. */
+    safety_slot_active: boolean;
     motion_status: MotionStatusValue;
     /** Minutes from now when motion timeout fires. */
     motion_timeout_minutes_from_now: number;

@@ -313,6 +313,30 @@ describe('isAutoControlActive', () => {
     ).toBe(true);
   });
 
+  it('is false for a priority-100 safety custom_position winner even when bypass is not set', () => {
+    // Defensive branch: a safety slot must suppress Auto even if the integration
+    // failed to set bypass_auto_control on the trace.
+    expect(
+      isAutoControlActive({
+        ...base,
+        winner: 'custom_position',
+        bypassAutoControl: false,
+        safetyActive: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('keeps the existing bypass path independent of the safety flag', () => {
+    expect(
+      isAutoControlActive({
+        ...base,
+        winner: 'custom_position',
+        bypassAutoControl: true,
+        safetyActive: false,
+      }),
+    ).toBe(false);
+  });
+
   it('is false when the integration is disabled', () => {
     expect(isAutoControlActive({ ...base, winner: 'solar', integrationEnabled: false })).toBe(
       false,

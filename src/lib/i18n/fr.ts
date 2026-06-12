@@ -34,6 +34,7 @@ export const fr: EnDict = {
     off: 'Off',
     off_schedule: 'Hors planning',
     floor_suffix: ' ↥',
+    safety: 'Sécurité',
   },
   forecast: {
     event: {

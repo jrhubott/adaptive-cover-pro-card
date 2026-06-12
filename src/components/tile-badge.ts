@@ -48,6 +48,13 @@ export class TileBadge extends LitElement {
   @property({ type: Boolean, attribute: 'manual-active' })
   public manualActive = false;
 
+  /** When true and the winner is a `custom_position` slot, the badge renders the
+   *  red, force-styled "Safety" variant (v2.28.0+ migrated Force Override —
+   *  priority-100 slot 5). `_kind()` is unchanged: the underlying kind stays
+   *  `custom_position`; only the rendered tokens/icon/label are substituted. */
+  @property({ type: Boolean, attribute: 'safety-active' })
+  public safetyActive = false;
+
   /** Explicit badge kind that overrides the winner-derived kind. The tile card
    *  sets this to substitute the Auto badge for a suppressed "Motion idle"
    *  winner; left undefined the kind is derived from `winner` as usual. */
@@ -61,10 +68,18 @@ export class TileBadge extends LitElement {
 
   protected render(): TemplateResult {
     const kind = this._kind();
-    const tokens = BADGE_TOKENS[kind];
-    const base = this.hass ? t(BADGE_I18N_KEYS[kind], this.hass) : tokens.label;
-    const label = this._label(kind, base);
-    const icon = BADGE_ICONS[kind];
+    // A priority-100 safety custom_position slot (v2.28.0+ migrated Force
+    // Override) reuses the red `force` tokens/icon and the "Safety" label, while
+    // the kind class stays `custom_position` so the badge tracks the real winner.
+    const safetyVariant = kind === 'custom_position' && this.safetyActive;
+    const tokens = safetyVariant ? BADGE_TOKENS.force : BADGE_TOKENS[kind];
+    const base = this.hass ? t(BADGE_I18N_KEYS[kind], this.hass) : BADGE_TOKENS[kind].label;
+    const label = safetyVariant
+      ? this.hass
+        ? t('badge.safety', this.hass)
+        : 'Safety'
+      : this._label(kind, base);
+    const icon = safetyVariant ? BADGE_ICONS.force : BADGE_ICONS[kind];
     const inner = html`${icon
       ? html`<ha-icon class="badge-icon" icon=${icon}></ha-icon>`
       : nothing}${label}${this.resumable

@@ -18,12 +18,29 @@ export const INTEGRATION_DOMAIN = 'adaptive_cover_pro';
 export const MANUAL_OVERRIDE_PRIORITY = 80;
 
 /**
+ * Priority of the safety custom-position slot (slot 5) in integration v2.28.0+.
+ * The former standalone Force Override feature merged into Custom Positions as a
+ * priority-100 slot that bypasses the time window and delta send-gates. The card
+ * detects a "safety" winner by this priority rather than by a handler name, so
+ * the migrated feature keeps its red, force-styled badge. Keep in lock-step with
+ * the integration's safety-slot priority.
+ */
+export const CUSTOM_POSITION_SAFETY_PRIORITY = 100;
+
+/**
  * The 11 Adaptive Cover Pro pipeline handlers in priority order (highest first).
  * Must match `control_method` enum values emitted by the integration.
  * Keep the ordering in lock-step with `custom_components/adaptive_cover_pro/pipeline/registry.py`.
  * `floor_clamp` is a post-processing step that raises the output above the raw
  * calculation; it follows all handler decisions in priority.
  */
+// NOTE: the `force` handler (and its HANDLER_LABELS/HANDLER_I18N_KEYS/
+// BADGE_KINDS_BY_HANDLER/BADGE_TOKENS/BADGE_ICONS/BADGE_I18N_KEYS entries plus
+// the `force_override → force` map in normalizeHandler) is retained for
+// pre-2.28 integration builds. v2.28.0+ merged Force Override into Custom
+// Positions (slot 5 / priority 100) and no longer emits `force`/`force_override`
+// as a winner, but older builds still do — keep these entries so the card
+// degrades gracefully across versions.
 export const HANDLER_ORDER = [
   'force',
   'weather',
@@ -210,7 +227,6 @@ export type EntityRole =
   | 'manual_override_end_sensor'
   | 'position_verification_sensor'
   | 'motion_status_sensor'
-  | 'force_override_sensor'
   | 'climate_status_sensor'
   | 'position_forecast_sensor'
   | 'sun_infront_binary'
@@ -274,7 +290,9 @@ export const UNIQUE_ID_ROLES: Record<string, EntityRole> = {
   'sensor:manual_override_end_time': 'manual_override_end_sensor',
   'sensor:position_verification': 'position_verification_sensor',
   'sensor:motion_status': 'motion_status_sensor',
-  'sensor:force_override_triggers': 'force_override_sensor',
+  // NOTE: `sensor:force_override_triggers` was removed in v2.28.0 (Force Override
+  // merged into Custom Positions slot 5 / priority 100). The sensor no longer
+  // exists, so its role mapping is dropped.
   'sensor:climate_status': 'climate_status_sensor',
   'sensor:position_forecast': 'position_forecast_sensor',
 

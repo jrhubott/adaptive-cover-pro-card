@@ -26,6 +26,7 @@ export const en = {
     off: 'Off',
     off_schedule: 'Off-schedule',
     floor_suffix: ' ↥',
+    safety: 'Safety',
   },
   forecast: {
     event: {

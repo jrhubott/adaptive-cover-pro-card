@@ -156,8 +156,10 @@ export interface DecisionTraceAttributes {
    *  sun_position.in_fov. */
   sun_state?: string;
   /** 1-based slot number of the winning Custom Position handler.
-   *  Integration v2.22.1+; absent when any other handler wins. */
-  custom_position_active_slot?: 1 | 2 | 3 | 4;
+   *  Integration v2.22.1+; absent when any other handler wins. Slot 5 is the
+   *  v2.28.0+ safety slot (priority 100) that the former Force Override merged
+   *  into. */
+  custom_position_active_slot?: 1 | 2 | 3 | 4 | 5;
   /** True when the configured floor is actively raising position above the raw
    *  autonomous calculation. False when the floor is configured but is a no-op
    *  this cycle. Absent in exact mode or when any non-custom handler wins. */
@@ -166,9 +168,10 @@ export interface DecisionTraceAttributes {
    *  human-readable slot label. Integration v2.22.1+; absent when the sensor
    *  has no friendly_name. */
   custom_position_active_slot_name?: string;
-  /** Snapshot of all 4 custom-position slots' configured state.
-   *  Stable 4-row list (one per slot); unconfigured slots read `sensor=null`.
-   *  Absent on integrations that pre-date the slot UI work. */
+  /** Snapshot of all custom-position slots' configured state. Stable list (one
+   *  row per slot); unconfigured slots read `sensor=null`. v2.28.0+ adds a 5th
+   *  row for the priority-100 safety slot. Absent on integrations that pre-date
+   *  the slot UI work. */
   custom_position_slots?: CustomPositionSlotSnapshot[];
 }
 
@@ -190,13 +193,22 @@ export interface PositionForecastAttributes {
 }
 
 export interface CustomPositionSlotSnapshot {
-  slot: 1 | 2 | 3 | 4;
+  slot: 1 | 2 | 3 | 4 | 5;
   enabled: boolean;
   sensor: string | null;
   sensor_name: string | null;
   position: number | null;
   priority: number | null;
   min_mode: boolean | null;
+  /** Bound sensors when the slot uses a multi-sensor (template) trigger.
+   *  Integration v2.28.0+; absent on single-sensor slots and older builds. */
+  sensors?: string[];
+  /** True when the slot's trigger is a Jinja template rather than a plain
+   *  sensor-state match. Integration v2.28.0+. */
+  template?: boolean;
+  /** How a multi-sensor slot combines its sensors ('or' | 'and'), or null when
+   *  not applicable. Integration v2.28.0+. */
+  template_mode?: 'or' | 'and' | null;
 }
 
 export interface SunPositionAttributes {
