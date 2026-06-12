@@ -254,14 +254,26 @@ function addEntryStates(
     id('climate_status_sensor'),
     f.climate_strategy,
     f.climate_strategy === 'unknown'
-      ? { friendly_name: `${entry.title} Climate Status` }
+      ? {
+          friendly_name: `${entry.title} Climate Status`,
+          // #590: threshold keys always present (values may be null), plus the
+          // inactive_reason slug — emitted even in standby.
+          temp_low: f.climate_temp_low,
+          temp_high: f.climate_temp_high,
+          temp_summer_outside: f.climate_temp_summer_outside,
+          inactive_reason: f.climate_inactive_reason,
+        }
       : {
           friendly_name: `${entry.title} Climate Status`,
-          active_temperature: f.indoor_temp,
+          active_temperature: f.climate_strategy === 'winter_mode' ? f.outdoor_temp : f.indoor_temp,
           temperature_unit: '°C',
           indoor_temperature: f.indoor_temp,
           outdoor_temperature: f.outdoor_temp,
           temp_switch: f.climate_strategy === 'winter_mode',
+          temp_low: f.climate_temp_low,
+          temp_high: f.climate_temp_high,
+          temp_summer_outside: f.climate_temp_summer_outside,
+          inactive_reason: 'active',
           is_presence: true,
           is_sunny: sun.elevation > 0,
           lux_active: sun.elevation > 5,

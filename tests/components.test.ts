@@ -448,4 +448,132 @@ describe('acp-climate-panel', () => {
     expect(el.shadowRoot!.querySelector('.wrap')).toBeTruthy();
     expect(el.shadowRoot!.querySelector('.strategy')).toBeTruthy();
   });
+
+  // --- issue #129: standby inactive_reason line ---
+
+  it('standby + inactive_reason "outside_time_window" → renders the localized reason line', async () => {
+    const el = await mount<LitLike>('acp-climate-panel');
+    el.hass = makeHass('unknown', { inactive_reason: 'outside_time_window' }, 'on');
+    el.discovered = makeDiscovered(true);
+    await flush(el);
+    const reason = el.shadowRoot!.querySelector('.standby-reason');
+    expect(reason?.textContent?.trim()).toBe('Outside the operating time window');
+  });
+
+  it.each([
+    ['thresholds_not_met', 'Temperatures within the comfort band — no action needed'],
+    ['other_mode_active', 'Another control mode is currently active'],
+    ['readings_unavailable', 'Temperature readings unavailable'],
+  ])('standby + inactive_reason "%s" → renders "%s"', async (slug, expected) => {
+    const el = await mount<LitLike>('acp-climate-panel');
+    el.hass = makeHass('unknown', { inactive_reason: slug }, 'on');
+    el.discovered = makeDiscovered(true);
+    await flush(el);
+    expect(el.shadowRoot!.querySelector('.standby-reason')?.textContent?.trim()).toBe(expected);
+  });
+
+  it('standby + inactive_reason "mode_off" → no reason line (label already conveys it)', async () => {
+    const el = await mount<LitLike>('acp-climate-panel');
+    el.hass = makeHass('unknown', { inactive_reason: 'mode_off' }, 'off');
+    el.discovered = makeDiscovered(true);
+    await flush(el);
+    expect(el.shadowRoot!.querySelector('.standby-reason')).toBeNull();
+    expect(el.shadowRoot!.querySelector('.strategy-name')?.textContent?.trim()).toBe(
+      'Climate mode off',
+    );
+  });
+
+  it('standby + inactive_reason "active" → no reason line (should not reach standby)', async () => {
+    const el = await mount<LitLike>('acp-climate-panel');
+    el.hass = makeHass('unknown', { inactive_reason: 'active' }, 'on');
+    el.discovered = makeDiscovered(true);
+    await flush(el);
+    expect(el.shadowRoot!.querySelector('.standby-reason')).toBeNull();
+  });
+
+  it('standby with no inactive_reason (older integration) → no reason line, unchanged', async () => {
+    const el = await mount<LitLike>('acp-climate-panel');
+    el.hass = makeHass('unknown', {}, 'on');
+    el.discovered = makeDiscovered(true);
+    await flush(el);
+    expect(el.shadowRoot!.querySelector('.standby-reason')).toBeNull();
+    expect(el.shadowRoot!.querySelector('.strategy-name')?.textContent?.trim()).toBe('Standby');
+  });
+
+  // --- issue #129: active-branch threshold pairing ---
+
+  it('active + temp_switch false → indoor tile shows low/high, outdoor tile shows summer', async () => {
+    const el = await mount<LitLike>('acp-climate-panel');
+    el.hass = makeHass('intermediate', {
+      active_temperature: 21,
+      temperature_unit: '°C',
+      indoor_temperature: 21,
+      outdoor_temperature: 18,
+      temp_switch: false,
+      temp_low: 18,
+      temp_high: 25,
+      temp_summer_outside: 22,
+    });
+    el.discovered = makeDiscovered(false);
+    await flush(el);
+    const temps = Array.from(el.shadowRoot!.querySelectorAll('.temp'));
+    expect(temps.length).toBe(2);
+    const indoorThreshold = temps[0]
+      .querySelector('.temp-threshold')
+      ?.textContent?.replace(/\s+/g, ' ')
+      .trim();
+    expect(indoorThreshold).toBe('low 18.0°C high 25.0°C');
+    const outdoorThreshold = temps[1]
+      .querySelector('.temp-threshold')
+      ?.textContent?.replace(/\s+/g, ' ')
+      .trim();
+    expect(outdoorThreshold).toBe('summer 22.0°C');
+  });
+
+  it('active + temp_switch true → outdoor tile shows low/high/summer, indoor tile shows none', async () => {
+    const el = await mount<LitLike>('acp-climate-panel');
+    el.hass = makeHass('winter_mode', {
+      active_temperature: 15,
+      temperature_unit: '°C',
+      indoor_temperature: 21,
+      outdoor_temperature: 15,
+      temp_switch: true,
+      temp_low: 18,
+      temp_high: 25,
+      temp_summer_outside: 22,
+    });
+    el.discovered = makeDiscovered(false);
+    await flush(el);
+    const temps = Array.from(el.shadowRoot!.querySelectorAll('.temp'));
+    expect(temps.length).toBe(2);
+    expect(temps[0].querySelector('.temp-threshold')).toBeNull();
+    const outdoorThreshold = temps[1]
+      .querySelector('.temp-threshold')
+      ?.textContent?.replace(/\s+/g, ' ')
+      .trim();
+    expect(outdoorThreshold).toBe('low 18.0°C high 25.0°C summer 22.0°C');
+  });
+
+  it('active + null/missing thresholds → omits individual fragments and empty sub-lines', async () => {
+    const el = await mount<LitLike>('acp-climate-panel');
+    el.hass = makeHass('intermediate', {
+      active_temperature: 21,
+      temperature_unit: '°C',
+      indoor_temperature: 21,
+      outdoor_temperature: 18,
+      temp_switch: false,
+      temp_low: null,
+      temp_high: 25,
+      // temp_summer_outside absent entirely
+    });
+    el.discovered = makeDiscovered(false);
+    await flush(el);
+    const temps = Array.from(el.shadowRoot!.querySelectorAll('.temp'));
+    // indoor: only high survives (low is null)
+    expect(
+      temps[0].querySelector('.temp-threshold')?.textContent?.replace(/\s+/g, ' ').trim(),
+    ).toBe('high 25.0°C');
+    // outdoor: summer absent → whole sub-line omitted, no "—" clutter
+    expect(temps[1].querySelector('.temp-threshold')).toBeNull();
+  });
 });

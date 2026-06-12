@@ -4,6 +4,14 @@ export type CoverType = 'cover_blind' | 'cover_awning' | 'cover_tilt';
 
 export type MotionStatusValue = 'idle' | 'motion_detected' | 'timeout_pending';
 export type ClimateStrategy = 'summer_mode' | 'winter_mode' | 'intermediate' | 'unknown';
+
+export type ClimateInactiveReason =
+  | 'active'
+  | 'mode_off'
+  | 'outside_time_window'
+  | 'thresholds_not_met'
+  | 'other_mode_active'
+  | 'readings_unavailable';
 export type DecisionMode = 'derived' | 'scripted';
 
 export interface CustomPositionSlotCfg {
@@ -79,6 +87,14 @@ export interface HarnessEntry {
     /** Indoor / outdoor temps to surface in the climate panel. */
     indoor_temp: number;
     outdoor_temp: number;
+    /** Why climate is inactive when the strategy is `unknown` (standby). Mirrors
+     *  the integration's `inactive_reason` slug on the climate_status sensor. */
+    climate_inactive_reason: ClimateInactiveReason;
+    /** Configured climate thresholds surfaced on the climate_status sensor.
+     *  null = unconfigured (the card guards for null). */
+    climate_temp_low: number | null;
+    climate_temp_high: number | null;
+    climate_temp_summer_outside: number | null;
     glare_active: boolean;
     is_sunset_active: boolean;
     in_time_window: boolean;

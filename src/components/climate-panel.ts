@@ -15,7 +15,19 @@ interface ClimateAttrs {
   is_sunny?: boolean;
   lux_active?: boolean;
   irradiance_active?: boolean;
+  // adaptive-cover-pro#590: keys always present on a current integration but
+  // values can be null when the threshold is unconfigured.
+  temp_low?: number | null;
+  temp_high?: number | null;
+  temp_summer_outside?: number | null;
+  // Always a non-null slug on #590+; absent on older integrations.
+  inactive_reason?: string;
 }
+
+// Reason slugs that should NOT render a dedicated standby sub-line:
+//   mode_off  → the existing "Climate mode off" label already conveys it.
+//   active    → the handler is active and should not reach the standby branch.
+const SUPPRESSED_REASONS = new Set(['mode_off', 'active']);
 
 // Keyed by slug states emitted by the integration's `climate_status` sensor
 // (adaptive-cover-pro#453). The visible strategy label is sourced from
@@ -44,6 +56,13 @@ export class ClimatePanel extends LitElement {
       const modeOff = modeId ? this.hass.states[modeId]?.state === 'off' : false;
       const label = modeOff ? t('climate.mode_off', this.hass) : t('climate.standby', this.hass);
       const icon = modeOff ? 'mdi:power-off' : 'mdi:thermostat';
+      const reasonSlug = (st.attributes as unknown as ClimateAttrs)?.inactive_reason;
+      // Older integrations omit the slug → no reason line (backward-compat).
+      // mode_off / active are suppressed (see SUPPRESSED_REASONS).
+      const reasonLine =
+        reasonSlug && !SUPPRESSED_REASONS.has(reasonSlug)
+          ? t(`climate.reason.${reasonSlug}`, this.hass)
+          : undefined;
       return html`
         <div class="wrap">
           <div class="head">
@@ -53,6 +72,7 @@ export class ClimatePanel extends LitElement {
             <ha-icon icon=${icon}></ha-icon>
             <span class="strategy-name dim">${label}</span>
           </div>
+          ${reasonLine ? html`<div class="standby-reason dim">${reasonLine}</div>` : nothing}
         </div>
       `;
     }
@@ -69,14 +89,59 @@ export class ClimatePanel extends LitElement {
         ? `${attrs.active_temperature.toFixed(1)}${unit}`
         : '—';
 
+    // Threshold pairing (adaptive-cover-pro#590). Season math:
+    //   current = temp_switch ? outdoor : indoor
+    //   winter when current < temp_low; summer when current > temp_high AND
+    //   outdoor > temp_summer_outside.
+    // So temp_low/temp_high belong to whichever tile is the "current" temp, and
+    // temp_summer_outside always belongs to the outdoor tile.
+    const isOutdoorCurrent = attrs.temp_switch === true;
+    const fragment = (labelKey: string, value: number | null | undefined): string | null => {
+      if (value === null || value === undefined || Number.isNaN(value)) return null;
+      return `${t(labelKey, this.hass)} ${value.toFixed(1)}${unit}`;
+    };
+    const indoorThreshold = isOutdoorCurrent
+      ? null
+      : [
+          fragment('climate.threshold_low', attrs.temp_low),
+          fragment('climate.threshold_high', attrs.temp_high),
+        ]
+          .filter((f): f is string => f !== null)
+          .join(' ') || null;
+    const outdoorThreshold =
+      [
+        ...(isOutdoorCurrent
+          ? [
+              fragment('climate.threshold_low', attrs.temp_low),
+              fragment('climate.threshold_high', attrs.temp_high),
+            ]
+          : []),
+        fragment('climate.threshold_summer_outside', attrs.temp_summer_outside),
+      ]
+        .filter((f): f is string => f !== null)
+        .join(' ') || null;
+
     const temps = [
       attrs.indoor_temperature !== undefined
-        ? { label: t('climate.indoor', this.hass), value: attrs.indoor_temperature, unit }
+        ? {
+            label: t('climate.indoor', this.hass),
+            value: attrs.indoor_temperature,
+            unit,
+            threshold: indoorThreshold,
+          }
         : null,
       attrs.outdoor_temperature !== undefined
-        ? { label: t('climate.outdoor', this.hass), value: attrs.outdoor_temperature, unit }
+        ? {
+            label: t('climate.outdoor', this.hass),
+            value: attrs.outdoor_temperature,
+            unit,
+            threshold: outdoorThreshold,
+          }
         : null,
-    ].filter((row): row is { label: string; value: number; unit: string } => row !== null);
+    ].filter(
+      (row): row is { label: string; value: number; unit: string; threshold: string | null } =>
+        row !== null,
+    );
 
     const conditions: Array<{ label: string; value: boolean | undefined; icon: string }> = [
       {
@@ -115,6 +180,9 @@ export class ClimatePanel extends LitElement {
                     <div class="temp">
                       <span class="temp-label dim">${row.label}</span>
                       <span class="temp-value">${row.value.toFixed(1)}${row.unit}</span>
+                      ${row.threshold
+                        ? html`<span class="temp-threshold dim">${row.threshold}</span>`
+                        : nothing}
                     </div>
                   `,
                 )}
@@ -192,6 +260,14 @@ export class ClimatePanel extends LitElement {
     .temp-value {
       font-variant-numeric: tabular-nums;
       font-weight: 500;
+    }
+    .temp-threshold {
+      font-size: 0.62rem;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .standby-reason {
+      font-size: 0.78rem;
     }
     .conditions {
       display: flex;
