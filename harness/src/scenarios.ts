@@ -133,6 +133,10 @@ function makeEntry(
       climate_strategy: 'intermediate',
       indoor_temp: 21,
       outdoor_temp: 18,
+      climate_inactive_reason: 'outside_time_window',
+      climate_temp_low: 18,
+      climate_temp_high: 25,
+      climate_temp_summer_outside: 22,
       glare_active: false,
       is_sunset_active: false,
       in_time_window: true,
@@ -747,11 +751,30 @@ export const SCENARIOS: Scenario[] = [
     id: 'climate-standby',
     label: 'Climate standby — outside operating window',
     description:
-      'Climate mode is on but the status sensor is unknown (sun not currently on the window). The climate panel shows the "Standby" state instead of "Unknown / Active: —".',
+      'Climate mode is on but the status sensor is unknown (sun not currently on the window). The climate panel shows the "Standby" state plus a dim reason line ("Outside the operating time window") sourced from the integration\'s inactive_reason slug (#590/#129).',
     build: () => {
       const c = baseConfig('2026-06-21', 8 * 60);
       c.scenario = 'climate-standby';
       c.entries[0].flags.climate_strategy = 'unknown';
+      c.entries[0].flags.climate_inactive_reason = 'outside_time_window';
+      return c;
+    },
+  },
+  {
+    id: 'climate-thresholds',
+    label: 'Climate active — temps vs thresholds (#129)',
+    description:
+      'Climate is actively deciding (intermediate). Each temperature tile is paired with its threshold sub-line: the current/indoor tile shows low/high, the outdoor tile shows the summer gate (#590/#129).',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'climate-thresholds';
+      const f = c.entries[0].flags;
+      f.climate_strategy = 'intermediate';
+      f.indoor_temp = 22;
+      f.outdoor_temp = 27;
+      f.climate_temp_low = 18;
+      f.climate_temp_high = 25;
+      f.climate_temp_summer_outside = 22;
       return c;
     },
   },

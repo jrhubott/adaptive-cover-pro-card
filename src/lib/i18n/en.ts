@@ -87,6 +87,16 @@ export const en = {
     irradiance: 'Irradiance',
     mode_off: 'Climate mode off',
     standby: 'Standby',
+    threshold_low: 'low',
+    threshold_high: 'high',
+    threshold_summer_outside: 'summer',
+    reason: {
+      outside_time_window: 'Outside the operating time window',
+      thresholds_not_met: 'Temperatures within the comfort band — no action needed',
+      other_mode_active: 'Another control mode is currently active',
+      readings_unavailable: 'Temperature readings unavailable',
+      mode_off: 'Climate mode is turned off',
+    },
   },
   compass: {
     placeholder_no_entries: 'No Adaptive Cover Pro entries selected.',
