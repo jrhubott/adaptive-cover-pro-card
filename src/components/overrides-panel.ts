@@ -35,14 +35,6 @@ export class OverridesPanel extends LitElement {
     return { state: st.state, endIso: endIso ?? null };
   }
 
-  private _forceActive(): number {
-    const id = this.discovered.entities.force_override_sensor;
-    if (!id) return 0;
-    const st = this.hass.states[id];
-    if (!st) return 0;
-    return parseInt(st.state, 10) || 0;
-  }
-
   private _resetManual(): void {
     const id = this.discovered.entities.reset_override_button;
     if (!id) return;
@@ -68,7 +60,6 @@ export class OverridesPanel extends LitElement {
     const manualEnd = this._manualEndIso();
     const motion = this._motionStatus();
     const motionId = this.discovered.entities.motion_status_sensor;
-    const forceCount = this._forceActive();
     const resetId = this.discovered.entities.reset_override_button;
     const resetLabel = t('overrides.reset_manual', this.hass);
 
@@ -86,15 +77,6 @@ export class OverridesPanel extends LitElement {
                   ${t('overrides.ends_in', this.hass, { time: countdownTo(manualEnd, this.hass) })}
                 </div>`
               : nothing}
-          </div>
-
-          <div class="tile ${forceCount > 0 ? 'active warning' : ''}">
-            <div class="tile-label">${t('overrides.force', this.hass)}</div>
-            <div class="tile-value">
-              ${forceCount > 0
-                ? t('overrides.active_count', this.hass, { count: forceCount })
-                : t('overrides.off', this.hass)}
-            </div>
           </div>
 
           ${motion
@@ -167,9 +149,6 @@ export class OverridesPanel extends LitElement {
     .tile.active {
       background: var(--primary-color);
       color: var(--text-primary-color, #fff);
-    }
-    .tile.active.warning {
-      background: var(--warning-color, orange);
     }
     .tile.action {
       cursor: pointer;

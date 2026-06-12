@@ -1,4 +1,8 @@
-import { HANDLER_ORDER, type HandlerName } from '../../../src/const';
+import {
+  CUSTOM_POSITION_SAFETY_PRIORITY,
+  HANDLER_ORDER,
+  type HandlerName,
+} from '../../../src/const';
 import type { DecisionStep, DecisionTraceAttributes } from '../../../src/types';
 import { azimuthInFov } from '../../../src/lib/sun-model';
 import type { HarnessEntry } from '../types';
@@ -67,9 +71,11 @@ export function decide(input: DecisionInput): DecisionResult {
     }
   }
 
+  // A priority-100 safety slot bypasses automatic control (old force semantics).
+  const derivedSafety = winner === 'custom_position' && activeSlotIsSafety(entry);
   const attrs: DecisionResult['attrs'] = {
     enabled_handlers: enabledHandlers,
-    bypass_auto_control: !f.automatic_control && f.integration_enabled,
+    bypass_auto_control: (!f.automatic_control && f.integration_enabled) || derivedSafety,
     default_position: f.default_position,
     is_sunset_active: f.is_sunset_active,
     in_time_window: f.in_time_window,
@@ -99,6 +105,9 @@ export function decide(input: DecisionInput): DecisionResult {
       position: s.position,
       priority: s.priority,
       min_mode: s.min_mode,
+      ...(s.sensors !== undefined ? { sensors: s.sensors } : {}),
+      ...(s.template !== undefined ? { template: s.template } : {}),
+      ...(s.template_mode !== undefined ? { template_mode: s.template_mode } : {}),
     })),
   };
 
@@ -132,14 +141,15 @@ function evalHandler(
 
   switch (handler) {
     case 'force':
+      // v2.28.0 merged Force Override into Custom Positions (slot 5 / priority
+      // 100). The standalone force handler no longer wins; it is retained only
+      // so the card's back-compat path stays exercised. Safety now flows through
+      // the custom_position branch below.
       return {
-        enabled: true,
-        matches: f.force_override_triggers > 0,
-        position: 0,
-        reason:
-          f.force_override_triggers > 0
-            ? `Force override (${f.force_override_triggers} triggers)`
-            : 'no force triggers active',
+        enabled: false,
+        matches: false,
+        position: null,
+        reason: 'force override merged into custom positions (v2.28)',
       };
     case 'weather':
       return {
@@ -158,14 +168,19 @@ function evalHandler(
           : 'no manual override',
       };
     case 'custom_position': {
-      const slot = entry.slots.find((s) => s.enabled);
-      const matches = !!slot && f.automatic_control;
+      const slot = winningSlot(entry);
+      // A priority-100 safety slot wins even with automatic control off — it
+      // bypasses the time window and send-gates (the old force semantics).
+      const isSafety = slot?.priority === CUSTOM_POSITION_SAFETY_PRIORITY;
+      const matches = !!slot && (f.automatic_control || isSafety);
       return {
         enabled: entry.slots.some((s) => s.enabled),
         matches,
         position: slot?.position ?? null,
         reason: matches
-          ? `Custom slot ${slot!.slot} (${slot!.name}) at ${slot!.position}%`
+          ? isSafety
+            ? `Safety slot ${slot!.slot} (${slot!.name}) at ${slot!.position}%`
+            : `Custom slot ${slot!.slot} (${slot!.name}) at ${slot!.position}%`
           : 'no enabled custom slot',
       };
     }
@@ -239,17 +254,35 @@ function gammaFor(sunAzimuth: number, windowAzimuth: number): number {
   return g;
 }
 
-function activeSlot(entry: HarnessEntry): 1 | 2 | 3 | 4 | undefined {
-  const s = entry.slots.find((x) => x.enabled);
-  return s?.slot;
+/**
+ * The custom-position slot that wins this cycle. An armed priority-100 safety
+ * slot (slot 5, gated by `flags.safety_slot_active`) takes precedence over an
+ * ordinary enabled slot, mirroring the v2.28.0 integration where the migrated
+ * Force Override outranks the other custom slots.
+ */
+function winningSlot(entry: HarnessEntry) {
+  const safety = entry.slots.find(
+    (s) => s.enabled && s.priority === CUSTOM_POSITION_SAFETY_PRIORITY,
+  );
+  if (entry.flags.safety_slot_active && safety) return safety;
+  return entry.slots.find((s) => s.enabled && s.priority !== CUSTOM_POSITION_SAFETY_PRIORITY);
+}
+
+function activeSlot(entry: HarnessEntry): 1 | 2 | 3 | 4 | 5 | undefined {
+  return winningSlot(entry)?.slot;
 }
 
 function activeSlotName(entry: HarnessEntry): string | undefined {
-  return entry.slots.find((x) => x.enabled)?.name;
+  return winningSlot(entry)?.name;
 }
 
 function activeSlotMinMode(entry: HarnessEntry): boolean | undefined {
-  return entry.slots.find((x) => x.enabled)?.min_mode;
+  return winningSlot(entry)?.min_mode;
+}
+
+/** Whether the cycle's winning custom slot is the priority-100 safety slot. */
+function activeSlotIsSafety(entry: HarnessEntry): boolean {
+  return winningSlot(entry)?.priority === CUSTOM_POSITION_SAFETY_PRIORITY;
 }
 
 /**
@@ -273,8 +306,10 @@ export function scriptedDecision(
   // A custom_position slot that sets an exact position (min_mode false) bypasses
   // automatic control, mirroring the integration's `bypass_auto_control`. This
   // lets the Auto-badge suppression case (issue #110) be exercised even while
-  // automatic control stays on.
-  const customBypass = winner === 'custom_position' && activeSlotMinMode(entry) === false;
+  // automatic control stays on. A priority-100 safety slot also bypasses.
+  const scriptedSafety = winner === 'custom_position' && activeSlotIsSafety(entry);
+  const customBypass =
+    winner === 'custom_position' && (activeSlotMinMode(entry) === false || scriptedSafety);
   const aziInFov = azimuthInFov(sunAzimuth, entry.window_azimuth, entry.fov_left, entry.fov_right);
   // Scripted winners (e.g. manual/motion) are not solar, so direct_sun_valid is
   // false; the 3-way state is then in_fov_not_valid or outside_fov per azimuth.
@@ -301,6 +336,11 @@ export function scriptedDecision(
       sunset_window_active: f.is_sunset_active,
       direct_sun_valid: directSunValid,
       sun_state: directSunValid ? 'hitting' : aziInFov ? 'in_fov_not_valid' : 'outside_fov',
+      custom_position_active_slot: winner === 'custom_position' ? activeSlot(entry) : undefined,
+      custom_position_minimum_mode:
+        winner === 'custom_position' ? activeSlotMinMode(entry) : undefined,
+      custom_position_active_slot_name:
+        winner === 'custom_position' ? activeSlotName(entry) : undefined,
       custom_position_slots: entry.slots.map((s) => ({
         slot: s.slot,
         enabled: s.enabled,
@@ -309,6 +349,9 @@ export function scriptedDecision(
         position: s.position,
         priority: s.priority,
         min_mode: s.min_mode,
+        ...(s.sensors !== undefined ? { sensors: s.sensors } : {}),
+        ...(s.template !== undefined ? { template: s.template } : {}),
+        ...(s.template_mode !== undefined ? { template_mode: s.template_mode } : {}),
       })),
     },
   };

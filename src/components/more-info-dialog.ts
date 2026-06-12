@@ -14,6 +14,7 @@ import {
 } from '../const';
 import {
   buildDecisionSentence,
+  isWinningSlotSafety,
   normalizeHandler,
   resolveCustomPositionPct,
 } from '../lib/decision-summary';
@@ -77,8 +78,15 @@ export class MoreInfoDialog extends LitElement {
     const winner = this._winner();
     const attrs = this._traceAttrs();
     const matched = this._matchedHandlers(attrs, winner);
+    const safetyActive = isWinningSlotSafety(attrs);
     const summary = attrs
-      ? buildDecisionSentence(attrs.trace ?? [], attrs, winner, this._buildHandlerLabels())
+      ? buildDecisionSentence(
+          attrs.trace ?? [],
+          attrs,
+          winner,
+          this._buildHandlerLabels(),
+          t('badge.safety', this.hass),
+        )
       : '';
     const target = this._target();
     const showResume = this._shouldShowResume(winner);
@@ -122,6 +130,7 @@ export class MoreInfoDialog extends LitElement {
                           .minimumMode=${h === 'custom_position'
                             ? attrs?.custom_position_minimum_mode
                             : undefined}
+                          .safetyActive=${h === 'custom_position' && safetyActive}
                         ></acp-tile-badge>`,
                     )}
             </div>
@@ -301,8 +310,26 @@ export class MoreInfoDialog extends LitElement {
 
   private _renderSlotRow(slot: CustomPositionSlotSnapshot): TemplateResult {
     const label = slot.sensor_name ?? `#${slot.slot}`;
+    // v2.28.0+ multi-sensor / template slots get a compact indicator chip. The
+    // tooltip surfaces the sensor count and combine mode; the chip itself is an
+    // icon so it needs no new i18n string.
+    const sensorCount = slot.sensors?.length ?? 0;
+    const templateChip =
+      slot.template === true
+        ? html`<span
+            class="slot-template"
+            title=${`Template${
+              sensorCount > 0
+                ? ` · ${sensorCount} sensors${slot.template_mode ? ` (${slot.template_mode})` : ''}`
+                : ''
+            }`}
+          >
+            <ha-icon icon="mdi:code-braces"></ha-icon>
+          </span>`
+        : nothing;
     return html`<div class="slot-row" data-slot=${slot.slot}>
       <span class="slot-label">${label}</span>
+      ${templateChip}
       <span class="slot-position">${formatPercent(slot.position)}</span>
       ${slot.min_mode === true
         ? html`<span
@@ -586,6 +613,15 @@ export class MoreInfoDialog extends LitElement {
     .slot-position {
       font-variant-numeric: tabular-nums;
       color: var(--secondary-text-color);
+    }
+    .slot-template {
+      display: inline-flex;
+      align-items: center;
+      color: var(--secondary-text-color);
+      cursor: default;
+    }
+    .slot-template ha-icon {
+      --mdc-icon-size: 14px;
     }
     .slot-min-mode {
       font-size: 0.7rem;

@@ -151,7 +151,10 @@ function resolveWinnerKind(opts: {
  *  - automatic control is off, or
  *  - a manual override is active, or
  *  - a `force` handler won (forced position, not adaptive), or
- *  - a `custom_position` slot won AND it bypasses automatic control.
+ *  - a `custom_position` slot won AND it bypasses automatic control, or
+ *  - a `custom_position` priority-100 safety slot won (v2.28.0+ migrated Force
+ *    Override) — suppressed defensively even when the integration omits
+ *    `bypass_auto_control` on the trace.
  *
  * Every other automatic handler (cloud, solar, default, weather, climate,
  * glare_zone, motion) keeps Auto visible. The winner string is normalized
@@ -163,13 +166,18 @@ export function isAutoControlActive(opts: {
   automaticControl: boolean;
   manualActive: boolean;
   bypassAutoControl: boolean;
+  /** True when the winning custom_position slot is the priority-100 safety slot
+   *  (v2.28.0+). Suppresses Auto even if `bypassAutoControl` is unset. */
+  safetyActive?: boolean;
 }): boolean {
   if (!opts.integrationEnabled) return false;
   if (!opts.automaticControl) return false;
   if (opts.manualActive) return false;
   const normalized = normalizeHandler(opts.winner);
   if (normalized === 'force') return false;
-  if (normalized === 'custom_position' && opts.bypassAutoControl) return false;
+  if (normalized === 'custom_position' && (opts.bypassAutoControl || opts.safetyActive === true)) {
+    return false;
+  }
   return true;
 }
 

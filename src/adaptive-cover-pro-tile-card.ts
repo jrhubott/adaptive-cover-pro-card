@@ -28,6 +28,7 @@ import type {
 } from './types';
 import {
   buildDecisionSentence,
+  isWinningSlotSafety,
   normalizeHandler,
   resolveCustomPositionPct,
   resolveActiveMinModeFloor,
@@ -238,6 +239,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const traceAttrs = this._traceAttrs(discovered);
     const manualEndIso = this._manualEndIso(discovered);
     const inert = this._isFullyInert(cfg);
+    const safetyActive = isWinningSlotSafety(traceAttrs);
     const summary =
       cfg.show_decision_summary === true && traceAttrs
         ? buildDecisionSentence(
@@ -245,6 +247,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
             traceAttrs,
             winner,
             this._buildHandlerLabels(),
+            t('badge.safety', this.hass),
           )
         : '';
 
@@ -279,6 +282,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       automaticControl,
       manualActive,
       bypassAutoControl: traceAttrs?.bypass_auto_control === true,
+      safetyActive,
     });
     const showAutoBadge = detailed && showBadge && cfg.badges?.auto !== false && autoActive;
     // Dedupe: when the winner badge is itself `auto` (default winner), render
@@ -326,6 +330,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
           .slotName=${traceAttrs?.custom_position_active_slot_name}
           .pct=${resolveCustomPositionPct(traceAttrs, calculatedPosition) ?? undefined}
           .minimumMode=${traceAttrs?.custom_position_minimum_mode}
+          .safetyActive=${safetyActive}
           .manualEndIso=${manualEndIso}
           .manualActive=${manualActive}
           .resumable=${resumable}

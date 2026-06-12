@@ -277,6 +277,17 @@ export class AcpHarnessControlPanel extends LitElement {
           priority: 50,
         },
         { slot: 4, enabled: false, position: 50, name: 'Floor', min_mode: true, priority: 90 },
+        {
+          slot: 5,
+          enabled: true,
+          position: 0,
+          name: 'Safety',
+          min_mode: false,
+          priority: 100,
+          sensors: [`binary_sensor.${newId}_wind`, `binary_sensor.${newId}_frost`],
+          template: true,
+          template_mode: 'or',
+        },
       ],
       flags: {
         integration_enabled: true,
@@ -284,7 +295,7 @@ export class AcpHarnessControlPanel extends LitElement {
         manual_override: false,
         manual_override_minutes_from_now: 60,
         held_position: null,
-        force_override_triggers: 0,
+        safety_slot_active: false,
         motion_status: 'idle',
         motion_timeout_minutes_from_now: 1,
         climate_strategy: 'intermediate',
@@ -497,8 +508,8 @@ export class AcpHarnessControlPanel extends LitElement {
                   (v) => this._patchFlags(idx, { manual_override_minutes_from_now: v }),
                 )
               : ''}
-            ${this._numberSlider('Force triggers', e.flags.force_override_triggers, 0, 5, 1, (v) =>
-              this._patchFlags(idx, { force_override_triggers: v }),
+            ${this._checkbox('Safety slot 5 (priority 100)', e.flags.safety_slot_active, (v) =>
+              this._patchFlags(idx, { safety_slot_active: v }),
             )}
             <label class="row">
               <span>Motion status</span>
