@@ -2,6 +2,7 @@ import { LitElement, css, html, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 import { CARD_NAME, SKY_COMPASS_CARD_NAME, TILE_CARD_NAME } from '../../src/const';
+import { _resetRegistryStore } from '../../src/lib/registry-store';
 import type { HarnessConfig } from './types';
 
 interface CardElement extends HTMLElement {
@@ -97,8 +98,16 @@ export class AcpHarnessCardStage extends LitElement {
     // refetches the registry for the new entries. Without this, discovery runs
     // against the previous scenario's entities and a switch to e.g. the
     // multi-window scenario renders "No matching Adaptive Cover Pro entities".
+    //
+    // The registry fetch is also memoized process-wide (registry-store.ts shares
+    // one fetch across every card on a real dashboard). In the harness that cache
+    // would survive a scenario switch and hand the remounted cards the *previous*
+    // scenario's registry — so each tile renders "entry <id> not found". Clearing
+    // the shared store here forces a fresh fetch against the new mock hass, the
+    // dev-tool equivalent of HA emitting entity_registry_updated.
     const entrySig = this.config.entries.map((e) => e.entry_id).join(',');
     if (this._entrySig !== undefined && entrySig !== this._entrySig) {
+      _resetRegistryStore();
       this._rootEl?.remove();
       this._rootEl = undefined;
       this._compassEl?.remove();
