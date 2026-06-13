@@ -381,6 +381,7 @@ export class AcpHarnessApp extends LitElement {
               .hass=${this._hass}
               .config=${this._config}
               .activeCard=${this._tab}
+              .embed=${true}
             ></acp-harness-card-stage>`}
       </div>`;
     }
@@ -581,7 +582,7 @@ export class AcpHarnessApp extends LitElement {
       height: 100vh;
       overflow: auto;
       box-sizing: border-box;
-      padding: 8px;
+      /* card-stage[embed] owns its own HA-like gutter; no extra padding here. */
     }
     .log {
       grid-area: log;

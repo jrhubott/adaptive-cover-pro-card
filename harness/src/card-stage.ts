@@ -17,6 +17,11 @@ export class AcpHarnessCardStage extends LitElement {
   /** When set, render only this card; undefined renders all enabled cards
    *  (the contract the config tests and capture scripts rely on). */
   @property({ attribute: false }) activeCard?: 'root' | 'compass' | 'tile';
+  /** Device-preview mode (rendered inside a device-sized iframe): drop the
+   *  harness chrome (headings, padding, max-width) and let the card fill the
+   *  viewport full-bleed like a real phone, ignoring the tile-width control —
+   *  the device width is the width. */
+  @property({ type: Boolean, reflect: true }) embed = false;
 
   private _rootEl?: CardElement;
   private _compassEl?: CardElement;
@@ -33,7 +38,9 @@ export class AcpHarnessCardStage extends LitElement {
     return html`
       ${this._shows('root')
         ? html`
-            <h2 class="card-heading">Root card · <code>custom:${CARD_NAME}</code></h2>
+            ${this.embed
+              ? ''
+              : html`<h2 class="card-heading">Root card · <code>custom:${CARD_NAME}</code></h2>`}
             ${this.config.root.enabled
               ? html`<div class="card-host" id="root-host"></div>`
               : html`<p class="disabled">Disabled — toggle in Per-card config.</p>`}
@@ -41,9 +48,11 @@ export class AcpHarnessCardStage extends LitElement {
         : ''}
       ${this._shows('compass')
         ? html`
-            <h2 class="card-heading">
-              Sky compass card · <code>custom:${SKY_COMPASS_CARD_NAME}</code>
-            </h2>
+            ${this.embed
+              ? ''
+              : html`<h2 class="card-heading">
+                  Sky compass card · <code>custom:${SKY_COMPASS_CARD_NAME}</code>
+                </h2>`}
             ${this.config.compass.enabled
               ? html`<div
                   class="card-host"
@@ -55,10 +64,14 @@ export class AcpHarnessCardStage extends LitElement {
         : ''}
       ${this._shows('tile')
         ? html`
-            <h2 class="card-heading">
-              Tile card · <code>custom:${TILE_CARD_NAME}</code>
-              <span class="hint">(one per entry — open to see more-info dialog with forecast)</span>
-            </h2>
+            ${this.embed
+              ? ''
+              : html`<h2 class="card-heading">
+                  Tile card · <code>custom:${TILE_CARD_NAME}</code>
+                  <span class="hint"
+                    >(one per entry — open to see more-info dialog with forecast)</span
+                  >
+                </h2>`}
             ${this.config.tile.enabled
               ? html`<div class="tile-row" id="tile-host" style=${this._tileRowStyle()}></div>`
               : html`<p class="disabled">Disabled — toggle in Per-card config.</p>`}
@@ -69,8 +82,11 @@ export class AcpHarnessCardStage extends LitElement {
 
   /** When a tile width is simulated (issue #136), pin every tile to exactly
    *  that many px so the card receives a narrow inline-size; 0 falls back to
-   *  the auto-fill grid (≥360px tiles). */
+   *  the auto-fill grid (≥360px tiles). In device-preview mode the iframe's
+   *  viewport already governs the width, so stack tiles full-bleed in a single
+   *  column and ignore the tile-width control. */
   private _tileRowStyle(): string {
+    if (this.embed) return 'grid-template-columns: 1fr;';
     const w = this.config.tile.tileWidth;
     return w > 0 ? `grid-template-columns: repeat(auto-fill, ${w}px); justify-content: start;` : '';
   }
@@ -248,6 +264,14 @@ export class AcpHarnessCardStage extends LitElement {
       padding: 16px;
       overflow-y: auto;
       box-sizing: border-box;
+    }
+    /* Device-preview: fill the iframe full-bleed like a real phone dashboard —
+       a small gutter (HA-like), no max-width, single-column tiles. */
+    :host([embed]) {
+      padding: 8px;
+    }
+    :host([embed]) .card-host {
+      max-width: none;
     }
     .card-heading {
       margin: 18px 0 8px;
