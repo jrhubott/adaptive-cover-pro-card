@@ -1,7 +1,8 @@
-import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { LitElement, html, css, nothing, type TemplateResult, type PropertyValues } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
+import { entityStateChanged } from '../lib/hass-change';
 import { HANDLER_I18N_KEYS, HANDLER_ORDER, type HandlerName } from '../const';
 import type { DecisionTraceAttributes, DiscoveredEntities } from '../types';
 import { formatPercent } from '../lib/formatters';
@@ -15,6 +16,13 @@ export class DecisionStrip extends LitElement {
   @property({ type: Boolean, reflect: true }) public compact = false;
 
   @property({ type: Boolean, reflect: true, attribute: 'show-summary' }) public showSummary = true;
+
+  // Only the decision-trace sensor drives this strip; skip unrelated hass ticks.
+  protected shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.size > 1 || !changed.has('hass')) return true;
+    const old = changed.get('hass') as HomeAssistant | undefined;
+    return entityStateChanged(old, this.hass, [this.discovered?.entities.decision_trace_sensor]);
+  }
 
   private _trace(): {
     winner: string;

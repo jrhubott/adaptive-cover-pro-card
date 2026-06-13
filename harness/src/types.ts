@@ -4,16 +4,31 @@ export type CoverType = 'cover_blind' | 'cover_awning' | 'cover_tilt';
 
 export type MotionStatusValue = 'idle' | 'motion_detected' | 'timeout_pending';
 export type ClimateStrategy = 'summer_mode' | 'winter_mode' | 'intermediate' | 'unknown';
+
+export type ClimateInactiveReason =
+  | 'active'
+  | 'mode_off'
+  | 'outside_time_window'
+  | 'thresholds_not_met'
+  | 'other_mode_active'
+  | 'readings_unavailable';
 export type DecisionMode = 'derived' | 'scripted';
 
 export interface CustomPositionSlotCfg {
-  slot: 1 | 2 | 3 | 4;
+  slot: 1 | 2 | 3 | 4 | 5;
   enabled: boolean;
   position: number;
   name: string;
   min_mode: boolean;
-  /** Slot priority 1–99 (mirrors the integration). >80 resists a manual ↓. */
+  /** Slot priority (mirrors the integration). >80 resists a manual ↓; the
+   *  v2.28.0 safety slot (slot 5) uses priority 100. */
   priority: number;
+  /** Bound sensors when the slot uses a multi-sensor (template) trigger. */
+  sensors?: string[];
+  /** True when the slot's trigger is a Jinja template. */
+  template?: boolean;
+  /** How a multi-sensor slot combines its sensors. */
+  template_mode?: 'or' | 'and' | null;
 }
 
 export interface ManagedCoverCfg {
@@ -61,7 +76,10 @@ export interface HarnessEntry {
      *  solar would-be target (`target_position`). null = no divergence (held
      *  tracks the solar target, the pre-#132 collapse behavior). */
     held_position: number | null;
-    force_override_triggers: number;
+    /** When true, the priority-100 safety slot (slot 5) is armed and wins as a
+     *  custom_position with bypass_auto_control. Replaces the pre-2.28
+     *  standalone Force Override trigger count. */
+    safety_slot_active: boolean;
     motion_status: MotionStatusValue;
     /** Minutes from now when motion timeout fires. */
     motion_timeout_minutes_from_now: number;
@@ -69,6 +87,14 @@ export interface HarnessEntry {
     /** Indoor / outdoor temps to surface in the climate panel. */
     indoor_temp: number;
     outdoor_temp: number;
+    /** Why climate is inactive when the strategy is `unknown` (standby). Mirrors
+     *  the integration's `inactive_reason` slug on the climate_status sensor. */
+    climate_inactive_reason: ClimateInactiveReason;
+    /** Configured climate thresholds surfaced on the climate_status sensor.
+     *  null = unconfigured (the card guards for null). */
+    climate_temp_low: number | null;
+    climate_temp_high: number | null;
+    climate_temp_summer_outside: number | null;
     glare_active: boolean;
     is_sunset_active: boolean;
     in_time_window: boolean;

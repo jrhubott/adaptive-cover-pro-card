@@ -36,6 +36,7 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'badge.motion': 'Motion',
   'badge.off': 'Off',
   'badge.off_schedule': 'Off-schedule',
+  'badge.safety': 'Safety',
   'decision.outside_schedule': 'Outside schedule — automatic control paused',
   'decision.outside_schedule_tooltip':
     'The configured schedule window is not active, so automatic positioning is paused.',

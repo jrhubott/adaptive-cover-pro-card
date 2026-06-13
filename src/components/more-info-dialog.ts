@@ -14,10 +14,12 @@ import {
 } from '../const';
 import {
   buildDecisionSentence,
+  isWinningSlotSafety,
   normalizeHandler,
   resolveCustomPositionPct,
 } from '../lib/decision-summary';
 import { buildSolarActiveContext, selectVisibleBadges } from '../lib/badge-visibility';
+import { startMinuteTimer } from '../lib/minute-timer';
 import type {
   AdaptiveCoverProTileCardConfig,
   CustomPositionSlotSnapshot,
@@ -64,6 +66,42 @@ export class MoreInfoDialog extends LitElement {
   /** Per-kind badge opt-in, threaded down from the tile-card config. */
   @property({ attribute: false }) public badges?: AdaptiveCoverProTileCardConfig['badges'];
 
+  // Refresh the time-derived bits (the forecast strip's `now` cursor) every minute while
+  // the dialog is open, aligned to the minute boundary. The dialog is always in the DOM via
+  // the tile card, so gate on `open` rather than connection so a closed dialog isn't ticking.
+  private _cancelMinuteTimer: (() => void) | null = null;
+
+  protected updated(): void {
+    this._syncMinuteTimer(this.open);
+  }
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this._syncMinuteTimer(false);
+  }
+
+  private _syncMinuteTimer(active: boolean): void {
+    if (active && this._cancelMinuteTimer === null) {
+      this._cancelMinuteTimer = startMinuteTimer(() => this.requestUpdate());
+    } else if (!active && this._cancelMinuteTimer !== null) {
+      this._cancelMinuteTimer();
+      this._cancelMinuteTimer = null;
+    }
+  }
+
+  // Stable single-element wrapper for the embedded compass/chart, rebuilt only when
+  // `discovered` changes — a fresh `[this.discovered]` literal each render would churn
+  // the children's array prop and defeat their own `shouldUpdate` guards.
+  private _listSource: DiscoveredEntities | null = null;
+  private _list: DiscoveredEntities[] = [];
+  private get _discoveredList(): DiscoveredEntities[] {
+    if (this.discovered !== this._listSource) {
+      this._listSource = this.discovered;
+      this._list = this.discovered ? [this.discovered] : [];
+    }
+    return this._list;
+  }
+
   private _buildHandlerLabels(): Record<string, string> {
     const labels: Record<string, string> = {};
     for (const [key, dotted] of Object.entries(HANDLER_I18N_KEYS)) {
@@ -77,8 +115,15 @@ export class MoreInfoDialog extends LitElement {
     const winner = this._winner();
     const attrs = this._traceAttrs();
     const matched = this._matchedHandlers(attrs, winner);
+    const safetyActive = isWinningSlotSafety(attrs);
     const summary = attrs
-      ? buildDecisionSentence(attrs.trace ?? [], attrs, winner, this._buildHandlerLabels())
+      ? buildDecisionSentence(
+          attrs.trace ?? [],
+          attrs,
+          winner,
+          this._buildHandlerLabels(),
+          t('badge.safety', this.hass),
+        )
       : '';
     const target = this._target();
     const showResume = this._shouldShowResume(winner);
@@ -122,6 +167,7 @@ export class MoreInfoDialog extends LitElement {
                           .minimumMode=${h === 'custom_position'
                             ? attrs?.custom_position_minimum_mode
                             : undefined}
+                          .safetyActive=${h === 'custom_position' && safetyActive}
                         ></acp-tile-badge>`,
                     )}
             </div>
@@ -182,7 +228,7 @@ export class MoreInfoDialog extends LitElement {
                   ? html`<div class="advanced-compass">
                       <acp-sky-compass
                         .hass=${this.hass}
-                        .discovered_list=${[this.discovered]}
+                        .discovered_list=${this._discoveredList}
                         ?compact=${true}
                         .showLegend=${false}
                         .showStats=${true}
@@ -192,7 +238,7 @@ export class MoreInfoDialog extends LitElement {
                 ${this.showElevationChart
                   ? html`<acp-elevation-chart
                       .hass=${this.hass}
-                      .discoveredList=${[this.discovered]}
+                      .discoveredList=${this._discoveredList}
                       ?compact=${true}
                     ></acp-elevation-chart>`
                   : nothing}
@@ -301,8 +347,26 @@ export class MoreInfoDialog extends LitElement {
 
   private _renderSlotRow(slot: CustomPositionSlotSnapshot): TemplateResult {
     const label = slot.sensor_name ?? `#${slot.slot}`;
+    // v2.28.0+ multi-sensor / template slots get a compact indicator chip. The
+    // tooltip surfaces the sensor count and combine mode; the chip itself is an
+    // icon so it needs no new i18n string.
+    const sensorCount = slot.sensors?.length ?? 0;
+    const templateChip =
+      slot.template === true
+        ? html`<span
+            class="slot-template"
+            title=${`Template${
+              sensorCount > 0
+                ? ` · ${sensorCount} sensors${slot.template_mode ? ` (${slot.template_mode})` : ''}`
+                : ''
+            }`}
+          >
+            <ha-icon icon="mdi:code-braces"></ha-icon>
+          </span>`
+        : nothing;
     return html`<div class="slot-row" data-slot=${slot.slot}>
       <span class="slot-label">${label}</span>
+      ${templateChip}
       <span class="slot-position">${formatPercent(slot.position)}</span>
       ${slot.min_mode === true
         ? html`<span
@@ -586,6 +650,15 @@ export class MoreInfoDialog extends LitElement {
     .slot-position {
       font-variant-numeric: tabular-nums;
       color: var(--secondary-text-color);
+    }
+    .slot-template {
+      display: inline-flex;
+      align-items: center;
+      color: var(--secondary-text-color);
+      cursor: default;
+    }
+    .slot-template ha-icon {
+      --mdc-icon-size: 14px;
     }
     .slot-min-mode {
       font-size: 0.7rem;

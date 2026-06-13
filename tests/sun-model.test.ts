@@ -62,6 +62,33 @@ describe('sampleDay', () => {
       expect(s.azimuth).toBeLessThan(360);
     }
   });
+
+  it('returns the same cached array reference for identical args', () => {
+    // Distinct Date instances with the same epoch must still hit the cache, since
+    // the consuming components build a fresh `startOfDay` Date on every render.
+    const a = sampleDay(48.1, 11.6, new Date('2026-03-15T00:00:00Z'));
+    const b = sampleDay(48.1, 11.6, new Date('2026-03-15T00:00:00Z'));
+    expect(b).toBe(a);
+  });
+
+  it('returns a fresh array for a different day', () => {
+    const a = sampleDay(48.1, 11.6, new Date('2026-03-15T00:00:00Z'));
+    const b = sampleDay(48.1, 11.6, new Date('2026-03-16T00:00:00Z'));
+    expect(b).not.toBe(a);
+  });
+
+  it('returns a fresh array for a different location', () => {
+    const a = sampleDay(48.1, 11.6, new Date('2026-03-15T00:00:00Z'));
+    const b = sampleDay(40.7, -74.0, new Date('2026-03-15T00:00:00Z'));
+    expect(b).not.toBe(a);
+  });
+
+  it('returns a fresh array for a different step size', () => {
+    const a = sampleDay(48.1, 11.6, new Date('2026-03-15T00:00:00Z'), 10);
+    const b = sampleDay(48.1, 11.6, new Date('2026-03-15T00:00:00Z'), 30);
+    expect(b).not.toBe(a);
+    expect(b.length).not.toBe(a.length);
+  });
 });
 
 describe('startOfDay', () => {

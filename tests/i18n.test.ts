@@ -82,6 +82,38 @@ describe('floor glyph (↥) i18n', () => {
   });
 });
 
+describe('climate inactive_reason + threshold i18n (issue #129)', () => {
+  const reasonSlugs = [
+    'outside_time_window',
+    'thresholds_not_met',
+    'other_mode_active',
+    'readings_unavailable',
+    'mode_off',
+  ];
+  const thresholdKeys = ['threshold_low', 'threshold_high', 'threshold_summer_outside'];
+
+  it.each(reasonSlugs)('en.climate.reason.%s is a non-empty string', (slug) => {
+    const v = (en.climate.reason as Record<string, string>)[slug];
+    expect(typeof v).toBe('string');
+    expect(v.length).toBeGreaterThan(0);
+  });
+
+  it.each(reasonSlugs)('fr.climate.reason.%s is a non-empty string (parity)', (slug) => {
+    const v = (fr.climate.reason as Record<string, string>)[slug];
+    expect(typeof v).toBe('string');
+    expect(v.length).toBeGreaterThan(0);
+  });
+
+  it.each(thresholdKeys)('en.climate.%s and fr.climate.%s are non-empty (parity)', (key) => {
+    const enV = (en.climate as unknown as Record<string, string>)[key];
+    const frV = (fr.climate as unknown as Record<string, string>)[key];
+    expect(typeof enV).toBe('string');
+    expect(enV.length).toBeGreaterThan(0);
+    expect(typeof frV).toBe('string');
+    expect(frV.length).toBeGreaterThan(0);
+  });
+});
+
 describe('version footer i18n', () => {
   it('root.footer_version is defined in EN', () => {
     expect(en.root.footer_version).toBeDefined();

@@ -183,6 +183,24 @@ describe('acp-sky-compass (single entry)', () => {
     expect(el.shadowRoot!.textContent).toContain('No Adaptive Cover Pro entries selected');
   });
 
+  // #583 verify-only: the FOV span is integration-supplied (fov_left/fov_right
+  // off the sun_position sensor). A wide span (~76°) must render its wedge
+  // without clipping — the card does no FOV math, so the corrected angle flows
+  // straight through. No production code change is involved.
+  it('renders a wide (~76°) FOV wedge without clipping (#583)', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, fovLeft: 38, fovRight: 38 },
+    ]);
+    const el = await mountCompass([d], hass);
+    const fov = el.shadowRoot!.querySelector('path.fov') as SVGPathElement | null;
+    expect(fov).toBeTruthy();
+    const d3 = fov!.getAttribute('d');
+    expect(d3).toBeTruthy();
+    expect(d3!.length).toBeGreaterThan(0);
+    expect(d3).not.toContain('NaN');
+  });
+
   it('above-horizon sun renders a flat circle, not an <image>', async () => {
     const d = makeDiscovered('entry1', 'Kitchen');
     const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);

@@ -34,6 +34,7 @@ export const fr: EnDict = {
     off: 'Off',
     off_schedule: 'Hors planning',
     floor_suffix: ' ↥',
+    safety: 'Sécurité',
   },
   forecast: {
     event: {
@@ -95,6 +96,16 @@ export const fr: EnDict = {
     irradiance: 'Irradiance',
     mode_off: 'Mode climatique désactivé',
     standby: 'En veille',
+    threshold_low: 'bas',
+    threshold_high: 'haut',
+    threshold_summer_outside: 'été',
+    reason: {
+      outside_time_window: 'En dehors de la plage horaire de fonctionnement',
+      thresholds_not_met: 'Températures dans la plage de confort — aucune action requise',
+      other_mode_active: 'Un autre mode de contrôle est actuellement actif',
+      readings_unavailable: 'Relevés de température indisponibles',
+      mode_off: 'Le mode climatique est désactivé',
+    },
   },
   compass: {
     placeholder_no_entries: 'Aucune instance Adaptive Cover Pro sélectionnée.',

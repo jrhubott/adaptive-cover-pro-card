@@ -1,10 +1,13 @@
-import { LitElement, html, css, svg, nothing, type TemplateResult } from 'lit';
+import { LitElement, html, css, svg, nothing, type TemplateResult, type PropertyValues } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
+
+import { entityStateChanged } from '../lib/hass-change';
 
 import type { ControlStatusAttributes, DiscoveredEntities, SunPositionAttributes } from '../types';
 import { findFovWindows, sampleDay, startOfDayInZone, type SunSample } from '../lib/sun-model';
 import { elevationBandFraction, ribbonLayout, scheduleZones } from '../lib/geometry';
+import { startMinuteTimer } from '../lib/minute-timer';
 import { sunDotState, SUN_DOT_CLASS } from '../lib/sun-dot-state';
 import { resolveCoverColor } from '../lib/palette';
 import { formatClock } from '../lib/formatters';
@@ -38,6 +41,35 @@ export class ElevationChart extends LitElement {
   @property({ attribute: false }) public discoveredList: DiscoveredEntities[] = [];
   @property({ attribute: false }) public coverColors: (string | null | undefined)[] = [];
   @property({ type: Boolean, reflect: true }) public compact = false;
+
+  // Advance the "now" cursor as wall-clock time passes. Rendering is otherwise gated to
+  // state changes (shouldUpdate), so without this the now-line would only move when a
+  // sensor updates. The timer is aligned to the minute boundary; one re-render per minute
+  // is enough — the cursor is minute-resolution.
+  private _cancelMinuteTimer: (() => void) | null = null;
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this._cancelMinuteTimer = startMinuteTimer(() => this.requestUpdate());
+  }
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this._cancelMinuteTimer?.();
+    this._cancelMinuteTimer = null;
+  }
+
+  // Skip re-render on hass ticks that touched none of the entities this chart reads.
+  protected shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.size > 1 || !changed.has('hass')) return true;
+    const old = changed.get('hass') as HomeAssistant | undefined;
+    const ids: Array<string | undefined> = [];
+    for (const d of this.discoveredList) {
+      const e = d.entities;
+      ids.push(e.sun_sensor, e.decision_trace_sensor, e.control_status_sensor);
+    }
+    return entityStateChanged(old, this.hass, ids);
+  }
 
   private _sunAttrsFor(d: DiscoveredEntities): SunPositionAttributes | null {
     const id = d.entities.sun_sensor;

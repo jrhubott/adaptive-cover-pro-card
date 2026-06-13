@@ -4,9 +4,20 @@ import {
   normalizeHandler,
   resolveCustomPositionPct,
   resolveActiveMinModeFloor,
+  isWinningSlotSafety,
 } from '../src/lib/decision-summary';
-import { MANUAL_OVERRIDE_PRIORITY } from '../src/const';
-import type { DecisionStep, DecisionTraceAttributes } from '../src/types';
+import {
+  MANUAL_OVERRIDE_PRIORITY,
+  CUSTOM_POSITION_SAFETY_PRIORITY,
+  HANDLER_ORDER,
+  BADGE_TOKENS,
+  BADGE_KINDS_BY_HANDLER,
+} from '../src/const';
+import type {
+  CustomPositionSlotSnapshot,
+  DecisionStep,
+  DecisionTraceAttributes,
+} from '../src/types';
 
 describe('MANUAL_OVERRIDE_PRIORITY', () => {
   it('mirrors the integration manual-override handler priority (80)', () => {
@@ -29,6 +40,7 @@ const baseAttrs = (
   | 'custom_position_active_slot'
   | 'custom_position_minimum_mode'
   | 'custom_position_active_slot_name'
+  | 'custom_position_slots'
 > => ({
   reason: '',
   ...overrides,
@@ -176,6 +188,48 @@ describe('buildDecisionSentence', () => {
         'solar',
       ),
     ).toBe('Solar Tracking 100%');
+  });
+
+  it('appends a safety marker when the winning custom-position slot has priority 100', () => {
+    const safetySlot: CustomPositionSlotSnapshot = {
+      slot: 5,
+      enabled: true,
+      sensor: 'input_boolean.slot5',
+      sensor_name: null,
+      position: 100,
+      priority: 100,
+      min_mode: false,
+    };
+    const sentence = buildDecisionSentence(
+      [step('custom_position_5', true, 100)],
+      baseAttrs({
+        custom_position_active_slot: 5,
+        custom_position_slots: [safetySlot],
+      }),
+      'custom_position',
+    );
+    expect(sentence).toBe('Custom Position #5 100% · Safety');
+  });
+
+  it('omits the safety marker for a sub-100 priority custom-position winner', () => {
+    const ordinarySlot: CustomPositionSlotSnapshot = {
+      slot: 1,
+      enabled: true,
+      sensor: 'input_boolean.slot1',
+      sensor_name: null,
+      position: 60,
+      priority: 90,
+      min_mode: false,
+    };
+    const sentence = buildDecisionSentence(
+      [step('custom_position_1', true, 60)],
+      baseAttrs({
+        custom_position_active_slot: 1,
+        custom_position_slots: [ordinarySlot],
+      }),
+      'custom_position',
+    );
+    expect(sentence).toBe('Custom Position #1 60%');
   });
 });
 
@@ -450,5 +504,113 @@ describe('resolveActiveMinModeFloor', () => {
       40,
     );
     expect(result!.resistsManual).toBe(false);
+  });
+
+  it('accepts a slot-5 (priority-100 safety) snapshot', () => {
+    const slot5: CustomPositionSlotSnapshot = {
+      slot: 5,
+      enabled: true,
+      sensor: 'input_boolean.slot5',
+      sensor_name: 'Safety',
+      position: 100,
+      priority: 100,
+      min_mode: true,
+    };
+    const result = resolveActiveMinModeFloor(
+      { custom_position_slots: [slot5] },
+      hassStates({ 'input_boolean.slot5': 'on' }),
+      40,
+    );
+    expect(result!.slot).toBe(5);
+    expect(result!.priority).toBe(100);
+    expect(result!.resistsManual).toBe(true);
+  });
+});
+
+describe('CUSTOM_POSITION_SAFETY_PRIORITY', () => {
+  it('matches the integration safety-slot priority (100)', () => {
+    expect(CUSTOM_POSITION_SAFETY_PRIORITY).toBe(100);
+  });
+});
+
+// Regression lock: the `force` handler is retained for pre-2.28 integration
+// builds that still emit `force`/`force_override` as a winner. A future cleanup
+// must not silently drop it.
+describe('force handler back-compat lock', () => {
+  it('normalizes force_override → force', () => {
+    expect(normalizeHandler('force_override')).toBe('force');
+  });
+
+  it('keeps force in HANDLER_ORDER', () => {
+    expect(HANDLER_ORDER).toContain('force');
+  });
+
+  it('maps the force handler to the force badge kind', () => {
+    expect(BADGE_KINDS_BY_HANDLER.force).toBe('force');
+  });
+
+  it('keeps the red force badge tokens', () => {
+    expect(BADGE_TOKENS.force.fg).toBe('#b71c1c');
+    expect(BADGE_TOKENS.force.bg).toBe('rgba(244, 67, 54, 0.22)');
+  });
+});
+
+describe('isWinningSlotSafety', () => {
+  const safetySlot: CustomPositionSlotSnapshot = {
+    slot: 5,
+    enabled: true,
+    sensor: 'input_boolean.slot5',
+    sensor_name: 'Safety',
+    position: 100,
+    priority: 100,
+    min_mode: false,
+  };
+  const ordinarySlot: CustomPositionSlotSnapshot = {
+    slot: 1,
+    enabled: true,
+    sensor: 'input_boolean.slot1',
+    sensor_name: 'Slot 1',
+    position: 60,
+    priority: 90,
+    min_mode: true,
+  };
+
+  it('returns true when the winning slot has priority 100', () => {
+    expect(
+      isWinningSlotSafety({
+        custom_position_active_slot: 5,
+        custom_position_slots: [ordinarySlot, safetySlot],
+      }),
+    ).toBe(true);
+  });
+
+  it('returns false when the winning slot has a sub-100 priority', () => {
+    expect(
+      isWinningSlotSafety({
+        custom_position_active_slot: 1,
+        custom_position_slots: [ordinarySlot, safetySlot],
+      }),
+    ).toBe(false);
+  });
+
+  it('returns false when there is no active slot', () => {
+    expect(isWinningSlotSafety({ custom_position_slots: [safetySlot] })).toBe(false);
+  });
+
+  it('returns false when custom_position_slots is missing', () => {
+    expect(isWinningSlotSafety({ custom_position_active_slot: 5 })).toBe(false);
+  });
+
+  it('returns false when attrs is undefined', () => {
+    expect(isWinningSlotSafety(undefined)).toBe(false);
+  });
+
+  it('returns false when the active slot is not present in the snapshot list', () => {
+    expect(
+      isWinningSlotSafety({
+        custom_position_active_slot: 5,
+        custom_position_slots: [ordinarySlot],
+      }),
+    ).toBe(false);
   });
 });

@@ -106,6 +106,20 @@ function makeEntry(
         priority: 50,
       },
       { slot: 4, enabled: false, position: 50, name: 'Floor', min_mode: true, priority: 90 },
+      {
+        slot: 5,
+        enabled: true,
+        position: 0,
+        name: 'Safety',
+        min_mode: false,
+        priority: 100,
+        sensors: [
+          `binary_sensor.${overrides.entry_id}_wind`,
+          `binary_sensor.${overrides.entry_id}_frost`,
+        ],
+        template: true,
+        template_mode: 'or',
+      },
     ],
     flags: {
       integration_enabled: true,
@@ -113,12 +127,16 @@ function makeEntry(
       manual_override: false,
       manual_override_minutes_from_now: 60,
       held_position: null,
-      force_override_triggers: 0,
+      safety_slot_active: false,
       motion_status: 'idle',
       motion_timeout_minutes_from_now: 1,
       climate_strategy: 'intermediate',
       indoor_temp: 21,
       outdoor_temp: 18,
+      climate_inactive_reason: 'outside_time_window',
+      climate_temp_low: 18,
+      climate_temp_high: 25,
+      climate_temp_summer_outside: 22,
       glare_active: false,
       is_sunset_active: false,
       in_time_window: true,
@@ -242,15 +260,64 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
-    id: 'force-override',
-    label: 'Force override',
-    description: 'Force triggers active — covers slammed shut.',
+    id: 'safety-slot',
+    label: 'Safety slot (priority 100)',
+    description:
+      'The v2.28.0 safety slot (slot 5, priority 100) is armed — the migrated Force Override. It wins as a custom_position with bypass_auto_control; the red, force-styled "Safety" badge shows and the Auto indicator is suppressed.',
     build: () => {
       const c = baseConfig('2026-06-21', 13 * 60);
-      c.scenario = 'force-override';
-      c.entries[0].flags.force_override_triggers = 2;
+      c.scenario = 'safety-slot';
+      c.entries[0].flags.safety_slot_active = true;
       c.entries[0].target_position = 0;
       c.entries[0].covers[0].position = 0;
+      return c;
+    },
+  },
+  {
+    id: 'multi-sensor-template-slot',
+    label: 'Custom slot — multi-sensor template',
+    description:
+      'A custom-position slot driven by a multi-sensor Jinja template (OR mode) wins. Exercises the v2.28.0 sensors / template / template_mode snapshot fields surfaced in the more-info dialog slot list.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 13 * 60);
+      c.scenario = 'multi-sensor-template-slot';
+      c.entries[0].slots = [
+        {
+          slot: 1,
+          enabled: true,
+          position: 35,
+          name: 'Privacy (any motion)',
+          min_mode: false,
+          priority: 60,
+          sensors: ['binary_sensor.hall_motion', 'binary_sensor.porch_motion'],
+          template: true,
+          template_mode: 'or',
+        },
+        { slot: 2, enabled: false, position: 20, name: 'Privacy', min_mode: false, priority: 70 },
+        {
+          slot: 3,
+          enabled: false,
+          position: 100,
+          name: 'Welcome home',
+          min_mode: false,
+          priority: 50,
+        },
+        { slot: 4, enabled: false, position: 50, name: 'Floor', min_mode: true, priority: 90 },
+        {
+          slot: 5,
+          enabled: false,
+          position: 0,
+          name: 'Safety',
+          min_mode: false,
+          priority: 100,
+          sensors: ['binary_sensor.wind', 'binary_sensor.frost'],
+          template: true,
+          template_mode: 'or',
+        },
+      ];
+      c.entries[0].flags.automatic_control = true;
+      c.entries[0].target_position = 35;
+      c.entries[0].covers[0].position = 35;
       return c;
     },
   },
@@ -367,15 +434,14 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: 'auto-hidden-force',
-    label: 'Auto hidden — force override',
+    label: 'Auto hidden — legacy force override (pre-2.28)',
     description:
-      'A force trigger wins (forced position, not adaptive). The Auto indicator is suppressed; the red "Force" badge shows.',
+      'Back-compat: a pre-2.28 build still emits the standalone `force` winner. The Auto indicator is suppressed; the red "Force" badge shows. v2.28.0+ surfaces this through the priority-100 safety slot instead (see the Safety slot scenario).',
     build: () => {
       const c = baseConfig('2026-06-21', 13 * 60);
       c.scenario = 'auto-hidden-force';
       c.decisionMode = 'scripted';
       c.scriptedWinner = 'force';
-      c.entries[0].flags.force_override_triggers = 2;
       c.entries[0].target_position = 0;
       c.entries[0].covers[0].position = 0;
       return c;
@@ -685,11 +751,30 @@ export const SCENARIOS: Scenario[] = [
     id: 'climate-standby',
     label: 'Climate standby — outside operating window',
     description:
-      'Climate mode is on but the status sensor is unknown (sun not currently on the window). The climate panel shows the "Standby" state instead of "Unknown / Active: —".',
+      'Climate mode is on but the status sensor is unknown (sun not currently on the window). The climate panel shows the "Standby" state plus a dim reason line ("Outside the operating time window") sourced from the integration\'s inactive_reason slug (#590/#129).',
     build: () => {
       const c = baseConfig('2026-06-21', 8 * 60);
       c.scenario = 'climate-standby';
       c.entries[0].flags.climate_strategy = 'unknown';
+      c.entries[0].flags.climate_inactive_reason = 'outside_time_window';
+      return c;
+    },
+  },
+  {
+    id: 'climate-thresholds',
+    label: 'Climate active — temps vs thresholds (#129)',
+    description:
+      'Climate is actively deciding (intermediate). Each temperature tile is paired with its threshold sub-line: the current/indoor tile shows low/high, the outdoor tile shows the summer gate (#590/#129).',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'climate-thresholds';
+      const f = c.entries[0].flags;
+      f.climate_strategy = 'intermediate';
+      f.indoor_temp = 22;
+      f.outdoor_temp = 27;
+      f.climate_temp_low = 18;
+      f.climate_temp_high = 25;
+      f.climate_temp_summer_outside = 22;
       return c;
     },
   },
@@ -813,6 +898,39 @@ export const SCENARIOS: Scenario[] = [
           color: '#7e57c2',
         }),
         makeEntry({ entry_id: 'droite', title: 'Droite', window_azimuth: 225, color: '#42a5f5' }),
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'mobile-width-tiles',
+    label: 'Mobile-width tiles (repro #154)',
+    description:
+      'Three detailed tiles with long German cover names pinned to a 390px-wide column — the same width as both a full-viewport phone tile and a medium tile in a multi-column desktop dashboard. The #154 reflow is gated on a narrow *viewport* (≤500px), not tile width alone: on this wide harness window the tiles stay inline (correct desktop behavior — no extra control row), and only when you shrink the browser window below 500px do the controls drop to their own row (the phone layout). Use the narrow-column-tiles scenario to see the #136 container-driven reflow without resizing.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'mobile-width-tiles';
+      c.tile.layout = 'detailed';
+      c.tile.tileWidth = 390;
+      c.entries = [
+        makeEntry({
+          entry_id: 'eg_flur',
+          title: 'EG Flur',
+          window_azimuth: 180,
+          color: '#ff7043',
+        }),
+        makeEntry({
+          entry_id: 'eg_wz_oberlicht',
+          title: 'EG WZ Oberlicht',
+          window_azimuth: 225,
+          color: '#26a69a',
+        }),
+        makeEntry({
+          entry_id: 'eg_wz_grosses_fenster',
+          title: 'EG WZ gr. Fenster',
+          window_azimuth: 270,
+          color: '#7e57c2',
+        }),
       ];
       return c;
     },

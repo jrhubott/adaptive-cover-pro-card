@@ -1,4 +1,5 @@
 import {
+  CUSTOM_POSITION_SAFETY_PRIORITY,
   HANDLER_LABELS,
   HANDLER_ORDER,
   MANUAL_OVERRIDE_PRIORITY,
@@ -9,7 +10,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import { formatPercent } from './formatters';
 
 export interface ActiveFloor {
-  slot: 1 | 2 | 3 | 4;
+  slot: 1 | 2 | 3 | 4 | 5;
   position: number;
   label: string;
   /**
@@ -108,6 +109,34 @@ export function resolveCustomPositionPct(
 }
 
 /**
+ * Whether the currently-winning custom-position slot is the safety slot —
+ * i.e. the slot named by `custom_position_active_slot` has a priority equal to
+ * {@link CUSTOM_POSITION_SAFETY_PRIORITY} (100). This is the v2.28.0+ signal
+ * that the former Force Override is active (it merged into Custom Positions as a
+ * priority-100 slot). Detection is by priority, not by handler name, so the card
+ * surfaces the migrated feature with its red, force-styled badge.
+ *
+ * Returns false when there is no active slot, the snapshot is missing, or the
+ * active slot is not present in the snapshot list.
+ */
+export function isWinningSlotSafety(
+  attrs:
+    | Pick<DecisionTraceAttributes, 'custom_position_slots' | 'custom_position_active_slot'>
+    | undefined,
+): boolean {
+  if (
+    attrs?.custom_position_active_slot === undefined ||
+    !Array.isArray(attrs.custom_position_slots)
+  ) {
+    return false;
+  }
+  const slot = attrs.custom_position_slots.find(
+    (s) => s.slot === attrs.custom_position_active_slot,
+  );
+  return slot?.priority === CUSTOM_POSITION_SAFETY_PRIORITY;
+}
+
+/**
  * Normalize a handler name as emitted by the integration's decision_trace
  * (PascalCase like "SolarHandler", snake forms like "force_override",
  * per-slot names like "custom_position_1") to the keys used in HANDLER_ORDER.
@@ -161,12 +190,14 @@ export function buildDecisionSentence(
     | 'custom_position_active_slot'
     | 'custom_position_minimum_mode'
     | 'custom_position_active_slot_name'
+    | 'custom_position_slots'
   >,
   // winnerHandler is reserved for callers that want to verify the winner
   // appears last in the sentence; the current implementation derives ordering
   // from HANDLER_ORDER alone and does not need it.
   _winnerHandler: string,
   labels: Record<string, string> = HANDLER_LABELS,
+  safetyLabel = 'Safety',
 ): string {
   const matchedByHandler = new Map<HandlerName, DecisionStep>();
   for (const row of trace) {
@@ -182,7 +213,9 @@ export function buildDecisionSentence(
 
   if (ordered.length === 0) return attrs.reason ?? '';
 
-  return ordered.map((h) => formatStep(h, matchedByHandler.get(h)!, attrs, labels)).join(' → ');
+  return ordered
+    .map((h) => formatStep(h, matchedByHandler.get(h)!, attrs, labels, safetyLabel))
+    .join(' → ');
 }
 
 function formatStep(
@@ -193,8 +226,10 @@ function formatStep(
     | 'custom_position_active_slot'
     | 'custom_position_minimum_mode'
     | 'custom_position_active_slot_name'
+    | 'custom_position_slots'
   >,
   labels: Record<string, string>,
+  safetyLabel: string,
 ): string {
   const baseLabel = labels[handler] ?? handler;
   const pos = row.position;
@@ -208,5 +243,8 @@ function formatStep(
       ? `${baseLabel} #${attrs.custom_position_active_slot}`
       : baseLabel;
   const floorSuffix = attrs.custom_position_minimum_mode === true ? ' floor' : '';
-  return `${slotLabel}${pct}${floorSuffix}`;
+  // Priority-100 safety slots (v2.28.0+ migrated Force Override) read with a
+  // trailing marker so the sentence flags the safety override.
+  const safetySuffix = isWinningSlotSafety(attrs) ? ` · ${safetyLabel}` : '';
+  return `${slotLabel}${pct}${floorSuffix}${safetySuffix}`;
 }

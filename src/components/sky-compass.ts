@@ -1,7 +1,9 @@
-import { LitElement, html, css, svg, nothing, type TemplateResult } from 'lit';
+import { LitElement, html, css, svg, nothing, type TemplateResult, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import type { HomeAssistant } from 'custom-card-helpers';
+
+import { entityStateChanged } from '../lib/hass-change';
 
 import type { DiscoveredEntities, SunPositionAttributes } from '../types';
 import {
@@ -71,6 +73,30 @@ export class SkyCompass extends LitElement {
   @property({ attribute: false }) public northOffsetDeg = 0;
 
   @state() private _hiddenEntries = new Set<string>();
+
+  // Skip re-render on hass ticks that touched none of the entities this compass reads.
+  protected shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.size > 1 || !changed.has('hass')) return true;
+    const old = changed.get('hass') as HomeAssistant | undefined;
+    return entityStateChanged(old, this.hass, this._relevantIds());
+  }
+
+  private _relevantIds(): Array<string | undefined> {
+    const ids: Array<string | undefined> = [];
+    for (const d of this.discovered_list) {
+      const e = d.entities;
+      ids.push(
+        e.sun_sensor,
+        e.target_position_sensor,
+        e.manual_override_binary,
+        e.sun_infront_binary,
+        e.decision_trace_sensor,
+        e.start_sensor,
+        e.end_sensor,
+      );
+    }
+    return ids;
+  }
 
   private _toggleEntry(id: string) {
     const next = new Set(this._hiddenEntries);

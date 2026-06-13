@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import '../src/components/more-info-dialog';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities } from '../src/types';
@@ -91,6 +91,34 @@ describe('acp-more-info-dialog: open/close', () => {
     el.addEventListener('acp-dialog-close', listener);
     (el.shadowRoot!.querySelector('button.close') as HTMLElement).click();
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('acp-more-info-dialog: minute timer (now cursor)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('ticks every minute only while open', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-13T10:00:00.000Z')); // on a boundary → ticks at +60s, +120s
+    const el = await mount({ hass: hass(), discovered: discovered(), open: false });
+
+    const spy = vi.spyOn(el as unknown as { requestUpdate: () => void }, 'requestUpdate');
+    vi.advanceTimersByTime(180_000);
+    expect(spy).not.toHaveBeenCalled(); // closed → no timer
+
+    el.open = true;
+    await el.updateComplete;
+    spy.mockClear();
+    vi.advanceTimersByTime(120_000);
+    expect(spy).toHaveBeenCalledTimes(2);
+
+    el.open = false;
+    await el.updateComplete;
+    spy.mockClear();
+    vi.advanceTimersByTime(180_000);
+    expect(spy).not.toHaveBeenCalled(); // closed again → timer cleared
   });
 });
 
@@ -367,6 +395,30 @@ describe('acp-more-info-dialog: slot management', () => {
     const minModeTags = el.shadowRoot!.querySelectorAll('.slot-row .slot-min-mode');
     // Only the slot 1 row should have a floor marker.
     expect(minModeTags.length).toBe(1);
+  });
+
+  it('renders a template chip only for slots with template=true', async () => {
+    const templated = [
+      {
+        ...slots[0],
+        template: true,
+        template_mode: 'or' as const,
+        sensors: ['binary_sensor.a', 'binary_sensor.b'],
+      },
+      { ...slots[1] }, // not templated
+    ];
+    const el = await mount({
+      hass: hass({ traceExtraAttrs: { custom_position_slots: templated } }),
+      discovered: discovered(),
+      open: true,
+    });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    const chips = el.shadowRoot!.querySelectorAll('.slot-row .slot-template');
+    expect(chips.length).toBe(1);
+    // The chip's tooltip surfaces the sensor count and combine mode.
+    expect(chips[0].getAttribute('title')).toContain('2 sensors');
+    expect(chips[0].getAttribute('title')).toContain('or');
   });
 
   it('floor pill is the ↥ glyph', async () => {

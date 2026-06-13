@@ -67,7 +67,7 @@ export function applyService(
   // adaptive_cover_pro.set_custom_position — toggle a slot
   if (key === `${INTEGRATION_DOMAIN}.set_custom_position`) {
     const cover = typeof data?.entity_id === 'string' ? data.entity_id : target?.entity_id;
-    const slot = typeof data?.slot === 'number' ? (data.slot as 1 | 2 | 3 | 4) : undefined;
+    const slot = typeof data?.slot === 'number' ? (data.slot as 1 | 2 | 3 | 4 | 5) : undefined;
     const enabled = typeof data?.enabled === 'boolean' ? data.enabled : undefined;
     if (!cover || !slot || enabled === undefined) return { next: cfg, applied: false };
     return { next: updateSlotForCover(cfg, cover, slot, enabled), applied: true };
@@ -109,7 +109,7 @@ function pressButton(cfg: HarnessConfig, entityId: string): HarnessConfig | null
     if (!entityId.includes(e.entry_id)) return e;
     if (!/reset_manual_override/i.test(entityId)) return e;
     found = true;
-    return { ...e, flags: { ...e.flags, manual_override: false, force_override_triggers: 0 } };
+    return { ...e, flags: { ...e.flags, manual_override: false } };
   });
   return found ? { ...cfg, entries } : null;
 }
@@ -145,7 +145,7 @@ function bumpTarget(entry: HarnessEntry, pos: number, only?: string): HarnessEnt
 function updateSlotForCover(
   cfg: HarnessConfig,
   coverEntityId: string,
-  slot: 1 | 2 | 3 | 4,
+  slot: 1 | 2 | 3 | 4 | 5,
   enabled: boolean,
 ): HarnessConfig {
   return {

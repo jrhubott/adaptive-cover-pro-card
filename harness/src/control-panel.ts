@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { HANDLER_ORDER, type HandlerName } from '../../src/const';
 import { SCENARIOS } from './scenarios';
 import type {
+  ClimateInactiveReason,
   ClimateStrategy,
   CoverType,
   HarnessConfig,
@@ -277,6 +278,17 @@ export class AcpHarnessControlPanel extends LitElement {
           priority: 50,
         },
         { slot: 4, enabled: false, position: 50, name: 'Floor', min_mode: true, priority: 90 },
+        {
+          slot: 5,
+          enabled: true,
+          position: 0,
+          name: 'Safety',
+          min_mode: false,
+          priority: 100,
+          sensors: [`binary_sensor.${newId}_wind`, `binary_sensor.${newId}_frost`],
+          template: true,
+          template_mode: 'or',
+        },
       ],
       flags: {
         integration_enabled: true,
@@ -284,12 +296,16 @@ export class AcpHarnessControlPanel extends LitElement {
         manual_override: false,
         manual_override_minutes_from_now: 60,
         held_position: null,
-        force_override_triggers: 0,
+        safety_slot_active: false,
         motion_status: 'idle',
         motion_timeout_minutes_from_now: 1,
         climate_strategy: 'intermediate',
         indoor_temp: 21,
         outdoor_temp: 18,
+        climate_inactive_reason: 'outside_time_window',
+        climate_temp_low: 18,
+        climate_temp_high: 25,
+        climate_temp_summer_outside: 22,
         glare_active: false,
         is_sunset_active: false,
         in_time_window: true,
@@ -497,8 +513,8 @@ export class AcpHarnessControlPanel extends LitElement {
                   (v) => this._patchFlags(idx, { manual_override_minutes_from_now: v }),
                 )
               : ''}
-            ${this._numberSlider('Force triggers', e.flags.force_override_triggers, 0, 5, 1, (v) =>
-              this._patchFlags(idx, { force_override_triggers: v }),
+            ${this._checkbox('Safety slot 5 (priority 100)', e.flags.safety_slot_active, (v) =>
+              this._patchFlags(idx, { safety_slot_active: v }),
             )}
             <label class="row">
               <span>Motion status</span>
@@ -532,11 +548,61 @@ export class AcpHarnessControlPanel extends LitElement {
                 )}
               </select>
             </label>
+            <label class="row">
+              <span>Inactive reason</span>
+              <select
+                @change=${(ev: Event) =>
+                  this._patchFlags(idx, {
+                    climate_inactive_reason: (ev.target as HTMLSelectElement)
+                      .value as ClimateInactiveReason,
+                  })}
+              >
+                ${(
+                  [
+                    'outside_time_window',
+                    'thresholds_not_met',
+                    'other_mode_active',
+                    'readings_unavailable',
+                    'mode_off',
+                    'active',
+                  ] as ClimateInactiveReason[]
+                ).map(
+                  (v) =>
+                    html`<option value=${v} ?selected=${e.flags.climate_inactive_reason === v}>
+                      ${v}
+                    </option>`,
+                )}
+              </select>
+            </label>
             ${this._numberSlider('Indoor °C', e.flags.indoor_temp, -10, 40, 1, (v) =>
               this._patchFlags(idx, { indoor_temp: v }),
             )}
             ${this._numberSlider('Outdoor °C', e.flags.outdoor_temp, -20, 45, 1, (v) =>
               this._patchFlags(idx, { outdoor_temp: v }),
+            )}
+            ${this._numberSlider(
+              'Threshold low °C',
+              e.flags.climate_temp_low ?? 18,
+              -10,
+              40,
+              1,
+              (v) => this._patchFlags(idx, { climate_temp_low: v }),
+            )}
+            ${this._numberSlider(
+              'Threshold high °C',
+              e.flags.climate_temp_high ?? 25,
+              -10,
+              40,
+              1,
+              (v) => this._patchFlags(idx, { climate_temp_high: v }),
+            )}
+            ${this._numberSlider(
+              'Threshold summer °C',
+              e.flags.climate_temp_summer_outside ?? 22,
+              -10,
+              45,
+              1,
+              (v) => this._patchFlags(idx, { climate_temp_summer_outside: v }),
             )}
             ${this._checkbox('Glare active', e.flags.glare_active, (v) =>
               this._patchFlags(idx, { glare_active: v }),

@@ -14,13 +14,31 @@ export interface SunSample {
  * card's geometry.
  *
  * `stepMinutes` defaults to 10 minutes → 145 samples for a 24h window.
+ *
+ * Memoized: the result depends only on `(latitude, longitude, dayStart, stepMinutes)`
+ * and changes meaningfully only once per day (or when the location moves). HA pushes a
+ * new `hass` on every state tick, so the consuming components re-render often; without
+ * the cache each render would redo ~145 SunCalc evaluations. A small LRU keeps the
+ * current day plus a couple of neighbours (e.g. an elevation chart paging across dates).
  */
+const SAMPLE_DAY_CACHE_MAX = 4;
+const _sampleDayCache = new Map<string, SunSample[]>();
+
 export function sampleDay(
   latitude: number,
   longitude: number,
   dayStart: Date,
   stepMinutes = 10,
 ): SunSample[] {
+  const key = `${latitude},${longitude},${dayStart.getTime()},${stepMinutes}`;
+  const cached = _sampleDayCache.get(key);
+  if (cached) {
+    // Refresh recency: re-insertion moves the key to the end of the Map's order.
+    _sampleDayCache.delete(key);
+    _sampleDayCache.set(key, cached);
+    return cached;
+  }
+
   const samples: SunSample[] = [];
   const endMs = dayStart.getTime() + 24 * 60 * 60 * 1000;
   for (let ms = dayStart.getTime(); ms <= endMs; ms += stepMinutes * 60 * 1000) {
@@ -33,6 +51,13 @@ export function sampleDay(
       // Convert to compass: 180 + degrees, then normalize to [0, 360)
       azimuth: ((((pos.azimuth * 180) / Math.PI + 180) % 360) + 360) % 360,
     });
+  }
+
+  _sampleDayCache.set(key, samples);
+  if (_sampleDayCache.size > SAMPLE_DAY_CACHE_MAX) {
+    // Evict the least-recently-used entry (first key in insertion order).
+    const oldest = _sampleDayCache.keys().next().value;
+    if (oldest !== undefined) _sampleDayCache.delete(oldest);
   }
   return samples;
 }

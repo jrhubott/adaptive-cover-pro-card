@@ -1,4 +1,5 @@
 import SunCalc from 'suncalc';
+import { CUSTOM_POSITION_SAFETY_PRIORITY } from '../../../src/const';
 import {
   findFovWindow,
   sampleDay,
@@ -245,24 +246,34 @@ function addEntryStates(
         : undefined,
   });
 
-  states[id('force_override_sensor')] = mkState(
-    id('force_override_sensor'),
-    String(f.force_override_triggers),
-    { friendly_name: `${entry.title} Force Override Triggers` },
-  );
+  // The standalone Force Override Triggers sensor was removed in v2.28.0 — its
+  // function merged into the priority-100 custom-position safety slot (slot 5),
+  // whose state is surfaced through the per-slot custom-position sensor below.
 
   states[id('climate_status_sensor')] = mkState(
     id('climate_status_sensor'),
     f.climate_strategy,
     f.climate_strategy === 'unknown'
-      ? { friendly_name: `${entry.title} Climate Status` }
+      ? {
+          friendly_name: `${entry.title} Climate Status`,
+          // #590: threshold keys always present (values may be null), plus the
+          // inactive_reason slug — emitted even in standby.
+          temp_low: f.climate_temp_low,
+          temp_high: f.climate_temp_high,
+          temp_summer_outside: f.climate_temp_summer_outside,
+          inactive_reason: f.climate_inactive_reason,
+        }
       : {
           friendly_name: `${entry.title} Climate Status`,
-          active_temperature: f.indoor_temp,
+          active_temperature: f.climate_strategy === 'winter_mode' ? f.outdoor_temp : f.indoor_temp,
           temperature_unit: '°C',
           indoor_temperature: f.indoor_temp,
           outdoor_temperature: f.outdoor_temp,
           temp_switch: f.climate_strategy === 'winter_mode',
+          temp_low: f.climate_temp_low,
+          temp_high: f.climate_temp_high,
+          temp_summer_outside: f.climate_temp_summer_outside,
+          inactive_reason: 'active',
           is_presence: true,
           is_sunny: sun.elevation > 0,
           lux_active: sun.elevation > 5,
@@ -346,7 +357,13 @@ function addEntryStates(
   // so enabled slots must surface an "on" sensor for the floor chip to render.
   for (const s of entry.slots) {
     const sensorId = `sensor.custom_${entry.entry_id}_slot${s.slot}`;
-    states[sensorId] = mkState(sensorId, s.enabled ? 'on' : 'off', {
+    // The priority-100 safety slot (slot 5) is armed by the dedicated
+    // safety_slot_active flag rather than just being enabled.
+    const armed =
+      s.priority === CUSTOM_POSITION_SAFETY_PRIORITY
+        ? s.enabled && entry.flags.safety_slot_active
+        : s.enabled;
+    states[sensorId] = mkState(sensorId, armed ? 'on' : 'off', {
       friendly_name: `${entry.title} ${s.name}`,
     });
   }

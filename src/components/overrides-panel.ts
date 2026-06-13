@@ -1,7 +1,8 @@
-import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { LitElement, html, css, nothing, type TemplateResult, type PropertyValues } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
+import { entityStateChanged } from '../lib/hass-change';
 import type { DiscoveredEntities } from '../types';
 import { countdownTo } from '../lib/formatters';
 import { t } from '../lib/i18n';
@@ -12,6 +13,51 @@ export class OverridesPanel extends LitElement {
   @property({ attribute: false }) public discovered!: DiscoveredEntities;
   @property({ type: Boolean, reflect: true }) public compact = false;
   @property({ type: Boolean, attribute: 'reset-enabled' }) public resetEnabled = true;
+
+  // A live "ends in …" countdown is derived from a fixed end-time entity, so the entity
+  // itself does not change as time passes. Once the guard stops blind per-tick renders we
+  // drive the countdown from our own 1 s timer instead, scoped to this one small section.
+  private _tick: ReturnType<typeof setInterval> | null = null;
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this._syncTimer(false);
+  }
+
+  // Skip re-render on hass ticks that touched none of this panel's entities. An explicit
+  // `requestUpdate()` from the countdown timer arrives here with an empty `changed`
+  // (size 0, no 'hass') and so passes through to render.
+  protected shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.size > 1 || !changed.has('hass')) return true;
+    const old = changed.get('hass') as HomeAssistant | undefined;
+    const e = this.discovered?.entities;
+    return entityStateChanged(old, this.hass, [
+      e?.manual_override_binary,
+      e?.manual_override_end_sensor,
+      e?.motion_status_sensor,
+      e?.reset_override_button,
+    ]);
+  }
+
+  protected updated(): void {
+    if (!this.hass || !this.discovered) {
+      this._syncTimer(false);
+      return;
+    }
+    // Run the 1 s timer only when a countdown is actually visible (compact mode hides it).
+    const active =
+      !this.compact && (this._manualEndIso() !== null || this._motionStatus()?.endIso != null);
+    this._syncTimer(active);
+  }
+
+  private _syncTimer(active: boolean): void {
+    if (active && this._tick === null) {
+      this._tick = setInterval(() => this.requestUpdate(), 1000);
+    } else if (!active && this._tick !== null) {
+      clearInterval(this._tick);
+      this._tick = null;
+    }
+  }
 
   private _manualActive(): boolean {
     const id = this.discovered.entities.manual_override_binary;
@@ -33,14 +79,6 @@ export class OverridesPanel extends LitElement {
     if (!st) return null;
     const endIso = (st.attributes as { motion_timeout_end_time?: string }).motion_timeout_end_time;
     return { state: st.state, endIso: endIso ?? null };
-  }
-
-  private _forceActive(): number {
-    const id = this.discovered.entities.force_override_sensor;
-    if (!id) return 0;
-    const st = this.hass.states[id];
-    if (!st) return 0;
-    return parseInt(st.state, 10) || 0;
   }
 
   private _resetManual(): void {
@@ -68,7 +106,6 @@ export class OverridesPanel extends LitElement {
     const manualEnd = this._manualEndIso();
     const motion = this._motionStatus();
     const motionId = this.discovered.entities.motion_status_sensor;
-    const forceCount = this._forceActive();
     const resetId = this.discovered.entities.reset_override_button;
     const resetLabel = t('overrides.reset_manual', this.hass);
 
@@ -86,15 +123,6 @@ export class OverridesPanel extends LitElement {
                   ${t('overrides.ends_in', this.hass, { time: countdownTo(manualEnd, this.hass) })}
                 </div>`
               : nothing}
-          </div>
-
-          <div class="tile ${forceCount > 0 ? 'active warning' : ''}">
-            <div class="tile-label">${t('overrides.force', this.hass)}</div>
-            <div class="tile-value">
-              ${forceCount > 0
-                ? t('overrides.active_count', this.hass, { count: forceCount })
-                : t('overrides.off', this.hass)}
-            </div>
           </div>
 
           ${motion
@@ -167,9 +195,6 @@ export class OverridesPanel extends LitElement {
     .tile.active {
       background: var(--primary-color);
       color: var(--text-primary-color, #fff);
-    }
-    .tile.active.warning {
-      background: var(--warning-color, orange);
     }
     .tile.action {
       cursor: pointer;

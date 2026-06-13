@@ -11,6 +11,7 @@ interface BadgeLike extends HTMLElement {
   manualEndIso?: string;
   integrationEnabled?: boolean;
   resumable?: boolean;
+  safetyActive?: boolean;
 }
 
 async function mountBadge(props: Partial<BadgeLike>): Promise<BadgeLike> {
@@ -145,6 +146,37 @@ describe('acp-tile-badge', () => {
       minimumMode: false,
     });
     expect(text(noop)).toBe('Custom #2 · 80%');
+  });
+
+  it('renders a red Safety badge (force styling) when safetyActive on a custom_position winner', async () => {
+    const el = await mountBadge({
+      winner: 'custom_position',
+      slotNumber: 5,
+      pct: 100,
+      safetyActive: true,
+    });
+    // Label is "Safety", not the purple "Custom · …" string.
+    expect(text(el)).toBe('Safety');
+    // The kind class stays custom_position (the winner is still a custom slot).
+    expect(kind(el)).toBe('custom_position');
+    // Visual tokens are the red force styling.
+    const span = el.shadowRoot!.querySelector('span.badge') as HTMLElement;
+    expect(span.getAttribute('style')).toContain('#b71c1c');
+    // The force icon (mdi:flash) is rendered.
+    expect(el.shadowRoot!.querySelector('ha-icon')!.getAttribute('icon')).toBe('mdi:flash');
+  });
+
+  it('keeps the purple Custom badge when safetyActive is false', async () => {
+    const el = await mountBadge({
+      winner: 'custom_position',
+      slotNumber: 1,
+      pct: 60,
+      safetyActive: false,
+    });
+    expect(text(el)).toBe('Custom #1 · 60%');
+    expect(kind(el)).toBe('custom_position');
+    const span = el.shadowRoot!.querySelector('span.badge') as HTMLElement;
+    expect(span.getAttribute('style')).not.toContain('#b71c1c');
   });
 
   it('accepts per-slot winner strings emitted by the integration (custom_position_3)', async () => {
