@@ -282,6 +282,54 @@ describe('createDiscoveryMemo', () => {
     expect(result2).toBeNull();
   });
 
+  it('returns the SAME result reference across a new hass that shares the relevant state refs', () => {
+    // HA hands over a fresh `hass` object on every state tick. As long as the registry
+    // and the specific states the discovery reads (target-position, control-status) and
+    // `hass.devices` are reference-equal, the memo must return the same object so child
+    // props stay stable.
+    const memo = createDiscoveryMemo();
+    const registry = makeRegistry();
+    const hass1 = makeHass() as unknown as {
+      devices: unknown;
+      states: Record<string, unknown>;
+    };
+    const first = memo(hass1 as unknown as HomeAssistant, CONFIG, registry);
+
+    // New hass object reusing the same devices + relevant state object references, but
+    // with an extra unrelated entity that changed (simulating a foreign state tick).
+    const hass2 = {
+      devices: hass1.devices,
+      states: {
+        ...hass1.states,
+        'light.kitchen': { state: 'on', attributes: {} },
+      },
+    } as unknown as HomeAssistant;
+    const second = memo(hass2, CONFIG, registry);
+    expect(second).toBe(first); // unrelated tick → no recompute, stable reference
+  });
+
+  it('recomputes when a relevant state object reference changes', () => {
+    const memo = createDiscoveryMemo();
+    const registry = makeRegistry();
+    const hass1 = makeHass() as unknown as { states: Record<string, unknown>; devices: unknown };
+    const first = memo(hass1 as unknown as HomeAssistant, CONFIG, registry);
+
+    // Same registry/devices, but the control-status state is a new object (cover_type flips).
+    const hass2 = {
+      devices: hass1.devices,
+      states: {
+        ...hass1.states,
+        'sensor.living_room_blinds_control_status': {
+          state: 'active',
+          attributes: { cover_type: 'cover_awning' },
+        },
+      },
+    } as unknown as HomeAssistant;
+    const second = memo(hass2, CONFIG, registry);
+    expect(second).not.toBe(first);
+    expect(second!.cover_type).toBe('cover_awning');
+  });
+
   it('calls discoverEntities only once for repeated identical inputs', () => {
     const spy = vi.spyOn({ discoverEntities }, 'discoverEntities');
     const memo = createDiscoveryMemo();

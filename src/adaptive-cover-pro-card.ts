@@ -1,6 +1,8 @@
-import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { LitElement, html, css, nothing, type TemplateResult, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
+
+import { entityStateChanged } from './lib/hass-change';
 
 import {
   CARD_EDITOR_NAME,
@@ -50,6 +52,12 @@ export class AdaptiveCoverProCard extends LitElement {
   @state() private _registry: EntityRegistryEntry[] | null = null;
   @state() private _registryError: string | null = null;
   @state() private _discovered: DiscoveredEntities | null = null;
+
+  // Stable single-element wrapper list handed to the compass + elevation chart.
+  // Rebuilt only when `_discovered`'s reference changes, so a root re-render for
+  // header reasons doesn't churn those children's array prop on every tick.
+  private _discoveredList: DiscoveredEntities[] = [];
+  private _discoveredListSource: DiscoveredEntities | null = null;
 
   private _unsubRegistry: (() => void) | null = null;
   private _fetchInFlight = false;
@@ -127,6 +135,19 @@ export class AdaptiveCoverProCard extends LitElement {
     if (changed.has('hass') && this.hass) this._ensureRegistry();
   }
 
+  // Root re-renders whenever ANY entity belonging to this config entry changed,
+  // because it is the one that forwards `hass` to every section — short-circuit
+  // here and the children never see the update. Each child then applies its own
+  // narrower guard so the expensive sections skip ticks they don't care about.
+  // Unrelated (non-ACP) state ticks change none of these ids, so the root (and
+  // therefore the whole card) skips them entirely.
+  protected shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.size > 1 || !changed.has('hass')) return true;
+    if (!this._discovered) return true;
+    const old = changed.get('hass') as HomeAssistant | undefined;
+    return entityStateChanged(old, this.hass, Object.values(this._discovered.entities));
+  }
+
   protected willUpdate(changed: Map<string, unknown>): void {
     if (
       this._registry !== null &&
@@ -135,6 +156,10 @@ export class AdaptiveCoverProCard extends LitElement {
       (changed.has('hass') || changed.has('_registry') || changed.has('_config'))
     ) {
       this._discovered = this._memo(this.hass, this._config, this._registry);
+    }
+    if (this._discovered !== this._discoveredListSource) {
+      this._discoveredListSource = this._discovered;
+      this._discoveredList = this._discovered ? [this._discovered] : [];
     }
   }
 
@@ -311,7 +336,7 @@ export class AdaptiveCoverProCard extends LitElement {
           ${sections.includes('sky')
             ? html`<acp-sky-compass
                 .hass=${this.hass}
-                .discovered_list=${[discovered]}
+                .discovered_list=${this._discoveredList}
                 ?compact=${!!this._config.compact}
                 .showStats=${this._config.show_compass_stats ?? true}
                 .showLegend=${this._config.show_compass_legend ?? true}
@@ -323,7 +348,7 @@ export class AdaptiveCoverProCard extends LitElement {
           ${sections.includes('elevation')
             ? html`<acp-elevation-chart
                 .hass=${this.hass}
-                .discoveredList=${[discovered]}
+                .discoveredList=${this._discoveredList}
                 ?compact=${!!this._config.compact}
                 .coverColors=${this._config.cover_colors ?? []}
               ></acp-elevation-chart>`

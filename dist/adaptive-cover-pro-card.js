@@ -1,15 +1,15 @@
 /*! adaptive-cover-pro-card v2.5.2 | MIT License | https://github.com/jrhubott/adaptive-cover-pro-card */
-function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPropertyDescriptor(t,o):i;if("object"==typeof Reflect&&"function"==typeof Reflect.decorate)a=Reflect.decorate(e,t,o,i);else for(var r=e.length-1;r>=0;r--)(s=e[r])&&(a=(n<3?s(a):n>3?s(t,o,a):s(t,o))||a);return n>3&&a&&Object.defineProperty(t,o,a),a}"function"==typeof SuppressedError&&SuppressedError;const t=globalThis,o=t.ShadowRoot&&(void 0===t.ShadyCSS||t.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype,i=Symbol(),s=new WeakMap;let n=class{constructor(e,t,o){if(this._$cssResult$=!0,o!==i)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=e,this.t=t}get styleSheet(){let e=this.o;const t=this.t;if(o&&void 0===e){const o=void 0!==t&&1===t.length;o&&(e=s.get(t)),void 0===e&&((this.o=e=new CSSStyleSheet).replaceSync(this.cssText),o&&s.set(t,e))}return e}toString(){return this.cssText}};const a=(e,...t)=>{const o=1===e.length?e[0]:t.reduce((t,o,i)=>t+(e=>{if(!0===e._$cssResult$)return e.cssText;if("number"==typeof e)return e;throw Error("Value passed to 'css' function must be a 'css' function result: "+e+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(o)+e[i+1],e[0]);return new n(o,e,i)},r=o?e=>e:e=>e instanceof CSSStyleSheet?(e=>{let t="";for(const o of e.cssRules)t+=o.cssText;return(e=>new n("string"==typeof e?e:e+"",void 0,i))(t)})(e):e,{is:l,defineProperty:c,getOwnPropertyDescriptor:d,getOwnPropertyNames:h,getOwnPropertySymbols:u,getPrototypeOf:p}=Object,g=globalThis,m=g.trustedTypes,_=m?m.emptyScript:"",f=g.reactiveElementPolyfillSupport,v=(e,t)=>e,y={toAttribute(e,t){switch(t){case Boolean:e=e?_:null;break;case Object:case Array:e=null==e?e:JSON.stringify(e)}return e},fromAttribute(e,t){let o=e;switch(t){case Boolean:o=null!==e;break;case Number:o=null===e?null:Number(e);break;case Object:case Array:try{o=JSON.parse(e)}catch(e){o=null}}return o}},b=(e,t)=>!l(e,t),w={attribute:!0,type:String,converter:y,reflect:!1,useDefault:!1,hasChanged:b};Symbol.metadata??=Symbol("metadata"),g.litPropertyMetadata??=new WeakMap;let x=class extends HTMLElement{static addInitializer(e){this._$Ei(),(this.l??=[]).push(e)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(e,t=w){if(t.state&&(t.attribute=!1),this._$Ei(),this.prototype.hasOwnProperty(e)&&((t=Object.create(t)).wrapped=!0),this.elementProperties.set(e,t),!t.noAccessor){const o=Symbol(),i=this.getPropertyDescriptor(e,o,t);void 0!==i&&c(this.prototype,e,i)}}static getPropertyDescriptor(e,t,o){const{get:i,set:s}=d(this.prototype,e)??{get(){return this[t]},set(e){this[t]=e}};return{get:i,set(t){const n=i?.call(this);s?.call(this,t),this.requestUpdate(e,n,o)},configurable:!0,enumerable:!0}}static getPropertyOptions(e){return this.elementProperties.get(e)??w}static _$Ei(){if(this.hasOwnProperty(v("elementProperties")))return;const e=p(this);e.finalize(),void 0!==e.l&&(this.l=[...e.l]),this.elementProperties=new Map(e.elementProperties)}static finalize(){if(this.hasOwnProperty(v("finalized")))return;if(this.finalized=!0,this._$Ei(),this.hasOwnProperty(v("properties"))){const e=this.properties,t=[...h(e),...u(e)];for(const o of t)this.createProperty(o,e[o])}const e=this[Symbol.metadata];if(null!==e){const t=litPropertyMetadata.get(e);if(void 0!==t)for(const[e,o]of t)this.elementProperties.set(e,o)}this._$Eh=new Map;for(const[e,t]of this.elementProperties){const o=this._$Eu(e,t);void 0!==o&&this._$Eh.set(o,e)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(e){const t=[];if(Array.isArray(e)){const o=new Set(e.flat(1/0).reverse());for(const e of o)t.unshift(r(e))}else void 0!==e&&t.push(r(e));return t}static _$Eu(e,t){const o=t.attribute;return!1===o?void 0:"string"==typeof o?o:"string"==typeof e?e.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=!1,this.hasUpdated=!1,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(e=>this.enableUpdating=e),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(e=>e(this))}addController(e){(this._$EO??=new Set).add(e),void 0!==this.renderRoot&&this.isConnected&&e.hostConnected?.()}removeController(e){this._$EO?.delete(e)}_$E_(){const e=new Map,t=this.constructor.elementProperties;for(const o of t.keys())this.hasOwnProperty(o)&&(e.set(o,this[o]),delete this[o]);e.size>0&&(this._$Ep=e)}createRenderRoot(){const e=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return((e,i)=>{if(o)e.adoptedStyleSheets=i.map(e=>e instanceof CSSStyleSheet?e:e.styleSheet);else for(const o of i){const i=document.createElement("style"),s=t.litNonce;void 0!==s&&i.setAttribute("nonce",s),i.textContent=o.cssText,e.appendChild(i)}})(e,this.constructor.elementStyles),e}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(!0),this._$EO?.forEach(e=>e.hostConnected?.())}enableUpdating(e){}disconnectedCallback(){this._$EO?.forEach(e=>e.hostDisconnected?.())}attributeChangedCallback(e,t,o){this._$AK(e,o)}_$ET(e,t){const o=this.constructor.elementProperties.get(e),i=this.constructor._$Eu(e,o);if(void 0!==i&&!0===o.reflect){const s=(void 0!==o.converter?.toAttribute?o.converter:y).toAttribute(t,o.type);this._$Em=e,null==s?this.removeAttribute(i):this.setAttribute(i,s),this._$Em=null}}_$AK(e,t){const o=this.constructor,i=o._$Eh.get(e);if(void 0!==i&&this._$Em!==i){const e=o.getPropertyOptions(i),s="function"==typeof e.converter?{fromAttribute:e.converter}:void 0!==e.converter?.fromAttribute?e.converter:y;this._$Em=i;const n=s.fromAttribute(t,e.type);this[i]=n??this._$Ej?.get(i)??n,this._$Em=null}}requestUpdate(e,t,o,i=!1,s){if(void 0!==e){const n=this.constructor;if(!1===i&&(s=this[e]),o??=n.getPropertyOptions(e),!((o.hasChanged??b)(s,t)||o.useDefault&&o.reflect&&s===this._$Ej?.get(e)&&!this.hasAttribute(n._$Eu(e,o))))return;this.C(e,t,o)}!1===this.isUpdatePending&&(this._$ES=this._$EP())}C(e,t,{useDefault:o,reflect:i,wrapped:s},n){o&&!(this._$Ej??=new Map).has(e)&&(this._$Ej.set(e,n??t??this[e]),!0!==s||void 0!==n)||(this._$AL.has(e)||(this.hasUpdated||o||(t=void 0),this._$AL.set(e,t)),!0===i&&this._$Em!==e&&(this._$Eq??=new Set).add(e))}async _$EP(){this.isUpdatePending=!0;try{await this._$ES}catch(e){Promise.reject(e)}const e=this.scheduleUpdate();return null!=e&&await e,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(const[e,t]of this._$Ep)this[e]=t;this._$Ep=void 0}const e=this.constructor.elementProperties;if(e.size>0)for(const[t,o]of e){const{wrapped:e}=o,i=this[t];!0!==e||this._$AL.has(t)||void 0===i||this.C(t,void 0,o,i)}}let e=!1;const t=this._$AL;try{e=this.shouldUpdate(t),e?(this.willUpdate(t),this._$EO?.forEach(e=>e.hostUpdate?.()),this.update(t)):this._$EM()}catch(t){throw e=!1,this._$EM(),t}e&&this._$AE(t)}willUpdate(e){}_$AE(e){this._$EO?.forEach(e=>e.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=!0,this.firstUpdated(e)),this.updated(e)}_$EM(){this._$AL=new Map,this.isUpdatePending=!1}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(e){return!0}update(e){this._$Eq&&=this._$Eq.forEach(e=>this._$ET(e,this[e])),this._$EM()}updated(e){}firstUpdated(e){}};x.elementStyles=[],x.shadowRootOptions={mode:"open"},x[v("elementProperties")]=new Map,x[v("finalized")]=new Map,f?.({ReactiveElement:x}),(g.reactiveElementVersions??=[]).push("2.1.2");const $=globalThis,A=e=>e,k=$.trustedTypes,C=k?k.createPolicy("lit-html",{createHTML:e=>e}):void 0,E="$lit$",S=`lit$${Math.random().toFixed(9).slice(2)}$`,z="?"+S,O=`<${z}>`,M=document,I=()=>M.createComment(""),F=e=>null===e||"object"!=typeof e&&"function"!=typeof e,P=Array.isArray,j="[ \t\n\f\r]",T=/<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g,N=/-->/g,R=/>/g,D=RegExp(`>|${j}(?:([^\\s"'>=/]+)(${j}*=${j}*(?:[^ \t\n\f\r"'\`<>=]|("|')|))|$)`,"g"),B=/'/g,K=/"/g,V=/^(?:script|style|textarea|title)$/i,G=e=>(t,...o)=>({_$litType$:e,strings:t,values:o}),q=G(1),W=G(2),Y=Symbol.for("lit-noChange"),U=Symbol.for("lit-nothing"),L=new WeakMap,Q=M.createTreeWalker(M,129);function H(e,t){if(!P(e)||!e.hasOwnProperty("raw"))throw Error("invalid template strings array");return void 0!==C?C.createHTML(t):t}const Z=(e,t)=>{const o=e.length-1,i=[];let s,n=2===t?"<svg>":3===t?"<math>":"",a=T;for(let t=0;t<o;t++){const o=e[t];let r,l,c=-1,d=0;for(;d<o.length&&(a.lastIndex=d,l=a.exec(o),null!==l);)d=a.lastIndex,a===T?"!--"===l[1]?a=N:void 0!==l[1]?a=R:void 0!==l[2]?(V.test(l[2])&&(s=RegExp("</"+l[2],"g")),a=D):void 0!==l[3]&&(a=D):a===D?">"===l[0]?(a=s??T,c=-1):void 0===l[1]?c=-2:(c=a.lastIndex-l[2].length,r=l[1],a=void 0===l[3]?D:'"'===l[3]?K:B):a===K||a===B?a=D:a===N||a===R?a=T:(a=D,s=void 0);const h=a===D&&e[t+1].startsWith("/>")?" ":"";n+=a===T?o+O:c>=0?(i.push(r),o.slice(0,c)+E+o.slice(c)+S+h):o+S+(-2===c?t:h)}return[H(e,n+(e[o]||"<?>")+(2===t?"</svg>":3===t?"</math>":"")),i]};class J{constructor({strings:e,_$litType$:t},o){let i;this.parts=[];let s=0,n=0;const a=e.length-1,r=this.parts,[l,c]=Z(e,t);if(this.el=J.createElement(l,o),Q.currentNode=this.el.content,2===t||3===t){const e=this.el.content.firstChild;e.replaceWith(...e.childNodes)}for(;null!==(i=Q.nextNode())&&r.length<a;){if(1===i.nodeType){if(i.hasAttributes())for(const e of i.getAttributeNames())if(e.endsWith(E)){const t=c[n++],o=i.getAttribute(e).split(S),a=/([.?@])?(.*)/.exec(t);r.push({type:1,index:s,name:a[2],strings:o,ctor:"."===a[1]?ie:"?"===a[1]?se:"@"===a[1]?ne:oe}),i.removeAttribute(e)}else e.startsWith(S)&&(r.push({type:6,index:s}),i.removeAttribute(e));if(V.test(i.tagName)){const e=i.textContent.split(S),t=e.length-1;if(t>0){i.textContent=k?k.emptyScript:"";for(let o=0;o<t;o++)i.append(e[o],I()),Q.nextNode(),r.push({type:2,index:++s});i.append(e[t],I())}}}else if(8===i.nodeType)if(i.data===z)r.push({type:2,index:s});else{let e=-1;for(;-1!==(e=i.data.indexOf(S,e+1));)r.push({type:7,index:s}),e+=S.length-1}s++}}static createElement(e,t){const o=M.createElement("template");return o.innerHTML=e,o}}function X(e,t,o=e,i){if(t===Y)return t;let s=void 0!==i?o._$Co?.[i]:o._$Cl;const n=F(t)?void 0:t._$litDirective$;return s?.constructor!==n&&(s?._$AO?.(!1),void 0===n?s=void 0:(s=new n(e),s._$AT(e,o,i)),void 0!==i?(o._$Co??=[])[i]=s:o._$Cl=s),void 0!==s&&(t=X(e,s._$AS(e,t.values),s,i)),t}class ee{constructor(e,t){this._$AV=[],this._$AN=void 0,this._$AD=e,this._$AM=t}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(e){const{el:{content:t},parts:o}=this._$AD,i=(e?.creationScope??M).importNode(t,!0);Q.currentNode=i;let s=Q.nextNode(),n=0,a=0,r=o[0];for(;void 0!==r;){if(n===r.index){let t;2===r.type?t=new te(s,s.nextSibling,this,e):1===r.type?t=new r.ctor(s,r.name,r.strings,this,e):6===r.type&&(t=new ae(s,this,e)),this._$AV.push(t),r=o[++a]}n!==r?.index&&(s=Q.nextNode(),n++)}return Q.currentNode=M,i}p(e){let t=0;for(const o of this._$AV)void 0!==o&&(void 0!==o.strings?(o._$AI(e,o,t),t+=o.strings.length-2):o._$AI(e[t])),t++}}class te{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(e,t,o,i){this.type=2,this._$AH=U,this._$AN=void 0,this._$AA=e,this._$AB=t,this._$AM=o,this.options=i,this._$Cv=i?.isConnected??!0}get parentNode(){let e=this._$AA.parentNode;const t=this._$AM;return void 0!==t&&11===e?.nodeType&&(e=t.parentNode),e}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(e,t=this){e=X(this,e,t),F(e)?e===U||null==e||""===e?(this._$AH!==U&&this._$AR(),this._$AH=U):e!==this._$AH&&e!==Y&&this._(e):void 0!==e._$litType$?this.$(e):void 0!==e.nodeType?this.T(e):(e=>P(e)||"function"==typeof e?.[Symbol.iterator])(e)?this.k(e):this._(e)}O(e){return this._$AA.parentNode.insertBefore(e,this._$AB)}T(e){this._$AH!==e&&(this._$AR(),this._$AH=this.O(e))}_(e){this._$AH!==U&&F(this._$AH)?this._$AA.nextSibling.data=e:this.T(M.createTextNode(e)),this._$AH=e}$(e){const{values:t,_$litType$:o}=e,i="number"==typeof o?this._$AC(e):(void 0===o.el&&(o.el=J.createElement(H(o.h,o.h[0]),this.options)),o);if(this._$AH?._$AD===i)this._$AH.p(t);else{const e=new ee(i,this),o=e.u(this.options);e.p(t),this.T(o),this._$AH=e}}_$AC(e){let t=L.get(e.strings);return void 0===t&&L.set(e.strings,t=new J(e)),t}k(e){P(this._$AH)||(this._$AH=[],this._$AR());const t=this._$AH;let o,i=0;for(const s of e)i===t.length?t.push(o=new te(this.O(I()),this.O(I()),this,this.options)):o=t[i],o._$AI(s),i++;i<t.length&&(this._$AR(o&&o._$AB.nextSibling,i),t.length=i)}_$AR(e=this._$AA.nextSibling,t){for(this._$AP?.(!1,!0,t);e!==this._$AB;){const t=A(e).nextSibling;A(e).remove(),e=t}}setConnected(e){void 0===this._$AM&&(this._$Cv=e,this._$AP?.(e))}}class oe{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(e,t,o,i,s){this.type=1,this._$AH=U,this._$AN=void 0,this.element=e,this.name=t,this._$AM=i,this.options=s,o.length>2||""!==o[0]||""!==o[1]?(this._$AH=Array(o.length-1).fill(new String),this.strings=o):this._$AH=U}_$AI(e,t=this,o,i){const s=this.strings;let n=!1;if(void 0===s)e=X(this,e,t,0),n=!F(e)||e!==this._$AH&&e!==Y,n&&(this._$AH=e);else{const i=e;let a,r;for(e=s[0],a=0;a<s.length-1;a++)r=X(this,i[o+a],t,a),r===Y&&(r=this._$AH[a]),n||=!F(r)||r!==this._$AH[a],r===U?e=U:e!==U&&(e+=(r??"")+s[a+1]),this._$AH[a]=r}n&&!i&&this.j(e)}j(e){e===U?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,e??"")}}class ie extends oe{constructor(){super(...arguments),this.type=3}j(e){this.element[this.name]=e===U?void 0:e}}class se extends oe{constructor(){super(...arguments),this.type=4}j(e){this.element.toggleAttribute(this.name,!!e&&e!==U)}}class ne extends oe{constructor(e,t,o,i,s){super(e,t,o,i,s),this.type=5}_$AI(e,t=this){if((e=X(this,e,t,0)??U)===Y)return;const o=this._$AH,i=e===U&&o!==U||e.capture!==o.capture||e.once!==o.once||e.passive!==o.passive,s=e!==U&&(o===U||i);i&&this.element.removeEventListener(this.name,this,o),s&&this.element.addEventListener(this.name,this,e),this._$AH=e}handleEvent(e){"function"==typeof this._$AH?this._$AH.call(this.options?.host??this.element,e):this._$AH.handleEvent(e)}}class ae{constructor(e,t,o){this.element=e,this.type=6,this._$AN=void 0,this._$AM=t,this.options=o}get _$AU(){return this._$AM._$AU}_$AI(e){X(this,e)}}const re=$.litHtmlPolyfillSupport;re?.(J,te),($.litHtmlVersions??=[]).push("3.3.2");const le=globalThis;let ce=class extends x{constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0}createRenderRoot(){const e=super.createRenderRoot();return this.renderOptions.renderBefore??=e.firstChild,e}update(e){const t=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(e),this._$Do=((e,t,o)=>{const i=o?.renderBefore??t;let s=i._$litPart$;if(void 0===s){const e=o?.renderBefore??null;i._$litPart$=s=new te(t.insertBefore(I(),e),e,void 0,o??{})}return s._$AI(e),s})(t,this.renderRoot,this.renderOptions)}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(!0)}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(!1)}render(){return Y}};ce._$litElement$=!0,ce.finalized=!0,le.litElementHydrateSupport?.({LitElement:ce});const de=le.litElementPolyfillSupport;de?.({LitElement:ce}),(le.litElementVersions??=[]).push("4.2.2");const he=e=>(t,o)=>{void 0!==o?o.addInitializer(()=>{customElements.define(e,t)}):customElements.define(e,t)},ue={attribute:!0,type:String,converter:y,reflect:!1,hasChanged:b},pe=(e=ue,t,o)=>{const{kind:i,metadata:s}=o;let n=globalThis.litPropertyMetadata.get(s);if(void 0===n&&globalThis.litPropertyMetadata.set(s,n=new Map),"setter"===i&&((e=Object.create(e)).wrapped=!0),n.set(o.name,e),"accessor"===i){const{name:i}=o;return{set(o){const s=t.get.call(this);t.set.call(this,o),this.requestUpdate(i,s,e,!0,o)},init(t){return void 0!==t&&this.C(i,void 0,e,t),t}}}if("setter"===i){const{name:i}=o;return function(o){const s=this[i];t.call(this,o),this.requestUpdate(i,s,e,!0,o)}}throw Error("Unsupported decorator location: "+i)};function ge(e){return(t,o)=>"object"==typeof o?pe(e,t,o):((e,t,o)=>{const i=t.hasOwnProperty(o);return t.constructor.createProperty(o,e),i?Object.getOwnPropertyDescriptor(t,o):void 0})(e,t,o)}function me(e){return ge({...e,state:!0,attribute:!1})}const _e="2.5.2",fe="adaptive-cover-pro-card",ve="adaptive-cover-pro-card-editor",ye="adaptive-cover-pro-sky-compass-card",be="adaptive-cover-pro-sky-compass-card-editor",we="adaptive-cover-pro-tile-card",xe="adaptive-cover-pro-tile-card-editor",$e="adaptive_cover_pro",Ae=["force","weather","manual","custom_position","motion","cloud","climate","glare_zone","solar","default","floor_clamp"],ke={force:"Force Override",weather:"Weather Safety",manual:"Manual Override",custom_position:"Custom Position",motion:"Motion Timeout",cloud:"Cloud Suppression",climate:"Climate",glare_zone:"Glare Zone",solar:"Solar Tracking",default:"Default",floor_clamp:"Min Floor"},Ce={force:"handler.force",weather:"handler.weather",manual:"handler.manual",custom_position:"handler.custom_position",motion:"handler.motion",cloud:"handler.cloud",climate:"handler.climate",glare_zone:"handler.glare_zone",solar:"handler.solar",default:"handler.default",floor_clamp:"handler.floor_clamp"},Ee={cover_blind:"mdi:blinds-horizontal",cover_awning:"mdi:awning-outline",cover_tilt:"mdi:blinds"},Se={cover_blind:"mdi:blinds-open",cover_awning:"mdi:awning-outline",cover_tilt:"mdi:blinds-open"},ze={cover_blind:"mdi:blinds-horizontal-closed",cover_awning:"mdi:window-closed-variant",cover_tilt:"mdi:blinds"},Oe={manual:"manual",force:"force",weather:"weather",glare_zone:"glare_zone",climate:"climate",cloud:"cloud",custom_position:"custom_position",solar:"solar",motion:"motion"},Me={auto:{label:"Auto",bg:"rgba(76, 175, 80, 0.18)",fg:"#2e7d32"},manual:{label:"Manual",bg:"rgba(255, 152, 0, 0.22)",fg:"#e65100"},force:{label:"Force",bg:"rgba(244, 67, 54, 0.22)",fg:"#b71c1c"},weather:{label:"Sun protection",bg:"rgba(244, 67, 54, 0.22)",fg:"#b71c1c"},glare_zone:{label:"Glare",bg:"rgba(244, 67, 54, 0.22)",fg:"#b71c1c"},climate:{label:"Climate",bg:"rgba(0, 150, 136, 0.22)",fg:"#00695c"},cloud:{label:"Cloudy",bg:"rgba(33, 150, 243, 0.22)",fg:"#0d47a1"},custom_position:{label:"Custom",bg:"rgba(156, 39, 176, 0.22)",fg:"#6a1b9a"},solar:{label:"Solar tracking",bg:"rgba(76, 175, 80, 0.22)",fg:"#1b5e20"},motion:{label:"Motion",bg:"rgba(255, 235, 59, 0.22)",fg:"#827717"},off:{label:"Off",bg:"rgba(97, 97, 97, 0.28)",fg:"#212121"},off_schedule:{label:"Off-schedule",bg:"rgba(96, 125, 139, 0.22)",fg:"#37474f"}},Ie={auto:"badge.auto",manual:"badge.manual",force:"badge.force",weather:"badge.weather",glare_zone:"badge.glare_zone",climate:"badge.climate",cloud:"badge.cloud",custom_position:"badge.custom_position",solar:"badge.solar",motion:"badge.motion",off:"badge.off",off_schedule:"badge.off_schedule"},Fe={auto:"mdi:autorenew",manual:"mdi:hand-back-right",force:"mdi:flash",weather:"mdi:shield-sun",glare_zone:"mdi:weather-sunny-alert",climate:"mdi:thermostat",cloud:"mdi:weather-cloudy",custom_position:"mdi:bookmark",solar:"mdi:white-balance-sunny",motion:"mdi:motion-sensor",off:"mdi:power",off_schedule:"mdi:clock-alert-outline"},Pe={integration_enabled:!0,automatic_control:!0,reset_manual_override:!0},je={"sensor:Cover_Position":"target_position_sensor","sensor:sun_position":"sun_sensor","sensor:Start Sun":"start_sensor","sensor:End Sun":"end_sensor","sensor:control_status":"control_status_sensor","sensor:decision_trace":"decision_trace_sensor","sensor:last_cover_action":"last_action_sensor","sensor:last_skipped_action":"last_skipped_sensor","sensor:manual_override_end_time":"manual_override_end_sensor","sensor:position_verification":"position_verification_sensor","sensor:motion_status":"motion_status_sensor","sensor:climate_status":"climate_status_sensor","sensor:position_forecast":"position_forecast_sensor","binary_sensor:sun_motion":"sun_infront_binary","binary_sensor:manual_override":"manual_override_binary","binary_sensor:position_mismatch":"position_mismatch_binary","binary_sensor:glare_active":"glare_active_binary","switch:Integration Enabled":"integration_enabled_switch","switch:Automatic Control":"automatic_control_switch","switch:Manual Override":"manual_toggle_switch","switch:Climate Mode":"climate_mode_switch","switch:Motion Control":"motion_control_switch","button:Reset Manual Override":"reset_override_button"},Te={en:{handler:{force:"Force Override",weather:"Weather Safety",manual:"Manual Override",custom_position:"Custom Position",motion:"Motion Timeout",cloud:"Cloud Suppression",climate:"Climate",glare_zone:"Glare Zone",solar:"Solar Tracking",default:"Default",floor_clamp:"Min Floor"},badge:{auto:"Auto",manual:"Manual",force:"Force",weather:"Weather safety",glare_zone:"Glare",climate:"Climate",cloud:"Cloudy",custom_position:"Custom",solar:"Solar tracking",motion:"Motion idle",off:"Off",off_schedule:"Off-schedule",floor_suffix:" ↥",safety:"Safety"},forecast:{event:{sunrise:"Sunrise",sunset:"Sunset",fov_enter:"Sun enters window field of view",fov_exit:"Sun leaves window field of view"},hover_hint:"Hover the curve for time + forecast position; hover a colored line for the event it marks.",solar_only_note:"Solar geometry only — does not reflect manual overrides, custom positions, cloud suppression, or weather."},dialog:{configure_integration:"Configure integration",open_device_page:"Open device page",close:"Close",target:"Target",resume_auto:"Resume Auto",hide_advanced:"▼ Hide advanced",show_advanced:"▶ Advanced",custom_positions:"Custom positions",floor_tooltip:"Floor — slot raises position above raw calc",floor:"↥",disable_slot:"Disable slot {slot}",enable_slot:"Enable slot {slot}",on:"On",off:"Off",controls:"Controls",automatic:"Automatic",climate:"Climate",motion:"Motion",toggle_hint:"{label} {state} — tap to toggle",state_on:"on",state_off:"off",todays_forecast:"Today's forecast"},overrides:{title:"Overrides",manual:"Manual",force:"Force",motion:"Motion",active:"Active",off:"Off",ends_in:"ends in {time}",active_count:"{count} active",timeout:"expires in {time}",reset_manual:"Reset Manual"},climate:{title:"Climate",active:"Active: {strategy}",indoor:"Indoor",outdoor:"Outdoor",presence:"Presence",sunny:"Sunny",lux:"Lux",irradiance:"Irradiance",mode_off:"Climate mode off",standby:"Standby",threshold_low:"low",threshold_high:"high",threshold_summer_outside:"summer",reason:{outside_time_window:"Outside the operating time window",thresholds_not_met:"Temperatures within the comfort band — no action needed",other_mode_active:"Another control mode is currently active",readings_unavailable:"Temperature readings unavailable",mode_off:"Climate mode is turned off"}},compass:{placeholder_no_entries:"No Adaptive Cover Pro entries selected.",placeholder_no_sun:"Sun sensor not yet populated.",sun_tooltip:"Sun: {az} az / {el} el",sunrise_tooltip:"Sunrise: {time}",sunset_tooltip:"Sunset: {time}",moon_tooltip:"Moon: {phase} ({pct}%)",sun_path_tooltip:"Sun path (today)",in_fov_check:"✓ in FOV",in_fov:"in FOV",in_fov_tooltip:"Sun is currently within this window’s field of view",none:"—",sun:"Sun",moon:"Moon",sun_up_not_hitting:"Sun (up, not hitting)",sun_below_horizon:"Sun (below horizon)",window_fov:"Window FOV",sun_path:"Sun path",sunrise:"Sunrise",sunset:"Sunset",cover_position:"Cover position",window_normal:"Window normal",stat_sun:"Sun: ",stat_azi:"Azi: ",stat_elev:"Elev: ",stat_window:"Window: ",active_sun_arc:"Active sun arc {from} – {to}{elev}",fov_arc:"FOV {left} left / {right} right{elev}",window_normal_tooltip:"Window normal: {bearing}",cover_position_target:"Target: {pct}%",cover_position_target_awning:"Target (extended): {pct}%",cover_position_actual:"Actual: {pct}%",blind_spot:"Blind spot: {from} – {to}",elev_suffix:" · elev {min}–{max}"},covers:{placeholder:"No covers reported by the integration.",title:"Covers",target:"Target: {pct}",click_to_set:"Click to set position",target_tooltip:"Target {pct}%"},decision:{placeholder:"Decision trace not yet populated.",pipeline:"Pipeline",winner:"Winner: {name}",summary_tooltip:"Why this position?",not_evaluated:"not evaluated",floor_suffix:" floor",outside_schedule:"Outside schedule — automatic control paused",outside_schedule_tooltip:"The configured schedule window is not active, so automatic positioning is paused."},header:{on:"ON",off:"OFF",integration_enabled:"Integration Enabled",auto:"Auto",automatic_control:"Automatic Control"},tile:{motion_pending:"Motion timeout pending",motion_detected:"Motion detected",open:"Open",stop:"Stop",close:"Close",resume_aria:"Resume automatic control",registry_failed:"Registry fetch failed: {error}",loading:"Loading…",entry_not_found:"Adaptive Cover Pro entry {entry} not found."},formatters:{expired:"expired"},elevation:{title:"Sun today",fov_window:"FOV: {from} → {to}",fov_windows:"FOV: {windows}",fov_window_named:"{name}: {windows}",no_fov_today:"Sun does not enter FOV today",placeholder:"Sun elevation chart unavailable.",schedule:"Schedule {from} – {to}",schedule_from:"Schedule from {from}",schedule_until:"Schedule until {to}",schedule_start_tooltip:"Schedule start",schedule_end_tooltip:"Schedule end"},root:{loading_registry:"Loading Adaptive Cover Pro registry…",no_entities_title:"No Adaptive Cover Pro entities found",footer_version:"adaptive-cover-pro-card v{version}",compass_no_match:"No matching Adaptive Cover Pro entities",compass_configured:"Configured entries: {entries}",compass_not_found:"Entries not found: {entries}"},editor:{common:{entry_id:"Adaptive Cover Pro instance",support_alt:"Buy me a coffee",title_optional:"Title (optional)",title_placeholder:"e.g. West-facing windows",north_offset:"Compass north offset (°)",north_offset_hint:'Rotate the compass clockwise so "up" matches your map. Default: 0.',loading_entries:"Loading Adaptive Cover Pro config entries…",load_failed:"Failed to load config entries: {error}",no_entries:"No Adaptive Cover Pro config entries found. Add an instance under",no_entries_path:"Settings → Devices & Services",no_entries_then:", then come back.",entry_id_manual_placeholder:"Enter config entry ID manually",entry_id_fallback_label:"Entry ID",unknown_entry:"(unknown: {entry})",reset:"Reset"},main:{sections:"Sections",sections_hint:"Toggle which parts of the card are shown.",section_sky_label:"Sky compass",section_sky_desc:"Sun vs. window FOV, polar plot",section_elevation_label:"Sun today",section_elevation_desc:"Elevation-vs-time chart with FOV band and current-time cursor",section_decision_label:"Decision strip",section_decision_desc:"All 10 pipeline handlers with the winning row highlighted",section_covers_label:"Cover positions",section_covers_desc:"Per-cover live vs. target bars; click to set position",section_overrides_label:"Overrides panel",section_overrides_desc:"Manual, force, motion tiles + reset button",section_climate_label:"Climate panel",section_climate_desc:"Summer/winter/intermediate strategy; shows standby when climate mode is off or inactive",controls:"Controls",controls_hint:"Render as read-only (visible but not clickable).",integration_pill_label:"Integration ON/OFF pill",integration_pill_desc:"Allow toggling the integration from the card header.",automatic_pill_label:"Automatic Control pill",automatic_pill_desc:"Allow toggling automatic control from the card header.",reset_button_label:"Reset Manual Override button",reset_button_desc:"Allow pressing the reset tile in the overrides panel.",display:"Display",compact_label:"Compact mode",compact_desc:"Tighter spacing between sections.",show_compass_stats_label:"Show compass stats",show_compass_stats_desc:"Azi, Elev, ∠, and Window angle below the sky compass.",show_compass_legend_label:"Show compass legend",show_compass_legend_desc:"Color key below the sky compass.",show_moon_label:"Show moon on compass",show_moon_desc:"Moon position and phase overlay on the sky compass.",hide_inactive_label:"Hide inactive handlers",hide_inactive_desc:"Show only the winner and actively matched pipeline handlers."},tile:{name:"Title override",icon:"Icon override",cover:"Cover entity",layout:"Layout",show_position:"Show position %",show_state:"Show state (Open/Closed)",show_decision_summary:"Show decision summary",show_controls:"Show ↑■▼ controls",show_badge:"Show contextual badge",badge_section:"Badges",badge_auto:"Auto",badge_solar:"Solar tracking",badge_force:"Force override",badge_weather:"Weather safety",badge_manual:"Manual override",badge_custom_position:"Custom position",badge_motion:"Motion",badge_climate:"Climate",badge_glare_zone:"Glare zone",badge_cloud:"Cloud suppression",show_compass:"Show sun compass in dialog",show_elevation_chart:"Show sun-today chart in dialog",show_motion_icon:"Show motion indicator",tap_action:"Tap action",hold_action:"Hold action",double_tap_action:"Double-tap action",cover_blank_hint:"Leave blank to use the first managed cover automatically.",layout_option_one_line:"One line (compact)",layout_option_detailed:"Detailed (title, state, indicators)"},compass:{instances:"Adaptive Cover Pro instances",instances_hint:"Pick one or more. Each selected entry adds an overlay to the compass.",cover_colors:"Cover colors",cover_colors_hint:"Override the default palette color for each overlay.",default_color:"default",display:"Display",toggle_compact_label:"Compact mode",toggle_compact_desc:"Smaller SVG, legend hidden.",toggle_legend_label:"Legend",toggle_legend_desc:"Color swatches + entry labels below compass.",toggle_stats_label:"Stats",toggle_stats_desc:"Sun + per-window numeric rows.",toggle_moon_label:"Moon",toggle_moon_desc:"Render moon position and phase.",toggle_cardinals_label:"Cardinal labels",toggle_cardinals_desc:"N/E/S/W letters around the compass.",toggle_blind_spot_label:"Blind spots",toggle_blind_spot_desc:"Hatched wedges for each window’s blind range.",toggle_sun_path_label:"Sun path",toggle_sun_path_desc:"Today’s sun arc across the sky.",toggle_sunrise_sunset_label:"Sunrise / sunset markers",toggle_sunrise_sunset_desc:"Small dots at rise and set azimuths.",toggle_cover_fill_label:"Cover closure fill",toggle_cover_fill_desc:"Inner wedge showing how closed each cover is.",toggle_window_arrow_label:"Window-normal arrow",toggle_window_arrow_desc:"Line from center toward each window’s azimuth.",toggle_elevation_chart_label:"Sun-today chart",toggle_elevation_chart_desc:"Elevation-vs-time chart below the compass, with FOV band and elevation limits."}}},fr:{handler:{force:"Dérogation forcée",weather:"Sécurité météo",manual:"Dérogation manuelle",custom_position:"Position personnalisée",motion:"Délai d'inactivité du mouvement",cloud:"Désactivation par temps nuageux",climate:"Climatique",glare_zone:"Zone d'éblouissement",solar:"Suivi solaire",default:"Par défaut",floor_clamp:"Plancher"},badge:{auto:"Auto",manual:"Manuel",force:"Forcé",weather:"Sécurité météo",glare_zone:"Éblouissement",climate:"Climatique",cloud:"Nuageux",custom_position:"Personnalisé",solar:"Suivi solaire",motion:"Inactivité",off:"Off",off_schedule:"Hors planning",floor_suffix:" ↥",safety:"Sécurité"},forecast:{event:{sunrise:"Lever du soleil",sunset:"Coucher du soleil",fov_enter:"Le soleil entre dans le champ de vision de la fenêtre",fov_exit:"Le soleil quitte le champ de vision de la fenêtre"},hover_hint:"Survolez la courbe pour voir l'heure et la position prévue ; survolez une ligne colorée pour voir l'événement qu'elle indique.",solar_only_note:"Géométrie solaire uniquement — ne tient pas compte des dérogations manuelles, des positions personnalisées, de la désactivation par temps nuageux ni des conditions météo."},dialog:{configure_integration:"Configurer l'intégration",open_device_page:"Ouvrir la page de l'appareil",close:"Fermer",target:"Cible",resume_auto:"Reprendre l'automatique",hide_advanced:"▼ Masquer les options avancées",show_advanced:"▶ Afficher les options avancées",custom_positions:"Positions personnalisées",floor_tooltip:"Plancher — cette valeur force une position minimale au-dessus du calcul automatique",floor:"↥",disable_slot:"Désactiver le créneau {slot}",enable_slot:"Activer le créneau {slot}",on:"Activé",off:"Désactivé",controls:"Commandes",automatic:"Automatique",climate:"Climatique",motion:"Mouvement",toggle_hint:"{label} {state} — appuyez pour basculer",state_on:"activé",state_off:"désactivé",todays_forecast:"Prévisions du jour"},overrides:{title:"Dérogations",manual:"Manuel",force:"Forcé",motion:"Mouvement",active:"Actif",off:"Désactivé",ends_in:"se termine dans {time}",active_count:"{count} dérogation(s) active(s)",timeout:"expire dans {time}",reset_manual:"Réinitialiser le mode manuel"},climate:{title:"Climatique",active:"Actif : {strategy}",indoor:"Intérieur",outdoor:"Extérieur",presence:"Présence",sunny:"Ensoleillé",lux:"Lux",irradiance:"Irradiance",mode_off:"Mode climatique désactivé",standby:"En veille",threshold_low:"bas",threshold_high:"haut",threshold_summer_outside:"été",reason:{outside_time_window:"En dehors de la plage horaire de fonctionnement",thresholds_not_met:"Températures dans la plage de confort — aucune action requise",other_mode_active:"Un autre mode de contrôle est actuellement actif",readings_unavailable:"Relevés de température indisponibles",mode_off:"Le mode climatique est désactivé"}},compass:{placeholder_no_entries:"Aucune instance Adaptive Cover Pro sélectionnée.",placeholder_no_sun:"Le capteur solaire n'est pas encore renseigné.",sun_tooltip:"Soleil : {az} az / {el} él",sunrise_tooltip:"Lever du soleil : {time}",sunset_tooltip:"Coucher du soleil : {time}",moon_tooltip:"Lune : {phase} ({pct}%)",sun_path_tooltip:"Trajectoire solaire (aujourd'hui)",in_fov_check:"✓ dans le champ de vision",in_fov:"dans le champ de vision",in_fov_tooltip:"Le soleil est actuellement dans le champ de vision de cette fenêtre",none:"—",sun:"Soleil",moon:"Lune",sun_up_not_hitting:"Soleil (levé, ne frappe pas)",sun_below_horizon:"Soleil (sous l’horizon)",window_fov:"Champ de vision",sun_path:"Trajectoire solaire",sunrise:"Lever du soleil",sunset:"Coucher du soleil",cover_position:"Position du store",window_normal:"Axe de la fenêtre",stat_sun:"Soleil : ",stat_azi:"Azi : ",stat_elev:"Élév : ",stat_window:"Fenêtre : ",active_sun_arc:"Arc solaire actif {from} – {to}{elev}",fov_arc:"Champ de vision {left} gauche / {right} droite{elev}",window_normal_tooltip:"Axe de la fenêtre : {bearing}",cover_position_target:"Cible : {pct}%",cover_position_target_awning:"Cible (déployé) : {pct}%",cover_position_actual:"Réel : {pct}%",blind_spot:"Soleil masqué : {from} - {to}",elev_suffix:" · élév {min}–{max}"},covers:{placeholder:"Aucun store signalé par l'intégration.",title:"Stores",target:"Cible : {pct}",click_to_set:"Cliquer pour définir la position",target_tooltip:"Cible {pct}%"},decision:{placeholder:"La trace de décision n'est pas encore renseignée.",pipeline:"Pipeline",winner:"Actif : {name}",summary_tooltip:"Pourquoi cette position ?",not_evaluated:"non évalué",floor_suffix:" plancher",outside_schedule:"Hors planning — contrôle automatique en pause",outside_schedule_tooltip:"La fenêtre de planning configurée n'est pas active, le positionnement automatique est donc en pause."},header:{on:"ON",off:"OFF",integration_enabled:"Intégration activée",auto:"Auto",automatic_control:"Contrôle automatique"},tile:{motion_pending:"Délai de mouvement en cours",motion_detected:"Mouvement détecté",open:"Ouvrir",stop:"Arrêter",close:"Fermer",resume_aria:"Reprendre le contrôle automatique",registry_failed:"Échec de la récupération du registre : {error}",loading:"Chargement…",entry_not_found:"Instance Adaptive Cover Pro {entry} introuvable."},formatters:{expired:"expiré"},elevation:{title:"Soleil aujourd'hui",fov_window:"Champ de vision : {from} → {to}",fov_windows:"Champ de vision : {windows}",fov_window_named:"{name} : {windows}",no_fov_today:"Pas de soleil dans le champ de vision aujourd'hui",placeholder:"Graphique d'élévation solaire indisponible.",schedule:"Programmation {from} – {to}",schedule_from:"Programmation à partir de {from}",schedule_until:"Programmation jusqu'à {to}",schedule_start_tooltip:"Début de programmation",schedule_end_tooltip:"Fin de programmation"},root:{loading_registry:"Chargement du registre Adaptive Cover Pro…",no_entities_title:"Aucune entité Adaptive Cover Pro trouvée",footer_version:"adaptive-cover-pro-card v{version}",compass_no_match:"Aucune entité Adaptive Cover Pro correspondante",compass_configured:"Instances configurées : {entries}",compass_not_found:"Instances introuvables : {entries}"},editor:{common:{entry_id:"Instance Adaptive Cover Pro",support_alt:"Offrez-moi un café",title_optional:"Titre (facultatif)",title_placeholder:"ex. Fenêtres côté ouest",north_offset:"Décalage nord de la boussole (°)",north_offset_hint:"Faites pivoter la boussole dans le sens horaire pour que « haut » corresponde à votre carte. Par défaut : 0.",loading_entries:"Chargement des entrées de configuration Adaptive Cover Pro…",load_failed:"Échec du chargement des entrées de configuration : {error}",no_entries:"Aucune entrée de configuration Adaptive Cover Pro trouvée. Ajoutez une instance sous",no_entries_path:"Paramètres → Appareils et services",no_entries_then:", puis revenez ici.",entry_id_manual_placeholder:"Saisir manuellement l'ID d'entrée de configuration",entry_id_fallback_label:"ID d'entrée",unknown_entry:"(inconnu : {entry})",reset:"Réinitialiser"},main:{sections:"Sections",sections_hint:"Activer ou désactiver les parties de la carte affichées.",section_sky_label:"Boussole céleste",section_sky_desc:"Soleil par rapport au champ de vision de la fenêtre, tracé polaire",section_elevation_label:"Soleil aujourd'hui",section_elevation_desc:"Graphique élévation/temps avec bande FOV et curseur temps réel",section_decision_label:"Bande de décision",section_decision_desc:"Les 10 gestionnaires du pipeline avec la ligne gagnante mise en évidence",section_covers_label:"Positions des stores",section_covers_desc:"Barres position réelle/cible par store ; cliquer pour définir la position",section_overrides_label:"Panneau des dérogations",section_overrides_desc:"Tuiles Manuel, Forcé, Mouvement + bouton de réinitialisation",section_climate_label:"Panneau climatique",section_climate_desc:"Stratégie été/hiver/intermédiaire ; affiche le mode veille si le mode climatique est désactivé ou inactif",controls:"Commandes",controls_hint:"Afficher en lecture seule (visible mais non cliquable).",integration_pill_label:"Bouton ON/OFF de l'intégration",integration_pill_desc:"Permettre de basculer l'intégration depuis l'en-tête de la carte.",automatic_pill_label:"Bouton contrôle automatique",automatic_pill_desc:"Permettre de basculer le contrôle automatique depuis l'en-tête de la carte.",reset_button_label:"Bouton de réinitialisation de la dérogation manuelle",reset_button_desc:"Permettre d'appuyer sur la tuile de réinitialisation dans le panneau des dérogations.",display:"Affichage",compact_label:"Mode compact",compact_desc:"Espacement réduit entre les sections.",show_compass_stats_label:"Afficher les statistiques de la boussole",show_compass_stats_desc:"Azi, Élév, ∠ et angle de fenêtre sous la boussole céleste.",show_compass_legend_label:"Afficher la légende de la boussole",show_compass_legend_desc:"Clé de couleur sous la boussole céleste.",show_moon_label:"Afficher la lune sur la boussole",show_moon_desc:"Position et phase de la lune en superposition sur la boussole céleste.",hide_inactive_label:"Masquer les gestionnaires inactifs",hide_inactive_desc:"Afficher uniquement le gestionnaire sélectionné et les gestionnaires du pipeline actifs."},tile:{name:"Titre personnalisé",icon:"Icône personnalisée",cover:"Entité de store",layout:"Disposition",show_position:"Afficher la position %",show_state:"Afficher l'état (Ouvert/Fermé)",show_decision_summary:"Afficher le résumé de décision",show_controls:"Afficher les commandes ↑■▼",show_badge:"Afficher le badge contextuel",badge_section:"Badges",badge_auto:"Auto",badge_solar:"Suivi solaire",badge_force:"Dérogation forcée",badge_weather:"Sécurité météo",badge_manual:"Dérogation manuelle",badge_custom_position:"Position personnalisée",badge_motion:"Mouvement",badge_climate:"Climatique",badge_glare_zone:"Zone d'éblouissement",badge_cloud:"Suppression nuageuse",show_compass:"Afficher la boussole solaire dans le dialogue",show_elevation_chart:"Afficher le graphique du soleil dans le dialogue",show_motion_icon:"Afficher l'indicateur de mouvement",tap_action:"Action au toucher",hold_action:"Action au maintien",double_tap_action:"Action au double toucher",cover_blank_hint:"Laisser vide pour utiliser automatiquement le premier store géré.",layout_option_one_line:"Une ligne (compact)",layout_option_detailed:"Détaillé (titre, état, indicateurs)"},compass:{instances:"Instances Adaptive Cover Pro",instances_hint:"Sélectionnez une ou plusieurs instances. Chaque instance sélectionnée ajoute une superposition à la boussole.",cover_colors:"Couleurs des stores",cover_colors_hint:"Remplacer la couleur de palette par défaut pour chaque superposition.",default_color:"par défaut",display:"Affichage",toggle_compact_label:"Mode compact",toggle_compact_desc:"SVG plus petit, légende masquée.",toggle_legend_label:"Légende",toggle_legend_desc:"Échantillons de couleur et étiquettes d'instance sous la boussole.",toggle_stats_label:"Statistiques",toggle_stats_desc:"Soleil + lignes numériques par fenêtre.",toggle_moon_label:"Lune",toggle_moon_desc:"Afficher la position et la phase de la lune.",toggle_cardinals_label:"Points cardinaux",toggle_cardinals_desc:"Lettres N/E/S/O autour de la boussole.",toggle_blind_spot_label:"Zones de soleil masqué",toggle_blind_spot_desc:"Secteurs hachurés pour la plage où le soleil est masqué de chaque fenêtre.",toggle_sun_path_label:"Trajectoire solaire",toggle_sun_path_desc:"Arc solaire du jour dans le ciel.",toggle_sunrise_sunset_label:"Repères lever / coucher du soleil",toggle_sunrise_sunset_desc:"Petits points aux azimuts de lever et coucher du soleil.",toggle_cover_fill_label:"Remplissage de fermeture du store",toggle_cover_fill_desc:"Secteur intérieur indiquant le taux de fermeture de chaque store.",toggle_window_arrow_label:"Flèche de normale de fenêtre",toggle_window_arrow_desc:"Ligne du centre vers l'azimut de chaque fenêtre.",toggle_elevation_chart_label:"Graphique du soleil",toggle_elevation_chart_desc:"Graphique élévation/temps sous la boussole, avec bande FOV et limites d'élévation."}}}};function Ne(e,t){const o=t.split(".");let i=e;for(const e of o){if("object"!=typeof i||null===i)return;i=i[e]}return"string"==typeof i?i:void 0}function Re(e,t){return t?e.replace(/\{(\w+)\}/g,(e,o)=>Object.prototype.hasOwnProperty.call(t,o)?String(t[o]):e):e}function De(e,t,o){const i=function(e){const t=(e?.locale?.language??e?.language??"en").toLowerCase().split("-")[0];return t in Te?t:"en"}(t),s=Ne(Te[i],e);if(void 0!==s)return Re(s,o);if("en"!==i){const t=Ne(Te.en,e);if(void 0!==t)return Re(t,o)}return e}function Be(e,t,o){const i=t.entry_id;if(!i)return null;const s={},n=`${i}_`;let a,r=!1;for(const e of o){if(e.config_entry_id!==i)continue;if(e.platform!==$e)continue;if(r=!0,!a&&e.device_id&&(a=e.device_id),!e.unique_id.startsWith(n))continue;const t=e.unique_id.slice(n.length),o=e.entity_id.split(".")[0],l=je[`${o}:${t}`];l&&(s[l]=e.entity_id)}if(!r||0===Object.keys(s).length)return null;const l=e;let c=i;if(l.devices)for(const e of Object.values(l.devices))if(e.config_entries?.includes(i)){c=e.name_by_user??e.name??i;break}const d=[],h=s.target_position_sensor;if(h){const t=e.states[h]?.attributes?.actual_positions;t&&d.push(...Object.keys(t))}let u="cover_blind";const p=s.control_status_sensor;if(p){const t=e.states[p]?.attributes;t?.cover_type&&(u=t.cover_type)}return{entry_id:i,entry_title:c,cover_type:u,entities:s,managed_covers:d,device_id:a}}async function Ke(e){return(await e.callWS({type:"config_entries/get",domain:$e})).filter(e=>e.domain===$e).map(e=>({entry_id:e.entry_id,title:e.title}))}function Ve(e,t,o=0){const i=(e-90+o)*Math.PI/180;return{x:t*Math.cos(i),y:t*Math.sin(i)}}function Ge(e){return 1-Math.max(0,Math.min(90,e))/90}function qe(e,t,o,i=0,s=0){const n=e=>(e%360+360)%360,a=n(e),r=n(t);let l=r-a;l<0&&(l+=360);const c=l>180?1:0,d=Ve(a,o,s),h=Ve(r,o,s);if(i<=0)return`M 0 0 L ${d.x} ${d.y} A ${o} ${o} 0 ${c} 1 ${h.x} ${h.y} Z`;const u=Ve(r,i,s),p=Ve(a,i,s);return[`M ${d.x} ${d.y}`,`A ${o} ${o} 0 ${c} 1 ${h.x} ${h.y}`,`L ${u.x} ${u.y}`,`A ${i} ${i} 0 ${c} 0 ${p.x} ${p.y}`,"Z"].join(" ")}function We(e,t,o=0){return Ve(e,Ge(t),o)}function Ye(e){return(e%360+360)%360}function Ue(e,t,o,i){const s=i??0;let n=-1,a=-1;for(let i=t;i<=o&&i<e.length;i++)e[i].elevation>s&&(-1===n&&(n=i),a=i);return-1===n?null:{wedgeStart:e[n].azimuth,wedgeEnd:e[a].azimuth}}function Le(e,t,o){const i=(e-t)/864e5;return Math.max(0,Math.min(o,i*o))}function Qe(e,t,o){return((e-t)%360+360)%360<=((o-t)%360+360)%360}function He(e,t,o,i){return Qe(o,e,t)||Qe(i,e,t)||Qe(e,o,i)||Qe(t,o,i)}function Ze(e,t,o,i){const s="cover_awning"===t?e/100:1-e/100;return Math.min(o*s,i)}async function Je(e){return e.callWS({type:"config/entity_registry/list"})}function Xe(e,t){let o=null,i=!1;return e.connection.subscribeEvents(e=>t(e.data),"entity_registry_updated").then(e=>{i?e():o=e}).catch(()=>{}),()=>{i=!0,o&&o()}}function et(e){return`acp-card:registry:v1:${e}`}const tt={get(e){try{const t=localStorage.getItem(et(e));if(!t)return null;const o=JSON.parse(t);return 1!==o.schemaVersion?null:o}catch{return null}},set(e,t){try{const o={schemaVersion:1,cardVersion:_e,fetchedAt:Date.now(),entries:t};localStorage.setItem(et(e),JSON.stringify(o))}catch{}},invalidate(e){try{localStorage.removeItem(et(e))}catch{}},clear(){try{const e="acp-card:registry:v1:",t=[];for(let o=0;o<localStorage.length;o++){const i=localStorage.key(o);i?.startsWith(e)&&t.push(i)}t.forEach(e=>localStorage.removeItem(e))}catch{}}};function ot(e){return`${e.entity_id}|${e.unique_id}|${e.platform}|${e.config_entry_id??""}`}function it(e,t,o){return e.filter(e=>e.config_entry_id===t&&void 0===o)}let st=class extends ce{constructor(){super(...arguments),this.on=!1,this.readonly=!1,this.label="",this.title=""}_handleClick(){this.readonly||this.dispatchEvent(new CustomEvent("pill-click",{bubbles:!0,composed:!0}))}render(){return q`
+function e(e,t,o,s){var i,n=arguments.length,r=n<3?t:null===s?s=Object.getOwnPropertyDescriptor(t,o):s;if("object"==typeof Reflect&&"function"==typeof Reflect.decorate)r=Reflect.decorate(e,t,o,s);else for(var a=e.length-1;a>=0;a--)(i=e[a])&&(r=(n<3?i(r):n>3?i(t,o,r):i(t,o))||r);return n>3&&r&&Object.defineProperty(t,o,r),r}"function"==typeof SuppressedError&&SuppressedError;const t=globalThis,o=t.ShadowRoot&&(void 0===t.ShadyCSS||t.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype,s=Symbol(),i=new WeakMap;let n=class{constructor(e,t,o){if(this._$cssResult$=!0,o!==s)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=e,this.t=t}get styleSheet(){let e=this.o;const t=this.t;if(o&&void 0===e){const o=void 0!==t&&1===t.length;o&&(e=i.get(t)),void 0===e&&((this.o=e=new CSSStyleSheet).replaceSync(this.cssText),o&&i.set(t,e))}return e}toString(){return this.cssText}};const r=(e,...t)=>{const o=1===e.length?e[0]:t.reduce((t,o,s)=>t+(e=>{if(!0===e._$cssResult$)return e.cssText;if("number"==typeof e)return e;throw Error("Value passed to 'css' function must be a 'css' function result: "+e+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(o)+e[s+1],e[0]);return new n(o,e,s)},a=o?e=>e:e=>e instanceof CSSStyleSheet?(e=>{let t="";for(const o of e.cssRules)t+=o.cssText;return(e=>new n("string"==typeof e?e:e+"",void 0,s))(t)})(e):e,{is:l,defineProperty:c,getOwnPropertyDescriptor:d,getOwnPropertyNames:h,getOwnPropertySymbols:u,getPrototypeOf:p}=Object,g=globalThis,m=g.trustedTypes,_=m?m.emptyScript:"",f=g.reactiveElementPolyfillSupport,v=(e,t)=>e,y={toAttribute(e,t){switch(t){case Boolean:e=e?_:null;break;case Object:case Array:e=null==e?e:JSON.stringify(e)}return e},fromAttribute(e,t){let o=e;switch(t){case Boolean:o=null!==e;break;case Number:o=null===e?null:Number(e);break;case Object:case Array:try{o=JSON.parse(e)}catch(e){o=null}}return o}},b=(e,t)=>!l(e,t),w={attribute:!0,type:String,converter:y,reflect:!1,useDefault:!1,hasChanged:b};Symbol.metadata??=Symbol("metadata"),g.litPropertyMetadata??=new WeakMap;let x=class extends HTMLElement{static addInitializer(e){this._$Ei(),(this.l??=[]).push(e)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(e,t=w){if(t.state&&(t.attribute=!1),this._$Ei(),this.prototype.hasOwnProperty(e)&&((t=Object.create(t)).wrapped=!0),this.elementProperties.set(e,t),!t.noAccessor){const o=Symbol(),s=this.getPropertyDescriptor(e,o,t);void 0!==s&&c(this.prototype,e,s)}}static getPropertyDescriptor(e,t,o){const{get:s,set:i}=d(this.prototype,e)??{get(){return this[t]},set(e){this[t]=e}};return{get:s,set(t){const n=s?.call(this);i?.call(this,t),this.requestUpdate(e,n,o)},configurable:!0,enumerable:!0}}static getPropertyOptions(e){return this.elementProperties.get(e)??w}static _$Ei(){if(this.hasOwnProperty(v("elementProperties")))return;const e=p(this);e.finalize(),void 0!==e.l&&(this.l=[...e.l]),this.elementProperties=new Map(e.elementProperties)}static finalize(){if(this.hasOwnProperty(v("finalized")))return;if(this.finalized=!0,this._$Ei(),this.hasOwnProperty(v("properties"))){const e=this.properties,t=[...h(e),...u(e)];for(const o of t)this.createProperty(o,e[o])}const e=this[Symbol.metadata];if(null!==e){const t=litPropertyMetadata.get(e);if(void 0!==t)for(const[e,o]of t)this.elementProperties.set(e,o)}this._$Eh=new Map;for(const[e,t]of this.elementProperties){const o=this._$Eu(e,t);void 0!==o&&this._$Eh.set(o,e)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(e){const t=[];if(Array.isArray(e)){const o=new Set(e.flat(1/0).reverse());for(const e of o)t.unshift(a(e))}else void 0!==e&&t.push(a(e));return t}static _$Eu(e,t){const o=t.attribute;return!1===o?void 0:"string"==typeof o?o:"string"==typeof e?e.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=!1,this.hasUpdated=!1,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(e=>this.enableUpdating=e),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(e=>e(this))}addController(e){(this._$EO??=new Set).add(e),void 0!==this.renderRoot&&this.isConnected&&e.hostConnected?.()}removeController(e){this._$EO?.delete(e)}_$E_(){const e=new Map,t=this.constructor.elementProperties;for(const o of t.keys())this.hasOwnProperty(o)&&(e.set(o,this[o]),delete this[o]);e.size>0&&(this._$Ep=e)}createRenderRoot(){const e=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return((e,s)=>{if(o)e.adoptedStyleSheets=s.map(e=>e instanceof CSSStyleSheet?e:e.styleSheet);else for(const o of s){const s=document.createElement("style"),i=t.litNonce;void 0!==i&&s.setAttribute("nonce",i),s.textContent=o.cssText,e.appendChild(s)}})(e,this.constructor.elementStyles),e}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(!0),this._$EO?.forEach(e=>e.hostConnected?.())}enableUpdating(e){}disconnectedCallback(){this._$EO?.forEach(e=>e.hostDisconnected?.())}attributeChangedCallback(e,t,o){this._$AK(e,o)}_$ET(e,t){const o=this.constructor.elementProperties.get(e),s=this.constructor._$Eu(e,o);if(void 0!==s&&!0===o.reflect){const i=(void 0!==o.converter?.toAttribute?o.converter:y).toAttribute(t,o.type);this._$Em=e,null==i?this.removeAttribute(s):this.setAttribute(s,i),this._$Em=null}}_$AK(e,t){const o=this.constructor,s=o._$Eh.get(e);if(void 0!==s&&this._$Em!==s){const e=o.getPropertyOptions(s),i="function"==typeof e.converter?{fromAttribute:e.converter}:void 0!==e.converter?.fromAttribute?e.converter:y;this._$Em=s;const n=i.fromAttribute(t,e.type);this[s]=n??this._$Ej?.get(s)??n,this._$Em=null}}requestUpdate(e,t,o,s=!1,i){if(void 0!==e){const n=this.constructor;if(!1===s&&(i=this[e]),o??=n.getPropertyOptions(e),!((o.hasChanged??b)(i,t)||o.useDefault&&o.reflect&&i===this._$Ej?.get(e)&&!this.hasAttribute(n._$Eu(e,o))))return;this.C(e,t,o)}!1===this.isUpdatePending&&(this._$ES=this._$EP())}C(e,t,{useDefault:o,reflect:s,wrapped:i},n){o&&!(this._$Ej??=new Map).has(e)&&(this._$Ej.set(e,n??t??this[e]),!0!==i||void 0!==n)||(this._$AL.has(e)||(this.hasUpdated||o||(t=void 0),this._$AL.set(e,t)),!0===s&&this._$Em!==e&&(this._$Eq??=new Set).add(e))}async _$EP(){this.isUpdatePending=!0;try{await this._$ES}catch(e){Promise.reject(e)}const e=this.scheduleUpdate();return null!=e&&await e,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(const[e,t]of this._$Ep)this[e]=t;this._$Ep=void 0}const e=this.constructor.elementProperties;if(e.size>0)for(const[t,o]of e){const{wrapped:e}=o,s=this[t];!0!==e||this._$AL.has(t)||void 0===s||this.C(t,void 0,o,s)}}let e=!1;const t=this._$AL;try{e=this.shouldUpdate(t),e?(this.willUpdate(t),this._$EO?.forEach(e=>e.hostUpdate?.()),this.update(t)):this._$EM()}catch(t){throw e=!1,this._$EM(),t}e&&this._$AE(t)}willUpdate(e){}_$AE(e){this._$EO?.forEach(e=>e.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=!0,this.firstUpdated(e)),this.updated(e)}_$EM(){this._$AL=new Map,this.isUpdatePending=!1}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(e){return!0}update(e){this._$Eq&&=this._$Eq.forEach(e=>this._$ET(e,this[e])),this._$EM()}updated(e){}firstUpdated(e){}};x.elementStyles=[],x.shadowRootOptions={mode:"open"},x[v("elementProperties")]=new Map,x[v("finalized")]=new Map,f?.({ReactiveElement:x}),(g.reactiveElementVersions??=[]).push("2.1.2");const $=globalThis,A=e=>e,k=$.trustedTypes,C=k?k.createPolicy("lit-html",{createHTML:e=>e}):void 0,S="$lit$",E=`lit$${Math.random().toFixed(9).slice(2)}$`,z="?"+E,O=`<${z}>`,I=document,M=()=>I.createComment(""),F=e=>null===e||"object"!=typeof e&&"function"!=typeof e,P=Array.isArray,j="[ \t\n\f\r]",T=/<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g,N=/-->/g,R=/>/g,D=RegExp(`>|${j}(?:([^\\s"'>=/]+)(${j}*=${j}*(?:[^ \t\n\f\r"'\`<>=]|("|')|))|$)`,"g"),B=/'/g,K=/"/g,V=/^(?:script|style|textarea|title)$/i,G=e=>(t,...o)=>({_$litType$:e,strings:t,values:o}),q=G(1),U=G(2),L=Symbol.for("lit-noChange"),W=Symbol.for("lit-nothing"),Y=new WeakMap,Q=I.createTreeWalker(I,129);function H(e,t){if(!P(e)||!e.hasOwnProperty("raw"))throw Error("invalid template strings array");return void 0!==C?C.createHTML(t):t}const Z=(e,t)=>{const o=e.length-1,s=[];let i,n=2===t?"<svg>":3===t?"<math>":"",r=T;for(let t=0;t<o;t++){const o=e[t];let a,l,c=-1,d=0;for(;d<o.length&&(r.lastIndex=d,l=r.exec(o),null!==l);)d=r.lastIndex,r===T?"!--"===l[1]?r=N:void 0!==l[1]?r=R:void 0!==l[2]?(V.test(l[2])&&(i=RegExp("</"+l[2],"g")),r=D):void 0!==l[3]&&(r=D):r===D?">"===l[0]?(r=i??T,c=-1):void 0===l[1]?c=-2:(c=r.lastIndex-l[2].length,a=l[1],r=void 0===l[3]?D:'"'===l[3]?K:B):r===K||r===B?r=D:r===N||r===R?r=T:(r=D,i=void 0);const h=r===D&&e[t+1].startsWith("/>")?" ":"";n+=r===T?o+O:c>=0?(s.push(a),o.slice(0,c)+S+o.slice(c)+E+h):o+E+(-2===c?t:h)}return[H(e,n+(e[o]||"<?>")+(2===t?"</svg>":3===t?"</math>":"")),s]};class J{constructor({strings:e,_$litType$:t},o){let s;this.parts=[];let i=0,n=0;const r=e.length-1,a=this.parts,[l,c]=Z(e,t);if(this.el=J.createElement(l,o),Q.currentNode=this.el.content,2===t||3===t){const e=this.el.content.firstChild;e.replaceWith(...e.childNodes)}for(;null!==(s=Q.nextNode())&&a.length<r;){if(1===s.nodeType){if(s.hasAttributes())for(const e of s.getAttributeNames())if(e.endsWith(S)){const t=c[n++],o=s.getAttribute(e).split(E),r=/([.?@])?(.*)/.exec(t);a.push({type:1,index:i,name:r[2],strings:o,ctor:"."===r[1]?se:"?"===r[1]?ie:"@"===r[1]?ne:oe}),s.removeAttribute(e)}else e.startsWith(E)&&(a.push({type:6,index:i}),s.removeAttribute(e));if(V.test(s.tagName)){const e=s.textContent.split(E),t=e.length-1;if(t>0){s.textContent=k?k.emptyScript:"";for(let o=0;o<t;o++)s.append(e[o],M()),Q.nextNode(),a.push({type:2,index:++i});s.append(e[t],M())}}}else if(8===s.nodeType)if(s.data===z)a.push({type:2,index:i});else{let e=-1;for(;-1!==(e=s.data.indexOf(E,e+1));)a.push({type:7,index:i}),e+=E.length-1}i++}}static createElement(e,t){const o=I.createElement("template");return o.innerHTML=e,o}}function X(e,t,o=e,s){if(t===L)return t;let i=void 0!==s?o._$Co?.[s]:o._$Cl;const n=F(t)?void 0:t._$litDirective$;return i?.constructor!==n&&(i?._$AO?.(!1),void 0===n?i=void 0:(i=new n(e),i._$AT(e,o,s)),void 0!==s?(o._$Co??=[])[s]=i:o._$Cl=i),void 0!==i&&(t=X(e,i._$AS(e,t.values),i,s)),t}class ee{constructor(e,t){this._$AV=[],this._$AN=void 0,this._$AD=e,this._$AM=t}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(e){const{el:{content:t},parts:o}=this._$AD,s=(e?.creationScope??I).importNode(t,!0);Q.currentNode=s;let i=Q.nextNode(),n=0,r=0,a=o[0];for(;void 0!==a;){if(n===a.index){let t;2===a.type?t=new te(i,i.nextSibling,this,e):1===a.type?t=new a.ctor(i,a.name,a.strings,this,e):6===a.type&&(t=new re(i,this,e)),this._$AV.push(t),a=o[++r]}n!==a?.index&&(i=Q.nextNode(),n++)}return Q.currentNode=I,s}p(e){let t=0;for(const o of this._$AV)void 0!==o&&(void 0!==o.strings?(o._$AI(e,o,t),t+=o.strings.length-2):o._$AI(e[t])),t++}}class te{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(e,t,o,s){this.type=2,this._$AH=W,this._$AN=void 0,this._$AA=e,this._$AB=t,this._$AM=o,this.options=s,this._$Cv=s?.isConnected??!0}get parentNode(){let e=this._$AA.parentNode;const t=this._$AM;return void 0!==t&&11===e?.nodeType&&(e=t.parentNode),e}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(e,t=this){e=X(this,e,t),F(e)?e===W||null==e||""===e?(this._$AH!==W&&this._$AR(),this._$AH=W):e!==this._$AH&&e!==L&&this._(e):void 0!==e._$litType$?this.$(e):void 0!==e.nodeType?this.T(e):(e=>P(e)||"function"==typeof e?.[Symbol.iterator])(e)?this.k(e):this._(e)}O(e){return this._$AA.parentNode.insertBefore(e,this._$AB)}T(e){this._$AH!==e&&(this._$AR(),this._$AH=this.O(e))}_(e){this._$AH!==W&&F(this._$AH)?this._$AA.nextSibling.data=e:this.T(I.createTextNode(e)),this._$AH=e}$(e){const{values:t,_$litType$:o}=e,s="number"==typeof o?this._$AC(e):(void 0===o.el&&(o.el=J.createElement(H(o.h,o.h[0]),this.options)),o);if(this._$AH?._$AD===s)this._$AH.p(t);else{const e=new ee(s,this),o=e.u(this.options);e.p(t),this.T(o),this._$AH=e}}_$AC(e){let t=Y.get(e.strings);return void 0===t&&Y.set(e.strings,t=new J(e)),t}k(e){P(this._$AH)||(this._$AH=[],this._$AR());const t=this._$AH;let o,s=0;for(const i of e)s===t.length?t.push(o=new te(this.O(M()),this.O(M()),this,this.options)):o=t[s],o._$AI(i),s++;s<t.length&&(this._$AR(o&&o._$AB.nextSibling,s),t.length=s)}_$AR(e=this._$AA.nextSibling,t){for(this._$AP?.(!1,!0,t);e!==this._$AB;){const t=A(e).nextSibling;A(e).remove(),e=t}}setConnected(e){void 0===this._$AM&&(this._$Cv=e,this._$AP?.(e))}}class oe{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(e,t,o,s,i){this.type=1,this._$AH=W,this._$AN=void 0,this.element=e,this.name=t,this._$AM=s,this.options=i,o.length>2||""!==o[0]||""!==o[1]?(this._$AH=Array(o.length-1).fill(new String),this.strings=o):this._$AH=W}_$AI(e,t=this,o,s){const i=this.strings;let n=!1;if(void 0===i)e=X(this,e,t,0),n=!F(e)||e!==this._$AH&&e!==L,n&&(this._$AH=e);else{const s=e;let r,a;for(e=i[0],r=0;r<i.length-1;r++)a=X(this,s[o+r],t,r),a===L&&(a=this._$AH[r]),n||=!F(a)||a!==this._$AH[r],a===W?e=W:e!==W&&(e+=(a??"")+i[r+1]),this._$AH[r]=a}n&&!s&&this.j(e)}j(e){e===W?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,e??"")}}class se extends oe{constructor(){super(...arguments),this.type=3}j(e){this.element[this.name]=e===W?void 0:e}}class ie extends oe{constructor(){super(...arguments),this.type=4}j(e){this.element.toggleAttribute(this.name,!!e&&e!==W)}}class ne extends oe{constructor(e,t,o,s,i){super(e,t,o,s,i),this.type=5}_$AI(e,t=this){if((e=X(this,e,t,0)??W)===L)return;const o=this._$AH,s=e===W&&o!==W||e.capture!==o.capture||e.once!==o.once||e.passive!==o.passive,i=e!==W&&(o===W||s);s&&this.element.removeEventListener(this.name,this,o),i&&this.element.addEventListener(this.name,this,e),this._$AH=e}handleEvent(e){"function"==typeof this._$AH?this._$AH.call(this.options?.host??this.element,e):this._$AH.handleEvent(e)}}class re{constructor(e,t,o){this.element=e,this.type=6,this._$AN=void 0,this._$AM=t,this.options=o}get _$AU(){return this._$AM._$AU}_$AI(e){X(this,e)}}const ae=$.litHtmlPolyfillSupport;ae?.(J,te),($.litHtmlVersions??=[]).push("3.3.2");const le=globalThis;let ce=class extends x{constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0}createRenderRoot(){const e=super.createRenderRoot();return this.renderOptions.renderBefore??=e.firstChild,e}update(e){const t=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(e),this._$Do=((e,t,o)=>{const s=o?.renderBefore??t;let i=s._$litPart$;if(void 0===i){const e=o?.renderBefore??null;s._$litPart$=i=new te(t.insertBefore(M(),e),e,void 0,o??{})}return i._$AI(e),i})(t,this.renderRoot,this.renderOptions)}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(!0)}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(!1)}render(){return L}};ce._$litElement$=!0,ce.finalized=!0,le.litElementHydrateSupport?.({LitElement:ce});const de=le.litElementPolyfillSupport;de?.({LitElement:ce}),(le.litElementVersions??=[]).push("4.2.2");const he=e=>(t,o)=>{void 0!==o?o.addInitializer(()=>{customElements.define(e,t)}):customElements.define(e,t)},ue={attribute:!0,type:String,converter:y,reflect:!1,hasChanged:b},pe=(e=ue,t,o)=>{const{kind:s,metadata:i}=o;let n=globalThis.litPropertyMetadata.get(i);if(void 0===n&&globalThis.litPropertyMetadata.set(i,n=new Map),"setter"===s&&((e=Object.create(e)).wrapped=!0),n.set(o.name,e),"accessor"===s){const{name:s}=o;return{set(o){const i=t.get.call(this);t.set.call(this,o),this.requestUpdate(s,i,e,!0,o)},init(t){return void 0!==t&&this.C(s,void 0,e,t),t}}}if("setter"===s){const{name:s}=o;return function(o){const i=this[s];t.call(this,o),this.requestUpdate(s,i,e,!0,o)}}throw Error("Unsupported decorator location: "+s)};function ge(e){return(t,o)=>"object"==typeof o?pe(e,t,o):((e,t,o)=>{const s=t.hasOwnProperty(o);return t.constructor.createProperty(o,e),s?Object.getOwnPropertyDescriptor(t,o):void 0})(e,t,o)}function me(e){return ge({...e,state:!0,attribute:!1})}function _e(e,t,o){if(!e)return!0;for(const s of o)if(s&&e.states[s]!==t.states[s])return!0;return!1}const fe="2.5.2",ve="adaptive-cover-pro-card",ye="adaptive-cover-pro-card-editor",be="adaptive-cover-pro-sky-compass-card",we="adaptive-cover-pro-sky-compass-card-editor",xe="adaptive-cover-pro-tile-card",$e="adaptive-cover-pro-tile-card-editor",Ae="adaptive_cover_pro",ke=["force","weather","manual","custom_position","motion","cloud","climate","glare_zone","solar","default","floor_clamp"],Ce={force:"Force Override",weather:"Weather Safety",manual:"Manual Override",custom_position:"Custom Position",motion:"Motion Timeout",cloud:"Cloud Suppression",climate:"Climate",glare_zone:"Glare Zone",solar:"Solar Tracking",default:"Default",floor_clamp:"Min Floor"},Se={force:"handler.force",weather:"handler.weather",manual:"handler.manual",custom_position:"handler.custom_position",motion:"handler.motion",cloud:"handler.cloud",climate:"handler.climate",glare_zone:"handler.glare_zone",solar:"handler.solar",default:"handler.default",floor_clamp:"handler.floor_clamp"},Ee={cover_blind:"mdi:blinds-horizontal",cover_awning:"mdi:awning-outline",cover_tilt:"mdi:blinds"},ze={cover_blind:"mdi:blinds-open",cover_awning:"mdi:awning-outline",cover_tilt:"mdi:blinds-open"},Oe={cover_blind:"mdi:blinds-horizontal-closed",cover_awning:"mdi:window-closed-variant",cover_tilt:"mdi:blinds"},Ie={manual:"manual",force:"force",weather:"weather",glare_zone:"glare_zone",climate:"climate",cloud:"cloud",custom_position:"custom_position",solar:"solar",motion:"motion"},Me={auto:{label:"Auto",bg:"rgba(76, 175, 80, 0.18)",fg:"#2e7d32"},manual:{label:"Manual",bg:"rgba(255, 152, 0, 0.22)",fg:"#e65100"},force:{label:"Force",bg:"rgba(244, 67, 54, 0.22)",fg:"#b71c1c"},weather:{label:"Sun protection",bg:"rgba(244, 67, 54, 0.22)",fg:"#b71c1c"},glare_zone:{label:"Glare",bg:"rgba(244, 67, 54, 0.22)",fg:"#b71c1c"},climate:{label:"Climate",bg:"rgba(0, 150, 136, 0.22)",fg:"#00695c"},cloud:{label:"Cloudy",bg:"rgba(33, 150, 243, 0.22)",fg:"#0d47a1"},custom_position:{label:"Custom",bg:"rgba(156, 39, 176, 0.22)",fg:"#6a1b9a"},solar:{label:"Solar tracking",bg:"rgba(76, 175, 80, 0.22)",fg:"#1b5e20"},motion:{label:"Motion",bg:"rgba(255, 235, 59, 0.22)",fg:"#827717"},off:{label:"Off",bg:"rgba(97, 97, 97, 0.28)",fg:"#212121"},off_schedule:{label:"Off-schedule",bg:"rgba(96, 125, 139, 0.22)",fg:"#37474f"}},Fe={auto:"badge.auto",manual:"badge.manual",force:"badge.force",weather:"badge.weather",glare_zone:"badge.glare_zone",climate:"badge.climate",cloud:"badge.cloud",custom_position:"badge.custom_position",solar:"badge.solar",motion:"badge.motion",off:"badge.off",off_schedule:"badge.off_schedule"},Pe={auto:"mdi:autorenew",manual:"mdi:hand-back-right",force:"mdi:flash",weather:"mdi:shield-sun",glare_zone:"mdi:weather-sunny-alert",climate:"mdi:thermostat",cloud:"mdi:weather-cloudy",custom_position:"mdi:bookmark",solar:"mdi:white-balance-sunny",motion:"mdi:motion-sensor",off:"mdi:power",off_schedule:"mdi:clock-alert-outline"},je={integration_enabled:!0,automatic_control:!0,reset_manual_override:!0},Te={"sensor:Cover_Position":"target_position_sensor","sensor:sun_position":"sun_sensor","sensor:Start Sun":"start_sensor","sensor:End Sun":"end_sensor","sensor:control_status":"control_status_sensor","sensor:decision_trace":"decision_trace_sensor","sensor:last_cover_action":"last_action_sensor","sensor:last_skipped_action":"last_skipped_sensor","sensor:manual_override_end_time":"manual_override_end_sensor","sensor:position_verification":"position_verification_sensor","sensor:motion_status":"motion_status_sensor","sensor:climate_status":"climate_status_sensor","sensor:position_forecast":"position_forecast_sensor","binary_sensor:sun_motion":"sun_infront_binary","binary_sensor:manual_override":"manual_override_binary","binary_sensor:position_mismatch":"position_mismatch_binary","binary_sensor:glare_active":"glare_active_binary","switch:Integration Enabled":"integration_enabled_switch","switch:Automatic Control":"automatic_control_switch","switch:Manual Override":"manual_toggle_switch","switch:Climate Mode":"climate_mode_switch","switch:Motion Control":"motion_control_switch","button:Reset Manual Override":"reset_override_button"},Ne={en:{handler:{force:"Force Override",weather:"Weather Safety",manual:"Manual Override",custom_position:"Custom Position",motion:"Motion Timeout",cloud:"Cloud Suppression",climate:"Climate",glare_zone:"Glare Zone",solar:"Solar Tracking",default:"Default",floor_clamp:"Min Floor"},badge:{auto:"Auto",manual:"Manual",force:"Force",weather:"Weather safety",glare_zone:"Glare",climate:"Climate",cloud:"Cloudy",custom_position:"Custom",solar:"Solar tracking",motion:"Motion idle",off:"Off",off_schedule:"Off-schedule",floor_suffix:" ↥",safety:"Safety"},forecast:{event:{sunrise:"Sunrise",sunset:"Sunset",fov_enter:"Sun enters window field of view",fov_exit:"Sun leaves window field of view"},hover_hint:"Hover the curve for time + forecast position; hover a colored line for the event it marks.",solar_only_note:"Solar geometry only — does not reflect manual overrides, custom positions, cloud suppression, or weather."},dialog:{configure_integration:"Configure integration",open_device_page:"Open device page",close:"Close",target:"Target",resume_auto:"Resume Auto",hide_advanced:"▼ Hide advanced",show_advanced:"▶ Advanced",custom_positions:"Custom positions",floor_tooltip:"Floor — slot raises position above raw calc",floor:"↥",disable_slot:"Disable slot {slot}",enable_slot:"Enable slot {slot}",on:"On",off:"Off",controls:"Controls",automatic:"Automatic",climate:"Climate",motion:"Motion",toggle_hint:"{label} {state} — tap to toggle",state_on:"on",state_off:"off",todays_forecast:"Today's forecast"},overrides:{title:"Overrides",manual:"Manual",force:"Force",motion:"Motion",active:"Active",off:"Off",ends_in:"ends in {time}",active_count:"{count} active",timeout:"expires in {time}",reset_manual:"Reset Manual"},climate:{title:"Climate",active:"Active: {strategy}",indoor:"Indoor",outdoor:"Outdoor",presence:"Presence",sunny:"Sunny",lux:"Lux",irradiance:"Irradiance",mode_off:"Climate mode off",standby:"Standby",threshold_low:"low",threshold_high:"high",threshold_summer_outside:"summer",reason:{outside_time_window:"Outside the operating time window",thresholds_not_met:"Temperatures within the comfort band — no action needed",other_mode_active:"Another control mode is currently active",readings_unavailable:"Temperature readings unavailable",mode_off:"Climate mode is turned off"}},compass:{placeholder_no_entries:"No Adaptive Cover Pro entries selected.",placeholder_no_sun:"Sun sensor not yet populated.",sun_tooltip:"Sun: {az} az / {el} el",sunrise_tooltip:"Sunrise: {time}",sunset_tooltip:"Sunset: {time}",moon_tooltip:"Moon: {phase} ({pct}%)",sun_path_tooltip:"Sun path (today)",in_fov_check:"✓ in FOV",in_fov:"in FOV",in_fov_tooltip:"Sun is currently within this window’s field of view",none:"—",sun:"Sun",moon:"Moon",sun_up_not_hitting:"Sun (up, not hitting)",sun_below_horizon:"Sun (below horizon)",window_fov:"Window FOV",sun_path:"Sun path",sunrise:"Sunrise",sunset:"Sunset",cover_position:"Cover position",window_normal:"Window normal",stat_sun:"Sun: ",stat_azi:"Azi: ",stat_elev:"Elev: ",stat_window:"Window: ",active_sun_arc:"Active sun arc {from} – {to}{elev}",fov_arc:"FOV {left} left / {right} right{elev}",window_normal_tooltip:"Window normal: {bearing}",cover_position_target:"Target: {pct}%",cover_position_target_awning:"Target (extended): {pct}%",cover_position_actual:"Actual: {pct}%",blind_spot:"Blind spot: {from} – {to}",elev_suffix:" · elev {min}–{max}"},covers:{placeholder:"No covers reported by the integration.",title:"Covers",target:"Target: {pct}",click_to_set:"Click to set position",target_tooltip:"Target {pct}%"},decision:{placeholder:"Decision trace not yet populated.",pipeline:"Pipeline",winner:"Winner: {name}",summary_tooltip:"Why this position?",not_evaluated:"not evaluated",floor_suffix:" floor",outside_schedule:"Outside schedule — automatic control paused",outside_schedule_tooltip:"The configured schedule window is not active, so automatic positioning is paused."},header:{on:"ON",off:"OFF",integration_enabled:"Integration Enabled",auto:"Auto",automatic_control:"Automatic Control"},tile:{motion_pending:"Motion timeout pending",motion_detected:"Motion detected",open:"Open",stop:"Stop",close:"Close",resume_aria:"Resume automatic control",registry_failed:"Registry fetch failed: {error}",loading:"Loading…",entry_not_found:"Adaptive Cover Pro entry {entry} not found."},formatters:{expired:"expired"},elevation:{title:"Sun today",fov_window:"FOV: {from} → {to}",fov_windows:"FOV: {windows}",fov_window_named:"{name}: {windows}",no_fov_today:"Sun does not enter FOV today",placeholder:"Sun elevation chart unavailable.",schedule:"Schedule {from} – {to}",schedule_from:"Schedule from {from}",schedule_until:"Schedule until {to}",schedule_start_tooltip:"Schedule start",schedule_end_tooltip:"Schedule end"},root:{loading_registry:"Loading Adaptive Cover Pro registry…",no_entities_title:"No Adaptive Cover Pro entities found",footer_version:"adaptive-cover-pro-card v{version}",compass_no_match:"No matching Adaptive Cover Pro entities",compass_configured:"Configured entries: {entries}",compass_not_found:"Entries not found: {entries}"},editor:{common:{entry_id:"Adaptive Cover Pro instance",support_alt:"Buy me a coffee",title_optional:"Title (optional)",title_placeholder:"e.g. West-facing windows",north_offset:"Compass north offset (°)",north_offset_hint:'Rotate the compass clockwise so "up" matches your map. Default: 0.',loading_entries:"Loading Adaptive Cover Pro config entries…",load_failed:"Failed to load config entries: {error}",no_entries:"No Adaptive Cover Pro config entries found. Add an instance under",no_entries_path:"Settings → Devices & Services",no_entries_then:", then come back.",entry_id_manual_placeholder:"Enter config entry ID manually",entry_id_fallback_label:"Entry ID",unknown_entry:"(unknown: {entry})",reset:"Reset"},main:{sections:"Sections",sections_hint:"Toggle which parts of the card are shown.",section_sky_label:"Sky compass",section_sky_desc:"Sun vs. window FOV, polar plot",section_elevation_label:"Sun today",section_elevation_desc:"Elevation-vs-time chart with FOV band and current-time cursor",section_decision_label:"Decision strip",section_decision_desc:"All 10 pipeline handlers with the winning row highlighted",section_covers_label:"Cover positions",section_covers_desc:"Per-cover live vs. target bars; click to set position",section_overrides_label:"Overrides panel",section_overrides_desc:"Manual, force, motion tiles + reset button",section_climate_label:"Climate panel",section_climate_desc:"Summer/winter/intermediate strategy; shows standby when climate mode is off or inactive",controls:"Controls",controls_hint:"Render as read-only (visible but not clickable).",integration_pill_label:"Integration ON/OFF pill",integration_pill_desc:"Allow toggling the integration from the card header.",automatic_pill_label:"Automatic Control pill",automatic_pill_desc:"Allow toggling automatic control from the card header.",reset_button_label:"Reset Manual Override button",reset_button_desc:"Allow pressing the reset tile in the overrides panel.",display:"Display",compact_label:"Compact mode",compact_desc:"Tighter spacing between sections.",show_compass_stats_label:"Show compass stats",show_compass_stats_desc:"Azi, Elev, ∠, and Window angle below the sky compass.",show_compass_legend_label:"Show compass legend",show_compass_legend_desc:"Color key below the sky compass.",show_moon_label:"Show moon on compass",show_moon_desc:"Moon position and phase overlay on the sky compass.",hide_inactive_label:"Hide inactive handlers",hide_inactive_desc:"Show only the winner and actively matched pipeline handlers."},tile:{name:"Title override",icon:"Icon override",cover:"Cover entity",layout:"Layout",show_position:"Show position %",show_state:"Show state (Open/Closed)",show_decision_summary:"Show decision summary",show_controls:"Show ↑■▼ controls",show_badge:"Show contextual badge",badge_section:"Badges",badge_auto:"Auto",badge_solar:"Solar tracking",badge_force:"Force override",badge_weather:"Weather safety",badge_manual:"Manual override",badge_custom_position:"Custom position",badge_motion:"Motion",badge_climate:"Climate",badge_glare_zone:"Glare zone",badge_cloud:"Cloud suppression",show_compass:"Show sun compass in dialog",show_elevation_chart:"Show sun-today chart in dialog",show_motion_icon:"Show motion indicator",tap_action:"Tap action",hold_action:"Hold action",double_tap_action:"Double-tap action",cover_blank_hint:"Leave blank to use the first managed cover automatically.",layout_option_one_line:"One line (compact)",layout_option_detailed:"Detailed (title, state, indicators)"},compass:{instances:"Adaptive Cover Pro instances",instances_hint:"Pick one or more. Each selected entry adds an overlay to the compass.",cover_colors:"Cover colors",cover_colors_hint:"Override the default palette color for each overlay.",default_color:"default",display:"Display",toggle_compact_label:"Compact mode",toggle_compact_desc:"Smaller SVG, legend hidden.",toggle_legend_label:"Legend",toggle_legend_desc:"Color swatches + entry labels below compass.",toggle_stats_label:"Stats",toggle_stats_desc:"Sun + per-window numeric rows.",toggle_moon_label:"Moon",toggle_moon_desc:"Render moon position and phase.",toggle_cardinals_label:"Cardinal labels",toggle_cardinals_desc:"N/E/S/W letters around the compass.",toggle_blind_spot_label:"Blind spots",toggle_blind_spot_desc:"Hatched wedges for each window’s blind range.",toggle_sun_path_label:"Sun path",toggle_sun_path_desc:"Today’s sun arc across the sky.",toggle_sunrise_sunset_label:"Sunrise / sunset markers",toggle_sunrise_sunset_desc:"Small dots at rise and set azimuths.",toggle_cover_fill_label:"Cover closure fill",toggle_cover_fill_desc:"Inner wedge showing how closed each cover is.",toggle_window_arrow_label:"Window-normal arrow",toggle_window_arrow_desc:"Line from center toward each window’s azimuth.",toggle_elevation_chart_label:"Sun-today chart",toggle_elevation_chart_desc:"Elevation-vs-time chart below the compass, with FOV band and elevation limits."}}},fr:{handler:{force:"Dérogation forcée",weather:"Sécurité météo",manual:"Dérogation manuelle",custom_position:"Position personnalisée",motion:"Délai d'inactivité du mouvement",cloud:"Désactivation par temps nuageux",climate:"Climatique",glare_zone:"Zone d'éblouissement",solar:"Suivi solaire",default:"Par défaut",floor_clamp:"Plancher"},badge:{auto:"Auto",manual:"Manuel",force:"Forcé",weather:"Sécurité météo",glare_zone:"Éblouissement",climate:"Climatique",cloud:"Nuageux",custom_position:"Personnalisé",solar:"Suivi solaire",motion:"Inactivité",off:"Off",off_schedule:"Hors planning",floor_suffix:" ↥",safety:"Sécurité"},forecast:{event:{sunrise:"Lever du soleil",sunset:"Coucher du soleil",fov_enter:"Le soleil entre dans le champ de vision de la fenêtre",fov_exit:"Le soleil quitte le champ de vision de la fenêtre"},hover_hint:"Survolez la courbe pour voir l'heure et la position prévue ; survolez une ligne colorée pour voir l'événement qu'elle indique.",solar_only_note:"Géométrie solaire uniquement — ne tient pas compte des dérogations manuelles, des positions personnalisées, de la désactivation par temps nuageux ni des conditions météo."},dialog:{configure_integration:"Configurer l'intégration",open_device_page:"Ouvrir la page de l'appareil",close:"Fermer",target:"Cible",resume_auto:"Reprendre l'automatique",hide_advanced:"▼ Masquer les options avancées",show_advanced:"▶ Afficher les options avancées",custom_positions:"Positions personnalisées",floor_tooltip:"Plancher — cette valeur force une position minimale au-dessus du calcul automatique",floor:"↥",disable_slot:"Désactiver le créneau {slot}",enable_slot:"Activer le créneau {slot}",on:"Activé",off:"Désactivé",controls:"Commandes",automatic:"Automatique",climate:"Climatique",motion:"Mouvement",toggle_hint:"{label} {state} — appuyez pour basculer",state_on:"activé",state_off:"désactivé",todays_forecast:"Prévisions du jour"},overrides:{title:"Dérogations",manual:"Manuel",force:"Forcé",motion:"Mouvement",active:"Actif",off:"Désactivé",ends_in:"se termine dans {time}",active_count:"{count} dérogation(s) active(s)",timeout:"expire dans {time}",reset_manual:"Réinitialiser le mode manuel"},climate:{title:"Climatique",active:"Actif : {strategy}",indoor:"Intérieur",outdoor:"Extérieur",presence:"Présence",sunny:"Ensoleillé",lux:"Lux",irradiance:"Irradiance",mode_off:"Mode climatique désactivé",standby:"En veille",threshold_low:"bas",threshold_high:"haut",threshold_summer_outside:"été",reason:{outside_time_window:"En dehors de la plage horaire de fonctionnement",thresholds_not_met:"Températures dans la plage de confort — aucune action requise",other_mode_active:"Un autre mode de contrôle est actuellement actif",readings_unavailable:"Relevés de température indisponibles",mode_off:"Le mode climatique est désactivé"}},compass:{placeholder_no_entries:"Aucune instance Adaptive Cover Pro sélectionnée.",placeholder_no_sun:"Le capteur solaire n'est pas encore renseigné.",sun_tooltip:"Soleil : {az} az / {el} él",sunrise_tooltip:"Lever du soleil : {time}",sunset_tooltip:"Coucher du soleil : {time}",moon_tooltip:"Lune : {phase} ({pct}%)",sun_path_tooltip:"Trajectoire solaire (aujourd'hui)",in_fov_check:"✓ dans le champ de vision",in_fov:"dans le champ de vision",in_fov_tooltip:"Le soleil est actuellement dans le champ de vision de cette fenêtre",none:"—",sun:"Soleil",moon:"Lune",sun_up_not_hitting:"Soleil (levé, ne frappe pas)",sun_below_horizon:"Soleil (sous l’horizon)",window_fov:"Champ de vision",sun_path:"Trajectoire solaire",sunrise:"Lever du soleil",sunset:"Coucher du soleil",cover_position:"Position du store",window_normal:"Axe de la fenêtre",stat_sun:"Soleil : ",stat_azi:"Azi : ",stat_elev:"Élév : ",stat_window:"Fenêtre : ",active_sun_arc:"Arc solaire actif {from} – {to}{elev}",fov_arc:"Champ de vision {left} gauche / {right} droite{elev}",window_normal_tooltip:"Axe de la fenêtre : {bearing}",cover_position_target:"Cible : {pct}%",cover_position_target_awning:"Cible (déployé) : {pct}%",cover_position_actual:"Réel : {pct}%",blind_spot:"Soleil masqué : {from} - {to}",elev_suffix:" · élév {min}–{max}"},covers:{placeholder:"Aucun store signalé par l'intégration.",title:"Stores",target:"Cible : {pct}",click_to_set:"Cliquer pour définir la position",target_tooltip:"Cible {pct}%"},decision:{placeholder:"La trace de décision n'est pas encore renseignée.",pipeline:"Pipeline",winner:"Actif : {name}",summary_tooltip:"Pourquoi cette position ?",not_evaluated:"non évalué",floor_suffix:" plancher",outside_schedule:"Hors planning — contrôle automatique en pause",outside_schedule_tooltip:"La fenêtre de planning configurée n'est pas active, le positionnement automatique est donc en pause."},header:{on:"ON",off:"OFF",integration_enabled:"Intégration activée",auto:"Auto",automatic_control:"Contrôle automatique"},tile:{motion_pending:"Délai de mouvement en cours",motion_detected:"Mouvement détecté",open:"Ouvrir",stop:"Arrêter",close:"Fermer",resume_aria:"Reprendre le contrôle automatique",registry_failed:"Échec de la récupération du registre : {error}",loading:"Chargement…",entry_not_found:"Instance Adaptive Cover Pro {entry} introuvable."},formatters:{expired:"expiré"},elevation:{title:"Soleil aujourd'hui",fov_window:"Champ de vision : {from} → {to}",fov_windows:"Champ de vision : {windows}",fov_window_named:"{name} : {windows}",no_fov_today:"Pas de soleil dans le champ de vision aujourd'hui",placeholder:"Graphique d'élévation solaire indisponible.",schedule:"Programmation {from} – {to}",schedule_from:"Programmation à partir de {from}",schedule_until:"Programmation jusqu'à {to}",schedule_start_tooltip:"Début de programmation",schedule_end_tooltip:"Fin de programmation"},root:{loading_registry:"Chargement du registre Adaptive Cover Pro…",no_entities_title:"Aucune entité Adaptive Cover Pro trouvée",footer_version:"adaptive-cover-pro-card v{version}",compass_no_match:"Aucune entité Adaptive Cover Pro correspondante",compass_configured:"Instances configurées : {entries}",compass_not_found:"Instances introuvables : {entries}"},editor:{common:{entry_id:"Instance Adaptive Cover Pro",support_alt:"Offrez-moi un café",title_optional:"Titre (facultatif)",title_placeholder:"ex. Fenêtres côté ouest",north_offset:"Décalage nord de la boussole (°)",north_offset_hint:"Faites pivoter la boussole dans le sens horaire pour que « haut » corresponde à votre carte. Par défaut : 0.",loading_entries:"Chargement des entrées de configuration Adaptive Cover Pro…",load_failed:"Échec du chargement des entrées de configuration : {error}",no_entries:"Aucune entrée de configuration Adaptive Cover Pro trouvée. Ajoutez une instance sous",no_entries_path:"Paramètres → Appareils et services",no_entries_then:", puis revenez ici.",entry_id_manual_placeholder:"Saisir manuellement l'ID d'entrée de configuration",entry_id_fallback_label:"ID d'entrée",unknown_entry:"(inconnu : {entry})",reset:"Réinitialiser"},main:{sections:"Sections",sections_hint:"Activer ou désactiver les parties de la carte affichées.",section_sky_label:"Boussole céleste",section_sky_desc:"Soleil par rapport au champ de vision de la fenêtre, tracé polaire",section_elevation_label:"Soleil aujourd'hui",section_elevation_desc:"Graphique élévation/temps avec bande FOV et curseur temps réel",section_decision_label:"Bande de décision",section_decision_desc:"Les 10 gestionnaires du pipeline avec la ligne gagnante mise en évidence",section_covers_label:"Positions des stores",section_covers_desc:"Barres position réelle/cible par store ; cliquer pour définir la position",section_overrides_label:"Panneau des dérogations",section_overrides_desc:"Tuiles Manuel, Forcé, Mouvement + bouton de réinitialisation",section_climate_label:"Panneau climatique",section_climate_desc:"Stratégie été/hiver/intermédiaire ; affiche le mode veille si le mode climatique est désactivé ou inactif",controls:"Commandes",controls_hint:"Afficher en lecture seule (visible mais non cliquable).",integration_pill_label:"Bouton ON/OFF de l'intégration",integration_pill_desc:"Permettre de basculer l'intégration depuis l'en-tête de la carte.",automatic_pill_label:"Bouton contrôle automatique",automatic_pill_desc:"Permettre de basculer le contrôle automatique depuis l'en-tête de la carte.",reset_button_label:"Bouton de réinitialisation de la dérogation manuelle",reset_button_desc:"Permettre d'appuyer sur la tuile de réinitialisation dans le panneau des dérogations.",display:"Affichage",compact_label:"Mode compact",compact_desc:"Espacement réduit entre les sections.",show_compass_stats_label:"Afficher les statistiques de la boussole",show_compass_stats_desc:"Azi, Élév, ∠ et angle de fenêtre sous la boussole céleste.",show_compass_legend_label:"Afficher la légende de la boussole",show_compass_legend_desc:"Clé de couleur sous la boussole céleste.",show_moon_label:"Afficher la lune sur la boussole",show_moon_desc:"Position et phase de la lune en superposition sur la boussole céleste.",hide_inactive_label:"Masquer les gestionnaires inactifs",hide_inactive_desc:"Afficher uniquement le gestionnaire sélectionné et les gestionnaires du pipeline actifs."},tile:{name:"Titre personnalisé",icon:"Icône personnalisée",cover:"Entité de store",layout:"Disposition",show_position:"Afficher la position %",show_state:"Afficher l'état (Ouvert/Fermé)",show_decision_summary:"Afficher le résumé de décision",show_controls:"Afficher les commandes ↑■▼",show_badge:"Afficher le badge contextuel",badge_section:"Badges",badge_auto:"Auto",badge_solar:"Suivi solaire",badge_force:"Dérogation forcée",badge_weather:"Sécurité météo",badge_manual:"Dérogation manuelle",badge_custom_position:"Position personnalisée",badge_motion:"Mouvement",badge_climate:"Climatique",badge_glare_zone:"Zone d'éblouissement",badge_cloud:"Suppression nuageuse",show_compass:"Afficher la boussole solaire dans le dialogue",show_elevation_chart:"Afficher le graphique du soleil dans le dialogue",show_motion_icon:"Afficher l'indicateur de mouvement",tap_action:"Action au toucher",hold_action:"Action au maintien",double_tap_action:"Action au double toucher",cover_blank_hint:"Laisser vide pour utiliser automatiquement le premier store géré.",layout_option_one_line:"Une ligne (compact)",layout_option_detailed:"Détaillé (titre, état, indicateurs)"},compass:{instances:"Instances Adaptive Cover Pro",instances_hint:"Sélectionnez une ou plusieurs instances. Chaque instance sélectionnée ajoute une superposition à la boussole.",cover_colors:"Couleurs des stores",cover_colors_hint:"Remplacer la couleur de palette par défaut pour chaque superposition.",default_color:"par défaut",display:"Affichage",toggle_compact_label:"Mode compact",toggle_compact_desc:"SVG plus petit, légende masquée.",toggle_legend_label:"Légende",toggle_legend_desc:"Échantillons de couleur et étiquettes d'instance sous la boussole.",toggle_stats_label:"Statistiques",toggle_stats_desc:"Soleil + lignes numériques par fenêtre.",toggle_moon_label:"Lune",toggle_moon_desc:"Afficher la position et la phase de la lune.",toggle_cardinals_label:"Points cardinaux",toggle_cardinals_desc:"Lettres N/E/S/O autour de la boussole.",toggle_blind_spot_label:"Zones de soleil masqué",toggle_blind_spot_desc:"Secteurs hachurés pour la plage où le soleil est masqué de chaque fenêtre.",toggle_sun_path_label:"Trajectoire solaire",toggle_sun_path_desc:"Arc solaire du jour dans le ciel.",toggle_sunrise_sunset_label:"Repères lever / coucher du soleil",toggle_sunrise_sunset_desc:"Petits points aux azimuts de lever et coucher du soleil.",toggle_cover_fill_label:"Remplissage de fermeture du store",toggle_cover_fill_desc:"Secteur intérieur indiquant le taux de fermeture de chaque store.",toggle_window_arrow_label:"Flèche de normale de fenêtre",toggle_window_arrow_desc:"Ligne du centre vers l'azimut de chaque fenêtre.",toggle_elevation_chart_label:"Graphique du soleil",toggle_elevation_chart_desc:"Graphique élévation/temps sous la boussole, avec bande FOV et limites d'élévation."}}}};function Re(e,t){const o=t.split(".");let s=e;for(const e of o){if("object"!=typeof s||null===s)return;s=s[e]}return"string"==typeof s?s:void 0}function De(e,t){return t?e.replace(/\{(\w+)\}/g,(e,o)=>Object.prototype.hasOwnProperty.call(t,o)?String(t[o]):e):e}function Be(e,t,o){const s=function(e){const t=(e?.locale?.language??e?.language??"en").toLowerCase().split("-")[0];return t in Ne?t:"en"}(t),i=Re(Ne[s],e);if(void 0!==i)return De(i,o);if("en"!==s){const t=Re(Ne.en,e);if(void 0!==t)return De(t,o)}return e}function Ke(e,t){const o={},s=`${e}_`;let i,n=!1;for(const r of t){if(r.config_entry_id!==e)continue;if(r.platform!==Ae)continue;if(n=!0,!i&&r.device_id&&(i=r.device_id),!r.unique_id.startsWith(s))continue;const t=r.unique_id.slice(s.length),a=r.entity_id.split(".")[0],l=Te[`${a}:${t}`];l&&(o[l]=r.entity_id)}return n&&0!==Object.keys(o).length?{entities:o,deviceId:i}:null}function Ve(e,t,o){const{entities:s,deviceId:i}=o,n=e;let r=t;if(n.devices)for(const e of Object.values(n.devices))if(e.config_entries?.includes(t)){r=e.name_by_user??e.name??t;break}const a=[],l=s.target_position_sensor;if(l){const t=e.states[l]?.attributes?.actual_positions;t&&a.push(...Object.keys(t))}let c="cover_blind";const d=s.control_status_sensor;if(d){const t=e.states[d]?.attributes;t?.cover_type&&(c=t.cover_type)}return{entry_id:t,entry_title:r,cover_type:c,entities:s,managed_covers:a,device_id:i}}function Ge(e,t,o){const s=t.entry_id;if(!s)return null;const i=Ke(s,o);return i?Ve(e,s,i):null}async function qe(e){return(await e.callWS({type:"config_entries/get",domain:Ae})).filter(e=>e.domain===Ae).map(e=>({entry_id:e.entry_id,title:e.title}))}function Ue(e,t,o=0){const s=(e-90+o)*Math.PI/180;return{x:t*Math.cos(s),y:t*Math.sin(s)}}function Le(e){return 1-Math.max(0,Math.min(90,e))/90}function We(e,t,o,s=0,i=0){const n=e=>(e%360+360)%360,r=n(e),a=n(t);let l=a-r;l<0&&(l+=360);const c=l>180?1:0,d=Ue(r,o,i),h=Ue(a,o,i);if(s<=0)return`M 0 0 L ${d.x} ${d.y} A ${o} ${o} 0 ${c} 1 ${h.x} ${h.y} Z`;const u=Ue(a,s,i),p=Ue(r,s,i);return[`M ${d.x} ${d.y}`,`A ${o} ${o} 0 ${c} 1 ${h.x} ${h.y}`,`L ${u.x} ${u.y}`,`A ${s} ${s} 0 ${c} 0 ${p.x} ${p.y}`,"Z"].join(" ")}function Ye(e,t,o=0){return Ue(e,Le(t),o)}function Qe(e){return(e%360+360)%360}function He(e,t,o,s){const i=s??0;let n=-1,r=-1;for(let s=t;s<=o&&s<e.length;s++)e[s].elevation>i&&(-1===n&&(n=s),r=s);return-1===n?null:{wedgeStart:e[n].azimuth,wedgeEnd:e[r].azimuth}}function Ze(e,t,o){const s=(e-t)/864e5;return Math.max(0,Math.min(o,s*o))}function Je(e,t,o){return((e-t)%360+360)%360<=((o-t)%360+360)%360}function Xe(e,t,o,s){return Je(o,e,t)||Je(s,e,t)||Je(e,o,s)||Je(t,o,s)}function et(e,t,o,s){const i="cover_awning"===t?e/100:1-e/100;return Math.min(o*i,s)}async function tt(e){return e.callWS({type:"config/entity_registry/list"})}function ot(e,t){let o=null,s=!1;return e.connection.subscribeEvents(e=>t(e.data),"entity_registry_updated").then(e=>{s?e():o=e}).catch(()=>{}),()=>{s=!0,o&&o()}}function st(e){return`acp-card:registry:v1:${e}`}const it={get(e){try{const t=localStorage.getItem(st(e));if(!t)return null;const o=JSON.parse(t);return 1!==o.schemaVersion?null:o}catch{return null}},set(e,t){try{const o={schemaVersion:1,cardVersion:fe,fetchedAt:Date.now(),entries:t};localStorage.setItem(st(e),JSON.stringify(o))}catch{}},invalidate(e){try{localStorage.removeItem(st(e))}catch{}},clear(){try{const e="acp-card:registry:v1:",t=[];for(let o=0;o<localStorage.length;o++){const s=localStorage.key(o);s?.startsWith(e)&&t.push(s)}t.forEach(e=>localStorage.removeItem(e))}catch{}}};function nt(e){return`${e.entity_id}|${e.unique_id}|${e.platform}|${e.config_entry_id??""}`}function rt(e,t,o){return e.filter(e=>e.config_entry_id===t&&void 0===o)}let at=class extends ce{constructor(){super(...arguments),this.on=!1,this.readonly=!1,this.label="",this.title=""}_handleClick(){this.readonly||this.dispatchEvent(new CustomEvent("pill-click",{bubbles:!0,composed:!0}))}render(){return q`
       <button
         class="pill ${this.on?"on":"off"} ${this.readonly?"readonly":""}"
         title=${this.title}
-        aria-disabled=${this.readonly?"true":U}
+        aria-disabled=${this.readonly?"true":W}
         tabindex=${this.readonly?"-1":"0"}
         @click=${this._handleClick}
       >
         ${this.label}
       </button>
-    `}};st.styles=a`
+    `}};at.styles=r`
     .pill {
       padding: 2px 10px;
       border-radius: 999px;
@@ -36,47 +36,47 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     .pill.on.readonly {
       opacity: 0.85;
     }
-  `,e([ge({type:Boolean})],st.prototype,"on",void 0),e([ge({type:Boolean})],st.prototype,"readonly",void 0),e([ge({type:String})],st.prototype,"label",void 0),e([ge({type:String})],st.prototype,"title",void 0),st=e([he("acp-header-pill")],st);class nt{constructor(e){}get _$AU(){return this._$AM._$AU}_$AT(e,t,o){this._$Ct=e,this._$AM=t,this._$Ci=o}_$AS(e,t){return this.update(e,t)}update(e,t){return this.render(...t)}}const at=(rt=class extends nt{constructor(e){if(super(e),1!==e.type||"class"!==e.name||e.strings?.length>2)throw Error("`classMap()` can only be used in the `class` attribute and must be the only part in the attribute.")}render(e){return" "+Object.keys(e).filter(t=>e[t]).join(" ")+" "}update(e,[t]){if(void 0===this.st){this.st=new Set,void 0!==e.strings&&(this.nt=new Set(e.strings.join(" ").split(/\s/).filter(e=>""!==e)));for(const e in t)t[e]&&!this.nt?.has(e)&&this.st.add(e);return this.render(t)}const o=e.element.classList;for(const e of this.st)e in t||(o.remove(e),this.st.delete(e));for(const e in t){const i=!!t[e];i===this.st.has(e)||this.nt?.has(e)||(i?(o.add(e),this.st.add(e)):(o.remove(e),this.st.delete(e)))}return Y}},(...e)=>({_$litDirective$:rt,values:e}));var rt;function lt(e){return e&&e.__esModule&&Object.prototype.hasOwnProperty.call(e,"default")?e.default:e}var ct,dt,ht={exports:{}},ut=(ct||(ct=1,dt=ht,function(){var e=Math.PI,t=Math.sin,o=Math.cos,i=Math.tan,s=Math.asin,n=Math.atan2,a=Math.acos,r=e/180,l=864e5,c=2440588,d=2451545;function h(e){return new Date((e+.5-c)*l)}function u(e){return function(e){return e.valueOf()/l-.5+c}(e)-d}var p=23.4397*r;function g(e,s){return n(t(e)*o(p)-i(s)*t(p),o(e))}function m(e,i){return s(t(i)*o(p)+o(i)*t(p)*t(e))}function _(e,s,a){return n(t(e),o(e)*t(s)-i(a)*o(s))}function f(e,i,n){return s(t(i)*t(n)+o(i)*o(n)*o(e))}function v(e,t){return r*(280.16+360.9856235*e)-t}function y(e){return r*(357.5291+.98560028*e)}function b(o){return o+r*(1.9148*t(o)+.02*t(2*o)+3e-4*t(3*o))+102.9372*r+e}function w(e){var t=b(y(e));return{dec:m(t,0),ra:g(t,0)}}var x={getPosition:function(e,t,o){var i=r*-o,s=r*t,n=u(e),a=w(n),l=v(n,i)-a.ra;return{azimuth:_(l,s,a.dec),altitude:f(l,s,a.dec)}}},$=x.times=[[-.833,"sunrise","sunset"],[-.3,"sunriseEnd","sunsetStart"],[-6,"dawn","dusk"],[-12,"nauticalDawn","nauticalDusk"],[-18,"nightEnd","night"],[6,"goldenHourEnd","goldenHour"]];x.addTime=function(e,t,o){$.push([e,t,o])};var A=9e-4;function k(t,o,i){return A+(t+o)/(2*e)+i}function C(e,o,i){return d+e+.0053*t(o)-.0069*t(2*i)}function E(e,i,s,n,r,l,c){var d=function(e,i,s){return a((t(e)-t(i)*t(s))/(o(i)*o(s)))}(e,s,n);return C(k(d,i,r),l,c)}function S(e){var i=r*(134.963+13.064993*e),s=r*(93.272+13.22935*e),n=r*(218.316+13.176396*e)+6.289*r*t(i),a=5.128*r*t(s),l=385001-20905*o(i);return{ra:g(n,a),dec:m(n,a),dist:l}}function z(e,t){return new Date(e.valueOf()+t*l/24)}x.getTimes=function(t,o,i,s){var n,a,l,c,d,p=r*-i,g=r*o,_=function(e){return-2.076*Math.sqrt(e)/60}(s=s||0),f=function(t,o){return Math.round(t-A-o/(2*e))}(u(t),p),v=k(0,p,f),w=y(v),x=b(w),S=m(x,0),z=C(v,w,x),O={solarNoon:h(z),nadir:h(z-.5)};for(n=0,a=$.length;n<a;n+=1)d=z-((c=E(((l=$[n])[0]+_)*r,p,g,S,f,w,x))-z),O[l[1]]=h(d),O[l[2]]=h(c);return O},x.getMoonPosition=function(e,s,a){var l=r*-a,c=r*s,d=u(e),h=S(d),p=v(d,l)-h.ra,g=f(p,c,h.dec),m=n(t(p),i(c)*o(h.dec)-t(h.dec)*o(p));return g+=function(e){return e<0&&(e=0),2967e-7/Math.tan(e+.00312536/(e+.08901179))}(g),{azimuth:_(p,c,h.dec),altitude:g,distance:h.dist,parallacticAngle:m}},x.getMoonIllumination=function(e){var i=u(e||new Date),s=w(i),r=S(i),l=149598e3,c=a(t(s.dec)*t(r.dec)+o(s.dec)*o(r.dec)*o(s.ra-r.ra)),d=n(l*t(c),r.dist-l*o(c)),h=n(o(s.dec)*t(s.ra-r.ra),t(s.dec)*o(r.dec)-o(s.dec)*t(r.dec)*o(s.ra-r.ra));return{fraction:(1+o(d))/2,phase:.5+.5*d*(h<0?-1:1)/Math.PI,angle:h}},x.getMoonTimes=function(e,t,o,i){var s=new Date(e);i?s.setUTCHours(0,0,0,0):s.setHours(0,0,0,0);for(var n,a,l,c,d,h,u,p,g,m,_,f,v,y=.133*r,b=x.getMoonPosition(s,t,o).altitude-y,w=1;w<=24&&(n=x.getMoonPosition(z(s,w),t,o).altitude-y,p=((d=(b+(a=x.getMoonPosition(z(s,w+1),t,o).altitude-y))/2-n)*(u=-(h=(a-b)/2)/(2*d))+h)*u+n,m=0,(g=h*h-4*d*n)>=0&&(_=u-(v=Math.sqrt(g)/(2*Math.abs(d))),f=u+v,Math.abs(_)<=1&&m++,Math.abs(f)<=1&&m++,_<-1&&(_=f)),1===m?b<0?l=w+_:c=w+_:2===m&&(l=w+(p<0?f:_),c=w+(p<0?_:f)),!l||!c);w+=2)b=a;var $={};return l&&($.rise=z(s,l)),c&&($.set=z(s,c)),l||c||($[p>0?"alwaysUp":"alwaysDown"]=!0),$},dt.exports=x}()),ht.exports),pt=lt(ut);function gt(e,t,o,i=10){const s=[],n=o.getTime()+864e5;for(let a=o.getTime();a<=n;a+=60*i*1e3){const o=new Date(a),i=pt.getPosition(o,e,t);s.push({t:o,elevation:180*i.altitude/Math.PI,azimuth:((180*i.azimuth/Math.PI+180)%360+360)%360})}return s}function mt(e=new Date){const t=new Date(e);return t.setHours(0,0,0,0),t}function _t(e,t=new Date){if(!e)return mt(t);const o=new Intl.DateTimeFormat("en-CA",{timeZone:e,year:"numeric",month:"2-digit",day:"2-digit"}).format(t),[i,s,n]=o.split("-").map(Number),a=Date.UTC(i,s-1,n,0,0,0),r=function(e,t){const o=new Intl.DateTimeFormat("en-US",{timeZone:e,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).formatToParts(t),i={};for(const e of o)"literal"!==e.type&&(i[e.type]=Number(e.value));return Date.UTC(i.year,i.month-1,i.day,i.hour,i.minute,i.second)-t.getTime()}(e,new Date(a));return new Date(a-r)}function ft(e,t,o,i){const s=((t-o)%360+360)%360;return((e-s)%360+360)%360<=((((t+i)%360+360)%360-s)%360+360)%360}function vt(e,t,o,i){const s=[];let n=-1;for(let a=0;a<e.length;a++){const r=e[a];r.elevation>0&&ft(r.azimuth,t,o,i)?-1===n&&(n=a):-1!==n&&(s.push({startIdx:n,endIdx:a-1}),n=-1)}return-1!==n&&s.push({startIdx:n,endIdx:e.length-1}),s}function yt(e,t,o=new Date){const i=pt.getMoonPosition(o,e,t),s=pt.getMoonIllumination(o);return{azimuth:((180*i.azimuth/Math.PI+180)%360+360)%360,elevation:180*i.altitude/Math.PI,phase:s.phase,fraction:s.fraction,phaseName:bt(s.phase)}}function bt(e){return e<.0625||e>=.9375?"New Moon":e<.1875?"Waxing Crescent":e<.3125?"First Quarter":e<.4375?"Waxing Gibbous":e<.5625?"Full Moon":e<.6875?"Waning Gibbous":e<.8125?"Last Quarter":"Waning Crescent"}function wt(e){return null==e||Number.isNaN(e)?"—":`${Math.round(e)}%`}function xt(e){return null==e||Number.isNaN(e)?"—":`${e.toFixed(1)}°`}function $t(e,t){if(!e)return"—";const o=new Date(e);return Number.isNaN(o.getTime())?"—":o.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",timeZone:t})}function At(e,t){if(!e)return"—";const o=new Date(e).getTime();if(Number.isNaN(o))return"—";const i=Math.round((o-Date.now())/1e3);return i<=0?t?De("formatters.expired",t):"expired":function(e){if(null==e||Number.isNaN(e))return"—";const t=Math.max(0,Math.round(e));if(t<60)return`${t}s`;const o=Math.floor(t/60);return o<60?`${o}m ${t%60}s`:`${Math.floor(o/60)}h ${o%60}m`}(i)}const kt=new Set(["outside_fov","in_fov_not_valid","hitting"]),Ct={night:"sun night",hitting:"sun valid",in_fov_not_valid:"sun in-fov",outside_fov:"sun up"};function Et(e){return e.belowHorizon?"night":e.sunState&&kt.has(e.sunState)?e.sunState:e.directSunValid?"hitting":e.inFov?"in_fov_not_valid":"outside_fov"}const St=["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#17becf","#e377c2"];function zt(e){const t=St.length;return St[(e%t+t)%t]}function Ot(e,t){return"string"==typeof e&&e.length>0?{color:e,isOverride:!0}:{color:zt(t),isOverride:!1}}const Mt=110;let It=class extends ce{constructor(){super(...arguments),this.discovered_list=[],this.compact=!1,this.showStats=!0,this.showLegend=!0,this.showMoon=!1,this.showCardinals=!0,this.showBlindSpot=!0,this.showSunPath=!0,this.showSunriseSunset=!0,this.showCoverFill=!0,this.showWindowArrow=!0,this.coverColors=[],this.northOffsetDeg=0,this._hiddenEntries=new Set}_toggleEntry(e){const t=new Set(this._hiddenEntries);t.has(e)?t.delete(e):t.add(e),this._hiddenEntries=t}_sunFor(e){const t=e.entities.sun_sensor;if(!t)return null;const o=this.hass.states[t];if(!o)return null;const i=parseFloat(o.state);return Number.isNaN(i)?null:{...o.attributes,window_azimuth:o.attributes.window_azimuth}}_coverPositionFor(e){const t=e.entities.target_position_sensor;if(!t)return null;const o=parseFloat(this.hass.states[t]?.state??"");return Number.isNaN(o)?null:o}_actualPositionFor(e){const t=e.entities.target_position_sensor;if(!t)return null;const o=this.hass.states[t]?.attributes;return o?.actual_positions?function(e){const t=Object.values(e).filter(e=>"number"==typeof e);return 0===t.length?null:t.reduce((e,t)=>e+t,0)/t.length}(o.actual_positions):null}_solarTargetFor(e){const t=e.entities.target_position_sensor;if(!t)return null;const o=this.hass.states[t]?.attributes,i=o?.raw_calculated_position;return"number"==typeof i&&Number.isFinite(i)?i:null}_manualOverrideActive(e){const t=e.entities.manual_override_binary;return!!t&&"on"===this.hass.states[t]?.state}_sunInfrontFor(e){const t=e.entities.sun_infront_binary;return!!t&&"on"===this.hass.states[t]?.state}_sunDotStateFor(e,t){const o=e.entities.decision_trace_sensor?this.hass.states[e.entities.decision_trace_sensor]?.attributes:void 0;return Et({belowHorizon:t.elevation<=0,sunState:o?.sun_state??null,directSunValid:o?.direct_sun_valid??!1,inFov:!0===t.in_fov})}_readActiveAzimuth(e){if(!e)return null;const t=this.hass.states[e];if(!t)return null;if("unavailable"===t.state||"unknown"===t.state)return null;const o=t.attributes.azimuth;return"number"==typeof o&&Number.isFinite(o)?o:null}_buildOverlays(){const e=[];return this.discovered_list.forEach((t,o)=>{const i=this._sunFor(t);if(!i)return;const s=t.entities.sun_sensor,n=parseFloat(this.hass.states[s]?.state??"0"),{color:a,isOverride:r}=Ot(this.coverColors?.[o],o),l=this._coverPositionFor(t),c=function(e,t,o){return e&&null!=t&&Number.isFinite(t)?t===o?null:t:null}(this._manualOverrideActive(t),this._solarTargetFor(t),l);e.push({d:t,sun:i,sunAzi:n,sunInfront:this._sunInfrontFor(t),dotState:this._sunDotStateFor(t,i),coverPos:c??l,actualPos:this._actualPositionFor(t),coverType:t.cover_type,color:a,isOverride:r,index:o})}),e}render(){if(!this.hass)return U;if(!this.discovered_list||0===this.discovered_list.length)return q`<div class="placeholder">${De("compass.placeholder_no_entries",this.hass)}</div>`;const e=this._buildOverlays();if(0===e.length)return q`<div class="placeholder">${De("compass.placeholder_no_sun",this.hass)}</div>`;const t=e.filter(e=>!this._hiddenEntries.has(e.d.entry_id)),o=Ye(this.northOffsetDeg),i=e.length>1,s=e[0],n=s.sunAzi,a=s.sun.elevation,r=We(n,a,o),l={night:-1,outside_fov:0,in_fov_not_valid:1,hitting:2},c=a<=0?"night":e.reduce((e,t)=>l[t.dotState]>l[e]?t.dotState:e,"outside_fov"),d=Ct[c],{latitude:h,longitude:u,time_zone:p}=this.hass.config,g=void 0!==h&&void 0!==u?gt(h,u,_t(p)):[],m=this.showMoon&&void 0!==h&&void 0!==u?yt(h,u):null,_=null!==m&&m.elevation>0,f=m?m.phase<.5?-24*m.phase:24*(1-m.phase):0,v=_?We(m.azimuth,m.elevation,o):null,y=v?v.x*Mt:0,b=v?v.y*Mt:0,w=this.showSunPath?function(e){const t=[];let o=-1;for(let i=0;i<e.length;i++)e[i].elevation>0?-1===o&&(o=i):-1!==o&&(t.push({startIdx:o,endIdx:i-1}),o=-1);return-1!==o&&t.push({startIdx:o,endIdx:e.length-1}),t}(g).map(e=>g.slice(e.startIdx,e.endIdx+1).map(e=>{const t=We(e.azimuth,e.elevation,o);return{x:t.x*Mt,y:t.y*Mt,elev:e.elevation}})):[],x=[122,127,135],$=[245,197,24],A=e=>{const t=Math.sqrt(Math.max(0,Math.min(1,e/90))),o=x.map((e,o)=>Math.round(e+($[o]-e)*t));return`rgb(${o[0]},${o[1]},${o[2]})`},k=this.showSunPath&&this.showSunriseSunset?w.filter(e=>e.length>1).map((e,t)=>{const o=e[0],i=e[e.length-1],s=i.x-o.x,n=i.y-o.y,a=s*s+n*n||1,r=e.filter((t,o)=>o%6==0||o===e.length-1).map(e=>({offset:100*Math.max(0,Math.min(1,((e.x-o.x)*s+(e.y-o.y)*n)/a)),color:A(e.elev)}));return{id:`sun-path-grad-${t}`,x1:o.x,y1:o.y,x2:i.x,y2:i.y,stops:r}}):[],C=e=>this.showSunriseSunset?`url(#sun-path-grad-${e})`:"var(--warning-color, gold)",E=Ve(0,124,o),S=Ve(90,124,o),z=Ve(180,124,o),O=Ve(270,124,o),M=Ve(0,Mt,o),I=Ve(180,Mt,o),F=Ve(90,Mt,o),P=Ve(270,Mt,o),j=De("compass.sun_tooltip",this.hass,{az:xt(n),el:xt(a)}),T=null!==m?De("compass.moon_tooltip",this.hass,{phase:m.phaseName,pct:Math.round(100*m.fraction)}):"",N=De("compass.sun_path_tooltip",this.hass);return q`
+  `,e([ge({type:Boolean})],at.prototype,"on",void 0),e([ge({type:Boolean})],at.prototype,"readonly",void 0),e([ge({type:String})],at.prototype,"label",void 0),e([ge({type:String})],at.prototype,"title",void 0),at=e([he("acp-header-pill")],at);class lt{constructor(e){}get _$AU(){return this._$AM._$AU}_$AT(e,t,o){this._$Ct=e,this._$AM=t,this._$Ci=o}_$AS(e,t){return this.update(e,t)}update(e,t){return this.render(...t)}}const ct=(dt=class extends lt{constructor(e){if(super(e),1!==e.type||"class"!==e.name||e.strings?.length>2)throw Error("`classMap()` can only be used in the `class` attribute and must be the only part in the attribute.")}render(e){return" "+Object.keys(e).filter(t=>e[t]).join(" ")+" "}update(e,[t]){if(void 0===this.st){this.st=new Set,void 0!==e.strings&&(this.nt=new Set(e.strings.join(" ").split(/\s/).filter(e=>""!==e)));for(const e in t)t[e]&&!this.nt?.has(e)&&this.st.add(e);return this.render(t)}const o=e.element.classList;for(const e of this.st)e in t||(o.remove(e),this.st.delete(e));for(const e in t){const s=!!t[e];s===this.st.has(e)||this.nt?.has(e)||(s?(o.add(e),this.st.add(e)):(o.remove(e),this.st.delete(e)))}return L}},(...e)=>({_$litDirective$:dt,values:e}));var dt;function ht(e){return e&&e.__esModule&&Object.prototype.hasOwnProperty.call(e,"default")?e.default:e}var ut,pt,gt={exports:{}},mt=(ut||(ut=1,pt=gt,function(){var e=Math.PI,t=Math.sin,o=Math.cos,s=Math.tan,i=Math.asin,n=Math.atan2,r=Math.acos,a=e/180,l=864e5,c=2440588,d=2451545;function h(e){return new Date((e+.5-c)*l)}function u(e){return function(e){return e.valueOf()/l-.5+c}(e)-d}var p=23.4397*a;function g(e,i){return n(t(e)*o(p)-s(i)*t(p),o(e))}function m(e,s){return i(t(s)*o(p)+o(s)*t(p)*t(e))}function _(e,i,r){return n(t(e),o(e)*t(i)-s(r)*o(i))}function f(e,s,n){return i(t(s)*t(n)+o(s)*o(n)*o(e))}function v(e,t){return a*(280.16+360.9856235*e)-t}function y(e){return a*(357.5291+.98560028*e)}function b(o){return o+a*(1.9148*t(o)+.02*t(2*o)+3e-4*t(3*o))+102.9372*a+e}function w(e){var t=b(y(e));return{dec:m(t,0),ra:g(t,0)}}var x={getPosition:function(e,t,o){var s=a*-o,i=a*t,n=u(e),r=w(n),l=v(n,s)-r.ra;return{azimuth:_(l,i,r.dec),altitude:f(l,i,r.dec)}}},$=x.times=[[-.833,"sunrise","sunset"],[-.3,"sunriseEnd","sunsetStart"],[-6,"dawn","dusk"],[-12,"nauticalDawn","nauticalDusk"],[-18,"nightEnd","night"],[6,"goldenHourEnd","goldenHour"]];x.addTime=function(e,t,o){$.push([e,t,o])};var A=9e-4;function k(t,o,s){return A+(t+o)/(2*e)+s}function C(e,o,s){return d+e+.0053*t(o)-.0069*t(2*s)}function S(e,s,i,n,a,l,c){var d=function(e,s,i){return r((t(e)-t(s)*t(i))/(o(s)*o(i)))}(e,i,n);return C(k(d,s,a),l,c)}function E(e){var s=a*(134.963+13.064993*e),i=a*(93.272+13.22935*e),n=a*(218.316+13.176396*e)+6.289*a*t(s),r=5.128*a*t(i),l=385001-20905*o(s);return{ra:g(n,r),dec:m(n,r),dist:l}}function z(e,t){return new Date(e.valueOf()+t*l/24)}x.getTimes=function(t,o,s,i){var n,r,l,c,d,p=a*-s,g=a*o,_=function(e){return-2.076*Math.sqrt(e)/60}(i=i||0),f=function(t,o){return Math.round(t-A-o/(2*e))}(u(t),p),v=k(0,p,f),w=y(v),x=b(w),E=m(x,0),z=C(v,w,x),O={solarNoon:h(z),nadir:h(z-.5)};for(n=0,r=$.length;n<r;n+=1)d=z-((c=S(((l=$[n])[0]+_)*a,p,g,E,f,w,x))-z),O[l[1]]=h(d),O[l[2]]=h(c);return O},x.getMoonPosition=function(e,i,r){var l=a*-r,c=a*i,d=u(e),h=E(d),p=v(d,l)-h.ra,g=f(p,c,h.dec),m=n(t(p),s(c)*o(h.dec)-t(h.dec)*o(p));return g+=function(e){return e<0&&(e=0),2967e-7/Math.tan(e+.00312536/(e+.08901179))}(g),{azimuth:_(p,c,h.dec),altitude:g,distance:h.dist,parallacticAngle:m}},x.getMoonIllumination=function(e){var s=u(e||new Date),i=w(s),a=E(s),l=149598e3,c=r(t(i.dec)*t(a.dec)+o(i.dec)*o(a.dec)*o(i.ra-a.ra)),d=n(l*t(c),a.dist-l*o(c)),h=n(o(i.dec)*t(i.ra-a.ra),t(i.dec)*o(a.dec)-o(i.dec)*t(a.dec)*o(i.ra-a.ra));return{fraction:(1+o(d))/2,phase:.5+.5*d*(h<0?-1:1)/Math.PI,angle:h}},x.getMoonTimes=function(e,t,o,s){var i=new Date(e);s?i.setUTCHours(0,0,0,0):i.setHours(0,0,0,0);for(var n,r,l,c,d,h,u,p,g,m,_,f,v,y=.133*a,b=x.getMoonPosition(i,t,o).altitude-y,w=1;w<=24&&(n=x.getMoonPosition(z(i,w),t,o).altitude-y,p=((d=(b+(r=x.getMoonPosition(z(i,w+1),t,o).altitude-y))/2-n)*(u=-(h=(r-b)/2)/(2*d))+h)*u+n,m=0,(g=h*h-4*d*n)>=0&&(_=u-(v=Math.sqrt(g)/(2*Math.abs(d))),f=u+v,Math.abs(_)<=1&&m++,Math.abs(f)<=1&&m++,_<-1&&(_=f)),1===m?b<0?l=w+_:c=w+_:2===m&&(l=w+(p<0?f:_),c=w+(p<0?_:f)),!l||!c);w+=2)b=r;var $={};return l&&($.rise=z(i,l)),c&&($.set=z(i,c)),l||c||($[p>0?"alwaysUp":"alwaysDown"]=!0),$},pt.exports=x}()),gt.exports),_t=ht(mt);const ft=new Map;function vt(e,t,o,s=10){const i=`${e},${t},${o.getTime()},${s}`,n=ft.get(i);if(n)return ft.delete(i),ft.set(i,n),n;const r=[],a=o.getTime()+864e5;for(let i=o.getTime();i<=a;i+=60*s*1e3){const o=new Date(i),s=_t.getPosition(o,e,t);r.push({t:o,elevation:180*s.altitude/Math.PI,azimuth:((180*s.azimuth/Math.PI+180)%360+360)%360})}if(ft.set(i,r),ft.size>4){const e=ft.keys().next().value;void 0!==e&&ft.delete(e)}return r}function yt(e=new Date){const t=new Date(e);return t.setHours(0,0,0,0),t}function bt(e,t=new Date){if(!e)return yt(t);const o=new Intl.DateTimeFormat("en-CA",{timeZone:e,year:"numeric",month:"2-digit",day:"2-digit"}).format(t),[s,i,n]=o.split("-").map(Number),r=Date.UTC(s,i-1,n,0,0,0),a=function(e,t){const o=new Intl.DateTimeFormat("en-US",{timeZone:e,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).formatToParts(t),s={};for(const e of o)"literal"!==e.type&&(s[e.type]=Number(e.value));return Date.UTC(s.year,s.month-1,s.day,s.hour,s.minute,s.second)-t.getTime()}(e,new Date(r));return new Date(r-a)}function wt(e,t,o,s){const i=((t-o)%360+360)%360;return((e-i)%360+360)%360<=((((t+s)%360+360)%360-i)%360+360)%360}function xt(e,t,o,s){const i=[];let n=-1;for(let r=0;r<e.length;r++){const a=e[r];a.elevation>0&&wt(a.azimuth,t,o,s)?-1===n&&(n=r):-1!==n&&(i.push({startIdx:n,endIdx:r-1}),n=-1)}return-1!==n&&i.push({startIdx:n,endIdx:e.length-1}),i}function $t(e,t,o=new Date){const s=_t.getMoonPosition(o,e,t),i=_t.getMoonIllumination(o);return{azimuth:((180*s.azimuth/Math.PI+180)%360+360)%360,elevation:180*s.altitude/Math.PI,phase:i.phase,fraction:i.fraction,phaseName:At(i.phase)}}function At(e){return e<.0625||e>=.9375?"New Moon":e<.1875?"Waxing Crescent":e<.3125?"First Quarter":e<.4375?"Waxing Gibbous":e<.5625?"Full Moon":e<.6875?"Waning Gibbous":e<.8125?"Last Quarter":"Waning Crescent"}function kt(e){return null==e||Number.isNaN(e)?"—":`${Math.round(e)}%`}function Ct(e){return null==e||Number.isNaN(e)?"—":`${e.toFixed(1)}°`}function St(e,t){if(!e)return"—";const o=new Date(e);return Number.isNaN(o.getTime())?"—":o.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",timeZone:t})}function Et(e,t){if(!e)return"—";const o=new Date(e).getTime();if(Number.isNaN(o))return"—";const s=Math.round((o-Date.now())/1e3);return s<=0?t?Be("formatters.expired",t):"expired":function(e){if(null==e||Number.isNaN(e))return"—";const t=Math.max(0,Math.round(e));if(t<60)return`${t}s`;const o=Math.floor(t/60);return o<60?`${o}m ${t%60}s`:`${Math.floor(o/60)}h ${o%60}m`}(s)}const zt=new Set(["outside_fov","in_fov_not_valid","hitting"]),Ot={night:"sun night",hitting:"sun valid",in_fov_not_valid:"sun in-fov",outside_fov:"sun up"};function It(e){return e.belowHorizon?"night":e.sunState&&zt.has(e.sunState)?e.sunState:e.directSunValid?"hitting":e.inFov?"in_fov_not_valid":"outside_fov"}const Mt=["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#17becf","#e377c2"];function Ft(e){const t=Mt.length;return Mt[(e%t+t)%t]}function Pt(e,t){return"string"==typeof e&&e.length>0?{color:e,isOverride:!0}:{color:Ft(t),isOverride:!1}}const jt=110;let Tt=class extends ce{constructor(){super(...arguments),this.discovered_list=[],this.compact=!1,this.showStats=!0,this.showLegend=!0,this.showMoon=!1,this.showCardinals=!0,this.showBlindSpot=!0,this.showSunPath=!0,this.showSunriseSunset=!0,this.showCoverFill=!0,this.showWindowArrow=!0,this.coverColors=[],this.northOffsetDeg=0,this._hiddenEntries=new Set}shouldUpdate(e){return e.size>1||!e.has("hass")||_e(e.get("hass"),this.hass,this._relevantIds())}_relevantIds(){const e=[];for(const t of this.discovered_list){const o=t.entities;e.push(o.sun_sensor,o.target_position_sensor,o.manual_override_binary,o.sun_infront_binary,o.decision_trace_sensor,o.start_sensor,o.end_sensor)}return e}_toggleEntry(e){const t=new Set(this._hiddenEntries);t.has(e)?t.delete(e):t.add(e),this._hiddenEntries=t}_sunFor(e){const t=e.entities.sun_sensor;if(!t)return null;const o=this.hass.states[t];if(!o)return null;const s=parseFloat(o.state);return Number.isNaN(s)?null:{...o.attributes,window_azimuth:o.attributes.window_azimuth}}_coverPositionFor(e){const t=e.entities.target_position_sensor;if(!t)return null;const o=parseFloat(this.hass.states[t]?.state??"");return Number.isNaN(o)?null:o}_actualPositionFor(e){const t=e.entities.target_position_sensor;if(!t)return null;const o=this.hass.states[t]?.attributes;return o?.actual_positions?function(e){const t=Object.values(e).filter(e=>"number"==typeof e);return 0===t.length?null:t.reduce((e,t)=>e+t,0)/t.length}(o.actual_positions):null}_solarTargetFor(e){const t=e.entities.target_position_sensor;if(!t)return null;const o=this.hass.states[t]?.attributes,s=o?.raw_calculated_position;return"number"==typeof s&&Number.isFinite(s)?s:null}_manualOverrideActive(e){const t=e.entities.manual_override_binary;return!!t&&"on"===this.hass.states[t]?.state}_sunInfrontFor(e){const t=e.entities.sun_infront_binary;return!!t&&"on"===this.hass.states[t]?.state}_sunDotStateFor(e,t){const o=e.entities.decision_trace_sensor?this.hass.states[e.entities.decision_trace_sensor]?.attributes:void 0;return It({belowHorizon:t.elevation<=0,sunState:o?.sun_state??null,directSunValid:o?.direct_sun_valid??!1,inFov:!0===t.in_fov})}_readActiveAzimuth(e){if(!e)return null;const t=this.hass.states[e];if(!t)return null;if("unavailable"===t.state||"unknown"===t.state)return null;const o=t.attributes.azimuth;return"number"==typeof o&&Number.isFinite(o)?o:null}_buildOverlays(){const e=[];return this.discovered_list.forEach((t,o)=>{const s=this._sunFor(t);if(!s)return;const i=t.entities.sun_sensor,n=parseFloat(this.hass.states[i]?.state??"0"),{color:r,isOverride:a}=Pt(this.coverColors?.[o],o),l=this._coverPositionFor(t),c=function(e,t,o){return e&&null!=t&&Number.isFinite(t)?t===o?null:t:null}(this._manualOverrideActive(t),this._solarTargetFor(t),l);e.push({d:t,sun:s,sunAzi:n,sunInfront:this._sunInfrontFor(t),dotState:this._sunDotStateFor(t,s),coverPos:c??l,actualPos:this._actualPositionFor(t),coverType:t.cover_type,color:r,isOverride:a,index:o})}),e}render(){if(!this.hass)return W;if(!this.discovered_list||0===this.discovered_list.length)return q`<div class="placeholder">${Be("compass.placeholder_no_entries",this.hass)}</div>`;const e=this._buildOverlays();if(0===e.length)return q`<div class="placeholder">${Be("compass.placeholder_no_sun",this.hass)}</div>`;const t=e.filter(e=>!this._hiddenEntries.has(e.d.entry_id)),o=Qe(this.northOffsetDeg),s=e.length>1,i=e[0],n=i.sunAzi,r=i.sun.elevation,a=Ye(n,r,o),l={night:-1,outside_fov:0,in_fov_not_valid:1,hitting:2},c=r<=0?"night":e.reduce((e,t)=>l[t.dotState]>l[e]?t.dotState:e,"outside_fov"),d=Ot[c],{latitude:h,longitude:u,time_zone:p}=this.hass.config,g=void 0!==h&&void 0!==u?vt(h,u,bt(p)):[],m=this.showMoon&&void 0!==h&&void 0!==u?$t(h,u):null,_=null!==m&&m.elevation>0,f=m?m.phase<.5?-24*m.phase:24*(1-m.phase):0,v=_?Ye(m.azimuth,m.elevation,o):null,y=v?v.x*jt:0,b=v?v.y*jt:0,w=this.showSunPath?function(e){const t=[];let o=-1;for(let s=0;s<e.length;s++)e[s].elevation>0?-1===o&&(o=s):-1!==o&&(t.push({startIdx:o,endIdx:s-1}),o=-1);return-1!==o&&t.push({startIdx:o,endIdx:e.length-1}),t}(g).map(e=>g.slice(e.startIdx,e.endIdx+1).map(e=>{const t=Ye(e.azimuth,e.elevation,o);return{x:t.x*jt,y:t.y*jt,elev:e.elevation}})):[],x=[122,127,135],$=[245,197,24],A=e=>{const t=Math.sqrt(Math.max(0,Math.min(1,e/90))),o=x.map((e,o)=>Math.round(e+($[o]-e)*t));return`rgb(${o[0]},${o[1]},${o[2]})`},k=this.showSunPath&&this.showSunriseSunset?w.filter(e=>e.length>1).map((e,t)=>{const o=e[0],s=e[e.length-1],i=s.x-o.x,n=s.y-o.y,r=i*i+n*n||1,a=e.filter((t,o)=>o%6==0||o===e.length-1).map(e=>({offset:100*Math.max(0,Math.min(1,((e.x-o.x)*i+(e.y-o.y)*n)/r)),color:A(e.elev)}));return{id:`sun-path-grad-${t}`,x1:o.x,y1:o.y,x2:s.x,y2:s.y,stops:a}}):[],C=e=>this.showSunriseSunset?`url(#sun-path-grad-${e})`:"var(--warning-color, gold)",S=Ue(0,124,o),E=Ue(90,124,o),z=Ue(180,124,o),O=Ue(270,124,o),I=Ue(0,jt,o),M=Ue(180,jt,o),F=Ue(90,jt,o),P=Ue(270,jt,o),j=Be("compass.sun_tooltip",this.hass,{az:Ct(n),el:Ct(r)}),T=null!==m?Be("compass.moon_tooltip",this.hass,{phase:m.phaseName,pct:Math.round(100*m.fraction)}):"",N=Be("compass.sun_path_tooltip",this.hass);return q`
       <div class="compass">
         <svg viewBox="${-140} ${-140} ${280} ${280}">
-          ${W`
+          ${U`
             <defs>
-              ${_?W`
+              ${_?U`
                 <mask id="moon-phase-mask">
                   <circle cx=${y} cy=${b} r=${6} fill="white"></circle>
                   <circle cx=${y+f} cy=${b} r=${6} fill="black"></circle>
                 </mask>
-              `:U}
-              ${k.map(e=>W`
+              `:W}
+              ${k.map(e=>U`
                 <linearGradient id=${e.id} gradientUnits="userSpaceOnUse"
                   x1=${e.x1} y1=${e.y1} x2=${e.x2} y2=${e.y2}>
-                  ${e.stops.map(e=>W`<stop offset="${e.offset}%" stop-color=${e.color}></stop>`)}
+                  ${e.stops.map(e=>U`<stop offset="${e.offset}%" stop-color=${e.color}></stop>`)}
                 </linearGradient>
               `)}
             </defs>
 
-            <circle class="grid" r=${Mt}></circle>
+            <circle class="grid" r=${jt}></circle>
             <circle class="grid" r=${220/3}></circle>
-            <circle class="grid" r=${Mt/3}></circle>
-            <line class="grid thin" x1=${M.x} y1=${M.y} x2=${I.x} y2=${I.y}></line>
+            <circle class="grid" r=${jt/3}></circle>
+            <line class="grid thin" x1=${I.x} y1=${I.y} x2=${M.x} y2=${M.y}></line>
             <line class="grid thin" x1=${F.x} y1=${F.y} x2=${P.x} y2=${P.y}></line>
 
-            ${t.map(e=>this._renderEntryLayers(e,i,o,g))}
+            ${t.map(e=>this._renderEntryLayers(e,s,o,g))}
 
-            ${this.showSunPath&&w.length?W`<g data-tooltip=${N}><title>${N}</title>${w.filter(e=>e.length>1).flatMap((e,t)=>{const o=e.map(e=>`${e.x},${e.y}`).join(" "),i=W`<polyline class="sun-path-line" points=${o}
-                        style="stroke:${C(t)}"></polyline>`,s=[];for(let t=0;t<e.length;t+=10){const o=e[t],i=e[Math.max(0,t-1)],n=e[Math.min(e.length-1,t+1)],a=180*Math.atan2(n.y-i.y,n.x-i.x)/Math.PI,r=this.showSunriseSunset?A(o.elev):"var(--warning-color, gold)";s.push(W`<path class="sun-path-chevron"
-                          transform=${`translate(${o.x} ${o.y}) rotate(${a})`}
+            ${this.showSunPath&&w.length?U`<g data-tooltip=${N}><title>${N}</title>${w.filter(e=>e.length>1).flatMap((e,t)=>{const o=e.map(e=>`${e.x},${e.y}`).join(" "),s=U`<polyline class="sun-path-line" points=${o}
+                        style="stroke:${C(t)}"></polyline>`,i=[];for(let t=0;t<e.length;t+=10){const o=e[t],s=e[Math.max(0,t-1)],n=e[Math.min(e.length-1,t+1)],r=180*Math.atan2(n.y-s.y,n.x-s.x)/Math.PI,a=this.showSunriseSunset?A(o.elev):"var(--warning-color, gold)";i.push(U`<path class="sun-path-chevron"
+                          transform=${`translate(${o.x} ${o.y}) rotate(${r})`}
                           d="M -2.4 -3 L 1.8 0 L -2.4 3 L -0.7 0 Z"
-                          style=${`fill:${r}`}></path>`)}return[i,...s]})}</g>`:U}
+                          style=${`fill:${a}`}></path>`)}return[s,...i]})}</g>`:W}
 
-            ${this.showCardinals?W`
-              <text class="cardinal" x=${E.x} y=${E.y} text-anchor="middle" dominant-baseline="central">N</text>
-              <text class="cardinal" x=${S.x} y=${S.y} text-anchor="middle" dominant-baseline="central">E</text>
+            ${this.showCardinals?U`
+              <text class="cardinal" x=${S.x} y=${S.y} text-anchor="middle" dominant-baseline="central">N</text>
+              <text class="cardinal" x=${E.x} y=${E.y} text-anchor="middle" dominant-baseline="central">E</text>
               <text class="cardinal" x=${z.x} y=${z.y} text-anchor="middle" dominant-baseline="central">S</text>
               <text class="cardinal" x=${O.x} y=${O.y} text-anchor="middle" dominant-baseline="central">W</text>
-            `:U}
+            `:W}
 
-            ${_?W`
+            ${_?U`
               <g data-tooltip=${T}>
                 <title>${T}</title>
                 <circle class="moon-outline" cx=${y} cy=${b} r=${6}></circle>
@@ -90,43 +90,43 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
                   mask="url(#moon-phase-mask)"
                 ></image>
               </g>
-            `:U}
+            `:W}
 
             <g data-tooltip=${j}>
               <title>${j}</title>
-              <circle class=${d} cx=${r.x*Mt} cy=${r.y*Mt} r="7"></circle>
+              <circle class=${d} cx=${a.x*jt} cy=${a.y*jt} r="7"></circle>
             </g>
           `}
         </svg>
-        ${this.showLegend?this._renderLegend(e,i):U}
-        ${this.showStats?this._renderStats(e,i):U}
+        ${this.showLegend?this._renderLegend(e,s):W}
+        ${this.showStats?this._renderStats(e,s):W}
       </div>
-    `}_renderEntryLayers(e,t,o=0,i=[]){const s=Ye(e.sun.window_azimuth),n=Ye(s-e.sun.fov_left),a=Ye(s+e.sun.fov_right),r=this._readActiveAzimuth(e.d.entities.start_sensor),l=this._readActiveAzimuth(e.d.entities.end_sensor),c=null!==r&&null!==l;let d,h;if(c)({wedgeStart:d,wedgeEnd:h}=function(e,t,o,i,s){const n=((o-i)%360+360)%360,a=i+s,r=((t-n)%360+360)%360,l=e=>e<=a?e:e-a<360-e?a:0,c=l(((e-n)%360+360)%360),d=l(r);return c===d?{wedgeStart:n,wedgeEnd:((n+a)%360+360)%360}:{wedgeStart:((n+Math.min(c,d))%360+360)%360,wedgeEnd:((n+Math.max(c,d))%360+360)%360}}(Ye(r),Ye(l),s,e.sun.fov_left,e.sun.fov_right));else{const t=function(e,t,o,i,s){if(void 0===s)return null;const n=Ye(t-o),a=o+i,r=e.filter(e=>((e.azimuth-n)%360+360)%360<=a&&e.elevation>s);return 0===r.length?null:{wedgeStart:r[0].azimuth,wedgeEnd:r[r.length-1].azimuth}}(i,s,e.sun.fov_left,e.sun.fov_right,e.sun.min_elevation);d=t?t.wedgeStart:n,h=t?t.wedgeEnd:a}const u=Ve(s,Mt,o),{outer:p,inner:g}=(m=e.sun.min_elevation,_=e.sun.max_elevation,f=Mt,void 0!==m&&void 0!==_&&m>_?{outer:f,inner:0}:{outer:void 0!==m?f*Ge(m):f,inner:void 0!==_?f*Ge(_):0});var m,_,f;const v=null!==e.coverPos?Ze(e.coverPos,e.coverType,Mt,p):null,y=null!==e.actualPos?Ze(e.actualPos,e.coverType,Mt,p):null,b=e.sun.blind_spot_range?[Ye((w=s)-(x=e.sun.blind_spot_range)[1]),Ye(w-x[0])]:null;var w,x;const $=b?qe(b[0],b[1],Mt,0,o):null,A=qe(d,h,p,g,o),k=c&&(d!==n||h!==a),C=k?qe(n,a,p,g,o):"",E=null!==v&&v>g?qe(d,h,v,g,o):"",S=null!==y&&y>g?qe(d,h,y,g,o):"",z=[];for(const t of vt(i,s,e.sun.fov_left,e.sun.fov_right)){const s=Ue(i,t.startIdx,t.endIdx,e.sun.min_elevation);s&&!He(s.wedgeStart,s.wedgeEnd,d,h)&&z.push({fov:qe(s.wedgeStart,s.wedgeEnd,p,g,o),cover:this.showCoverFill&&null!==v&&v>g?qe(s.wedgeStart,s.wedgeEnd,v,g,o):"",actual:this.showCoverFill&&null!==y&&y>g?qe(s.wedgeStart,s.wedgeEnd,y,g,o):"",from:s.wedgeStart,to:s.wedgeEnd})}const O=t?`${e.d.entry_title}: `:"",M=void 0!==e.sun.min_elevation||void 0!==e.sun.max_elevation?De("compass.elev_suffix",this.hass,{min:xt(e.sun.min_elevation??0),max:xt(e.sun.max_elevation??90)}):"",I=c?`${O}${De("compass.active_sun_arc",this.hass,{from:xt(d),to:xt(h),elev:M})}`:`${O}${De("compass.fov_arc",this.hass,{left:xt(e.sun.fov_left),right:xt(e.sun.fov_right),elev:M})}`,F=`${O}${De("compass.window_normal_tooltip",this.hass,{bearing:xt(s)})}`,P=[];if(null!==e.coverPos){const t="cover_awning"===e.coverType?"compass.cover_position_target_awning":"compass.cover_position_target";P.push(`${O}${De(t,this.hass,{pct:e.coverPos})}`),null!==e.actualPos&&P.push(De("compass.cover_position_actual",this.hass,{pct:Math.round(e.actualPos)}))}const j=P.join("\n"),T=b?`${O}${De("compass.blind_spot",this.hass,{from:xt(b[0]),to:xt(b[1])})}`:"",N=t||e.isOverride,R=t||e.isOverride,D=N?`fill: ${e.color}; stroke: ${e.color};`:"",B=R?`fill: ${e.color}; stroke: ${e.color};`:"",K=N?`fill: ${e.color}; stroke: ${e.color};`:"",V=N?`stroke: ${e.color};`:"",G=N?`fill: ${e.color};`:"",q=this.showCoverFill&&""!==E,Y=this.showBlindSpot&&!!$,L=this.showWindowArrow,Q=`M 0 0 L ${u.x} ${u.y}`,H="display: none;",Z=`${O}${De("compass.fov_arc",this.hass,{left:xt(e.sun.fov_left),right:xt(e.sun.fov_right),elev:M})}`;return W`<g class="entry-overlay">
-      ${k?W`<g data-tooltip=${Z}>
+    `}_renderEntryLayers(e,t,o=0,s=[]){const i=Qe(e.sun.window_azimuth),n=Qe(i-e.sun.fov_left),r=Qe(i+e.sun.fov_right),a=this._readActiveAzimuth(e.d.entities.start_sensor),l=this._readActiveAzimuth(e.d.entities.end_sensor),c=null!==a&&null!==l;let d,h;if(c)({wedgeStart:d,wedgeEnd:h}=function(e,t,o,s,i){const n=((o-s)%360+360)%360,r=s+i,a=((t-n)%360+360)%360,l=e=>e<=r?e:e-r<360-e?r:0,c=l(((e-n)%360+360)%360),d=l(a);return c===d?{wedgeStart:n,wedgeEnd:((n+r)%360+360)%360}:{wedgeStart:((n+Math.min(c,d))%360+360)%360,wedgeEnd:((n+Math.max(c,d))%360+360)%360}}(Qe(a),Qe(l),i,e.sun.fov_left,e.sun.fov_right));else{const t=function(e,t,o,s,i){if(void 0===i)return null;const n=Qe(t-o),r=o+s,a=e.filter(e=>((e.azimuth-n)%360+360)%360<=r&&e.elevation>i);return 0===a.length?null:{wedgeStart:a[0].azimuth,wedgeEnd:a[a.length-1].azimuth}}(s,i,e.sun.fov_left,e.sun.fov_right,e.sun.min_elevation);d=t?t.wedgeStart:n,h=t?t.wedgeEnd:r}const u=Ue(i,jt,o),{outer:p,inner:g}=(m=e.sun.min_elevation,_=e.sun.max_elevation,f=jt,void 0!==m&&void 0!==_&&m>_?{outer:f,inner:0}:{outer:void 0!==m?f*Le(m):f,inner:void 0!==_?f*Le(_):0});var m,_,f;const v=null!==e.coverPos?et(e.coverPos,e.coverType,jt,p):null,y=null!==e.actualPos?et(e.actualPos,e.coverType,jt,p):null,b=e.sun.blind_spot_range?[Qe((w=i)-(x=e.sun.blind_spot_range)[1]),Qe(w-x[0])]:null;var w,x;const $=b?We(b[0],b[1],jt,0,o):null,A=We(d,h,p,g,o),k=c&&(d!==n||h!==r),C=k?We(n,r,p,g,o):"",S=null!==v&&v>g?We(d,h,v,g,o):"",E=null!==y&&y>g?We(d,h,y,g,o):"",z=[];for(const t of xt(s,i,e.sun.fov_left,e.sun.fov_right)){const i=He(s,t.startIdx,t.endIdx,e.sun.min_elevation);i&&!Xe(i.wedgeStart,i.wedgeEnd,d,h)&&z.push({fov:We(i.wedgeStart,i.wedgeEnd,p,g,o),cover:this.showCoverFill&&null!==v&&v>g?We(i.wedgeStart,i.wedgeEnd,v,g,o):"",actual:this.showCoverFill&&null!==y&&y>g?We(i.wedgeStart,i.wedgeEnd,y,g,o):"",from:i.wedgeStart,to:i.wedgeEnd})}const O=t?`${e.d.entry_title}: `:"",I=void 0!==e.sun.min_elevation||void 0!==e.sun.max_elevation?Be("compass.elev_suffix",this.hass,{min:Ct(e.sun.min_elevation??0),max:Ct(e.sun.max_elevation??90)}):"",M=c?`${O}${Be("compass.active_sun_arc",this.hass,{from:Ct(d),to:Ct(h),elev:I})}`:`${O}${Be("compass.fov_arc",this.hass,{left:Ct(e.sun.fov_left),right:Ct(e.sun.fov_right),elev:I})}`,F=`${O}${Be("compass.window_normal_tooltip",this.hass,{bearing:Ct(i)})}`,P=[];if(null!==e.coverPos){const t="cover_awning"===e.coverType?"compass.cover_position_target_awning":"compass.cover_position_target";P.push(`${O}${Be(t,this.hass,{pct:e.coverPos})}`),null!==e.actualPos&&P.push(Be("compass.cover_position_actual",this.hass,{pct:Math.round(e.actualPos)}))}const j=P.join("\n"),T=b?`${O}${Be("compass.blind_spot",this.hass,{from:Ct(b[0]),to:Ct(b[1])})}`:"",N=t||e.isOverride,R=t||e.isOverride,D=N?`fill: ${e.color}; stroke: ${e.color};`:"",B=R?`fill: ${e.color}; stroke: ${e.color};`:"",K=N?`fill: ${e.color}; stroke: ${e.color};`:"",V=N?`stroke: ${e.color};`:"",G=N?`fill: ${e.color};`:"",q=this.showCoverFill&&""!==S,L=this.showBlindSpot&&!!$,Y=this.showWindowArrow,Q=`M 0 0 L ${u.x} ${u.y}`,H="display: none;",Z=`${O}${Be("compass.fov_arc",this.hass,{left:Ct(e.sun.fov_left),right:Ct(e.sun.fov_right),elev:I})}`;return U`<g class="entry-overlay">
+      ${k?U`<g data-tooltip=${Z}>
               <title>${Z}</title>
               <path class="fov fov-static" style=${D} d=${C}></path>
-            </g>`:U}
-      <g data-tooltip=${I}>
-        <title>${I}</title>
+            </g>`:W}
+      <g data-tooltip=${M}>
+        <title>${M}</title>
         <path class="fov" style=${D} d=${A}></path>
       </g>
-      ${z.map(e=>{const t=`${O}${De("compass.active_sun_arc",this.hass,{from:xt(e.from),to:xt(e.to),elev:M})}`;return W`<g data-tooltip=${t}>
+      ${z.map(e=>{const t=`${O}${Be("compass.active_sun_arc",this.hass,{from:Ct(e.from),to:Ct(e.to),elev:I})}`;return U`<g data-tooltip=${t}>
           <title>${t}</title>
           <path class="fov-extra" style=${D} d=${e.fov}></path>
-          ${e.cover?W`<path class="cover-fill-extra" style=${B} d=${e.cover}></path>`:U}
-          ${e.actual?W`<path class="cover-actual-extra" style=${B} d=${e.actual}></path>`:U}
+          ${e.cover?U`<path class="cover-fill-extra" style=${B} d=${e.cover}></path>`:W}
+          ${e.actual?U`<path class="cover-actual-extra" style=${B} d=${e.actual}></path>`:W}
         </g>`})}
-      <g class="arrow-group" data-tooltip=${F} style=${L?"":H}>
+      <g class="arrow-group" data-tooltip=${F} style=${Y?"":H}>
         <title>${F}</title>
         <path class="window" style=${V} d=${Q}></path>
         <circle class="window-base" style=${G} cx="0" cy="0" r="4"></circle>
       </g>
       <g class="cover-group" data-tooltip=${j} style=${q?"":H}>
         <title>${j}</title>
-        <path class="cover-fill" style=${B} d=${E}></path>
-        ${this.showCoverFill&&S?W`<path class="cover-actual" style=${B} d=${S}></path>`:U}
+        <path class="cover-fill" style=${B} d=${S}></path>
+        ${this.showCoverFill&&E?U`<path class="cover-actual" style=${B} d=${E}></path>`:W}
       </g>
-      <g class="blind-group" data-tooltip=${T} style=${Y?"":H}>
+      <g class="blind-group" data-tooltip=${T} style=${L?"":H}>
         <title>${T}</title>
         <path class="blind-spot" style=${K} d=${$??""}></path>
       </g>
@@ -135,72 +135,72 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
           ${e.map(e=>q`
               <button
                 type="button"
-                class=${at({"entry-toggle":!0,hidden:this._hiddenEntries.has(e.d.entry_id)})}
+                class=${ct({"entry-toggle":!0,hidden:this._hiddenEntries.has(e.d.entry_id)})}
                 aria-pressed=${!this._hiddenEntries.has(e.d.entry_id)}
                 @click=${()=>this._toggleEntry(e.d.entry_id)}
               >
                 <span class="swatch entry" style="background: ${e.color}"></span>
                 ${e.d.entry_title}
-                ${e.sunInfront?q`<span class="status valid">${De("compass.in_fov_check",this.hass)}</span>`:e.sun.in_fov?q`<span class="status in-fov">${De("compass.in_fov",this.hass)}</span>`:q`<span class="status">${De("compass.none",this.hass)}</span>`}
+                ${e.sunInfront?q`<span class="status valid">${Be("compass.in_fov_check",this.hass)}</span>`:e.sun.in_fov?q`<span class="status in-fov">${Be("compass.in_fov",this.hass)}</span>`:q`<span class="status">${Be("compass.none",this.hass)}</span>`}
               </button>
             `)}
-          <div><span class="dot sun valid"></span> ${De("compass.sun",this.hass)}</div>
-          ${this.showMoon?q`<div><span class="dot moon-dot"></span> ${De("compass.moon",this.hass)}</div>`:U}
+          <div><span class="dot sun valid"></span> ${Be("compass.sun",this.hass)}</div>
+          ${this.showMoon?q`<div><span class="dot moon-dot"></span> ${Be("compass.moon",this.hass)}</div>`:W}
         </div>
       `:q`<div class="legend">
-      <div><span class="dot sun valid"></span> ${De("compass.sun",this.hass)}</div>
-      ${this.showMoon?q`<div><span class="dot moon-dot"></span> ${De("compass.moon",this.hass)}</div>`:U}
+      <div><span class="dot sun valid"></span> ${Be("compass.sun",this.hass)}</div>
+      ${this.showMoon?q`<div><span class="dot moon-dot"></span> ${Be("compass.moon",this.hass)}</div>`:W}
       <div>
         <span
           class="swatch fov"
           style=${e[0]?.isOverride?`background: ${e[0].color}`:""}
         ></span>
-        ${De("compass.window_fov",this.hass)}
+        ${Be("compass.window_fov",this.hass)}
       </div>
       ${this.showCoverFill?q`<div>
             <span
               class="swatch cover-fill-swatch"
               style=${e[0]?.isOverride?`background: ${e[0].color}`:""}
             ></span>
-            ${De("compass.cover_position",this.hass)}
-          </div>`:U}
+            ${Be("compass.cover_position",this.hass)}
+          </div>`:W}
       ${this.showWindowArrow?q`<div>
             <span
               class="swatch window-swatch"
               style=${e[0]?.isOverride?`background: ${e[0].color}`:""}
             ></span>
-            ${De("compass.window_normal",this.hass)}
-          </div>`:U}
-    </div>`}_renderStats(e,t){const o=e[0],i=o.sunAzi,s=o.sun.elevation,{latitude:n,longitude:a}=this.hass.config,r=this.showMoon&&void 0!==n&&void 0!==a?yt(n,a):null;return t?q`
+            ${Be("compass.window_normal",this.hass)}
+          </div>`:W}
+    </div>`}_renderStats(e,t){const o=e[0],s=o.sunAzi,i=o.sun.elevation,{latitude:n,longitude:r}=this.hass.config,a=this.showMoon&&void 0!==n&&void 0!==r?$t(n,r):null;return t?q`
         <div class="stats dim">
           <div class="stats-row">
             <span
-              >${De("compass.stat_sun",this.hass)}${xt(i)} /
-              ${xt(s)}</span
+              >${Be("compass.stat_sun",this.hass)}${Ct(s)} /
+              ${Ct(i)}</span
             >
-            ${this.showMoon&&r?q`<span>${r.phaseName} ${Math.round(100*r.fraction)}%</span>`:U}
+            ${this.showMoon&&a?q`<span>${a.phaseName} ${Math.round(100*a.fraction)}%</span>`:W}
           </div>
           ${e.map(e=>q`
               <div class="stats-row entry-row">
                 <span class="swatch entry" style="background: ${e.color}"></span>
                 <span class="entry-name">${e.d.entry_title}</span>
-                <span>∠${xt(e.sun.gamma)}</span>
-                <span>W ${xt(Ye(e.sun.window_azimuth))}</span>
-                ${e.sun.in_fov?q`<span class="status in-fov" title=${De("compass.in_fov_tooltip",this.hass)}
+                <span>∠${Ct(e.sun.gamma)}</span>
+                <span>W ${Ct(Qe(e.sun.window_azimuth))}</span>
+                ${e.sun.in_fov?q`<span class="status in-fov" title=${Be("compass.in_fov_tooltip",this.hass)}
                       >✓</span
-                    >`:U}
+                    >`:W}
               </div>
             `)}
         </div>
       `:q`<div class="stats dim">
-      <span>${De("compass.stat_azi",this.hass)}${xt(i)}</span>
-      <span>${De("compass.stat_elev",this.hass)}${xt(s)}</span>
-      <span>∠: ${xt(o.sun.gamma)}</span>
+      <span>${Be("compass.stat_azi",this.hass)}${Ct(s)}</span>
+      <span>${Be("compass.stat_elev",this.hass)}${Ct(i)}</span>
+      <span>∠: ${Ct(o.sun.gamma)}</span>
       <span
-        >${De("compass.stat_window",this.hass)}${xt(Ye(o.sun.window_azimuth))}</span
+        >${Be("compass.stat_window",this.hass)}${Ct(Qe(o.sun.window_azimuth))}</span
       >
-      ${this.showMoon&&r?q`<span>${r.phaseName} ${Math.round(100*r.fraction)}%</span>`:U}
-    </div>`}};It.styles=a`
+      ${this.showMoon&&a?q`<span>${a.phaseName} ${Math.round(100*a.fraction)}%</span>`:W}
+    </div>`}};Tt.styles=r`
     :host {
       display: block;
       width: 100%;
@@ -497,39 +497,39 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     g[data-tooltip] {
       cursor: default;
     }
-  `,e([ge({attribute:!1})],It.prototype,"hass",void 0),e([ge({attribute:!1})],It.prototype,"discovered_list",void 0),e([ge({type:Boolean,reflect:!0})],It.prototype,"compact",void 0),e([ge({attribute:!1})],It.prototype,"showStats",void 0),e([ge({attribute:!1})],It.prototype,"showLegend",void 0),e([ge({attribute:!1})],It.prototype,"showMoon",void 0),e([ge({attribute:!1})],It.prototype,"showCardinals",void 0),e([ge({attribute:!1})],It.prototype,"showBlindSpot",void 0),e([ge({attribute:!1})],It.prototype,"showSunPath",void 0),e([ge({attribute:!1})],It.prototype,"showSunriseSunset",void 0),e([ge({attribute:!1})],It.prototype,"showCoverFill",void 0),e([ge({attribute:!1})],It.prototype,"showWindowArrow",void 0),e([ge({attribute:!1})],It.prototype,"coverColors",void 0),e([ge({attribute:!1})],It.prototype,"northOffsetDeg",void 0),e([me()],It.prototype,"_hiddenEntries",void 0),It=e([he("acp-sky-compass")],It);const Ft=32,Pt=864e5;function jt(e){if(!e)return null;const t=new Date(e);return Number.isNaN(t.getTime())?null:t}let Tt=class extends ce{constructor(){super(...arguments),this.discoveredList=[],this.coverColors=[],this.compact=!1}_sunAttrsFor(e){const t=e.entities.sun_sensor;if(!t)return null;const o=this.hass.states[t];return o?o.attributes:null}_sunDotTraceInputs(){const e=this.discoveredList[0]?.entities.decision_trace_sensor,t=e?this.hass.states[e]?.attributes:void 0;return{sunState:t?.sun_state??null,directSunValid:t?.direct_sun_valid??!1}}_scheduleBounds(){const e=this.discoveredList[0]?.entities.control_status_sensor;if(!e)return null;const t=this.hass.states[e]?.attributes;return t?{start:jt(t.schedule_start),end:jt(t.schedule_end)}:null}render(){if(!this.hass||0===this.discoveredList.length)return U;const e=this._sunAttrsFor(this.discoveredList[0]),{latitude:t,longitude:o,time_zone:i}=this.hass.config??{};if(void 0===t||void 0===o||!e)return q`<div class="placeholder">${De("elevation.placeholder",this.hass)}</div>`;const s=_t(i),n=gt(t,o,s),a=new Date,r=e=>{const t=e.getTime()-s.getTime();return Ft+t/864e5*360},l=e=>138-(e- -10)/100*128,c=n.map(e=>`${r(e.t).toFixed(1)},${l(e.elevation).toFixed(1)}`).join(" "),d=l(0),h=r(a),u=this._interpAt(n,a),p=u?l(u.elevation):null,g=!u||u.elevation<=0,m=this._sunDotTraceInputs(),_=Ct[Et({belowHorizon:g,sunState:m.sunState,directSunValid:m.directSunValid,inFov:!0===e.in_fov})].replace(/^sun /,""),f=e=>138-128*e,v=this.discoveredList.length>1,y=this._scheduleBounds(),b=y?function(e,t,o,i){if(!e&&!t)return{offSchedule:[],bars:[]};const s=e=>(e.getTime()-o)/i,n=e=>Math.max(0,Math.min(1,e)),a=e=>n(e),r=e=>e>1?e-Math.floor(e):n(e),l=e=>e>0&&e<1?[e]:[];if(e&&!t){const t=s(e);return{offSchedule:[{x0:0,x1:a(t)}],bars:l(t)}}if(!e&&t){const e=s(t);return{offSchedule:[{x0:r(e),x1:1}],bars:l(e)}}const c=s(e),d=s(t),h=a(c),u=r(d),p=[...l(c),...l(d)];if(h>u)return{offSchedule:[{x0:u,x1:h}],bars:p};const g=[];return h>0&&g.push({x0:0,x1:h}),u<1&&g.push({x0:u,x1:1}),{offSchedule:g,bars:p}}(y.start,y.end,s.getTime(),Pt):{offSchedule:[],bars:[]},w=e=>Ft+360*e,x=b.offSchedule.map(e=>({x:w(e.x0),width:w(e.x1)-w(e.x0)})),$=y?.start&&s?(y.start.getTime()-s.getTime())/Pt:null,A=b.bars.map(e=>{const t=null!==$&&Math.abs(e-$)<1e-9?y.start.toISOString():y.end.toISOString(),o=null!==$&&Math.abs(e-$)<1e-9,s=w(e);return{x:s,anchor:s>=391?"end":s<=33?"start":"middle",label:$t(t,i),tooltip:De(o?"elevation.schedule_start_tooltip":"elevation.schedule_end_tooltip",this.hass)}}),k=(()=>{if(!y)return null;const e=y.start?$t(y.start.toISOString(),i):null,t=y.end?$t(y.end.toISOString(),i):null;return e&&t?De("elevation.schedule",this.hass,{from:e,to:t}):e?De("elevation.schedule_from",this.hass,{from:e}):t?De("elevation.schedule_until",this.hass,{to:t}):null})(),C=this.discoveredList.map((e,t)=>{const o=this._sunAttrsFor(e),{color:s,isOverride:a}=Ot(this.coverColors?.[t],t),l=a;if(!o)return{d:e,runs:[],inPlotBands:[],runBars:[],label:"",color:s,inlineFill:l};const c=vt(n,o.window_azimuth,o.fov_left,o.fov_right),d="number"==typeof o.min_elevation,h="number"==typeof o.max_elevation,{loFrac:u,hiFrac:p}=function(e,t){if(void 0!==e&&void 0!==t&&e>t)return{loFrac:0,hiFrac:1};const o=e=>Math.max(0,Math.min(1,(e- -10)/100));return{loFrac:void 0!==e?o(e):0,hiFrac:void 0!==t?o(t):1}}(o.min_elevation,o.max_elevation),g=d||h?f(p):10,m=d||h?f(u):138,_=g,y=Math.max(0,m-g),b=c.map(e=>({x0:r(n[e.startIdx].t),x1:r(n[e.endIdx].t),y:_,height:y})),w=c.map(e=>({x0:r(n[e.startIdx].t),x1:r(n[e.endIdx].t),range:`${$t(n[e.startIdx].t.toISOString(),i)} → ${$t(n[e.endIdx].t.toISOString(),i)}`})),x=c.map(e=>`${$t(n[e.startIdx].t.toISOString(),i)} → ${$t(n[e.endIdx].t.toISOString(),i)}`).join(", "),$=[];return v||(d&&$.push(m),h&&$.push(g)),{d:e,runs:c,inPlotBands:b,runBars:w,label:x,color:s,inlineFill:l,limitLines:$}}),E=C.some(e=>e.runs.length>0),S=v?function(e){if(e<=0)return{rows:[],height:0};const t=Array.from({length:e},(e,t)=>({y:0+11*t,height:8}));return{rows:t,height:0+8*e+3*(e-1)+0}}(C.length):{rows:[],height:0},z=138-S.height-3;return q`
+  `,e([ge({attribute:!1})],Tt.prototype,"hass",void 0),e([ge({attribute:!1})],Tt.prototype,"discovered_list",void 0),e([ge({type:Boolean,reflect:!0})],Tt.prototype,"compact",void 0),e([ge({attribute:!1})],Tt.prototype,"showStats",void 0),e([ge({attribute:!1})],Tt.prototype,"showLegend",void 0),e([ge({attribute:!1})],Tt.prototype,"showMoon",void 0),e([ge({attribute:!1})],Tt.prototype,"showCardinals",void 0),e([ge({attribute:!1})],Tt.prototype,"showBlindSpot",void 0),e([ge({attribute:!1})],Tt.prototype,"showSunPath",void 0),e([ge({attribute:!1})],Tt.prototype,"showSunriseSunset",void 0),e([ge({attribute:!1})],Tt.prototype,"showCoverFill",void 0),e([ge({attribute:!1})],Tt.prototype,"showWindowArrow",void 0),e([ge({attribute:!1})],Tt.prototype,"coverColors",void 0),e([ge({attribute:!1})],Tt.prototype,"northOffsetDeg",void 0),e([me()],Tt.prototype,"_hiddenEntries",void 0),Tt=e([he("acp-sky-compass")],Tt);const Nt=32,Rt=864e5;function Dt(e){if(!e)return null;const t=new Date(e);return Number.isNaN(t.getTime())?null:t}let Bt=class extends ce{constructor(){super(...arguments),this.discoveredList=[],this.coverColors=[],this.compact=!1}shouldUpdate(e){if(e.size>1||!e.has("hass"))return!0;const t=e.get("hass"),o=[];for(const e of this.discoveredList){const t=e.entities;o.push(t.sun_sensor,t.decision_trace_sensor,t.control_status_sensor)}return _e(t,this.hass,o)}_sunAttrsFor(e){const t=e.entities.sun_sensor;if(!t)return null;const o=this.hass.states[t];return o?o.attributes:null}_sunDotTraceInputs(){const e=this.discoveredList[0]?.entities.decision_trace_sensor,t=e?this.hass.states[e]?.attributes:void 0;return{sunState:t?.sun_state??null,directSunValid:t?.direct_sun_valid??!1}}_scheduleBounds(){const e=this.discoveredList[0]?.entities.control_status_sensor;if(!e)return null;const t=this.hass.states[e]?.attributes;return t?{start:Dt(t.schedule_start),end:Dt(t.schedule_end)}:null}render(){if(!this.hass||0===this.discoveredList.length)return W;const e=this._sunAttrsFor(this.discoveredList[0]),{latitude:t,longitude:o,time_zone:s}=this.hass.config??{};if(void 0===t||void 0===o||!e)return q`<div class="placeholder">${Be("elevation.placeholder",this.hass)}</div>`;const i=bt(s),n=vt(t,o,i),r=new Date,a=e=>{const t=e.getTime()-i.getTime();return Nt+t/864e5*360},l=e=>138-(e- -10)/100*128,c=n.map(e=>`${a(e.t).toFixed(1)},${l(e.elevation).toFixed(1)}`).join(" "),d=l(0),h=a(r),u=this._interpAt(n,r),p=u?l(u.elevation):null,g=!u||u.elevation<=0,m=this._sunDotTraceInputs(),_=Ot[It({belowHorizon:g,sunState:m.sunState,directSunValid:m.directSunValid,inFov:!0===e.in_fov})].replace(/^sun /,""),f=e=>138-128*e,v=this.discoveredList.length>1,y=this._scheduleBounds(),b=y?function(e,t,o,s){if(!e&&!t)return{offSchedule:[],bars:[]};const i=e=>(e.getTime()-o)/s,n=e=>Math.max(0,Math.min(1,e)),r=e=>n(e),a=e=>e>1?e-Math.floor(e):n(e),l=e=>e>0&&e<1?[e]:[];if(e&&!t){const t=i(e);return{offSchedule:[{x0:0,x1:r(t)}],bars:l(t)}}if(!e&&t){const e=i(t);return{offSchedule:[{x0:a(e),x1:1}],bars:l(e)}}const c=i(e),d=i(t),h=r(c),u=a(d),p=[...l(c),...l(d)];if(h>u)return{offSchedule:[{x0:u,x1:h}],bars:p};const g=[];return h>0&&g.push({x0:0,x1:h}),u<1&&g.push({x0:u,x1:1}),{offSchedule:g,bars:p}}(y.start,y.end,i.getTime(),Rt):{offSchedule:[],bars:[]},w=e=>Nt+360*e,x=b.offSchedule.map(e=>({x:w(e.x0),width:w(e.x1)-w(e.x0)})),$=y?.start&&i?(y.start.getTime()-i.getTime())/Rt:null,A=b.bars.map(e=>{const t=null!==$&&Math.abs(e-$)<1e-9?y.start.toISOString():y.end.toISOString(),o=null!==$&&Math.abs(e-$)<1e-9,i=w(e);return{x:i,anchor:i>=391?"end":i<=33?"start":"middle",label:St(t,s),tooltip:Be(o?"elevation.schedule_start_tooltip":"elevation.schedule_end_tooltip",this.hass)}}),k=(()=>{if(!y)return null;const e=y.start?St(y.start.toISOString(),s):null,t=y.end?St(y.end.toISOString(),s):null;return e&&t?Be("elevation.schedule",this.hass,{from:e,to:t}):e?Be("elevation.schedule_from",this.hass,{from:e}):t?Be("elevation.schedule_until",this.hass,{to:t}):null})(),C=this.discoveredList.map((e,t)=>{const o=this._sunAttrsFor(e),{color:i,isOverride:r}=Pt(this.coverColors?.[t],t),l=r;if(!o)return{d:e,runs:[],inPlotBands:[],runBars:[],label:"",color:i,inlineFill:l};const c=xt(n,o.window_azimuth,o.fov_left,o.fov_right),d="number"==typeof o.min_elevation,h="number"==typeof o.max_elevation,{loFrac:u,hiFrac:p}=function(e,t){if(void 0!==e&&void 0!==t&&e>t)return{loFrac:0,hiFrac:1};const o=e=>Math.max(0,Math.min(1,(e- -10)/100));return{loFrac:void 0!==e?o(e):0,hiFrac:void 0!==t?o(t):1}}(o.min_elevation,o.max_elevation),g=d||h?f(p):10,m=d||h?f(u):138,_=g,y=Math.max(0,m-g),b=c.map(e=>({x0:a(n[e.startIdx].t),x1:a(n[e.endIdx].t),y:_,height:y})),w=c.map(e=>({x0:a(n[e.startIdx].t),x1:a(n[e.endIdx].t),range:`${St(n[e.startIdx].t.toISOString(),s)} → ${St(n[e.endIdx].t.toISOString(),s)}`})),x=c.map(e=>`${St(n[e.startIdx].t.toISOString(),s)} → ${St(n[e.endIdx].t.toISOString(),s)}`).join(", "),$=[];return v||(d&&$.push(m),h&&$.push(g)),{d:e,runs:c,inPlotBands:b,runBars:w,label:x,color:i,inlineFill:l,limitLines:$}}),S=C.some(e=>e.runs.length>0),E=v?function(e){if(e<=0)return{rows:[],height:0};const t=Array.from({length:e},(e,t)=>({y:0+11*t,height:8}));return{rows:t,height:0+8*e+3*(e-1)+0}}(C.length):{rows:[],height:0},z=138-E.height-3;return q`
       <div class="wrap">
         <div class="head">
-          <span class="label">${De("elevation.title",this.hass)}</span>
+          <span class="label">${Be("elevation.title",this.hass)}</span>
           <span class="head-meta">
-            ${v?U:E?q`<span class="dim"
-                      >${De("elevation.fov_windows",this.hass,{windows:C[0].label})}</span
-                    >`:q`<span class="dim">${De("elevation.no_fov_today",this.hass)}</span>`}
-            ${k?q`<span class="dim schedule">${k}</span>`:U}
+            ${v?W:S?q`<span class="dim"
+                      >${Be("elevation.fov_windows",this.hass,{windows:C[0].label})}</span
+                    >`:q`<span class="dim">${Be("elevation.no_fov_today",this.hass)}</span>`}
+            ${k?q`<span class="dim schedule">${k}</span>`:W}
           </span>
         </div>
         <svg viewBox="0 0 ${400} ${160}" preserveAspectRatio="none">
-          ${W`
+          ${U`
             <!-- y-axis gridlines -->
-            ${[0,30,60,90].map(e=>W`
-              <line class="grid" x1=${Ft} y1=${l(e)} x2=${392} y2=${l(e)} />
+            ${[0,30,60,90].map(e=>U`
+              <line class="grid" x1=${Nt} y1=${l(e)} x2=${392} y2=${l(e)} />
               <text class="tick" x=${28} y=${l(e)+3} text-anchor="end">${e}°</text>
             `)}
 
             <!-- horizon -->
-            <line class="horizon" x1=${Ft} y1=${d} x2=${392} y2=${d} />
+            <line class="horizon" x1=${Nt} y1=${d} x2=${392} y2=${d} />
 
             <!-- elevation limit gridlines (single-window legacy path only) -->
-            ${C.flatMap(e=>(e.limitLines??[]).map(e=>W`<line class="limit-line" x1=${Ft} y1=${e} x2=${392} y2=${e} />`))}
+            ${C.flatMap(e=>(e.limitLines??[]).map(e=>U`<line class="limit-line" x1=${Nt} y1=${e} x2=${392} y2=${e} />`))}
 
             <!-- In-plot FOV bands: single-window legacy path only. -->
-            ${v?U:C.flatMap(e=>e.inPlotBands.map(t=>W`<rect
+            ${v?W:C.flatMap(e=>e.inPlotBands.map(t=>U`<rect
                         class="fov-band"
                         x=${t.x0}
                         y=${t.y}
                         width=${t.x1-t.x0}
                         height=${t.height}
-                        style=${e.inlineFill?`fill:${e.color}`:U}
+                        style=${e.inlineFill?`fill:${e.color}`:W}
                       />`))}
 
             <!-- Per-window FOV ribbon (multi-window only): one row per window,
@@ -537,42 +537,42 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
                  sharing the plot's xAt() time scale. Overlaid as a band anchored
                  to the bottom of the plot; drawn BEFORE the curve so the blue
                  curve stays crisp on top. -->
-            ${S.rows.flatMap((e,t)=>{const o=C[t],i=z+e.y,s=o.runs.length?o.d.entry_title:De("elevation.fov_window_named",this.hass,{name:o.d.entry_title,windows:De("elevation.no_fov_today",this.hass)}),n=W`<rect
+            ${E.rows.flatMap((e,t)=>{const o=C[t],s=z+e.y,i=o.runs.length?o.d.entry_title:Be("elevation.fov_window_named",this.hass,{name:o.d.entry_title,windows:Be("elevation.no_fov_today",this.hass)}),n=U`<rect
                 class="ribbon-track"
-                x=${Ft}
-                y=${i}
+                x=${Nt}
+                y=${s}
                 width=${360}
                 height=${e.height}
                 rx="2"
-              ><title>${s}</title></rect>`,a=o.runBars.map(t=>W`<rect
+              ><title>${i}</title></rect>`,r=o.runBars.map(t=>U`<rect
                   class="ribbon-bar"
                   x=${t.x0}
-                  y=${i}
+                  y=${s}
                   width=${t.x1-t.x0}
                   height=${e.height}
                   rx="2"
                   style=${`fill:${o.color}`}
-                ><title>${De("elevation.fov_window_named",this.hass,{name:o.d.entry_title,windows:t.range})}</title></rect>`);return[n,...a]})}
+                ><title>${Be("elevation.fov_window_named",this.hass,{name:o.d.entry_title,windows:t.range})}</title></rect>`);return[n,...r]})}
 
             <!-- Schedule window overlay (issue #128): faint off-schedule gray
                  zone(s) + thin start/end bars with a clock-time tick. Rendered
                  PRE-CURVE so the sun curve and now-line paint on top. The tick
                  label sits slightly higher than the axis ticks (its own class)
                  so it doesn't read as an axis tick. -->
-            ${x.map(e=>W`<rect
+            ${x.map(e=>U`<rect
                 class="off-schedule-zone"
                 x=${e.x}
                 y=${10}
                 width=${e.width}
                 height=${128}
               />`)}
-            ${A.flatMap(e=>[W`<line
+            ${A.flatMap(e=>[U`<line
                 class="schedule-bar"
                 x1=${e.x}
                 y1=${10}
                 x2=${e.x}
                 y2=${138}
-              ><title>${e.tooltip}</title></line>`,W`<text
+              ><title>${e.tooltip}</title></line>`,U`<text
                 class="schedule-tick"
                 x=${e.x}
                 y=${17}
@@ -586,24 +586,24 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
                  the curve AND the ribbon bars. A wide transparent hit-line widens
                  the hover target so the thin now-line is easy to tooltip. -->
             <g class="now-group">
-              <title>${$t(a.toISOString(),i)}</title>
+              <title>${St(r.toISOString(),s)}</title>
               <line class="now-hit" x1=${h} y1=${10} x2=${h} y2=${138} />
               <line class="now" x1=${h} y1=${10} x2=${h} y2=${138} />
             </g>
-            ${null!==p?W`<circle class="sun-dot ${_}" cx=${h} cy=${p} r="4" />`:U}
+            ${null!==p?U`<circle class="sun-dot ${_}" cx=${h} cy=${p} r="4" />`:W}
 
             <!-- x-axis gridlines + time labels at every 6h, drawn last so the
                  axis sits on the topmost layer (nothing paints over the times).
                  Edge labels anchor inward (start at 00:00, end at 24:00) so they
                  don't clip past the viewBox. -->
-            ${[0,6,12,18,24].map(e=>{const t=new Date(s.getTime()+36e5*e),o=0===e?"start":24===e?"end":"middle";return W`
-                <line class="grid faint" x1=${r(t)} y1=${10} x2=${r(t)} y2=${138} />
-                <text class="tick" x=${r(t)} y=${152} text-anchor=${o}>${e.toString().padStart(2,"0")}:00</text>
+            ${[0,6,12,18,24].map(e=>{const t=new Date(i.getTime()+36e5*e),o=0===e?"start":24===e?"end":"middle";return U`
+                <line class="grid faint" x1=${a(t)} y1=${10} x2=${a(t)} y2=${138} />
+                <text class="tick" x=${a(t)} y=${152} text-anchor=${o}>${e.toString().padStart(2,"0")}:00</text>
               `})}
           `}
         </svg>
       </div>
-    `}_interpAt(e,t){if(0===e.length)return null;const o=t.getTime();if(o<=e[0].t.getTime())return e[0];if(o>=e[e.length-1].t.getTime())return e[e.length-1];for(let i=1;i<e.length;i++)if(e[i].t.getTime()>=o){const s=e[i-1],n=e[i],a=(o-s.t.getTime())/(n.t.getTime()-s.t.getTime());return{t:t,elevation:s.elevation+(n.elevation-s.elevation)*a,azimuth:s.azimuth+(n.azimuth-s.azimuth)*a}}return e[e.length-1]}};function Nt(e,t){if(!0===e?.custom_position_minimum_mode&&Array.isArray(e.custom_position_slots)&&void 0!==e.custom_position_active_slot){const t=e.custom_position_slots.find(t=>t.slot===e.custom_position_active_slot);if(void 0!==t&&null!==t.position&&void 0!==t.position)return t.position}return t}function Rt(e){if(void 0===e?.custom_position_active_slot||!Array.isArray(e.custom_position_slots))return!1;const t=e.custom_position_slots.find(t=>t.slot===e.custom_position_active_slot);return 100===t?.priority}function Dt(e){const t=e.replace(/Handler$/,"").replace(/([a-z])([A-Z])/g,"$1_$2").toLowerCase();if(/^custom_position_\d+$/.test(t))return"custom_position";switch(t){case"force_override":return"force";case"weather_override":return"weather";case"manual_override":return"manual";case"motion_timeout":return"motion";case"cloud_suppression":return"cloud";default:return t}}function Bt(e,t,o,i=ke,s="Safety"){const n=new Map;for(const t of e){if(!t.matched)continue;const e=Dt(t.handler);Ae.includes(e)&&n.set(e,t)}const a=[...Ae].reverse().filter(e=>n.has(e));return 0===a.length?t.reason??"":a.map(e=>function(e,t,o,i,s){const n=i[e]??e,a=t.position,r=null==a?"":` ${wt(a)}`;if("custom_position"!==e)return`${n}${r}`.trimEnd();return`${o.custom_position_active_slot_name?`${n} · ${o.custom_position_active_slot_name}`:o.custom_position_active_slot?`${n} #${o.custom_position_active_slot}`:n}${r}${!0===o.custom_position_minimum_mode?" floor":""}${Rt(o)?` · ${s}`:""}`}(e,n.get(e),t,i,s)).join(" → ")}Tt.styles=a`
+    `}_interpAt(e,t){if(0===e.length)return null;const o=t.getTime();if(o<=e[0].t.getTime())return e[0];if(o>=e[e.length-1].t.getTime())return e[e.length-1];for(let s=1;s<e.length;s++)if(e[s].t.getTime()>=o){const i=e[s-1],n=e[s],r=(o-i.t.getTime())/(n.t.getTime()-i.t.getTime());return{t:t,elevation:i.elevation+(n.elevation-i.elevation)*r,azimuth:i.azimuth+(n.azimuth-i.azimuth)*r}}return e[e.length-1]}};function Kt(e,t){if(!0===e?.custom_position_minimum_mode&&Array.isArray(e.custom_position_slots)&&void 0!==e.custom_position_active_slot){const t=e.custom_position_slots.find(t=>t.slot===e.custom_position_active_slot);if(void 0!==t&&null!==t.position&&void 0!==t.position)return t.position}return t}function Vt(e){if(void 0===e?.custom_position_active_slot||!Array.isArray(e.custom_position_slots))return!1;const t=e.custom_position_slots.find(t=>t.slot===e.custom_position_active_slot);return 100===t?.priority}function Gt(e){const t=e.replace(/Handler$/,"").replace(/([a-z])([A-Z])/g,"$1_$2").toLowerCase();if(/^custom_position_\d+$/.test(t))return"custom_position";switch(t){case"force_override":return"force";case"weather_override":return"weather";case"manual_override":return"manual";case"motion_timeout":return"motion";case"cloud_suppression":return"cloud";default:return t}}function qt(e,t,o,s=Ce,i="Safety"){const n=new Map;for(const t of e){if(!t.matched)continue;const e=Gt(t.handler);ke.includes(e)&&n.set(e,t)}const r=[...ke].reverse().filter(e=>n.has(e));return 0===r.length?t.reason??"":r.map(e=>function(e,t,o,s,i){const n=s[e]??e,r=t.position,a=null==r?"":` ${kt(r)}`;if("custom_position"!==e)return`${n}${a}`.trimEnd();return`${o.custom_position_active_slot_name?`${n} · ${o.custom_position_active_slot_name}`:o.custom_position_active_slot?`${n} #${o.custom_position_active_slot}`:n}${a}${!0===o.custom_position_minimum_mode?" floor":""}${Vt(o)?` · ${i}`:""}`}(e,n.get(e),t,s,i)).join(" → ")}Bt.styles=r`
     :host {
       display: block;
       width: 100%;
@@ -748,35 +748,35 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
       text-align: center;
       padding: 20px;
     }
-  `,e([ge({attribute:!1})],Tt.prototype,"hass",void 0),e([ge({attribute:!1})],Tt.prototype,"discoveredList",void 0),e([ge({attribute:!1})],Tt.prototype,"coverColors",void 0),e([ge({type:Boolean,reflect:!0})],Tt.prototype,"compact",void 0),Tt=e([he("acp-elevation-chart")],Tt);let Kt=class extends ce{constructor(){super(...arguments),this.compact=!1,this.showSummary=!0,this.hideInactive=!1}_trace(){const e=this.discovered.entities.decision_trace_sensor;if(!e)return null;const t=this.hass.states[e];if(!t)return null;const o=t.attributes;if(!o?.trace)return null;const i=new Map;for(const e of o.trace)i.set(Dt(e.handler),{matched:e.matched,reason:e.reason,position:e.position});const s={};for(const[e,t]of Object.entries(Ce))s[e]=De(t,this.hass);return{winner:t.state,reason:o.reason??"",steps:i,enabledHandlers:o.enabled_handlers,summary:Bt(o.trace,o,t.state,s),inTimeWindow:o.in_time_window}}render(){if(!this.hass||!this.discovered)return U;const e=this._trace();if(!e)return q`<div class="placeholder">${De("decision.placeholder",this.hass)}</div>`;const t=function(e){if(!e)return new Set;const t=new Set(e);return new Set(Ae.filter(e=>!t.has(e)))}(e.enabledHandlers),o=function(e,t,o,i,s=new Set){return e.filter(e=>e===o||!s.has(e)&&(!i||!0===t.get(e)?.matched))}(Ae,e.steps,e.winner,this.hideInactive,t);return q`
+  `,e([ge({attribute:!1})],Bt.prototype,"hass",void 0),e([ge({attribute:!1})],Bt.prototype,"discoveredList",void 0),e([ge({attribute:!1})],Bt.prototype,"coverColors",void 0),e([ge({type:Boolean,reflect:!0})],Bt.prototype,"compact",void 0),Bt=e([he("acp-elevation-chart")],Bt);let Ut=class extends ce{constructor(){super(...arguments),this.compact=!1,this.showSummary=!0,this.hideInactive=!1}shouldUpdate(e){return e.size>1||!e.has("hass")||_e(e.get("hass"),this.hass,[this.discovered?.entities.decision_trace_sensor])}_trace(){const e=this.discovered.entities.decision_trace_sensor;if(!e)return null;const t=this.hass.states[e];if(!t)return null;const o=t.attributes;if(!o?.trace)return null;const s=new Map;for(const e of o.trace)s.set(Gt(e.handler),{matched:e.matched,reason:e.reason,position:e.position});const i={};for(const[e,t]of Object.entries(Se))i[e]=Be(t,this.hass);return{winner:t.state,reason:o.reason??"",steps:s,enabledHandlers:o.enabled_handlers,summary:qt(o.trace,o,t.state,i),inTimeWindow:o.in_time_window}}render(){if(!this.hass||!this.discovered)return W;const e=this._trace();if(!e)return q`<div class="placeholder">${Be("decision.placeholder",this.hass)}</div>`;const t=function(e){if(!e)return new Set;const t=new Set(e);return new Set(ke.filter(e=>!t.has(e)))}(e.enabledHandlers),o=function(e,t,o,s,i=new Set){return e.filter(e=>e===o||!i.has(e)&&(!s||!0===t.get(e)?.matched))}(ke,e.steps,e.winner,this.hideInactive,t);return q`
       <div class="wrap">
         <div class="head">
-          <span class="label">${De("decision.pipeline",this.hass)}</span>
-          <span class="winner">${De("decision.winner",this.hass,{name:e.winner})}</span>
+          <span class="label">${Be("decision.pipeline",this.hass)}</span>
+          <span class="winner">${Be("decision.winner",this.hass,{name:e.winner})}</span>
         </div>
         ${!1===e.inTimeWindow?q`<div
               class="off-schedule"
-              title=${De("decision.outside_schedule_tooltip",this.hass)}
+              title=${Be("decision.outside_schedule_tooltip",this.hass)}
             >
-              ${De("decision.outside_schedule",this.hass)}
-            </div>`:U}
-        ${this.showSummary&&e.summary?q`<div class="summary" title=${De("decision.summary_tooltip",this.hass)}>
+              ${Be("decision.outside_schedule",this.hass)}
+            </div>`:W}
+        ${this.showSummary&&e.summary?q`<div class="summary" title=${Be("decision.summary_tooltip",this.hass)}>
               ${e.summary}
-            </div>`:U}
+            </div>`:W}
         <div class="rows">
           ${o.map(t=>this._row(t,e.steps.get(t),e.winner===t))}
         </div>
         <div class="reason dim">${e.reason}</div>
       </div>
-    `}_row(e,t,o){const i=t?.matched??!1,s=t?.reason??De("decision.not_evaluated",this.hass),n=t?.position;return q`
-      <div class="row ${o?"winner":i?"match":"skip"}">
-        <span class="name">${De(Ce[e],this.hass)}</span>
-        <span class="dots" aria-hidden="true">${i?"████":"────"}</span>
-        <span class="pos">${null!=n?wt(n):""}</span>
-        <span class="reason-inline dim">${s}</span>
-        ${o?q`<span class="badge">✓</span>`:U}
+    `}_row(e,t,o){const s=t?.matched??!1,i=t?.reason??Be("decision.not_evaluated",this.hass),n=t?.position;return q`
+      <div class="row ${o?"winner":s?"match":"skip"}">
+        <span class="name">${Be(Se[e],this.hass)}</span>
+        <span class="dots" aria-hidden="true">${s?"████":"────"}</span>
+        <span class="pos">${null!=n?kt(n):""}</span>
+        <span class="reason-inline dim">${i}</span>
+        ${o?q`<span class="badge">✓</span>`:W}
       </div>
-    `}};var Vt,Gt;Kt.styles=a`
+    `}};var Lt,Wt;Ut.styles=r`
     :host {
       display: block;
     }
@@ -894,7 +894,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
       padding: 16px;
       text-align: center;
     }
-  `,e([ge({attribute:!1})],Kt.prototype,"hass",void 0),e([ge({attribute:!1})],Kt.prototype,"discovered",void 0),e([ge({type:Boolean,reflect:!0})],Kt.prototype,"compact",void 0),e([ge({type:Boolean,reflect:!0,attribute:"show-summary"})],Kt.prototype,"showSummary",void 0),e([ge({type:Boolean,reflect:!0,attribute:"hide-inactive"})],Kt.prototype,"hideInactive",void 0),Kt=e([he("acp-decision-strip")],Kt),function(e){e.language="language",e.system="system",e.comma_decimal="comma_decimal",e.decimal_comma="decimal_comma",e.space_comma="space_comma",e.none="none"}(Vt||(Vt={})),function(e){e.language="language",e.system="system",e.am_pm="12",e.twenty_four="24"}(Gt||(Gt={}));const qt=["closed","locked","off"],Wt=(e,t,o,i)=>{i=i||{},o=null==o?{}:o;const s=new Event(t,{bubbles:void 0===i.bubbles||i.bubbles,cancelable:Boolean(i.cancelable),composed:void 0===i.composed||i.composed});return s.detail=o,e.dispatchEvent(s),s},Yt=e=>{Wt(window,"haptic",e)};function Ut(e){return void 0!==e&&"none"!==e.action}function Lt(e,t,o){return e.filter(e=>"off"===e||("solar"===e?function(e){return e.solarMatched&&!e.cloudIsWinner}(o)&&!1!==t?.solar:!1!==t?.[e]))}function Qt(e){return!!e&&e.some(e=>e.matched&&"solar"===Dt(e.handler))}function Ht(e){return"cloud"===Dt(e)}function Zt(e){if(!1===e.integrationEnabled)return"off";const t=Dt(e.winner);return e.manualActive&&"force"!==t&&"custom_position"!==t?"manual":Oe[t]??"auto"}function Jt(e,t){return{solarMatched:Qt(e),cloudIsWinner:Ht(t)}}let Xt=class extends ce{constructor(){super(...arguments),this.winner="default",this.compact=!1,this.integrationEnabled=!0,this.manualActive=!1,this.safetyActive=!1,this.resumable=!1}render(){const e=this._kind(),t="custom_position"===e&&this.safetyActive,o=t?Me.force:Me[e],i=this.hass?De(Ie[e],this.hass):Me[e].label,s=t?this.hass?De("badge.safety",this.hass):"Safety":this._label(e,i),n=t?Fe.force:Fe[e],a=q`${n?q`<ha-icon class="badge-icon" icon=${n}></ha-icon>`:U}${s}${this.resumable?q`<ha-icon class="resume-icon" icon="mdi:restore"></ha-icon>`:U}`;if(this.resumable){const t=this.hass?De("tile.resume_aria",this.hass):"Resume automatic control";return q`<button
+  `,e([ge({attribute:!1})],Ut.prototype,"hass",void 0),e([ge({attribute:!1})],Ut.prototype,"discovered",void 0),e([ge({type:Boolean,reflect:!0})],Ut.prototype,"compact",void 0),e([ge({type:Boolean,reflect:!0,attribute:"show-summary"})],Ut.prototype,"showSummary",void 0),e([ge({type:Boolean,reflect:!0,attribute:"hide-inactive"})],Ut.prototype,"hideInactive",void 0),Ut=e([he("acp-decision-strip")],Ut),function(e){e.language="language",e.system="system",e.comma_decimal="comma_decimal",e.decimal_comma="decimal_comma",e.space_comma="space_comma",e.none="none"}(Lt||(Lt={})),function(e){e.language="language",e.system="system",e.am_pm="12",e.twenty_four="24"}(Wt||(Wt={}));const Yt=["closed","locked","off"],Qt=(e,t,o,s)=>{s=s||{},o=null==o?{}:o;const i=new Event(t,{bubbles:void 0===s.bubbles||s.bubbles,cancelable:Boolean(s.cancelable),composed:void 0===s.composed||s.composed});return i.detail=o,e.dispatchEvent(i),i},Ht=e=>{Qt(window,"haptic",e)};function Zt(e){return void 0!==e&&"none"!==e.action}function Jt(e,t,o){return e.filter(e=>"off"===e||("solar"===e?function(e){return e.solarMatched&&!e.cloudIsWinner}(o)&&!1!==t?.solar:!1!==t?.[e]))}function Xt(e){return!!e&&e.some(e=>e.matched&&"solar"===Gt(e.handler))}function eo(e){return"cloud"===Gt(e)}function to(e){if(!1===e.integrationEnabled)return"off";const t=Gt(e.winner);return e.manualActive&&"force"!==t&&"custom_position"!==t?"manual":Ie[t]??"auto"}function oo(e,t){return{solarMatched:Xt(e),cloudIsWinner:eo(t)}}let so=class extends ce{constructor(){super(...arguments),this.winner="default",this.compact=!1,this.integrationEnabled=!0,this.manualActive=!1,this.safetyActive=!1,this.resumable=!1}render(){const e=this._kind(),t="custom_position"===e&&this.safetyActive,o=t?Me.force:Me[e],s=this.hass?Be(Fe[e],this.hass):Me[e].label,i=t?this.hass?Be("badge.safety",this.hass):"Safety":this._label(e,s),n=t?Pe.force:Pe[e],r=q`${n?q`<ha-icon class="badge-icon" icon=${n}></ha-icon>`:W}${i}${this.resumable?q`<ha-icon class="resume-icon" icon="mdi:restore"></ha-icon>`:W}`;if(this.resumable){const t=this.hass?Be("tile.resume_aria",this.hass):"Resume automatic control";return q`<button
         class="badge kind-${e} resumable"
         style="background:${o.bg};color:${o.fg};"
         part="badge"
@@ -904,13 +904,13 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
         @click=${this._onResumeClick}
         @pointerdown=${this._stop}
       >
-        ${a}
+        ${r}
       </button>`}return q`<span
       class="badge kind-${e}"
       style="background:${o.bg};color:${o.fg};"
       part="badge"
-      >${a}</span
-    >`}_stop(e){e.stopPropagation()}_onResumeClick(e){e.stopPropagation(),this.dispatchEvent(new CustomEvent("acp-resume",{bubbles:!0,composed:!0}))}_kind(){return this.kindOverride??Zt({winner:this.winner,integrationEnabled:this.integrationEnabled,manualActive:this.manualActive})}_label(e,t){return"manual"===e?this.manualEndIso?$t(this.manualEndIso):t:"custom_position"===e?`${this.slotName?this.slotName:void 0!==this.slotNumber?`${t} #${this.slotNumber}`:t}${void 0!==this.pct&&null!==this.pct?` · ${Math.round(this.pct)}%`:""}${!0===this.minimumMode?this.hass?De("badge.floor_suffix",this.hass):" ↥":""}`:t}};Xt.styles=a`
+      >${r}</span
+    >`}_stop(e){e.stopPropagation()}_onResumeClick(e){e.stopPropagation(),this.dispatchEvent(new CustomEvent("acp-resume",{bubbles:!0,composed:!0}))}_kind(){return this.kindOverride??to({winner:this.winner,integrationEnabled:this.integrationEnabled,manualActive:this.manualActive})}_label(e,t){return"manual"===e?this.manualEndIso?St(this.manualEndIso):t:"custom_position"===e?`${this.slotName?this.slotName:void 0!==this.slotNumber?`${t} #${this.slotNumber}`:t}${void 0!==this.pct&&null!==this.pct?` · ${Math.round(this.pct)}%`:""}${!0===this.minimumMode?this.hass?Be("badge.floor_suffix",this.hass):" ↥":""}`:t}};so.styles=r`
     :host {
       display: inline-flex;
     }
@@ -957,37 +957,37 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     :host([compact]) .badge-icon {
       --mdc-icon-size: 12px;
     }
-  `,e([ge({attribute:!1})],Xt.prototype,"hass",void 0),e([ge()],Xt.prototype,"winner",void 0),e([ge({attribute:"manual-end-iso"})],Xt.prototype,"manualEndIso",void 0),e([ge({type:Number,attribute:"slot-number"})],Xt.prototype,"slotNumber",void 0),e([ge({attribute:"slot-name"})],Xt.prototype,"slotName",void 0),e([ge({type:Number})],Xt.prototype,"pct",void 0),e([ge({type:Boolean,attribute:"minimum-mode"})],Xt.prototype,"minimumMode",void 0),e([ge({type:Boolean,reflect:!0})],Xt.prototype,"compact",void 0),e([ge({type:Boolean,attribute:"integration-enabled"})],Xt.prototype,"integrationEnabled",void 0),e([ge({type:Boolean,attribute:"manual-active"})],Xt.prototype,"manualActive",void 0),e([ge({type:Boolean,attribute:"safety-active"})],Xt.prototype,"safetyActive",void 0),e([ge({attribute:"kind-override"})],Xt.prototype,"kindOverride",void 0),e([ge({type:Boolean,reflect:!0})],Xt.prototype,"resumable",void 0),Xt=e([he("acp-tile-badge")],Xt);let eo=class extends ce{constructor(){super(...arguments),this.compact=!1,this.resetEnabled=!0}_manualActive(){const e=this.discovered.entities.manual_override_binary;return!!e&&"on"===this.hass.states[e]?.state}_manualEndIso(){const e=this.discovered.entities.manual_override_end_sensor;if(!e)return null;const t=this.hass.states[e];return t&&"unknown"!==t.state&&"unavailable"!==t.state?t.state:null}_motionStatus(){const e=this.discovered.entities.motion_status_sensor;if(!e)return null;const t=this.hass.states[e];if(!t)return null;const o=t.attributes.motion_timeout_end_time;return{state:t.state,endIso:o??null}}_resetManual(){const e=this.discovered.entities.reset_override_button;e&&this.hass.callService("button","press",{entity_id:e})}_motionStateLabel(e,t){if(e){const t=this.hass.states[e],o=this.hass.formatEntityState;if(t&&"function"==typeof o){const e=o(t);if(e)return e}}return t.replace(/_/g," ")}render(){if(!this.hass||!this.discovered)return U;const e=this._manualActive(),t=this._manualEndIso(),o=this._motionStatus(),i=this.discovered.entities.motion_status_sensor,s=this.discovered.entities.reset_override_button,n=De("overrides.reset_manual",this.hass);return q`
+  `,e([ge({attribute:!1})],so.prototype,"hass",void 0),e([ge()],so.prototype,"winner",void 0),e([ge({attribute:"manual-end-iso"})],so.prototype,"manualEndIso",void 0),e([ge({type:Number,attribute:"slot-number"})],so.prototype,"slotNumber",void 0),e([ge({attribute:"slot-name"})],so.prototype,"slotName",void 0),e([ge({type:Number})],so.prototype,"pct",void 0),e([ge({type:Boolean,attribute:"minimum-mode"})],so.prototype,"minimumMode",void 0),e([ge({type:Boolean,reflect:!0})],so.prototype,"compact",void 0),e([ge({type:Boolean,attribute:"integration-enabled"})],so.prototype,"integrationEnabled",void 0),e([ge({type:Boolean,attribute:"manual-active"})],so.prototype,"manualActive",void 0),e([ge({type:Boolean,attribute:"safety-active"})],so.prototype,"safetyActive",void 0),e([ge({attribute:"kind-override"})],so.prototype,"kindOverride",void 0),e([ge({type:Boolean,reflect:!0})],so.prototype,"resumable",void 0),so=e([he("acp-tile-badge")],so);let io=class extends ce{constructor(){super(...arguments),this.compact=!1,this.resetEnabled=!0,this._tick=null}disconnectedCallback(){super.disconnectedCallback(),this._syncTimer(!1)}shouldUpdate(e){if(e.size>1||!e.has("hass"))return!0;const t=e.get("hass"),o=this.discovered?.entities;return _e(t,this.hass,[o?.manual_override_binary,o?.manual_override_end_sensor,o?.motion_status_sensor,o?.reset_override_button])}updated(){if(!this.hass||!this.discovered)return void this._syncTimer(!1);const e=!this.compact&&(null!==this._manualEndIso()||null!=this._motionStatus()?.endIso);this._syncTimer(e)}_syncTimer(e){e&&null===this._tick?this._tick=setInterval(()=>this.requestUpdate(),1e3):e||null===this._tick||(clearInterval(this._tick),this._tick=null)}_manualActive(){const e=this.discovered.entities.manual_override_binary;return!!e&&"on"===this.hass.states[e]?.state}_manualEndIso(){const e=this.discovered.entities.manual_override_end_sensor;if(!e)return null;const t=this.hass.states[e];return t&&"unknown"!==t.state&&"unavailable"!==t.state?t.state:null}_motionStatus(){const e=this.discovered.entities.motion_status_sensor;if(!e)return null;const t=this.hass.states[e];if(!t)return null;const o=t.attributes.motion_timeout_end_time;return{state:t.state,endIso:o??null}}_resetManual(){const e=this.discovered.entities.reset_override_button;e&&this.hass.callService("button","press",{entity_id:e})}_motionStateLabel(e,t){if(e){const t=this.hass.states[e],o=this.hass.formatEntityState;if(t&&"function"==typeof o){const e=o(t);if(e)return e}}return t.replace(/_/g," ")}render(){if(!this.hass||!this.discovered)return W;const e=this._manualActive(),t=this._manualEndIso(),o=this._motionStatus(),s=this.discovered.entities.motion_status_sensor,i=this.discovered.entities.reset_override_button,n=Be("overrides.reset_manual",this.hass);return q`
       <div class="wrap">
-        <div class="label dim">${De("overrides.title",this.hass)}</div>
+        <div class="label dim">${Be("overrides.title",this.hass)}</div>
         <div class="grid">
           <div class="tile ${e?"active":""}">
-            <div class="tile-label">${De("overrides.manual",this.hass)}</div>
+            <div class="tile-label">${Be("overrides.manual",this.hass)}</div>
             <div class="tile-value">
-              ${De(e?"overrides.active":"overrides.off",this.hass)}
+              ${Be(e?"overrides.active":"overrides.off",this.hass)}
             </div>
             ${t?q`<div class="tile-sub dim">
-                  ${De("overrides.ends_in",this.hass,{time:At(t,this.hass)})}
-                </div>`:U}
+                  ${Be("overrides.ends_in",this.hass,{time:Et(t,this.hass)})}
+                </div>`:W}
           </div>
 
           ${o?q`<div class="tile ${"motion_detected"===o.state?"active":""}">
-                <div class="tile-label">${De("overrides.motion",this.hass)}</div>
-                <div class="tile-value">${this._motionStateLabel(i,o.state)}</div>
+                <div class="tile-label">${Be("overrides.motion",this.hass)}</div>
+                <div class="tile-value">${this._motionStateLabel(s,o.state)}</div>
                 ${o.endIso?q`<div class="tile-sub dim">
-                      ${De("overrides.timeout",this.hass,{time:At(o.endIso,this.hass)})}
-                    </div>`:U}
-              </div>`:U}
-          ${s?this.resetEnabled?q`<button class="tile action" @click=${this._resetManual}>
+                      ${Be("overrides.timeout",this.hass,{time:Et(o.endIso,this.hass)})}
+                    </div>`:W}
+              </div>`:W}
+          ${i?this.resetEnabled?q`<button class="tile action" @click=${this._resetManual}>
                   <ha-icon icon="mdi:restore"></ha-icon>
                   <div class="tile-value">${n}</div>
                 </button>`:q`<button class="tile action readonly" aria-disabled="true" tabindex="-1">
                   <ha-icon icon="mdi:restore"></ha-icon>
                   <div class="tile-value">${n}</div>
-                </button>`:U}
+                </button>`:W}
         </div>
       </div>
-    `}};eo.styles=a`
+    `}};io.styles=r`
     :host {
       display: block;
     }
@@ -1071,26 +1071,26 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     ha-icon {
       --mdc-icon-size: 18px;
     }
-  `,e([ge({attribute:!1})],eo.prototype,"hass",void 0),e([ge({attribute:!1})],eo.prototype,"discovered",void 0),e([ge({type:Boolean,reflect:!0})],eo.prototype,"compact",void 0),e([ge({type:Boolean,attribute:"reset-enabled"})],eo.prototype,"resetEnabled",void 0),eo=e([he("acp-overrides-panel")],eo);const to=new Set(["mode_off","active"]),oo={summer_mode:"mdi:weather-sunny",winter_mode:"mdi:snowflake",intermediate:"mdi:weather-partly-cloudy"};let io=class extends ce{constructor(){super(...arguments),this.compact=!1}render(){if(!this.hass||!this.discovered)return U;const e=this.discovered.entities.climate_status_sensor;if(!e)return U;const t=this.hass.states[e];if(!t||"unavailable"===t.state)return U;if("unknown"===t.state||""===t.state){const e=this.discovered.entities.climate_mode_switch,o=!!e&&"off"===this.hass.states[e]?.state,i=De(o?"climate.mode_off":"climate.standby",this.hass),s=o?"mdi:power-off":"mdi:thermostat",n=t.attributes?.inactive_reason,a=n&&!to.has(n)?De(`climate.reason.${n}`,this.hass):void 0;return q`
+  `,e([ge({attribute:!1})],io.prototype,"hass",void 0),e([ge({attribute:!1})],io.prototype,"discovered",void 0),e([ge({type:Boolean,reflect:!0})],io.prototype,"compact",void 0),e([ge({type:Boolean,attribute:"reset-enabled"})],io.prototype,"resetEnabled",void 0),io=e([he("acp-overrides-panel")],io);const no=new Set(["mode_off","active"]),ro={summer_mode:"mdi:weather-sunny",winter_mode:"mdi:snowflake",intermediate:"mdi:weather-partly-cloudy"};let ao=class extends ce{constructor(){super(...arguments),this.compact=!1}shouldUpdate(e){if(e.size>1||!e.has("hass"))return!0;const t=e.get("hass"),o=this.discovered?.entities;return _e(t,this.hass,[o?.climate_status_sensor,o?.climate_mode_switch])}render(){if(!this.hass||!this.discovered)return W;const e=this.discovered.entities.climate_status_sensor;if(!e)return W;const t=this.hass.states[e];if(!t||"unavailable"===t.state)return W;if("unknown"===t.state||""===t.state){const e=this.discovered.entities.climate_mode_switch,o=!!e&&"off"===this.hass.states[e]?.state,s=Be(o?"climate.mode_off":"climate.standby",this.hass),i=o?"mdi:power-off":"mdi:thermostat",n=t.attributes?.inactive_reason,r=n&&!no.has(n)?Be(`climate.reason.${n}`,this.hass):void 0;return q`
         <div class="wrap">
           <div class="head">
-            <span class="label">${De("climate.title",this.hass)}</span>
+            <span class="label">${Be("climate.title",this.hass)}</span>
           </div>
           <div class="strategy standby">
-            <ha-icon icon=${s}></ha-icon>
-            <span class="strategy-name dim">${i}</span>
+            <ha-icon icon=${i}></ha-icon>
+            <span class="strategy-name dim">${s}</span>
           </div>
-          ${a?q`<div class="standby-reason dim">${a}</div>`:U}
+          ${r?q`<div class="standby-reason dim">${r}</div>`:W}
         </div>
-      `}const o=t.state,i=t.attributes??{},s=oo[o]??"mdi:thermostat",n=i.temperature_unit??"°",a=this.hass.formatEntityState,r="function"==typeof a?a(t)??o:o,l=void 0!==i.active_temperature?`${i.active_temperature.toFixed(1)}${n}`:"—",c=!0===i.temp_switch,d=(e,t)=>null==t||Number.isNaN(t)?null:`${De(e,this.hass)} ${t.toFixed(1)}${n}`,h=c?null:[d("climate.threshold_low",i.temp_low),d("climate.threshold_high",i.temp_high)].filter(e=>null!==e).join(" ")||null,u=[...c?[d("climate.threshold_low",i.temp_low),d("climate.threshold_high",i.temp_high)]:[],d("climate.threshold_summer_outside",i.temp_summer_outside)].filter(e=>null!==e).join(" ")||null,p=[void 0!==i.indoor_temperature?{label:De("climate.indoor",this.hass),value:i.indoor_temperature,unit:n,threshold:h}:null,void 0!==i.outdoor_temperature?{label:De("climate.outdoor",this.hass),value:i.outdoor_temperature,unit:n,threshold:u}:null].filter(e=>null!==e),g=[{label:De("climate.presence",this.hass),value:i.is_presence,icon:"mdi:account-check"},{label:De("climate.sunny",this.hass),value:i.is_sunny,icon:"mdi:white-balance-sunny"},{label:De("climate.lux",this.hass),value:i.lux_active,icon:"mdi:brightness-7"},{label:De("climate.irradiance",this.hass),value:i.irradiance_active,icon:"mdi:solar-power"}].filter(e=>void 0!==e.value);return q`
+      `}const o=t.state,s=t.attributes??{},i=ro[o]??"mdi:thermostat",n=s.temperature_unit??"°",r=this.hass.formatEntityState,a="function"==typeof r?r(t)??o:o,l=void 0!==s.active_temperature?`${s.active_temperature.toFixed(1)}${n}`:"—",c=!0===s.temp_switch,d=(e,t)=>null==t||Number.isNaN(t)?null:`${Be(e,this.hass)} ${t.toFixed(1)}${n}`,h=c?null:[d("climate.threshold_low",s.temp_low),d("climate.threshold_high",s.temp_high)].filter(e=>null!==e).join(" ")||null,u=[...c?[d("climate.threshold_low",s.temp_low),d("climate.threshold_high",s.temp_high)]:[],d("climate.threshold_summer_outside",s.temp_summer_outside)].filter(e=>null!==e).join(" ")||null,p=[void 0!==s.indoor_temperature?{label:Be("climate.indoor",this.hass),value:s.indoor_temperature,unit:n,threshold:h}:null,void 0!==s.outdoor_temperature?{label:Be("climate.outdoor",this.hass),value:s.outdoor_temperature,unit:n,threshold:u}:null].filter(e=>null!==e),g=[{label:Be("climate.presence",this.hass),value:s.is_presence,icon:"mdi:account-check"},{label:Be("climate.sunny",this.hass),value:s.is_sunny,icon:"mdi:white-balance-sunny"},{label:Be("climate.lux",this.hass),value:s.lux_active,icon:"mdi:brightness-7"},{label:Be("climate.irradiance",this.hass),value:s.irradiance_active,icon:"mdi:solar-power"}].filter(e=>void 0!==e.value);return q`
       <div class="wrap">
         <div class="head">
-          <span class="label">${De("climate.title",this.hass)}</span>
-          <span class="dim">${De("climate.active",this.hass,{strategy:l})}</span>
+          <span class="label">${Be("climate.title",this.hass)}</span>
+          <span class="dim">${Be("climate.active",this.hass,{strategy:l})}</span>
         </div>
         <div class="strategy">
-          <ha-icon icon=${s}></ha-icon>
-          <span class="strategy-name">${r}</span>
+          <ha-icon icon=${i}></ha-icon>
+          <span class="strategy-name">${a}</span>
         </div>
         ${p.length?q`
               <div class="temps">
@@ -1098,11 +1098,11 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
                     <div class="temp">
                       <span class="temp-label dim">${e.label}</span>
                       <span class="temp-value">${e.value.toFixed(1)}${e.unit}</span>
-                      ${e.threshold?q`<span class="temp-threshold dim">${e.threshold}</span>`:U}
+                      ${e.threshold?q`<span class="temp-threshold dim">${e.threshold}</span>`:W}
                     </div>
                   `)}
               </div>
-            `:U}
+            `:W}
         ${g.length?q`
               <div class="conditions">
                 ${g.map(e=>q`
@@ -1112,9 +1112,9 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
                     </div>
                   `)}
               </div>
-            `:U}
+            `:W}
       </div>
-    `}};io.styles=a`
+    `}};ao.styles=r`
     :host {
       display: block;
     }
@@ -1216,36 +1216,36 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     .dim {
       color: var(--secondary-text-color);
     }
-  `,e([ge({attribute:!1})],io.prototype,"hass",void 0),e([ge({attribute:!1})],io.prototype,"discovered",void 0),e([ge({type:Boolean,reflect:!0})],io.prototype,"compact",void 0),io=e([he("acp-climate-panel")],io);let so=class extends ce{constructor(){super(...arguments),this.compact=!1,this.coverColor=null}_target(){const e=this.discovered.entities.target_position_sensor;if(!e)return{target:null,covers:{}};const t=this.hass.states[e];if(!t)return{target:null,covers:{}};const o=parseFloat(t.state),i=t.attributes;return{target:Number.isNaN(o)?null:o,covers:i?.actual_positions??{}}}_mismatched(){const e=this.discovered.entities.position_mismatch_binary;if(!e)return new Set;const t=this.hass.states[e];if("on"!==t?.state)return new Set;const o=t.attributes.entities;return o?new Set(Object.entries(o).filter(([,e])=>e.mismatch).map(([e])=>e)):new Set}_setPosition(e,t){this.hass.callService($e,"set_position",{position:t},{entity_id:e})}render(){if(!this.hass||!this.discovered)return U;const{target:e,covers:t}=this._target(),o=this._mismatched(),i=Object.entries(t);return 0===i.length?q`<div class="placeholder">${De("covers.placeholder",this.hass)}</div>`:q`
-      <div class="wrap" style=${this.coverColor?`--acp-cover-color:${this.coverColor}`:U}>
+  `,e([ge({attribute:!1})],ao.prototype,"hass",void 0),e([ge({attribute:!1})],ao.prototype,"discovered",void 0),e([ge({type:Boolean,reflect:!0})],ao.prototype,"compact",void 0),ao=e([he("acp-climate-panel")],ao);let lo=class extends ce{constructor(){super(...arguments),this.compact=!1,this.coverColor=null}shouldUpdate(e){if(e.size>1||!e.has("hass"))return!0;const t=e.get("hass"),o=this.discovered?.entities;return _e(t,this.hass,[o?.target_position_sensor,o?.position_mismatch_binary])}_target(){const e=this.discovered.entities.target_position_sensor;if(!e)return{target:null,covers:{}};const t=this.hass.states[e];if(!t)return{target:null,covers:{}};const o=parseFloat(t.state),s=t.attributes;return{target:Number.isNaN(o)?null:o,covers:s?.actual_positions??{}}}_mismatched(){const e=this.discovered.entities.position_mismatch_binary;if(!e)return new Set;const t=this.hass.states[e];if("on"!==t?.state)return new Set;const o=t.attributes.entities;return o?new Set(Object.entries(o).filter(([,e])=>e.mismatch).map(([e])=>e)):new Set}_setPosition(e,t){this.hass.callService(Ae,"set_position",{position:t},{entity_id:e})}render(){if(!this.hass||!this.discovered)return W;const{target:e,covers:t}=this._target(),o=this._mismatched(),s=Object.entries(t);return 0===s.length?q`<div class="placeholder">${Be("covers.placeholder",this.hass)}</div>`:q`
+      <div class="wrap" style=${this.coverColor?`--acp-cover-color:${this.coverColor}`:W}>
         <div class="head">
-          <span class="label">${De("covers.title",this.hass)}</span>
+          <span class="label">${Be("covers.title",this.hass)}</span>
           <span class="target"
-            >${De("covers.target",this.hass,{pct:wt(e)})}</span
+            >${Be("covers.target",this.hass,{pct:kt(e)})}</span
           >
         </div>
-        ${i.map(([t,i])=>this._bar(t,i,e,o.has(t)))}
+        ${s.map(([t,s])=>this._bar(t,s,e,o.has(t)))}
       </div>
-    `}_bar(e,t,o,i){const s=this.hass.states[e]?.attributes?.friendly_name??e,n=t??0,a=o??0;return q`
-      <div class="cover ${i?"mismatch":""}">
-        <div class="name" title=${e}>${s}</div>
-        <div class="num">${wt(t)}</div>
+    `}_bar(e,t,o,s){const i=this.hass.states[e]?.attributes?.friendly_name??e,n=t??0,r=o??0;return q`
+      <div class="cover ${s?"mismatch":""}">
+        <div class="name" title=${e}>${i}</div>
+        <div class="num">${kt(t)}</div>
         <div
           class="track"
           @click=${t=>this._handleTrackClick(t,e)}
-          title=${De("covers.click_to_set",this.hass)}
+          title=${Be("covers.click_to_set",this.hass)}
         >
           <div class="fill" style="width:${n}%"></div>
           <div class="fill-closed" style="width:${100-n}%"></div>
           ${null!==o?q`<div
                 class="marker"
-                style="left:${a}%"
-                title=${De("covers.target_tooltip",this.hass,{pct:a})}
-              ></div>`:U}
+                style="left:${r}%"
+                title=${Be("covers.target_tooltip",this.hass,{pct:r})}
+              ></div>`:W}
         </div>
-        ${i?q`<ha-icon class="warn" icon="mdi:alert-circle-outline"></ha-icon>`:U}
+        ${s?q`<ha-icon class="warn" icon="mdi:alert-circle-outline"></ha-icon>`:W}
       </div>
-    `}_handleTrackClick(e,t){const o=e.currentTarget.getBoundingClientRect(),i=Math.round((e.clientX-o.left)/o.width*100),s=Math.max(0,Math.min(100,i));this._setPosition(t,s)}};var no;so.styles=a`
+    `}_handleTrackClick(e,t){const o=e.currentTarget.getBoundingClientRect(),s=Math.round((e.clientX-o.left)/o.width*100),i=Math.max(0,Math.min(100,s));this._setPosition(t,i)}};var co;lo.styles=r`
     :host {
       display: block;
     }
@@ -1342,34 +1342,34 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
       text-align: center;
       padding: 16px;
     }
-  `,e([ge({attribute:!1})],so.prototype,"hass",void 0),e([ge({attribute:!1})],so.prototype,"discovered",void 0),e([ge({type:Boolean,reflect:!0})],so.prototype,"compact",void 0),e([ge({attribute:!1})],so.prototype,"coverColor",void 0),so=e([he("acp-cover-bar")],so);const ao=864e5;let ro=no=class extends ce{constructor(){super(...arguments),this.samples=[],this.events=[],this.now=Date.now(),this._hoverIdx=null,this._onPointerMove=e=>{const t=e.currentTarget.getBoundingClientRect();if(t.width<=0)return;const o=(e.clientX-t.left)/t.width,i=Math.max(0,Math.min(1,o))*no.VIEW_W;this._hoverIdx=this._nearestSampleIdx(i)},this._onPointerLeave=()=>{this._hoverIdx=null}}render(){if(!this.samples||0===this.samples.length)return U;const{VIEW_W:e,VIEW_H:t,TOP_PAD:o,EVENT_HIT_W:i}=no,s=t-o,n=mt(new Date(this.now)).getTime(),a=t=>Le(t,n,e),r=this.samples.map(e=>{const t=Date.parse(e.t);return{t:t,x:a(t),y:o+(1-lo(e.position)/100)*s,sample:e,inDay:!Number.isNaN(t)&&t>=n&&t<=n+ao}}),l=r.filter(e=>e.inDay).map(e=>`${e.x.toFixed(1)},${e.y.toFixed(1)}`).join(" "),c=(this.events??[]).map(e=>{const s=Date.parse(e.t);if(Number.isNaN(s)||s<n||s>n+ao)return null;const r=a(s),l=`evt-${e.kind}`,c=function(e,t){const o=`forecast.event.${e.kind}`,i=De(o,t),s=i===o?e.label??e.kind:i,n=$t(e.t);return"—"===n?s:`${s} — ${n}`}(e,this.hass);return W`<g class="event-group" data-tooltip=${c}>
+  `,e([ge({attribute:!1})],lo.prototype,"hass",void 0),e([ge({attribute:!1})],lo.prototype,"discovered",void 0),e([ge({type:Boolean,reflect:!0})],lo.prototype,"compact",void 0),e([ge({attribute:!1})],lo.prototype,"coverColor",void 0),lo=e([he("acp-cover-bar")],lo);const ho=864e5;let uo=co=class extends ce{constructor(){super(...arguments),this.samples=[],this.events=[],this.now=Date.now(),this._hoverIdx=null,this._onPointerMove=e=>{const t=e.currentTarget.getBoundingClientRect();if(t.width<=0)return;const o=(e.clientX-t.left)/t.width,s=Math.max(0,Math.min(1,o))*co.VIEW_W;this._hoverIdx=this._nearestSampleIdx(s)},this._onPointerLeave=()=>{this._hoverIdx=null}}render(){if(!this.samples||0===this.samples.length)return W;const{VIEW_W:e,VIEW_H:t,TOP_PAD:o,EVENT_HIT_W:s}=co,i=t-o,n=yt(new Date(this.now)).getTime(),r=t=>Ze(t,n,e),a=this.samples.map(e=>{const t=Date.parse(e.t);return{t:t,x:r(t),y:o+(1-po(e.position)/100)*i,sample:e,inDay:!Number.isNaN(t)&&t>=n&&t<=n+ho}}),l=a.filter(e=>e.inDay).map(e=>`${e.x.toFixed(1)},${e.y.toFixed(1)}`).join(" "),c=(this.events??[]).map(e=>{const i=Date.parse(e.t);if(Number.isNaN(i)||i<n||i>n+ho)return null;const a=r(i),l=`evt-${e.kind}`,c=function(e,t){const o=`forecast.event.${e.kind}`,s=Be(o,t),i=s===o?e.label??e.kind:s,n=St(e.t);return"—"===n?i:`${i} — ${n}`}(e,this.hass);return U`<g class="event-group" data-tooltip=${c}>
           <title>${c}</title>
           <line
             class="event-hit"
-            x1=${r.toFixed(1)}
-            x2=${r.toFixed(1)}
+            x1=${a.toFixed(1)}
+            x2=${a.toFixed(1)}
             y1=${o}
             y2=${t}
-            stroke-width=${i}
+            stroke-width=${s}
           ></line>
           <line
             class="event-marker ${l}"
-            x1=${r.toFixed(1)}
-            x2=${r.toFixed(1)}
+            x1=${a.toFixed(1)}
+            x2=${a.toFixed(1)}
             y1=${o}
             y2=${t}
           ></line>
-        </g>`}).filter(e=>null!==e),d=null!==this._hoverIdx&&this._hoverIdx>=0&&this._hoverIdx<r.length?r[this._hoverIdx]:null,h=d?W`<g class="hover-guide" pointer-events="none">
+        </g>`}).filter(e=>null!==e),d=null!==this._hoverIdx&&this._hoverIdx>=0&&this._hoverIdx<a.length?a[this._hoverIdx]:null,h=d?U`<g class="hover-guide" pointer-events="none">
           <line class="hover-line"
             x1=${d.x.toFixed(1)} x2=${d.x.toFixed(1)}
             y1=${o} y2=${t}></line>
           <circle class="hover-dot" cx=${d.x.toFixed(1)} cy=${d.y.toFixed(1)} r="3"></circle>
-        </g>`:U,u=d?q`<div class="hover-label" style=${`left: ${(d.x/e*100).toFixed(2)}%`}>
-          ${function(e){const t=$t(e.t),o=`${Math.round(lo(e.position))}%`;return e.handler?`${t} · ${o} · ${e.handler}`:`${t} · ${o}`}(d.sample)}
-        </div>`:U,p=[0,6,12,18,24].map(e=>{const i=a(n+36e5*e);return W`
-        <line class="grid faint" x1=${i} y1=${o} x2=${i} y2=${t-.5} />
-        <text class="axis-label tick-time" x=${i} y=${t-3} text-anchor="middle">${e.toString().padStart(2,"0")}:00</text>
-      `}),g=this.now,m=a(g),_=g>=n&&g<=n+ao?W`<line class="now" x1=${m.toFixed(1)} y1=${o} x2=${m.toFixed(1)} y2=${t-.5}></line>`:U;return q`
+        </g>`:W,u=d?q`<div class="hover-label" style=${`left: ${(d.x/e*100).toFixed(2)}%`}>
+          ${function(e){const t=St(e.t),o=`${Math.round(po(e.position))}%`;return e.handler?`${t} · ${o} · ${e.handler}`:`${t} · ${o}`}(d.sample)}
+        </div>`:W,p=[0,6,12,18,24].map(e=>{const s=r(n+36e5*e);return U`
+        <line class="grid faint" x1=${s} y1=${o} x2=${s} y2=${t-.5} />
+        <text class="axis-label tick-time" x=${s} y=${t-3} text-anchor="middle">${e.toString().padStart(2,"0")}:00</text>
+      `}),g=this.now,m=r(g),_=g>=n&&g<=n+ho?U`<line class="now" x1=${m.toFixed(1)} y1=${o} x2=${m.toFixed(1)} y2=${t-.5}></line>`:W;return q`
       <div class="wrap">
         <svg
           viewBox="0 0 ${e} ${t}"
@@ -1378,7 +1378,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
           @pointermove=${this._onPointerMove}
           @pointerleave=${this._onPointerLeave}
         >
-          <title>${De("forecast.hover_hint",this.hass)}</title>
+          <title>${Be("forecast.hover_hint",this.hass)}</title>
           <line class="baseline" x1="0" y1=${t-.5} x2=${e} y2=${t-.5}></line>
           <text class="axis-label" x="4" y=${o+8} text-anchor="start">100%</text>
           ${p}
@@ -1387,7 +1387,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
         </svg>
         ${u}
       </div>
-    `}_nearestSampleIdx(e){const t=mt(new Date(this.now)).getTime();let o=-1,i=Number.POSITIVE_INFINITY;for(let s=0;s<this.samples.length;s++){const n=Date.parse(this.samples[s].t);if(Number.isNaN(n)||n<t||n>t+ao)continue;const a=Le(n,t,no.VIEW_W),r=Math.abs(a-e);r<i&&(i=r,o=s)}return o>=0?o:null}};function lo(e){return Number.isNaN(e)||e<0?0:e>100?100:e}ro.VIEW_W=600,ro.VIEW_H=80,ro.TOP_PAD=10,ro.EVENT_HIT_W=12,ro.styles=a`
+    `}_nearestSampleIdx(e){const t=yt(new Date(this.now)).getTime();let o=-1,s=Number.POSITIVE_INFINITY;for(let i=0;i<this.samples.length;i++){const n=Date.parse(this.samples[i].t);if(Number.isNaN(n)||n<t||n>t+ho)continue;const r=Ze(n,t,co.VIEW_W),a=Math.abs(r-e);a<s&&(s=a,o=i)}return o>=0?o:null}};function po(e){return Number.isNaN(e)||e<0?0:e>100?100:e}uo.VIEW_W=600,uo.VIEW_H=80,uo.TOP_PAD=10,uo.EVENT_HIT_W=12,uo.styles=r`
     :host {
       display: block;
     }
@@ -1480,7 +1480,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
       stroke: var(--accent-color, crimson);
       stroke-width: 1.25;
     }
-  `,e([ge({attribute:!1})],ro.prototype,"hass",void 0),e([ge({attribute:!1})],ro.prototype,"samples",void 0),e([ge({attribute:!1})],ro.prototype,"events",void 0),e([ge({attribute:!1})],ro.prototype,"now",void 0),e([me()],ro.prototype,"_hoverIdx",void 0),ro=no=e([he("acp-forecast-strip")],ro);let co=class extends ce{constructor(){super(...arguments),this.open=!1,this.advancedOpen=!1,this.showCompass=!0,this.showElevationChart=!0,this._onResume=()=>{const e=this.discovered.entities.reset_override_button;e&&this.hass.callService("button","press",{entity_id:e})},this._toggleAdvanced=()=>{this.advancedOpen=!this.advancedOpen},this._openDevicePage=()=>{const e=this.discovered.device_id;e&&this._navigate(`/config/devices/device/${e}`)},this._openIntegrationPage=()=>{this._navigate(`/config/integrations/integration/${$e}`)},this._onBackdrop=e=>{e.target===e.currentTarget&&this._emitClose()},this._emitClose=()=>{this.dispatchEvent(new CustomEvent("acp-dialog-close",{bubbles:!0,composed:!0}))},this._stop=e=>{e.stopPropagation()}}_buildHandlerLabels(){const e={};for(const[t,o]of Object.entries(Ce))e[t]=De(o,this.hass);return e}render(){if(!this.open||!this.hass||!this.discovered)return U;const e=this._winner(),t=this._traceAttrs(),o=this._matchedHandlers(t,e),i=Rt(t),s=t?Bt(t.trace??[],t,0,this._buildHandlerLabels(),De("badge.safety",this.hass)):"",n=this._target(),a=this._shouldShowResume(e),r=this._switchOn("integration_enabled_switch"),l=this._switchOn("automatic_control_switch"),c=De("dialog.configure_integration",this.hass),d=De("dialog.open_device_page",this.hass),h=De("dialog.close",this.hass);return q`
+  `,e([ge({attribute:!1})],uo.prototype,"hass",void 0),e([ge({attribute:!1})],uo.prototype,"samples",void 0),e([ge({attribute:!1})],uo.prototype,"events",void 0),e([ge({attribute:!1})],uo.prototype,"now",void 0),e([me()],uo.prototype,"_hoverIdx",void 0),uo=co=e([he("acp-forecast-strip")],uo);let go=class extends ce{constructor(){super(...arguments),this.open=!1,this.advancedOpen=!1,this.showCompass=!0,this.showElevationChart=!0,this._onResume=()=>{const e=this.discovered.entities.reset_override_button;e&&this.hass.callService("button","press",{entity_id:e})},this._toggleAdvanced=()=>{this.advancedOpen=!this.advancedOpen},this._openDevicePage=()=>{const e=this.discovered.device_id;e&&this._navigate(`/config/devices/device/${e}`)},this._openIntegrationPage=()=>{this._navigate(`/config/integrations/integration/${Ae}`)},this._onBackdrop=e=>{e.target===e.currentTarget&&this._emitClose()},this._emitClose=()=>{this.dispatchEvent(new CustomEvent("acp-dialog-close",{bubbles:!0,composed:!0}))},this._stop=e=>{e.stopPropagation()}}_buildHandlerLabels(){const e={};for(const[t,o]of Object.entries(Se))e[t]=Be(o,this.hass);return e}render(){if(!this.open||!this.hass||!this.discovered)return W;const e=this._winner(),t=this._traceAttrs(),o=this._matchedHandlers(t,e),s=Vt(t),i=t?qt(t.trace??[],t,0,this._buildHandlerLabels(),Be("badge.safety",this.hass)):"",n=this._target(),r=this._shouldShowResume(e),a=this._switchOn("integration_enabled_switch"),l=this._switchOn("automatic_control_switch"),c=Be("dialog.configure_integration",this.hass),d=Be("dialog.open_device_page",this.hass),h=Be("dialog.close",this.hass);return q`
       <div class="backdrop" data-open @click=${this._onBackdrop}>
         <div class="dialog" @click=${this._stop} role="dialog" aria-modal="true">
           <div class="header">
@@ -1490,15 +1490,15 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
             ></ha-icon>
             <div class="title">${this.discovered.entry_title}</div>
             <div class="badges">
-              ${r?l?o.map(e=>q`<acp-tile-badge
+              ${a?l?o.map(e=>q`<acp-tile-badge
                           .hass=${this.hass}
                           .winner=${e}
                           .slotNumber=${"custom_position"===e?t?.custom_position_active_slot:void 0}
                           .slotName=${"custom_position"===e?t?.custom_position_active_slot_name:void 0}
-                          .pct=${"custom_position"===e?Nt(t,n)??void 0:void 0}
+                          .pct=${"custom_position"===e?Kt(t,n)??void 0:void 0}
                           .minimumMode=${"custom_position"===e?t?.custom_position_minimum_mode:void 0}
-                          .safetyActive=${"custom_position"===e&&i}
-                        ></acp-tile-badge>`):U:q`<acp-tile-badge
+                          .safetyActive=${"custom_position"===e&&s}
+                        ></acp-tile-badge>`):W:q`<acp-tile-badge
                     .hass=${this.hass}
                     .integrationEnabled=${!1}
                   ></acp-tile-badge>`}
@@ -1520,31 +1520,31 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
                   @click=${this._openDevicePage}
                 >
                   <ha-icon icon="mdi:cog"></ha-icon>
-                </button>`:U}
+                </button>`:W}
             <button class="close" type="button" aria-label=${h} @click=${this._emitClose}>
               ✕
             </button>
           </div>
 
-          ${s?q`<div class="summary">${s}</div>`:U}
+          ${i?q`<div class="summary">${i}</div>`:W}
 
           <div class="position-block">
-            <div class="position-label">${De("dialog.target",this.hass)}</div>
-            <div class="position-value">${wt(n)}</div>
-            ${this._mismatchActive()?q`<ha-icon class="warn" icon="mdi:alert-circle-outline"></ha-icon>`:U}
+            <div class="position-label">${Be("dialog.target",this.hass)}</div>
+            <div class="position-value">${kt(n)}</div>
+            ${this._mismatchActive()?q`<ha-icon class="warn" icon="mdi:alert-circle-outline"></ha-icon>`:W}
           </div>
 
           <acp-cover-bar .hass=${this.hass} .discovered=${this.discovered}></acp-cover-bar>
 
           ${this._renderForecastStrip()} ${this._renderControls()}
-          ${a?q`<div class="actions">
+          ${r?q`<div class="actions">
                 <button class="resume" type="button" @click=${this._onResume}>
-                  ${De("dialog.resume_auto",this.hass)}
+                  ${Be("dialog.resume_auto",this.hass)}
                 </button>
-              </div>`:U}
+              </div>`:W}
 
           <button class="advanced-toggle" type="button" @click=${this._toggleAdvanced}>
-            ${this.advancedOpen?De("dialog.hide_advanced",this.hass):De("dialog.show_advanced",this.hass)}
+            ${this.advancedOpen?Be("dialog.hide_advanced",this.hass):Be("dialog.show_advanced",this.hass)}
           </button>
           ${this.advancedOpen?q`<div class="advanced">
                 ${this.showCompass?q`<div class="advanced-compass">
@@ -1555,12 +1555,12 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
                         .showLegend=${!1}
                         .showStats=${!0}
                       ></acp-sky-compass>
-                    </div>`:U}
+                    </div>`:W}
                 ${this.showElevationChart?q`<acp-elevation-chart
                       .hass=${this.hass}
                       .discoveredList=${[this.discovered]}
                       ?compact=${!0}
-                    ></acp-elevation-chart>`:U}
+                    ></acp-elevation-chart>`:W}
                 ${this._renderSlots(t?.custom_position_slots)}
                 <acp-decision-strip
                   .hass=${this.hass}
@@ -1574,69 +1574,69 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
                   .hass=${this.hass}
                   .discovered=${this.discovered}
                 ></acp-climate-panel>
-              </div>`:U}
+              </div>`:W}
         </div>
       </div>
-    `}_winner(){const e=this.discovered.entities.decision_trace_sensor;return e?this.hass.states[e]?.state??"default":"default"}_traceAttrs(){const e=this.discovered.entities.decision_trace_sensor;if(e)return this.hass.states[e]?.attributes}_matchedHandlers(e,t){if(!e?.trace)return[];const o=new Set;for(const t of e.trace){if(!t.matched)continue;const e=Dt(t.handler);Ae.includes(e)&&o.add(e)}const i=Ae.filter(e=>o.has(e)).map(e=>Oe[e]).filter(e=>void 0!==e),s=Jt(e.trace,t);return Lt(i,this.badges,s)}_target(){const e=this.discovered.entities.target_position_sensor;if(!e)return null;const t=this.hass.states[e];if(!t)return null;const o=parseFloat(t.state);return Number.isNaN(o)?null:o}_mismatchActive(){const e=this.discovered.entities.position_mismatch_binary;return!!e&&"on"===this.hass.states[e]?.state}_manualOverrideOn(){const e=this.discovered.entities.manual_override_binary;return!!e&&"on"===this.hass.states[e]?.state}_switchOn(e){const t=this.discovered.entities[e];return!t||"off"!==this.hass.states[t]?.state}_shouldShowResume(e){return!(!this.discovered.entities.reset_override_button||!this._manualOverrideOn()&&"custom_position"!==Dt(e))}_renderSlots(e){if(!e)return U;const t=e.filter(e=>null!==e.sensor);return 0===t.length?U:q`<div class="slots-section">
-      <div class="slots-label">${De("dialog.custom_positions",this.hass)}</div>
+    `}_winner(){const e=this.discovered.entities.decision_trace_sensor;return e?this.hass.states[e]?.state??"default":"default"}_traceAttrs(){const e=this.discovered.entities.decision_trace_sensor;if(e)return this.hass.states[e]?.attributes}_matchedHandlers(e,t){if(!e?.trace)return[];const o=new Set;for(const t of e.trace){if(!t.matched)continue;const e=Gt(t.handler);ke.includes(e)&&o.add(e)}const s=ke.filter(e=>o.has(e)).map(e=>Ie[e]).filter(e=>void 0!==e),i=oo(e.trace,t);return Jt(s,this.badges,i)}_target(){const e=this.discovered.entities.target_position_sensor;if(!e)return null;const t=this.hass.states[e];if(!t)return null;const o=parseFloat(t.state);return Number.isNaN(o)?null:o}_mismatchActive(){const e=this.discovered.entities.position_mismatch_binary;return!!e&&"on"===this.hass.states[e]?.state}_manualOverrideOn(){const e=this.discovered.entities.manual_override_binary;return!!e&&"on"===this.hass.states[e]?.state}_switchOn(e){const t=this.discovered.entities[e];return!t||"off"!==this.hass.states[t]?.state}_shouldShowResume(e){return!(!this.discovered.entities.reset_override_button||!this._manualOverrideOn()&&"custom_position"!==Gt(e))}_renderSlots(e){if(!e)return W;const t=e.filter(e=>null!==e.sensor);return 0===t.length?W:q`<div class="slots-section">
+      <div class="slots-label">${Be("dialog.custom_positions",this.hass)}</div>
       ${t.map(e=>this._renderSlotRow(e))}
-    </div>`}_renderSlotRow(e){const t=e.sensor_name??`#${e.slot}`,o=e.sensors?.length??0,i=!0===e.template?q`<span
+    </div>`}_renderSlotRow(e){const t=e.sensor_name??`#${e.slot}`,o=e.sensors?.length??0,s=!0===e.template?q`<span
             class="slot-template"
             title=${"Template"+(o>0?` · ${o} sensors${e.template_mode?` (${e.template_mode})`:""}`:"")}
           >
             <ha-icon icon="mdi:code-braces"></ha-icon>
-          </span>`:U;return q`<div class="slot-row" data-slot=${e.slot}>
+          </span>`:W;return q`<div class="slot-row" data-slot=${e.slot}>
       <span class="slot-label">${t}</span>
-      ${i}
-      <span class="slot-position">${wt(e.position)}</span>
+      ${s}
+      <span class="slot-position">${kt(e.position)}</span>
       ${!0===e.min_mode?q`<span
             class="slot-min-mode${null!=e.priority&&e.priority>80?"":" is-bypassable"}"
-            title=${De("dialog.floor_tooltip",this.hass)}
+            title=${Be("dialog.floor_tooltip",this.hass)}
           >
-            ${De("dialog.floor",this.hass)}
-          </span>`:U}
+            ${Be("dialog.floor",this.hass)}
+          </span>`:W}
       <button
         class="slot-toggle ${e.enabled?"on":"off"}"
         type="button"
-        aria-label=${e.enabled?De("dialog.disable_slot",this.hass,{slot:e.slot}):De("dialog.enable_slot",this.hass,{slot:e.slot})}
+        aria-label=${e.enabled?Be("dialog.disable_slot",this.hass,{slot:e.slot}):Be("dialog.enable_slot",this.hass,{slot:e.slot})}
         @click=${()=>this._toggleSlot(e)}
       >
-        ${e.enabled?De("dialog.on",this.hass):De("dialog.off",this.hass)}
+        ${e.enabled?Be("dialog.on",this.hass):Be("dialog.off",this.hass)}
       </button>
-    </div>`}_renderControls(){const e=[{role:"automatic_control_switch",label:De("dialog.automatic",this.hass)},{role:"climate_mode_switch",label:De("dialog.climate",this.hass)},{role:"motion_control_switch",label:De("dialog.motion",this.hass)}].filter(e=>!!this.discovered.entities[e.role]);return 0===e.length?U:q`<div class="controls-block">
-      <div class="controls-label">${De("dialog.controls",this.hass)}</div>
+    </div>`}_renderControls(){const e=[{role:"automatic_control_switch",label:Be("dialog.automatic",this.hass)},{role:"climate_mode_switch",label:Be("dialog.climate",this.hass)},{role:"motion_control_switch",label:Be("dialog.motion",this.hass)}].filter(e=>!!this.discovered.entities[e.role]);return 0===e.length?W:q`<div class="controls-block">
+      <div class="controls-label">${Be("dialog.controls",this.hass)}</div>
       <div class="controls-row">${e.map(e=>this._renderSwitchChip(e.role,e.label))}</div>
-    </div>`}_renderSwitchChip(e,t){const o=this.discovered.entities[e],i="on"===this.hass.states[o]?.state,s=De(i?"dialog.state_on":"dialog.state_off",this.hass),n=De(i?"dialog.on":"dialog.off",this.hass);return q`<button
-      class="ctrl-toggle ${i?"on":"off"}"
+    </div>`}_renderSwitchChip(e,t){const o=this.discovered.entities[e],s="on"===this.hass.states[o]?.state,i=Be(s?"dialog.state_on":"dialog.state_off",this.hass),n=Be(s?"dialog.on":"dialog.off",this.hass);return q`<button
+      class="ctrl-toggle ${s?"on":"off"}"
       type="button"
-      aria-pressed=${i}
-      aria-label=${De("dialog.toggle_hint",this.hass,{label:t,state:s})}
-      @click=${()=>this._toggleSwitch(o,i)}
+      aria-pressed=${s}
+      aria-label=${Be("dialog.toggle_hint",this.hass,{label:t,state:i})}
+      @click=${()=>this._toggleSwitch(o,s)}
     >
       <span class="ctrl-label">${t}</span>
       <span class="ctrl-state">${n}</span>
-    </button>`}_toggleSwitch(e,t){this.hass.callService("switch",t?"turn_off":"turn_on",{entity_id:e})}_renderForecastStrip(){const e=this.discovered.entities.position_forecast_sensor;if(!e)return U;const t=this.hass.states[e]?.attributes,o=t?.forecast??[],i=t?.events??[];return 0===o.length?U:q`<div class="forecast-block">
-      <div class="forecast-label">${De("dialog.todays_forecast",this.hass)}</div>
+    </button>`}_toggleSwitch(e,t){this.hass.callService("switch",t?"turn_off":"turn_on",{entity_id:e})}_renderForecastStrip(){const e=this.discovered.entities.position_forecast_sensor;if(!e)return W;const t=this.hass.states[e]?.attributes,o=t?.forecast??[],s=t?.events??[];return 0===o.length?W:q`<div class="forecast-block">
+      <div class="forecast-label">${Be("dialog.todays_forecast",this.hass)}</div>
       <acp-forecast-strip
         .hass=${this.hass}
         .samples=${o}
-        .events=${i}
+        .events=${s}
         .now=${Date.now()}
       ></acp-forecast-strip>
-      <div class="forecast-note">${De("forecast.solar_only_note",this.hass)}</div>
-    </div>`}_toggleSlot(e){const t=this.discovered.managed_covers[0];t&&this.hass.callService($e,"set_custom_position",{entity_id:t,slot:e.slot,enabled:!e.enabled})}_navigate(e){history.pushState(null,"",e),window.dispatchEvent(new CustomEvent("location-changed",{detail:{replace:!1}})),this._emitClose()}};function ho(e){return q`
+      <div class="forecast-note">${Be("forecast.solar_only_note",this.hass)}</div>
+    </div>`}_toggleSlot(e){const t=this.discovered.managed_covers[0];t&&this.hass.callService(Ae,"set_custom_position",{entity_id:t,slot:e.slot,enabled:!e.enabled})}_navigate(e){history.pushState(null,"",e),window.dispatchEvent(new CustomEvent("location-changed",{detail:{replace:!1}})),this._emitClose()}};function mo(e){return q`
     <div
       class="editor-footer"
       style="display:flex;align-items:center;justify-content:space-between;gap:8px;"
     >
       <a href=${"https://www.buymeacoffee.com/jrhubott"} target="_blank" rel="noopener noreferrer">
-        <img src=${"https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black"} alt=${De("editor.common.support_alt",e)} height="20" />
+        <img src=${"https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black"} alt=${Be("editor.common.support_alt",e)} height="20" />
       </a>
       <span class="version-footer dim">
-        ${De("root.footer_version",e,{version:_e})}
+        ${Be("root.footer_version",e,{version:fe})}
       </span>
     </div>
-  `}co.styles=a`
+  `}go.styles=r`
     :host {
       display: contents;
     }
@@ -1898,37 +1898,37 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     .ctrl-toggle:hover {
       background: rgba(var(--rgb-primary-color, 33, 150, 243), 0.08);
     }
-  `,e([ge({attribute:!1})],co.prototype,"hass",void 0),e([ge({attribute:!1})],co.prototype,"discovered",void 0),e([ge({type:Boolean,reflect:!0})],co.prototype,"open",void 0),e([ge({type:Boolean})],co.prototype,"advancedOpen",void 0),e([ge({type:Boolean})],co.prototype,"showCompass",void 0),e([ge({type:Boolean})],co.prototype,"showElevationChart",void 0),e([ge({attribute:!1})],co.prototype,"badges",void 0),co=e([he("acp-more-info-dialog")],co);const uo=["auto","solar","force","weather","manual","custom_position","motion","climate","glare_zone","cloud"],po={show_position:!0,show_state:!0,show_decision_summary:!1,show_controls:!0,show_badge:!0,show_compass:!0,show_elevation_chart:!0,show_motion_icon:!0,layout:"detailed",badge_auto:!0,badge_solar:!0,badge_force:!0,badge_weather:!0,badge_manual:!0,badge_custom_position:!0,badge_motion:!0,badge_climate:!0,badge_glare_zone:!0,badge_cloud:!0},go={entry_id:"editor.common.entry_id",name:"editor.tile.name",icon:"editor.tile.icon",cover:"editor.tile.cover",layout:"editor.tile.layout",show_position:"editor.tile.show_position",show_state:"editor.tile.show_state",show_decision_summary:"editor.tile.show_decision_summary",show_controls:"editor.tile.show_controls",show_badge:"editor.tile.show_badge",badge_section:"editor.tile.badge_section",badge_auto:"editor.tile.badge_auto",badge_solar:"editor.tile.badge_solar",badge_force:"editor.tile.badge_force",badge_weather:"editor.tile.badge_weather",badge_manual:"editor.tile.badge_manual",badge_custom_position:"editor.tile.badge_custom_position",badge_motion:"editor.tile.badge_motion",badge_climate:"editor.tile.badge_climate",badge_glare_zone:"editor.tile.badge_glare_zone",badge_cloud:"editor.tile.badge_cloud",show_compass:"editor.tile.show_compass",show_elevation_chart:"editor.tile.show_elevation_chart",show_motion_icon:"editor.tile.show_motion_icon",tap_action:"editor.tile.tap_action",hold_action:"editor.tile.hold_action",double_tap_action:"editor.tile.double_tap_action"};let mo=class extends ce{constructor(){super(...arguments),this._entries=null,this._entriesError=null,this._registry=null,this._managedCovers=[],this._entriesFetchInFlight=!1,this._registryFetchInFlight=!1,this._unsubRegistry=null,this._computeLabel=e=>{const t=go[e.name];return t?De(t,this.hass):e.name},this._valueChanged=e=>{e.stopPropagation();const t={...e.detail.value};for(const[e,o]of Object.entries(po))e.startsWith("badge_")?t[e]===o&&delete t[e]:this._config&&Object.prototype.hasOwnProperty.call(this._config,e)||t[e]!==o||delete t[e];const o={};for(const e of uo){const i=`badge_${e}`;!1===t[i]&&(o[e]=!1),delete t[i]}const i={...this._config??{type:"",entry_id:""},...t};Object.keys(o).length>0?i.badges=o:delete i.badges,this._emit(i)}}setConfig(e){this._config={...e}}disconnectedCallback(){super.disconnectedCallback(),this._unsubRegistry&&(this._unsubRegistry(),this._unsubRegistry=null)}updated(e){e.has("hass")&&this.hass&&(this._ensureEntries(),this._ensureRegistry()),e.has("_registry")&&null!==this._registry&&this._maybePrefillCover()}_ensureEntries(){this._entries||this._entriesFetchInFlight||(this._entriesFetchInFlight=!0,Ke(this.hass).then(e=>{this._entries=e,this._entriesError=null,this._config?.entry_id||1!==e.length||this._emit({...this._config??{type:"",entry_id:""},entry_id:e[0].entry_id}),this._maybePrefillCover()}).catch(e=>{this._entriesError=e?.message??"failed to load config entries"}).finally(()=>{this._entriesFetchInFlight=!1}))}_ensureRegistry(){null!==this._registry||this._registryFetchInFlight||(this._registryFetchInFlight=!0,Je(this.hass).then(e=>{this._registry=e,this._maybePrefillCover()}).catch(()=>{this._registry=[]}).finally(()=>{this._registryFetchInFlight=!1})),this._unsubRegistry||(this._unsubRegistry=Xe(this.hass,()=>{this._registryFetchInFlight=!0,Je(this.hass).then(e=>{this._registry=e}).catch(()=>{}).finally(()=>{this._registryFetchInFlight=!1})}))}_emit(e){this._config=e,this.dispatchEvent(new CustomEvent("config-changed",{detail:{config:e},bubbles:!0,composed:!0}))}_maybePrefillCover(){if(!this._config?.entry_id||this._config?.cover||!this._registry||!this.hass)return;const e=Be(this.hass,{type:this._config.type,entry_id:this._config.entry_id},this._registry);this._managedCovers=e?.managed_covers??[],1===e?.managed_covers.length&&this._emit({...this._config,cover:e.managed_covers[0]})}render(){if(!this._config)return U;if(this._entriesError&&!this._entries)return q`
+  `,e([ge({attribute:!1})],go.prototype,"hass",void 0),e([ge({attribute:!1})],go.prototype,"discovered",void 0),e([ge({type:Boolean,reflect:!0})],go.prototype,"open",void 0),e([ge({type:Boolean})],go.prototype,"advancedOpen",void 0),e([ge({type:Boolean})],go.prototype,"showCompass",void 0),e([ge({type:Boolean})],go.prototype,"showElevationChart",void 0),e([ge({attribute:!1})],go.prototype,"badges",void 0),go=e([he("acp-more-info-dialog")],go);const _o=["auto","solar","force","weather","manual","custom_position","motion","climate","glare_zone","cloud"],fo={show_position:!0,show_state:!0,show_decision_summary:!1,show_controls:!0,show_badge:!0,show_compass:!0,show_elevation_chart:!0,show_motion_icon:!0,layout:"detailed",badge_auto:!0,badge_solar:!0,badge_force:!0,badge_weather:!0,badge_manual:!0,badge_custom_position:!0,badge_motion:!0,badge_climate:!0,badge_glare_zone:!0,badge_cloud:!0},vo={entry_id:"editor.common.entry_id",name:"editor.tile.name",icon:"editor.tile.icon",cover:"editor.tile.cover",layout:"editor.tile.layout",show_position:"editor.tile.show_position",show_state:"editor.tile.show_state",show_decision_summary:"editor.tile.show_decision_summary",show_controls:"editor.tile.show_controls",show_badge:"editor.tile.show_badge",badge_section:"editor.tile.badge_section",badge_auto:"editor.tile.badge_auto",badge_solar:"editor.tile.badge_solar",badge_force:"editor.tile.badge_force",badge_weather:"editor.tile.badge_weather",badge_manual:"editor.tile.badge_manual",badge_custom_position:"editor.tile.badge_custom_position",badge_motion:"editor.tile.badge_motion",badge_climate:"editor.tile.badge_climate",badge_glare_zone:"editor.tile.badge_glare_zone",badge_cloud:"editor.tile.badge_cloud",show_compass:"editor.tile.show_compass",show_elevation_chart:"editor.tile.show_elevation_chart",show_motion_icon:"editor.tile.show_motion_icon",tap_action:"editor.tile.tap_action",hold_action:"editor.tile.hold_action",double_tap_action:"editor.tile.double_tap_action"};let yo=class extends ce{constructor(){super(...arguments),this._entries=null,this._entriesError=null,this._registry=null,this._managedCovers=[],this._entriesFetchInFlight=!1,this._registryFetchInFlight=!1,this._unsubRegistry=null,this._computeLabel=e=>{const t=vo[e.name];return t?Be(t,this.hass):e.name},this._valueChanged=e=>{e.stopPropagation();const t={...e.detail.value};for(const[e,o]of Object.entries(fo))e.startsWith("badge_")?t[e]===o&&delete t[e]:this._config&&Object.prototype.hasOwnProperty.call(this._config,e)||t[e]!==o||delete t[e];const o={};for(const e of _o){const s=`badge_${e}`;!1===t[s]&&(o[e]=!1),delete t[s]}const s={...this._config??{type:"",entry_id:""},...t};Object.keys(o).length>0?s.badges=o:delete s.badges,this._emit(s)}}setConfig(e){this._config={...e}}disconnectedCallback(){super.disconnectedCallback(),this._unsubRegistry&&(this._unsubRegistry(),this._unsubRegistry=null)}updated(e){e.has("hass")&&this.hass&&(this._ensureEntries(),this._ensureRegistry()),e.has("_registry")&&null!==this._registry&&this._maybePrefillCover()}_ensureEntries(){this._entries||this._entriesFetchInFlight||(this._entriesFetchInFlight=!0,qe(this.hass).then(e=>{this._entries=e,this._entriesError=null,this._config?.entry_id||1!==e.length||this._emit({...this._config??{type:"",entry_id:""},entry_id:e[0].entry_id}),this._maybePrefillCover()}).catch(e=>{this._entriesError=e?.message??"failed to load config entries"}).finally(()=>{this._entriesFetchInFlight=!1}))}_ensureRegistry(){null!==this._registry||this._registryFetchInFlight||(this._registryFetchInFlight=!0,tt(this.hass).then(e=>{this._registry=e,this._maybePrefillCover()}).catch(()=>{this._registry=[]}).finally(()=>{this._registryFetchInFlight=!1})),this._unsubRegistry||(this._unsubRegistry=ot(this.hass,()=>{this._registryFetchInFlight=!0,tt(this.hass).then(e=>{this._registry=e}).catch(()=>{}).finally(()=>{this._registryFetchInFlight=!1})}))}_emit(e){this._config=e,this.dispatchEvent(new CustomEvent("config-changed",{detail:{config:e},bubbles:!0,composed:!0}))}_maybePrefillCover(){if(!this._config?.entry_id||this._config?.cover||!this._registry||!this.hass)return;const e=Ge(this.hass,{type:this._config.type,entry_id:this._config.entry_id},this._registry);this._managedCovers=e?.managed_covers??[],1===e?.managed_covers.length&&this._emit({...this._config,cover:e.managed_covers[0]})}render(){if(!this._config)return W;if(this._entriesError&&!this._entries)return q`
         <div class="form">
           <div class="error">
-            ${De("editor.common.load_failed",this.hass,{error:this._entriesError})}
+            ${Be("editor.common.load_failed",this.hass,{error:this._entriesError})}
           </div>
           <label class="field-label" for="entry-id-fallback"
-            >${De("editor.common.entry_id_fallback_label",this.hass)}</label
+            >${Be("editor.common.entry_id_fallback_label",this.hass)}</label
           >
           <input
             id="entry-id-fallback"
             type="text"
             class="text-input"
             .value=${this._config.entry_id??""}
-            placeholder=${De("editor.common.entry_id_manual_placeholder",this.hass)}
+            placeholder=${Be("editor.common.entry_id_manual_placeholder",this.hass)}
             @change=${e=>this._emit({...this._config??{type:"",entry_id:""},entry_id:e.target.value})}
           />
-          ${ho(this.hass)}
+          ${mo(this.hass)}
         </div>
-      `;const e=this._schema(),{badges:t,...o}=this._config,i={};for(const e of uo)t&&!1===t[e]&&(i[`badge_${e}`]=!1);const s={...po,...o,...i};return q`
+      `;const e=this._schema(),{badges:t,...o}=this._config,s={};for(const e of _o)t&&!1===t[e]&&(s[`badge_${e}`]=!1);const i={...fo,...o,...s};return q`
       <div class="form">
         <ha-form
           .hass=${this.hass}
-          .data=${s}
+          .data=${i}
           .schema=${e}
           .computeLabel=${this._computeLabel}
           @value-changed=${this._valueChanged}
         ></ha-form>
-        ${this._managedCovers.length>1&&!this._config?.cover?q`<div class="hint">${De("editor.tile.cover_blank_hint",this.hass)}</div>`:U}
-        ${ho(this.hass)}
+        ${this._managedCovers.length>1&&!this._config?.cover?q`<div class="hint">${Be("editor.tile.cover_blank_hint",this.hass)}</div>`:W}
+        ${mo(this.hass)}
       </div>
-    `}_schema(){const e=this._entries?.map(e=>({value:e.entry_id,label:e.title}))??[],t=[{value:"one-line",label:De("editor.tile.layout_option_one_line",this.hass)},{value:"detailed",label:De("editor.tile.layout_option_detailed",this.hass)}];let o={entity:{domain:"cover"}};if(this._registry&&this._config?.entry_id){const e=Be(this.hass,{type:this._config.type,entry_id:this._config.entry_id},this._registry);e&&e.managed_covers.length>0&&(o={entity:{domain:"cover",include_entities:e.managed_covers}})}return[{name:"entry_id",required:!0,selector:{select:{options:e,mode:"dropdown"}}},{name:"name",selector:{text:{}}},{name:"icon",selector:{icon:{}}},{name:"cover",selector:o},{name:"layout",selector:{select:{mode:"list",options:t}}},{name:"show_position",selector:{boolean:{}}},{name:"show_state",selector:{boolean:{}}},{name:"show_decision_summary",selector:{boolean:{}}},{name:"show_controls",selector:{boolean:{}}},{name:"show_badge",selector:{boolean:{}}},{type:"expandable",name:"",title:De("editor.tile.badge_section",this.hass),icon:"mdi:label-multiple-outline",schema:[{type:"grid",name:"",schema:uo.map(e=>({name:`badge_${e}`,selector:{boolean:{}}}))}]},{name:"show_motion_icon",selector:{boolean:{}}},{name:"show_compass",selector:{boolean:{}}},{name:"show_elevation_chart",selector:{boolean:{}}},{name:"tap_action",selector:{ui_action:{}}},{name:"hold_action",selector:{ui_action:{}}},{name:"double_tap_action",selector:{ui_action:{}}}]}};mo.styles=a`
+    `}_schema(){const e=this._entries?.map(e=>({value:e.entry_id,label:e.title}))??[],t=[{value:"one-line",label:Be("editor.tile.layout_option_one_line",this.hass)},{value:"detailed",label:Be("editor.tile.layout_option_detailed",this.hass)}];let o={entity:{domain:"cover"}};if(this._registry&&this._config?.entry_id){const e=Ge(this.hass,{type:this._config.type,entry_id:this._config.entry_id},this._registry);e&&e.managed_covers.length>0&&(o={entity:{domain:"cover",include_entities:e.managed_covers}})}return[{name:"entry_id",required:!0,selector:{select:{options:e,mode:"dropdown"}}},{name:"name",selector:{text:{}}},{name:"icon",selector:{icon:{}}},{name:"cover",selector:o},{name:"layout",selector:{select:{mode:"list",options:t}}},{name:"show_position",selector:{boolean:{}}},{name:"show_state",selector:{boolean:{}}},{name:"show_decision_summary",selector:{boolean:{}}},{name:"show_controls",selector:{boolean:{}}},{name:"show_badge",selector:{boolean:{}}},{type:"expandable",name:"",title:Be("editor.tile.badge_section",this.hass),icon:"mdi:label-multiple-outline",schema:[{type:"grid",name:"",schema:_o.map(e=>({name:`badge_${e}`,selector:{boolean:{}}}))}]},{name:"show_motion_icon",selector:{boolean:{}}},{name:"show_compass",selector:{boolean:{}}},{name:"show_elevation_chart",selector:{boolean:{}}},{name:"tap_action",selector:{ui_action:{}}},{name:"hold_action",selector:{ui_action:{}}},{name:"double_tap_action",selector:{ui_action:{}}}]}};yo.styles=r`
     :host {
       display: block;
     }
@@ -1969,13 +1969,13 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     .dim {
       color: var(--secondary-text-color);
     }
-  `,e([ge({attribute:!1})],mo.prototype,"hass",void 0),e([me()],mo.prototype,"_config",void 0),e([me()],mo.prototype,"_entries",void 0),e([me()],mo.prototype,"_entriesError",void 0),e([me()],mo.prototype,"_registry",void 0),e([me()],mo.prototype,"_managedCovers",void 0),mo=e([he(xe)],mo);let _o=class extends ce{constructor(){super(...arguments),this._registry=null,this._registryError=null,this._dialogOpen=!1,this._unsubRegistry=null,this._fetchInFlight=!1,this._fetchGen=0,this._closeDialog=()=>{this._dialogOpen=!1},this._holdTimer=null,this._pendingTapTimer=null,this._holdFired=!1,this._onPointerDown=()=>{this._holdFired=!1,null!=this._holdTimer&&clearTimeout(this._holdTimer),Ut(this._config?.hold_action)&&(this._holdTimer=setTimeout(()=>{this._holdFired=!0,this._holdTimer=null,this._fireAction("hold")},500))},this._onPointerUp=()=>{null!=this._holdTimer&&(clearTimeout(this._holdTimer),this._holdTimer=null)},this._onPointerCancel=()=>{null!=this._holdTimer&&(clearTimeout(this._holdTimer),this._holdTimer=null)},this._onClick=()=>{if(!this._holdFired)return Ut(this._config?.double_tap_action)?null!=this._pendingTapTimer?(clearTimeout(this._pendingTapTimer),this._pendingTapTimer=null,void this._fireAction("double_tap")):void(this._pendingTapTimer=setTimeout(()=>{this._pendingTapTimer=null,this._fireAction("tap")},250)):void this._fireAction("tap");this._holdFired=!1}}setConfig(e){if(!e||"string"!=typeof e.entry_id||0===e.entry_id.length)throw new Error(`${we}: \`entry_id\` is required and must be a non-empty string`);let t={...e};"string"==typeof t.tap_action&&(t={...t,tap_action:"none"===t.tap_action?{action:"none"}:void 0}),this._config=t}getCardSize(){return 1}getGridOptions(){return{columns:"full",rows:"auto",min_columns:3,min_rows:"one-line"!==this._config?.layout?2:1}}static async getStubConfig(e){let t="";try{const o=await Ke(e);t=o[0]?.entry_id??""}catch{}return{type:`custom:${we}`,entry_id:t}}static async getConfigElement(){return document.createElement(xe)}connectedCallback(){super.connectedCallback(),this.hass&&this._ensureRegistry()}disconnectedCallback(){super.disconnectedCallback(),this._unsubRegistry&&(this._unsubRegistry(),this._unsubRegistry=null)}updated(e){e.has("hass")&&this.hass&&this._ensureRegistry()}_ensureRegistry(){null!==this._registry||this._fetchInFlight||this._fetchRegistry(),this._unsubRegistry||(this._unsubRegistry=Xe(this.hass,()=>{this._fetchRegistry()}))}_fetchRegistry(){if(this._fetchInFlight)return;this._fetchInFlight=!0;const e=++this._fetchGen;Je(this.hass).then(t=>{e===this._fetchGen&&(this._registry=t,this._registryError=null)}).catch(t=>{e===this._fetchGen&&(this._registryError=t?.message??"entity registry fetch failed")}).finally(()=>{e===this._fetchGen&&(this._fetchInFlight=!1)})}render(){if(!this._config||!this.hass)return U;if(null===this._registry)return q`<ha-card>
+  `,e([ge({attribute:!1})],yo.prototype,"hass",void 0),e([me()],yo.prototype,"_config",void 0),e([me()],yo.prototype,"_entries",void 0),e([me()],yo.prototype,"_entriesError",void 0),e([me()],yo.prototype,"_registry",void 0),e([me()],yo.prototype,"_managedCovers",void 0),yo=e([he($e)],yo);let bo=class extends ce{constructor(){super(...arguments),this._registry=null,this._registryError=null,this._dialogOpen=!1,this._unsubRegistry=null,this._fetchInFlight=!1,this._fetchGen=0,this._closeDialog=()=>{this._dialogOpen=!1},this._holdTimer=null,this._pendingTapTimer=null,this._holdFired=!1,this._onPointerDown=()=>{this._holdFired=!1,null!=this._holdTimer&&clearTimeout(this._holdTimer),Zt(this._config?.hold_action)&&(this._holdTimer=setTimeout(()=>{this._holdFired=!0,this._holdTimer=null,this._fireAction("hold")},500))},this._onPointerUp=()=>{null!=this._holdTimer&&(clearTimeout(this._holdTimer),this._holdTimer=null)},this._onPointerCancel=()=>{null!=this._holdTimer&&(clearTimeout(this._holdTimer),this._holdTimer=null)},this._onClick=()=>{if(!this._holdFired)return Zt(this._config?.double_tap_action)?null!=this._pendingTapTimer?(clearTimeout(this._pendingTapTimer),this._pendingTapTimer=null,void this._fireAction("double_tap")):void(this._pendingTapTimer=setTimeout(()=>{this._pendingTapTimer=null,this._fireAction("tap")},250)):void this._fireAction("tap");this._holdFired=!1}}setConfig(e){if(!e||"string"!=typeof e.entry_id||0===e.entry_id.length)throw new Error(`${xe}: \`entry_id\` is required and must be a non-empty string`);let t={...e};"string"==typeof t.tap_action&&(t={...t,tap_action:"none"===t.tap_action?{action:"none"}:void 0}),this._config=t}getCardSize(){return 1}getGridOptions(){return{columns:"full",rows:"auto",min_columns:3,min_rows:"one-line"!==this._config?.layout?2:1}}static async getStubConfig(e){let t="";try{const o=await qe(e);t=o[0]?.entry_id??""}catch{}return{type:`custom:${xe}`,entry_id:t}}static async getConfigElement(){return document.createElement($e)}connectedCallback(){super.connectedCallback(),this.hass&&this._ensureRegistry()}disconnectedCallback(){super.disconnectedCallback(),this._unsubRegistry&&(this._unsubRegistry(),this._unsubRegistry=null)}updated(e){e.has("hass")&&this.hass&&this._ensureRegistry()}_ensureRegistry(){null!==this._registry||this._fetchInFlight||this._fetchRegistry(),this._unsubRegistry||(this._unsubRegistry=ot(this.hass,()=>{this._fetchRegistry()}))}_fetchRegistry(){if(this._fetchInFlight)return;this._fetchInFlight=!0;const e=++this._fetchGen;tt(this.hass).then(t=>{e===this._fetchGen&&(this._registry=t,this._registryError=null)}).catch(t=>{e===this._fetchGen&&(this._registryError=t?.message??"entity registry fetch failed")}).finally(()=>{e===this._fetchGen&&(this._fetchInFlight=!1)})}render(){if(!this._config||!this.hass)return W;if(null===this._registry)return q`<ha-card>
         <div class="empty">
           <p class="dim">
-            ${this._registryError?De("tile.registry_failed",this.hass,{error:this._registryError}):De("tile.loading",this.hass)}
+            ${this._registryError?Be("tile.registry_failed",this.hass,{error:this._registryError}):Be("tile.loading",this.hass)}
           </p>
         </div>
-      </ha-card>`;const e=Be(this.hass,{type:this._config.type,entry_id:this._config.entry_id},this._registry);return e?q`
+      </ha-card>`;const e=Ge(this.hass,{type:this._config.type,entry_id:this._config.entry_id},this._registry);return e?q`
       <ha-card>${this._renderTile(e)}</ha-card>
       <acp-more-info-dialog
         .hass=${this.hass}
@@ -1989,33 +1989,33 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     `:q`<ha-card>
         <div class="empty">
           <p class="dim">
-            ${De("tile.entry_not_found",this.hass,{entry:this._config.entry_id})}
+            ${Be("tile.entry_not_found",this.hass,{entry:this._config.entry_id})}
           </p>
         </div>
-      </ha-card>`}_buildHandlerLabels(){const e={};for(const[t,o]of Object.entries(Ce))e[t]=De(o,this.hass);return e}_renderTile(e){const t=this._config,o=t.name??e.entry_title,i=this._resolvedCover(e),s=t.icon??function(e,t){if(null!==t&&!Number.isNaN(t)){if(t>=95)return Se[e]??"mdi:window-shutter-open";if(t<=5)return ze[e]??"mdi:window-shutter"}return Ee[e]??"mdi:window-shutter"}(e.cover_type,this._liveCoverPosition(i)),n=!1!==t.show_position,a=!1!==t.show_state,r=!1!==t.show_controls,l=!1!==t.show_badge,c=!1!==t.show_motion_icon?this._motionActiveState(e):null,d=De("timeout_pending"===c?"tile.motion_pending":"tile.motion_detected",this.hass),h="one-line"!==t.layout,u=this._currentPosition(e),p=this._liveCoverPosition(i)??u,g=this._winner(e),m=this._traceAttrs(e),_=this._manualEndIso(e),f=this._isFullyInert(t),v=Rt(m),y=!0===t.show_decision_summary&&m?Bt(m.trace??[],m,0,this._buildHandlerLabels(),De("badge.safety",this.hass)):"",b=!!y&&h,w=this._switchOn(e,"integration_enabled_switch"),x=this._switchOn(e,"automatic_control_switch"),$=this._manualOverrideOn(e),A=function(e){const t=function(e){const t=Zt(e);return"motion"!==t?t:!1===e.badges?.motion||e.showMotionIcon?!1===e.badges?.auto?null:"auto":t}(e);return!1===e.inTimeWindow&&!1!==e.badges?.off_schedule&&"off"!==t&&"manual"!==t&&"force"!==t?"off_schedule":t}({winner:g,integrationEnabled:w,manualActive:$,badges:t.badges,showMotionIcon:!1!==t.show_motion_icon,inTimeWindow:m?.in_time_window}),k=Jt(m?.trace,g),C=null!==A&&Lt([A],t.badges,k).length>0,E=l&&C&&!(!1===x&&!0===w),S=function(e){if(!e.integrationEnabled)return!1;if(!e.automaticControl)return!1;if(e.manualActive)return!1;const t=Dt(e.winner);return"force"!==t&&("custom_position"!==t||!e.bypassAutoControl&&!0!==e.safetyActive)}({winner:g,integrationEnabled:w,automaticControl:x,manualActive:$,bypassAutoControl:!0===m?.bypass_auto_control,safetyActive:v}),z=h&&l&&!1!==t.badges?.auto&&S,O=!(z&&"auto"===A),M=a?function(e,t){if(!e||!t)return null;const o=e.states[t];if(!o?.state||"unknown"===o.state||"unavailable"===o.state)return null;if("function"==typeof e.formatEntityState){const t=e.formatEntityState(o);if(t)return t}if("function"==typeof e.localize){const t=e.localize(`component.cover.entity_component._.state.${o.state}`);if(t)return t}return o.state.charAt(0).toUpperCase()+o.state.slice(1)}(this.hass,i):null,I=[M,n&&null!==p?wt(p):null].filter(e=>!!e),F=!!M,P=function(e,t,o){if(!Array.isArray(e?.custom_position_slots))return null;const i=e.custom_position_slots.filter(e=>!0===e.min_mode&&!0===e.enabled&&null!==e.sensor&&null!==e.position&&"on"===t[e.sensor]?.state);if(0===i.length)return null;const s=i.reduce((e,t)=>(t.position??0)>(e.position??0)?t:e),n=s.position,a=s.priority??null;return{slot:s.slot,position:n,label:s.sensor_name??`#${s.slot}`,clamping:null!==o&&n>o,sensorOn:!0,priority:a,resistsManual:null!=a&&a>80}}(m,this.hass.states,u),j=Dt(g),T=!!P&&!("custom_position"===j&&!0===m?.custom_position_minimum_mode)&&w,N=$&&!!e.entities.reset_override_button,R=I.length>0?q`<div class="position">${I.join(" · ")}</div>`:U,D=T?q`<span
+      </ha-card>`}_buildHandlerLabels(){const e={};for(const[t,o]of Object.entries(Se))e[t]=Be(o,this.hass);return e}_renderTile(e){const t=this._config,o=t.name??e.entry_title,s=this._resolvedCover(e),i=t.icon??function(e,t){if(null!==t&&!Number.isNaN(t)){if(t>=95)return ze[e]??"mdi:window-shutter-open";if(t<=5)return Oe[e]??"mdi:window-shutter"}return Ee[e]??"mdi:window-shutter"}(e.cover_type,this._liveCoverPosition(s)),n=!1!==t.show_position,r=!1!==t.show_state,a=!1!==t.show_controls,l=!1!==t.show_badge,c=!1!==t.show_motion_icon?this._motionActiveState(e):null,d=Be("timeout_pending"===c?"tile.motion_pending":"tile.motion_detected",this.hass),h="one-line"!==t.layout,u=this._currentPosition(e),p=this._liveCoverPosition(s)??u,g=this._winner(e),m=this._traceAttrs(e),_=this._manualEndIso(e),f=this._isFullyInert(t),v=Vt(m),y=!0===t.show_decision_summary&&m?qt(m.trace??[],m,0,this._buildHandlerLabels(),Be("badge.safety",this.hass)):"",b=!!y&&h,w=this._switchOn(e,"integration_enabled_switch"),x=this._switchOn(e,"automatic_control_switch"),$=this._manualOverrideOn(e),A=function(e){const t=function(e){const t=to(e);return"motion"!==t?t:!1===e.badges?.motion||e.showMotionIcon?!1===e.badges?.auto?null:"auto":t}(e);return!1===e.inTimeWindow&&!1!==e.badges?.off_schedule&&"off"!==t&&"manual"!==t&&"force"!==t?"off_schedule":t}({winner:g,integrationEnabled:w,manualActive:$,badges:t.badges,showMotionIcon:!1!==t.show_motion_icon,inTimeWindow:m?.in_time_window}),k=oo(m?.trace,g),C=null!==A&&Jt([A],t.badges,k).length>0,S=l&&C&&!(!1===x&&!0===w),E=function(e){if(!e.integrationEnabled)return!1;if(!e.automaticControl)return!1;if(e.manualActive)return!1;const t=Gt(e.winner);return"force"!==t&&("custom_position"!==t||!e.bypassAutoControl&&!0!==e.safetyActive)}({winner:g,integrationEnabled:w,automaticControl:x,manualActive:$,bypassAutoControl:!0===m?.bypass_auto_control,safetyActive:v}),z=h&&l&&!1!==t.badges?.auto&&E,O=!(z&&"auto"===A),I=r?function(e,t){if(!e||!t)return null;const o=e.states[t];if(!o?.state||"unknown"===o.state||"unavailable"===o.state)return null;if("function"==typeof e.formatEntityState){const t=e.formatEntityState(o);if(t)return t}if("function"==typeof e.localize){const t=e.localize(`component.cover.entity_component._.state.${o.state}`);if(t)return t}return o.state.charAt(0).toUpperCase()+o.state.slice(1)}(this.hass,s):null,M=[I,n&&null!==p?kt(p):null].filter(e=>!!e),F=!!I,P=function(e,t,o){if(!Array.isArray(e?.custom_position_slots))return null;const s=e.custom_position_slots.filter(e=>!0===e.min_mode&&!0===e.enabled&&null!==e.sensor&&null!==e.position&&"on"===t[e.sensor]?.state);if(0===s.length)return null;const i=s.reduce((e,t)=>(t.position??0)>(e.position??0)?t:e),n=i.position,r=i.priority??null;return{slot:i.slot,position:n,label:i.sensor_name??`#${i.slot}`,clamping:null!==o&&n>o,sensorOn:!0,priority:r,resistsManual:null!=r&&r>80}}(m,this.hass.states,u),j=Gt(g),T=!!P&&!("custom_position"===j&&!0===m?.custom_position_minimum_mode)&&w,N=$&&!!e.entities.reset_override_button,R=M.length>0?q`<div class="position">${M.join(" · ")}</div>`:W,D=T?q`<span
           class=${`acp-floor-chip${P.clamping?"":" is-armed"}${P.resistsManual?" resists-manual":" is-bypassable"}`}
-          title=${De("dialog.floor_tooltip",this.hass)}
-          >${De("dialog.floor",this.hass)} ${wt(P.position)}</span
-        >`:U,B=E?q`<acp-tile-badge
+          title=${Be("dialog.floor_tooltip",this.hass)}
+          >${Be("dialog.floor",this.hass)} ${kt(P.position)}</span
+        >`:W,B=S?q`<acp-tile-badge
           .hass=${this.hass}
           .winner=${g}
           .kindOverride=${A??void 0}
           .integrationEnabled=${w}
           .slotNumber=${m?.custom_position_active_slot}
           .slotName=${m?.custom_position_active_slot_name}
-          .pct=${Nt(m,u)??void 0}
+          .pct=${Kt(m,u)??void 0}
           .minimumMode=${m?.custom_position_minimum_mode}
           .safetyActive=${v}
           .manualEndIso=${_}
           .manualActive=${$}
           .resumable=${N}
           @acp-resume=${()=>this._resume(e)}
-        ></acp-tile-badge>`:U,K=z?q`<acp-tile-badge
+        ></acp-tile-badge>`:W,K=z?q`<acp-tile-badge
           .hass=${this.hass}
           .winner=${g}
           .kindOverride=${"auto"}
           .integrationEnabled=${w}
-        ></acp-tile-badge>`:U;return q`
+        ></acp-tile-badge>`:W;return q`
       <div
         class=${`tile-body${h?" detailed":""}${b?" has-summary":""}${F?" has-state-label":""}${T?" has-floor-chip":""}`}
         role=${f?"group":"button"}
@@ -2027,54 +2027,54 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
         @click=${this._onClick}
       >
         <div class="cover-icon-wrap">
-          <ha-icon class="cover-icon" icon=${s}></ha-icon>
+          <ha-icon class="cover-icon" icon=${i}></ha-icon>
           ${c?q`<ha-icon
                 class="motion-overlay ${c}"
                 icon="mdi:motion-sensor"
                 title=${d}
-              ></ha-icon>`:U}
+              ></ha-icon>`:W}
         </div>
         <div class="label">
           <div class="title" title=${e.entry_title}>${o}</div>
-          ${y&&!h?q`<div class="summary">${y}</div>`:U}
-          ${b?q`<div class="summary inline-summary" title=${y}>${y}</div>`:U}
+          ${y&&!h?q`<div class="summary">${y}</div>`:W}
+          ${b?q`<div class="summary inline-summary" title=${y}>${y}</div>`:W}
         </div>
-        ${h&&z?q`<div class="auto-line">${K}</div>`:U}
+        ${h&&z?q`<div class="auto-line">${K}</div>`:W}
         ${h?q`<div class="detail-line">
-              ${R}${D}${O?B:U}
+              ${R}${D}${O?B:W}
             </div>`:q`${R}${D}`}
-        ${r?q`<div class="controls" @click=${this._stop} @pointerdown=${this._stop}>
+        ${a?q`<div class="controls" @click=${this._stop} @pointerdown=${this._stop}>
               <button
                 class="up"
                 type="button"
-                aria-label=${De("tile.open",this.hass)}
-                ?disabled=${!i}
-                @click=${()=>this._setCoverPosition(i,100)}
+                aria-label=${Be("tile.open",this.hass)}
+                ?disabled=${!s}
+                @click=${()=>this._setCoverPosition(s,100)}
               >
                 <ha-icon icon="mdi:arrow-up"></ha-icon>
               </button>
               <button
                 class="stop"
                 type="button"
-                aria-label=${De("tile.stop",this.hass)}
-                ?disabled=${!i}
-                @click=${()=>this._stopCover(i)}
+                aria-label=${Be("tile.stop",this.hass)}
+                ?disabled=${!s}
+                @click=${()=>this._stopCover(s)}
               >
                 <ha-icon icon="mdi:stop"></ha-icon>
               </button>
               <button
                 class="down"
                 type="button"
-                aria-label=${De("tile.close",this.hass)}
-                ?disabled=${!i}
-                @click=${()=>this._setCoverPosition(i,0)}
+                aria-label=${Be("tile.close",this.hass)}
+                ?disabled=${!s}
+                @click=${()=>this._setCoverPosition(s,0)}
               >
                 <ha-icon icon="mdi:arrow-down"></ha-icon>
               </button>
-            </div>`:U}
-        ${h?U:B}
+            </div>`:W}
+        ${h?W:B}
       </div>
-    `}_resolvedCover(e){return this._config?.cover?this._config.cover:e.managed_covers[0]}_currentPosition(e){const t=e.entities.target_position_sensor;if(!t)return null;const o=this.hass.states[t];if(!o)return null;const i=parseFloat(o.state);return Number.isNaN(i)?null:i}_liveCoverPosition(e){if(!e)return null;const t=this.hass.states[e]?.attributes?.current_position;return"number"!=typeof t||Number.isNaN(t)?null:t}_winner(e){const t=e.entities.decision_trace_sensor;return t?this.hass.states[t]?.state??"default":"default"}_traceAttrs(e){const t=e.entities.decision_trace_sensor;if(t)return this.hass.states[t]?.attributes}_motionActiveState(e){const t=e.entities.motion_status_sensor;if(!t)return null;const o=this.hass.states[t]?.state;return"motion_detected"===o||"timeout_pending"===o?o:null}_manualOverrideOn(e){const t=e.entities.manual_override_binary;return!!t&&"on"===this.hass.states[t]?.state}_switchOn(e,t){const o=e.entities[t];return!o||"off"!==this.hass.states[o]?.state}_manualEndIso(e){if(!this._manualOverrideOn(e))return;const t=e.entities.manual_override_end_sensor;return t?this.hass.states[t]?.state:void 0}_setCoverPosition(e,t){e&&this.hass.callService($e,"set_position",{position:t},{entity_id:e})}_stopCover(e){e&&this.hass.callService($e,"stop",{},{entity_id:e})}_resume(e){const t=e.entities.reset_override_button;t&&this.hass.callService("button","press",{entity_id:t})}_tapActionConfig(){const e=this._config?.tap_action;if("string"!=typeof e)return e}_isFullyInert(e){return!!(e=>!!e&&"none"===e.action)(this._tapActionConfig())&&!Ut(e.hold_action)&&!Ut(e.double_tap_action)}_fireAction(e){if(!this._config||!this.hass)return;const t=this._tapActionConfig();if("tap"===e&&void 0===t)return this._dialogOpen=!0,void this.dispatchEvent(new CustomEvent("acp-tile-tap",{bubbles:!0,composed:!0}));const o=this._resolvedCoverFromState();((e,t,o,i)=>{let s;"double_tap"===i&&o.double_tap_action?s=o.double_tap_action:"hold"===i&&o.hold_action?s=o.hold_action:"tap"===i&&o.tap_action&&(s=o.tap_action),((e,t,o,i)=>{if(i||(i={action:"more-info"}),!i.confirmation||i.confirmation.exemptions&&i.confirmation.exemptions.some(e=>e.user===t.user.id)||(Yt("warning"),confirm(i.confirmation.text||`Are you sure you want to ${i.action}?`)))switch(i.action){case"more-info":(o.entity||o.camera_image)&&Wt(e,"hass-more-info",{entityId:o.entity?o.entity:o.camera_image});break;case"navigate":i.navigation_path&&((e,t,o=!1)=>{o?history.replaceState(null,"",t):history.pushState(null,"",t),Wt(window,"location-changed",{replace:o})})(0,i.navigation_path);break;case"url":i.url_path&&window.open(i.url_path);break;case"toggle":o.entity&&(((e,t)=>{((e,t,o=!0)=>{const i=function(e){return e.substr(0,e.indexOf("."))}(t),s="group"===i?"homeassistant":i;let n;switch(i){case"lock":n=o?"unlock":"lock";break;case"cover":n=o?"open_cover":"close_cover";break;default:n=o?"turn_on":"turn_off"}e.callService(s,n,{entity_id:t})})(e,t,qt.includes(e.states[t].state))})(t,o.entity),Yt("success"));break;case"call-service":{if(!i.service)return void Yt("failure");const[e,o]=i.service.split(".",2);t.callService(e,o,i.service_data,i.target),Yt("success");break}case"fire-dom-event":Wt(e,"ll-custom",i)}})(e,t,o,s)})(this,this.hass,{entity:o,tap_action:t,hold_action:this._config.hold_action,double_tap_action:this._config.double_tap_action},e)}_resolvedCoverFromState(){if(this._config?.cover)return this._config.cover;if(null===this._registry)return;const e=Be(this.hass,{type:this._config.type,entry_id:this._config.entry_id},this._registry);return e?.managed_covers[0]}_stop(e){e.stopPropagation()}};_o.styles=a`
+    `}_resolvedCover(e){return this._config?.cover?this._config.cover:e.managed_covers[0]}_currentPosition(e){const t=e.entities.target_position_sensor;if(!t)return null;const o=this.hass.states[t];if(!o)return null;const s=parseFloat(o.state);return Number.isNaN(s)?null:s}_liveCoverPosition(e){if(!e)return null;const t=this.hass.states[e]?.attributes?.current_position;return"number"!=typeof t||Number.isNaN(t)?null:t}_winner(e){const t=e.entities.decision_trace_sensor;return t?this.hass.states[t]?.state??"default":"default"}_traceAttrs(e){const t=e.entities.decision_trace_sensor;if(t)return this.hass.states[t]?.attributes}_motionActiveState(e){const t=e.entities.motion_status_sensor;if(!t)return null;const o=this.hass.states[t]?.state;return"motion_detected"===o||"timeout_pending"===o?o:null}_manualOverrideOn(e){const t=e.entities.manual_override_binary;return!!t&&"on"===this.hass.states[t]?.state}_switchOn(e,t){const o=e.entities[t];return!o||"off"!==this.hass.states[o]?.state}_manualEndIso(e){if(!this._manualOverrideOn(e))return;const t=e.entities.manual_override_end_sensor;return t?this.hass.states[t]?.state:void 0}_setCoverPosition(e,t){e&&this.hass.callService(Ae,"set_position",{position:t},{entity_id:e})}_stopCover(e){e&&this.hass.callService(Ae,"stop",{},{entity_id:e})}_resume(e){const t=e.entities.reset_override_button;t&&this.hass.callService("button","press",{entity_id:t})}_tapActionConfig(){const e=this._config?.tap_action;if("string"!=typeof e)return e}_isFullyInert(e){return!!(e=>!!e&&"none"===e.action)(this._tapActionConfig())&&!Zt(e.hold_action)&&!Zt(e.double_tap_action)}_fireAction(e){if(!this._config||!this.hass)return;const t=this._tapActionConfig();if("tap"===e&&void 0===t)return this._dialogOpen=!0,void this.dispatchEvent(new CustomEvent("acp-tile-tap",{bubbles:!0,composed:!0}));const o=this._resolvedCoverFromState();((e,t,o,s)=>{let i;"double_tap"===s&&o.double_tap_action?i=o.double_tap_action:"hold"===s&&o.hold_action?i=o.hold_action:"tap"===s&&o.tap_action&&(i=o.tap_action),((e,t,o,s)=>{if(s||(s={action:"more-info"}),!s.confirmation||s.confirmation.exemptions&&s.confirmation.exemptions.some(e=>e.user===t.user.id)||(Ht("warning"),confirm(s.confirmation.text||`Are you sure you want to ${s.action}?`)))switch(s.action){case"more-info":(o.entity||o.camera_image)&&Qt(e,"hass-more-info",{entityId:o.entity?o.entity:o.camera_image});break;case"navigate":s.navigation_path&&((e,t,o=!1)=>{o?history.replaceState(null,"",t):history.pushState(null,"",t),Qt(window,"location-changed",{replace:o})})(0,s.navigation_path);break;case"url":s.url_path&&window.open(s.url_path);break;case"toggle":o.entity&&(((e,t)=>{((e,t,o=!0)=>{const s=function(e){return e.substr(0,e.indexOf("."))}(t),i="group"===s?"homeassistant":s;let n;switch(s){case"lock":n=o?"unlock":"lock";break;case"cover":n=o?"open_cover":"close_cover";break;default:n=o?"turn_on":"turn_off"}e.callService(i,n,{entity_id:t})})(e,t,Yt.includes(e.states[t].state))})(t,o.entity),Ht("success"));break;case"call-service":{if(!s.service)return void Ht("failure");const[e,o]=s.service.split(".",2);t.callService(e,o,s.service_data,s.target),Ht("success");break}case"fire-dom-event":Qt(e,"ll-custom",s)}})(e,t,o,i)})(this,this.hass,{entity:o,tap_action:t,hold_action:this._config.hold_action,double_tap_action:this._config.double_tap_action},e)}_resolvedCoverFromState(){if(this._config?.cover)return this._config.cover;if(null===this._registry)return;const e=Ge(this.hass,{type:this._config.type,entry_id:this._config.entry_id},this._registry);return e?.managed_covers[0]}_stop(e){e.stopPropagation()}};bo.styles=r`
     :host {
       display: block;
       height: 100%;
@@ -2407,17 +2407,17 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
       color: var(--secondary-text-color);
       margin: 0;
     }
-  `,e([ge({attribute:!1})],_o.prototype,"hass",void 0),e([me()],_o.prototype,"_config",void 0),e([me()],_o.prototype,"_registry",void 0),e([me()],_o.prototype,"_registryError",void 0),e([me()],_o.prototype,"_dialogOpen",void 0),_o=e([he(we)],_o),window.customCards=window.customCards||[],window.customCards.some(e=>e.type===we)||window.customCards.push({type:we,name:"Adaptive Cover Pro — Tile",description:"Compact chip-style tile for one Adaptive Cover Pro instance: icon, name, position, ↑■↓, contextual badge.",preview:!0,documentationURL:"https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card"});const fo=[{key:"sky",labelKey:"editor.main.section_sky_label",descKey:"editor.main.section_sky_desc"},{key:"elevation",labelKey:"editor.main.section_elevation_label",descKey:"editor.main.section_elevation_desc"},{key:"decision",labelKey:"editor.main.section_decision_label",descKey:"editor.main.section_decision_desc"},{key:"covers",labelKey:"editor.main.section_covers_label",descKey:"editor.main.section_covers_desc"},{key:"overrides",labelKey:"editor.main.section_overrides_label",descKey:"editor.main.section_overrides_desc"},{key:"climate",labelKey:"editor.main.section_climate_label",descKey:"editor.main.section_climate_desc"}],vo=fo.map(e=>e.key);let yo=class extends ce{constructor(){super(...arguments),this._entries=null,this._entriesError=null,this._fetchInFlight=!1}setConfig(e){this._config=e}updated(e){e.has("hass")&&this.hass&&!this._entries&&!this._fetchInFlight&&(this._fetchInFlight=!0,Ke(this.hass).then(e=>{this._entries=e,this._entriesError=null,this._config?.entry_id||1!==e.length||this._emit({...this._config??{type:"",entry_id:""},entry_id:e[0].entry_id})}).catch(e=>{this._entriesError=e?.message??"failed to load config entries"}).finally(()=>{this._fetchInFlight=!1}))}get _currentSections(){return this._config?.show_sections??vo}_emit(e){this._config=e,this.dispatchEvent(new CustomEvent("config-changed",{detail:{config:e},bubbles:!0,composed:!0}))}_onEntryChange(e){const t=e.target.value;this._emit({...this._config??{type:"",entry_id:""},entry_id:t})}_onSectionToggle(e,t){const o=new Set(this._currentSections);t?o.add(e):o.delete(e);const i=fo.map(e=>e.key).filter(e=>o.has(e));this._emit({...this._config??{type:"",entry_id:""},show_sections:i})}_onCompactToggle(e){this._emit({...this._config??{type:"",entry_id:""},compact:e})}_onCompassStatsToggle(e){this._emit({...this._config??{type:"",entry_id:""},show_compass_stats:e})}_onCompassLegendToggle(e){this._emit({...this._config??{type:"",entry_id:""},show_compass_legend:e})}_onMoonToggle(e){this._emit({...this._config??{type:"",entry_id:""},show_moon:e})}_onHideInactiveToggle(e){this._emit({...this._config??{type:"",entry_id:""},hide_inactive_handlers:e})}_onNorthOffsetChange(e){const t=parseFloat(e.target.value),o=Number.isFinite(t)?t:0;this._emit({...this._config??{type:"",entry_id:""},north_offset:o})}_onControlToggle(e,t){const o=this._config??{type:"",entry_id:""};this._emit({...o,controls:{...o.controls,[e]:t}})}_onCoverColorChange(e){const t=this._config??{type:"",entry_id:""};this._emit({...t,cover_colors:[e]})}_onCoverColorReset(){const e={...this._config??{type:"",entry_id:""}};delete e.cover_colors,this._emit(e)}render(){if(!this._config)return U;const e=new Set(this._currentSections);return q`
+  `,e([ge({attribute:!1})],bo.prototype,"hass",void 0),e([me()],bo.prototype,"_config",void 0),e([me()],bo.prototype,"_registry",void 0),e([me()],bo.prototype,"_registryError",void 0),e([me()],bo.prototype,"_dialogOpen",void 0),bo=e([he(xe)],bo),window.customCards=window.customCards||[],window.customCards.some(e=>e.type===xe)||window.customCards.push({type:xe,name:"Adaptive Cover Pro — Tile",description:"Compact chip-style tile for one Adaptive Cover Pro instance: icon, name, position, ↑■↓, contextual badge.",preview:!0,documentationURL:"https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card"});const wo=[{key:"sky",labelKey:"editor.main.section_sky_label",descKey:"editor.main.section_sky_desc"},{key:"elevation",labelKey:"editor.main.section_elevation_label",descKey:"editor.main.section_elevation_desc"},{key:"decision",labelKey:"editor.main.section_decision_label",descKey:"editor.main.section_decision_desc"},{key:"covers",labelKey:"editor.main.section_covers_label",descKey:"editor.main.section_covers_desc"},{key:"overrides",labelKey:"editor.main.section_overrides_label",descKey:"editor.main.section_overrides_desc"},{key:"climate",labelKey:"editor.main.section_climate_label",descKey:"editor.main.section_climate_desc"}],xo=wo.map(e=>e.key);let $o=class extends ce{constructor(){super(...arguments),this._entries=null,this._entriesError=null,this._fetchInFlight=!1}setConfig(e){this._config=e}updated(e){e.has("hass")&&this.hass&&!this._entries&&!this._fetchInFlight&&(this._fetchInFlight=!0,qe(this.hass).then(e=>{this._entries=e,this._entriesError=null,this._config?.entry_id||1!==e.length||this._emit({...this._config??{type:"",entry_id:""},entry_id:e[0].entry_id})}).catch(e=>{this._entriesError=e?.message??"failed to load config entries"}).finally(()=>{this._fetchInFlight=!1}))}get _currentSections(){return this._config?.show_sections??xo}_emit(e){this._config=e,this.dispatchEvent(new CustomEvent("config-changed",{detail:{config:e},bubbles:!0,composed:!0}))}_onEntryChange(e){const t=e.target.value;this._emit({...this._config??{type:"",entry_id:""},entry_id:t})}_onSectionToggle(e,t){const o=new Set(this._currentSections);t?o.add(e):o.delete(e);const s=wo.map(e=>e.key).filter(e=>o.has(e));this._emit({...this._config??{type:"",entry_id:""},show_sections:s})}_onCompactToggle(e){this._emit({...this._config??{type:"",entry_id:""},compact:e})}_onCompassStatsToggle(e){this._emit({...this._config??{type:"",entry_id:""},show_compass_stats:e})}_onCompassLegendToggle(e){this._emit({...this._config??{type:"",entry_id:""},show_compass_legend:e})}_onMoonToggle(e){this._emit({...this._config??{type:"",entry_id:""},show_moon:e})}_onHideInactiveToggle(e){this._emit({...this._config??{type:"",entry_id:""},hide_inactive_handlers:e})}_onNorthOffsetChange(e){const t=parseFloat(e.target.value),o=Number.isFinite(t)?t:0;this._emit({...this._config??{type:"",entry_id:""},north_offset:o})}_onControlToggle(e,t){const o=this._config??{type:"",entry_id:""};this._emit({...o,controls:{...o.controls,[e]:t}})}_onCoverColorChange(e){const t=this._config??{type:"",entry_id:""};this._emit({...t,cover_colors:[e]})}_onCoverColorReset(){const e={...this._config??{type:"",entry_id:""}};delete e.cover_colors,this._emit(e)}render(){if(!this._config)return W;const e=new Set(this._currentSections);return q`
       <div class="form">
         <div class="section">
-          <label class="field-label">${De("editor.common.entry_id",this.hass)}</label>
+          <label class="field-label">${Be("editor.common.entry_id",this.hass)}</label>
           ${this._renderEntryPicker()}
         </div>
 
         <div class="section">
-          <label class="field-label">${De("editor.main.sections",this.hass)}</label>
-          <div class="hint">${De("editor.main.sections_hint",this.hass)}</div>
-          ${fo.map(t=>q`
+          <label class="field-label">${Be("editor.main.sections",this.hass)}</label>
+          <div class="hint">${Be("editor.main.sections_hint",this.hass)}</div>
+          ${wo.map(t=>q`
               <label class="toggle-row">
                 <input
                   type="checkbox"
@@ -2425,16 +2425,16 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
                   @change=${e=>this._onSectionToggle(t.key,e.target.checked)}
                 />
                 <span class="toggle-text">
-                  <span class="toggle-label">${De(t.labelKey,this.hass)}</span>
-                  <span class="toggle-desc">${De(t.descKey,this.hass)}</span>
+                  <span class="toggle-label">${Be(t.labelKey,this.hass)}</span>
+                  <span class="toggle-desc">${Be(t.descKey,this.hass)}</span>
                 </span>
               </label>
             `)}
         </div>
 
         <div class="section">
-          <label class="field-label">${De("editor.main.controls",this.hass)}</label>
-          <div class="hint">${De("editor.main.controls_hint",this.hass)}</div>
+          <label class="field-label">${Be("editor.main.controls",this.hass)}</label>
+          <div class="hint">${Be("editor.main.controls_hint",this.hass)}</div>
           <label class="toggle-row">
             <input
               type="checkbox"
@@ -2443,9 +2443,9 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
             />
             <span class="toggle-text">
               <span class="toggle-label"
-                >${De("editor.main.integration_pill_label",this.hass)}</span
+                >${Be("editor.main.integration_pill_label",this.hass)}</span
               >
-              <span class="toggle-desc">${De("editor.main.integration_pill_desc",this.hass)}</span>
+              <span class="toggle-desc">${Be("editor.main.integration_pill_desc",this.hass)}</span>
             </span>
           </label>
           <label class="toggle-row">
@@ -2455,8 +2455,8 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
               @change=${e=>this._onControlToggle("automatic_control",e.target.checked)}
             />
             <span class="toggle-text">
-              <span class="toggle-label">${De("editor.main.automatic_pill_label",this.hass)}</span>
-              <span class="toggle-desc">${De("editor.main.automatic_pill_desc",this.hass)}</span>
+              <span class="toggle-label">${Be("editor.main.automatic_pill_label",this.hass)}</span>
+              <span class="toggle-desc">${Be("editor.main.automatic_pill_desc",this.hass)}</span>
             </span>
           </label>
           <label class="toggle-row">
@@ -2466,17 +2466,17 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
               @change=${e=>this._onControlToggle("reset_manual_override",e.target.checked)}
             />
             <span class="toggle-text">
-              <span class="toggle-label">${De("editor.main.reset_button_label",this.hass)}</span>
-              <span class="toggle-desc">${De("editor.main.reset_button_desc",this.hass)}</span>
+              <span class="toggle-label">${Be("editor.main.reset_button_label",this.hass)}</span>
+              <span class="toggle-desc">${Be("editor.main.reset_button_desc",this.hass)}</span>
             </span>
           </label>
         </div>
 
         ${this._config.entry_id?q`
               <div class="section">
-                <label class="field-label">${De("editor.compass.cover_colors",this.hass)}</label>
-                <div class="hint">${De("editor.compass.cover_colors_hint",this.hass)}</div>
-                ${(()=>{const e=this._config.cover_colors?.[0]??null,t=e??zt(0);return q`
+                <label class="field-label">${Be("editor.compass.cover_colors",this.hass)}</label>
+                <div class="hint">${Be("editor.compass.cover_colors_hint",this.hass)}</div>
+                ${(()=>{const e=this._config.cover_colors?.[0]??null,t=e??Ft(0);return q`
                     <div class="color-row">
                       <input
                         type="color"
@@ -2485,7 +2485,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
                       />
                       <span class="toggle-text">
                         <span class="toggle-desc"
-                          >${e||De("editor.compass.default_color",this.hass)}</span
+                          >${e||Be("editor.compass.default_color",this.hass)}</span
                         >
                       </span>
                       <button
@@ -2494,15 +2494,15 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
                         ?disabled=${!e}
                         @click=${()=>this._onCoverColorReset()}
                       >
-                        ${De("editor.common.reset",this.hass)}
+                        ${Be("editor.common.reset",this.hass)}
                       </button>
                     </div>
                   `})()}
               </div>
-            `:U}
+            `:W}
 
         <div class="section">
-          <label class="field-label">${De("editor.main.display",this.hass)}</label>
+          <label class="field-label">${Be("editor.main.display",this.hass)}</label>
           <label class="toggle-row">
             <input
               type="checkbox"
@@ -2510,8 +2510,8 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
               @change=${e=>this._onCompactToggle(e.target.checked)}
             />
             <span class="toggle-text">
-              <span class="toggle-label">${De("editor.main.compact_label",this.hass)}</span>
-              <span class="toggle-desc">${De("editor.main.compact_desc",this.hass)}</span>
+              <span class="toggle-label">${Be("editor.main.compact_label",this.hass)}</span>
+              <span class="toggle-desc">${Be("editor.main.compact_desc",this.hass)}</span>
             </span>
           </label>
           <label class="toggle-row">
@@ -2522,10 +2522,10 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
             />
             <span class="toggle-text">
               <span class="toggle-label"
-                >${De("editor.main.show_compass_stats_label",this.hass)}</span
+                >${Be("editor.main.show_compass_stats_label",this.hass)}</span
               >
               <span class="toggle-desc"
-                >${De("editor.main.show_compass_stats_desc",this.hass)}</span
+                >${Be("editor.main.show_compass_stats_desc",this.hass)}</span
               >
             </span>
           </label>
@@ -2537,10 +2537,10 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
             />
             <span class="toggle-text">
               <span class="toggle-label"
-                >${De("editor.main.show_compass_legend_label",this.hass)}</span
+                >${Be("editor.main.show_compass_legend_label",this.hass)}</span
               >
               <span class="toggle-desc"
-                >${De("editor.main.show_compass_legend_desc",this.hass)}</span
+                >${Be("editor.main.show_compass_legend_desc",this.hass)}</span
               >
             </span>
           </label>
@@ -2551,8 +2551,8 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
               @change=${e=>this._onMoonToggle(e.target.checked)}
             />
             <span class="toggle-text">
-              <span class="toggle-label">${De("editor.main.show_moon_label",this.hass)}</span>
-              <span class="toggle-desc">${De("editor.main.show_moon_desc",this.hass)}</span>
+              <span class="toggle-label">${Be("editor.main.show_moon_label",this.hass)}</span>
+              <span class="toggle-desc">${Be("editor.main.show_moon_desc",this.hass)}</span>
             </span>
           </label>
           <label class="toggle-row">
@@ -2562,15 +2562,15 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
               @change=${e=>this._onHideInactiveToggle(e.target.checked)}
             />
             <span class="toggle-text">
-              <span class="toggle-label">${De("editor.main.hide_inactive_label",this.hass)}</span>
-              <span class="toggle-desc">${De("editor.main.hide_inactive_desc",this.hass)}</span>
+              <span class="toggle-label">${Be("editor.main.hide_inactive_label",this.hass)}</span>
+              <span class="toggle-desc">${Be("editor.main.hide_inactive_desc",this.hass)}</span>
             </span>
           </label>
         </div>
 
         <div class="section">
-          <label class="field-label">${De("editor.common.north_offset",this.hass)}</label>
-          <div class="hint">${De("editor.common.north_offset_hint",this.hass)}</div>
+          <label class="field-label">${Be("editor.common.north_offset",this.hass)}</label>
+          <div class="hint">${Be("editor.common.north_offset_hint",this.hass)}</div>
           <input
             type="number"
             class="text-input"
@@ -2580,36 +2580,36 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
             @change=${this._onNorthOffsetChange}
           />
         </div>
-        ${ho(this.hass)}
+        ${mo(this.hass)}
       </div>
     `}_renderEntryPicker(){return this._entriesError?q`
         <div class="error">
-          ${De("editor.common.load_failed",this.hass,{error:this._entriesError})}
+          ${Be("editor.common.load_failed",this.hass,{error:this._entriesError})}
         </div>
         <input
           type="text"
           .value=${this._config?.entry_id??""}
-          placeholder=${De("editor.common.entry_id_manual_placeholder",this.hass)}
+          placeholder=${Be("editor.common.entry_id_manual_placeholder",this.hass)}
           @change=${this._onEntryChange}
           class="text-input"
         />
       `:this._entries?0===this._entries.length?q`
         <div class="error">
-          ${De("editor.common.no_entries",this.hass)}
-          <code>${De("editor.common.no_entries_path",this.hass)}</code>${De("editor.common.no_entries_then",this.hass)}
+          ${Be("editor.common.no_entries",this.hass)}
+          <code>${Be("editor.common.no_entries_path",this.hass)}</code>${Be("editor.common.no_entries_then",this.hass)}
         </div>
       `:q`
       <select class="select" .value=${this._config?.entry_id??""} @change=${this._onEntryChange}>
         ${this._config?.entry_id&&!this._entries.some(e=>e.entry_id===this._config.entry_id)?q`<option value=${this._config.entry_id}>
-              ${De("editor.common.unknown_entry",this.hass,{entry:this._config.entry_id})}
-            </option>`:U}
+              ${Be("editor.common.unknown_entry",this.hass,{entry:this._config.entry_id})}
+            </option>`:W}
         ${this._entries.map(e=>q`
             <option value=${e.entry_id} ?selected=${e.entry_id===this._config?.entry_id}>
               ${e.title}
             </option>
           `)}
       </select>
-    `:q`<div class="hint">${De("editor.common.loading_entries",this.hass)}</div>`}};yo.styles=a`
+    `:q`<div class="hint">${Be("editor.common.loading_entries",this.hass)}</div>`}};$o.styles=r`
     :host {
       display: block;
     }
@@ -2724,40 +2724,40 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     .dim {
       color: var(--secondary-text-color);
     }
-  `,e([ge({attribute:!1})],yo.prototype,"hass",void 0),e([me()],yo.prototype,"_config",void 0),e([me()],yo.prototype,"_entries",void 0),e([me()],yo.prototype,"_entriesError",void 0),yo=e([he(ve)],yo);const bo=[{key:"compact",labelKey:"editor.compass.toggle_compact_label",descKey:"editor.compass.toggle_compact_desc",defaultOn:!1},{key:"show_legend",labelKey:"editor.compass.toggle_legend_label",descKey:"editor.compass.toggle_legend_desc",defaultOn:!0},{key:"show_stats",labelKey:"editor.compass.toggle_stats_label",descKey:"editor.compass.toggle_stats_desc",defaultOn:!0},{key:"show_moon",labelKey:"editor.compass.toggle_moon_label",descKey:"editor.compass.toggle_moon_desc",defaultOn:!1},{key:"show_cardinals",labelKey:"editor.compass.toggle_cardinals_label",descKey:"editor.compass.toggle_cardinals_desc",defaultOn:!0},{key:"show_blind_spot",labelKey:"editor.compass.toggle_blind_spot_label",descKey:"editor.compass.toggle_blind_spot_desc",defaultOn:!0},{key:"show_sun_path",labelKey:"editor.compass.toggle_sun_path_label",descKey:"editor.compass.toggle_sun_path_desc",defaultOn:!0},{key:"show_sunrise_sunset",labelKey:"editor.compass.toggle_sunrise_sunset_label",descKey:"editor.compass.toggle_sunrise_sunset_desc",defaultOn:!0},{key:"show_cover_fill",labelKey:"editor.compass.toggle_cover_fill_label",descKey:"editor.compass.toggle_cover_fill_desc",defaultOn:!0},{key:"show_window_arrow",labelKey:"editor.compass.toggle_window_arrow_label",descKey:"editor.compass.toggle_window_arrow_desc",defaultOn:!0},{key:"show_elevation_chart",labelKey:"editor.compass.toggle_elevation_chart_label",descKey:"editor.compass.toggle_elevation_chart_desc",defaultOn:!0}];let wo=class extends ce{constructor(){super(...arguments),this._entries=null,this._entriesError=null,this._fetchInFlight=!1}setConfig(e){this._config=e}updated(e){e.has("hass")&&this.hass&&!this._entries&&!this._fetchInFlight&&(this._fetchInFlight=!0,Ke(this.hass).then(e=>{this._entries=e,this._entriesError=null}).catch(e=>{this._entriesError=e?.message??"failed to load config entries"}).finally(()=>{this._fetchInFlight=!1}))}_emit(e){this._config=e,this.dispatchEvent(new CustomEvent("config-changed",{detail:{config:e},bubbles:!0,composed:!0}))}_baseConfig(){return this._config??{type:`custom:${ye}`,entry_ids:[]}}_trimColors(e){let t=-1;for(let o=0;o<e.length;o++)e[o]&&(t=o);if(!(t<0))return e.slice(0,t+1)}_emitWithColors(e,t,o){const i=this._trimColors(t),{cover_colors:s,...n}=e,a=i?{...n,...o,cover_colors:i}:{...n,...o};this._emit(a)}_onCoverColorChange(e,t){const o=this._baseConfig(),i=[...o.cover_colors??[]];for(;i.length<=e;)i.push(null);i[e]=t,this._emitWithColors(o,i)}_onCoverColorReset(e){const t=this._baseConfig(),o=[...t.cover_colors??[]];e<o.length&&(o[e]=null),this._emitWithColors(t,o)}_onEntryToggle(e,t){const o=this._baseConfig(),i=new Set(o.entry_ids);t?i.add(e):i.delete(e);const s=(this._entries??[]).map(e=>e.entry_id).filter(e=>i.has(e)),n=o.cover_colors??[],a=s.map(e=>{const t=o.entry_ids.indexOf(e);return t>=0?n[t]??null:null});this._emitWithColors(o,a,{entry_ids:s})}_onToggle(e,t){this._emit({...this._baseConfig(),[e]:t})}_onNorthOffsetChange(e){const t=parseFloat(e.target.value),o=Number.isFinite(t)?t:0;this._emit({...this._baseConfig(),north_offset:o})}_onTitleChange(e){const t=e.target.value,o=this._baseConfig();if(t)this._emit({...o,title:t});else{const{title:e,...t}=o;this._emit(t)}}render(){if(!this._config)return U;const e=new Set(this._config.entry_ids);return q`
+  `,e([ge({attribute:!1})],$o.prototype,"hass",void 0),e([me()],$o.prototype,"_config",void 0),e([me()],$o.prototype,"_entries",void 0),e([me()],$o.prototype,"_entriesError",void 0),$o=e([he(ye)],$o);const Ao=[{key:"compact",labelKey:"editor.compass.toggle_compact_label",descKey:"editor.compass.toggle_compact_desc",defaultOn:!1},{key:"show_legend",labelKey:"editor.compass.toggle_legend_label",descKey:"editor.compass.toggle_legend_desc",defaultOn:!0},{key:"show_stats",labelKey:"editor.compass.toggle_stats_label",descKey:"editor.compass.toggle_stats_desc",defaultOn:!0},{key:"show_moon",labelKey:"editor.compass.toggle_moon_label",descKey:"editor.compass.toggle_moon_desc",defaultOn:!1},{key:"show_cardinals",labelKey:"editor.compass.toggle_cardinals_label",descKey:"editor.compass.toggle_cardinals_desc",defaultOn:!0},{key:"show_blind_spot",labelKey:"editor.compass.toggle_blind_spot_label",descKey:"editor.compass.toggle_blind_spot_desc",defaultOn:!0},{key:"show_sun_path",labelKey:"editor.compass.toggle_sun_path_label",descKey:"editor.compass.toggle_sun_path_desc",defaultOn:!0},{key:"show_sunrise_sunset",labelKey:"editor.compass.toggle_sunrise_sunset_label",descKey:"editor.compass.toggle_sunrise_sunset_desc",defaultOn:!0},{key:"show_cover_fill",labelKey:"editor.compass.toggle_cover_fill_label",descKey:"editor.compass.toggle_cover_fill_desc",defaultOn:!0},{key:"show_window_arrow",labelKey:"editor.compass.toggle_window_arrow_label",descKey:"editor.compass.toggle_window_arrow_desc",defaultOn:!0},{key:"show_elevation_chart",labelKey:"editor.compass.toggle_elevation_chart_label",descKey:"editor.compass.toggle_elevation_chart_desc",defaultOn:!0}];let ko=class extends ce{constructor(){super(...arguments),this._entries=null,this._entriesError=null,this._fetchInFlight=!1}setConfig(e){this._config=e}updated(e){e.has("hass")&&this.hass&&!this._entries&&!this._fetchInFlight&&(this._fetchInFlight=!0,qe(this.hass).then(e=>{this._entries=e,this._entriesError=null}).catch(e=>{this._entriesError=e?.message??"failed to load config entries"}).finally(()=>{this._fetchInFlight=!1}))}_emit(e){this._config=e,this.dispatchEvent(new CustomEvent("config-changed",{detail:{config:e},bubbles:!0,composed:!0}))}_baseConfig(){return this._config??{type:`custom:${be}`,entry_ids:[]}}_trimColors(e){let t=-1;for(let o=0;o<e.length;o++)e[o]&&(t=o);if(!(t<0))return e.slice(0,t+1)}_emitWithColors(e,t,o){const s=this._trimColors(t),{cover_colors:i,...n}=e,r=s?{...n,...o,cover_colors:s}:{...n,...o};this._emit(r)}_onCoverColorChange(e,t){const o=this._baseConfig(),s=[...o.cover_colors??[]];for(;s.length<=e;)s.push(null);s[e]=t,this._emitWithColors(o,s)}_onCoverColorReset(e){const t=this._baseConfig(),o=[...t.cover_colors??[]];e<o.length&&(o[e]=null),this._emitWithColors(t,o)}_onEntryToggle(e,t){const o=this._baseConfig(),s=new Set(o.entry_ids);t?s.add(e):s.delete(e);const i=(this._entries??[]).map(e=>e.entry_id).filter(e=>s.has(e)),n=o.cover_colors??[],r=i.map(e=>{const t=o.entry_ids.indexOf(e);return t>=0?n[t]??null:null});this._emitWithColors(o,r,{entry_ids:i})}_onToggle(e,t){this._emit({...this._baseConfig(),[e]:t})}_onNorthOffsetChange(e){const t=parseFloat(e.target.value),o=Number.isFinite(t)?t:0;this._emit({...this._baseConfig(),north_offset:o})}_onTitleChange(e){const t=e.target.value,o=this._baseConfig();if(t)this._emit({...o,title:t});else{const{title:e,...t}=o;this._emit(t)}}render(){if(!this._config)return W;const e=new Set(this._config.entry_ids);return q`
       <div class="form">
         <div class="section">
-          <label class="field-label">${De("editor.compass.instances",this.hass)}</label>
-          <div class="hint">${De("editor.compass.instances_hint",this.hass)}</div>
+          <label class="field-label">${Be("editor.compass.instances",this.hass)}</label>
+          <div class="hint">${Be("editor.compass.instances_hint",this.hass)}</div>
           ${this._renderEntryPicker(e)}
         </div>
 
         <div class="section">
-          <label class="field-label">${De("editor.common.title_optional",this.hass)}</label>
+          <label class="field-label">${Be("editor.common.title_optional",this.hass)}</label>
           <input
             type="text"
             class="text-input"
             .value=${this._config.title??""}
-            placeholder=${De("editor.common.title_placeholder",this.hass)}
+            placeholder=${Be("editor.common.title_placeholder",this.hass)}
             @change=${this._onTitleChange}
           />
         </div>
 
         ${this._config.entry_ids.length>0?q`
               <div class="section">
-                <label class="field-label">${De("editor.compass.cover_colors",this.hass)}</label>
-                <div class="hint">${De("editor.compass.cover_colors_hint",this.hass)}</div>
-                ${this._config.entry_ids.map((e,t)=>{const o=this._config.cover_colors?.[t]??null,i=o??zt(t),s=this._entries?.find(t=>t.entry_id===e);return q`
+                <label class="field-label">${Be("editor.compass.cover_colors",this.hass)}</label>
+                <div class="hint">${Be("editor.compass.cover_colors_hint",this.hass)}</div>
+                ${this._config.entry_ids.map((e,t)=>{const o=this._config.cover_colors?.[t]??null,s=o??Ft(t),i=this._entries?.find(t=>t.entry_id===e);return q`
                     <div class="color-row">
                       <input
                         type="color"
-                        .value=${i}
+                        .value=${s}
                         @change=${e=>this._onCoverColorChange(t,e.target.value)}
                       />
                       <span class="toggle-text">
-                        <span class="toggle-label">${s?.title??e}</span>
+                        <span class="toggle-label">${i?.title??e}</span>
                         <span class="toggle-desc"
-                          >${o||De("editor.compass.default_color",this.hass)}</span
+                          >${o||Be("editor.compass.default_color",this.hass)}</span
                         >
                       </span>
                       <button
@@ -2766,16 +2766,16 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
                         ?disabled=${!o}
                         @click=${()=>this._onCoverColorReset(t)}
                       >
-                        ${De("editor.common.reset",this.hass)}
+                        ${Be("editor.common.reset",this.hass)}
                       </button>
                     </div>
                   `})}
               </div>
-            `:U}
+            `:W}
 
         <div class="section">
-          <label class="field-label">${De("editor.compass.display",this.hass)}</label>
-          ${bo.map(e=>q`
+          <label class="field-label">${Be("editor.compass.display",this.hass)}</label>
+          ${Ao.map(e=>q`
               <label class="toggle-row">
                 <input
                   type="checkbox"
@@ -2783,16 +2783,16 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
                   @change=${t=>this._onToggle(e.key,t.target.checked)}
                 />
                 <span class="toggle-text">
-                  <span class="toggle-label">${De(e.labelKey,this.hass)}</span>
-                  <span class="toggle-desc">${De(e.descKey,this.hass)}</span>
+                  <span class="toggle-label">${Be(e.labelKey,this.hass)}</span>
+                  <span class="toggle-desc">${Be(e.descKey,this.hass)}</span>
                 </span>
               </label>
             `)}
         </div>
 
         <div class="section">
-          <label class="field-label">${De("editor.common.north_offset",this.hass)}</label>
-          <div class="hint">${De("editor.common.north_offset_hint",this.hass)}</div>
+          <label class="field-label">${Be("editor.common.north_offset",this.hass)}</label>
+          <div class="hint">${Be("editor.common.north_offset_hint",this.hass)}</div>
           <input
             type="number"
             class="text-input"
@@ -2802,14 +2802,14 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
             @change=${this._onNorthOffsetChange}
           />
         </div>
-        ${ho(this.hass)}
+        ${mo(this.hass)}
       </div>
     `}_renderEntryPicker(e){return this._entriesError?q`<div class="error">
-        ${De("editor.common.load_failed",this.hass,{error:this._entriesError})}
+        ${Be("editor.common.load_failed",this.hass,{error:this._entriesError})}
       </div>`:this._entries?0===this._entries.length?q`
         <div class="error">
-          ${De("editor.common.no_entries",this.hass)}
-          <code>${De("editor.common.no_entries_path",this.hass)}</code>${De("editor.common.no_entries_then",this.hass)}
+          ${Be("editor.common.no_entries",this.hass)}
+          <code>${Be("editor.common.no_entries_path",this.hass)}</code>${Be("editor.common.no_entries_then",this.hass)}
         </div>
       `:q`
       <div class="entry-list">
@@ -2827,7 +2827,7 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
             </label>
           `)}
       </div>
-    `:q`<div class="hint">${De("editor.common.loading_entries",this.hass)}</div>`}};wo.styles=a`
+    `:q`<div class="hint">${Be("editor.common.loading_entries",this.hass)}</div>`}};ko.styles=r`
     :host {
       display: block;
     }
@@ -2944,22 +2944,22 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     .dim {
       color: var(--secondary-text-color);
     }
-  `,e([ge({attribute:!1})],wo.prototype,"hass",void 0),e([me()],wo.prototype,"_config",void 0),e([me()],wo.prototype,"_entries",void 0),e([me()],wo.prototype,"_entriesError",void 0),wo=e([he(be)],wo);let xo=class extends ce{constructor(){super(...arguments),this._registry=null,this._registryError=null,this._unsubRegistry=null,this._fetchInFlight=!1}setConfig(e){if(!e||!Array.isArray(e.entry_ids)||0===e.entry_ids.length)throw new Error("adaptive-cover-pro-sky-compass-card: `entry_ids` must be a non-empty array");if(e.entry_ids.some(e=>"string"!=typeof e||0===e.length))throw new Error("adaptive-cover-pro-sky-compass-card: every `entry_ids` entry must be a non-empty string");this._config={...e,entry_ids:[...e.entry_ids]}}getCardSize(){return 4}getGridOptions(){return{columns:12,rows:"auto",min_columns:6,max_columns:12}}static async getConfigElement(){return document.createElement(be)}static async getStubConfig(e){let t=[];try{const o=await Ke(e);o[0]&&(t=[o[0].entry_id])}catch{}return{type:`custom:${ye}`,entry_ids:t}}connectedCallback(){super.connectedCallback(),this.hass&&this._ensureRegistry()}disconnectedCallback(){super.disconnectedCallback(),this._unsubRegistry&&(this._unsubRegistry(),this._unsubRegistry=null)}updated(e){e.has("hass")&&this.hass&&this._ensureRegistry()}_ensureRegistry(){null!==this._registry||this._fetchInFlight||this._fetchRegistry(),this._unsubRegistry||(this._unsubRegistry=Xe(this.hass,()=>{this._fetchRegistry()}))}_fetchRegistry(){this._fetchInFlight||(this._fetchInFlight=!0,Je(this.hass).then(e=>{this._registry=e,this._registryError=null}).catch(e=>{this._registryError=e?.message??"entity registry fetch failed"}).finally(()=>{this._fetchInFlight=!1}))}render(){if(!this._config||!this.hass)return U;if(null===this._registry)return q`<ha-card>
+  `,e([ge({attribute:!1})],ko.prototype,"hass",void 0),e([me()],ko.prototype,"_config",void 0),e([me()],ko.prototype,"_entries",void 0),e([me()],ko.prototype,"_entriesError",void 0),ko=e([he(we)],ko);let Co=class extends ce{constructor(){super(...arguments),this._registry=null,this._registryError=null,this._unsubRegistry=null,this._fetchInFlight=!1}setConfig(e){if(!e||!Array.isArray(e.entry_ids)||0===e.entry_ids.length)throw new Error("adaptive-cover-pro-sky-compass-card: `entry_ids` must be a non-empty array");if(e.entry_ids.some(e=>"string"!=typeof e||0===e.length))throw new Error("adaptive-cover-pro-sky-compass-card: every `entry_ids` entry must be a non-empty string");this._config={...e,entry_ids:[...e.entry_ids]}}getCardSize(){return 4}getGridOptions(){return{columns:12,rows:"auto",min_columns:6,max_columns:12}}static async getConfigElement(){return document.createElement(we)}static async getStubConfig(e){let t=[];try{const o=await qe(e);o[0]&&(t=[o[0].entry_id])}catch{}return{type:`custom:${be}`,entry_ids:t}}connectedCallback(){super.connectedCallback(),this.hass&&this._ensureRegistry()}disconnectedCallback(){super.disconnectedCallback(),this._unsubRegistry&&(this._unsubRegistry(),this._unsubRegistry=null)}updated(e){e.has("hass")&&this.hass&&this._ensureRegistry()}_ensureRegistry(){null!==this._registry||this._fetchInFlight||this._fetchRegistry(),this._unsubRegistry||(this._unsubRegistry=ot(this.hass,()=>{this._fetchRegistry()}))}_fetchRegistry(){this._fetchInFlight||(this._fetchInFlight=!0,tt(this.hass).then(e=>{this._registry=e,this._registryError=null}).catch(e=>{this._registryError=e?.message??"entity registry fetch failed"}).finally(()=>{this._fetchInFlight=!1}))}render(){if(!this._config||!this.hass)return W;if(null===this._registry)return q`<ha-card>
         <div class="empty">
           <p class="dim">
-            ${this._registryError?De("tile.registry_failed",this.hass,{error:this._registryError}):De("root.loading_registry",this.hass)}
+            ${this._registryError?Be("tile.registry_failed",this.hass,{error:this._registryError}):Be("root.loading_registry",this.hass)}
           </p>
         </div>
-      </ha-card>`;const e=[],t=[];for(const o of this._config.entry_ids){const i=Be(this.hass,{type:this._config.type,entry_id:o},this._registry);i?e.push(i):t.push(o)}if(0===e.length)return q`<ha-card>
+      </ha-card>`;const e=[],t=[];for(const o of this._config.entry_ids){const s=Ge(this.hass,{type:this._config.type,entry_id:o},this._registry);s?e.push(s):t.push(o)}if(0===e.length)return q`<ha-card>
         <div class="empty">
-          <p><strong>${De("root.compass_no_match",this.hass)}</strong></p>
+          <p><strong>${Be("root.compass_no_match",this.hass)}</strong></p>
           <p class="dim">
-            ${De("root.compass_configured",this.hass,{entries:this._config.entry_ids.join(", ")})}
+            ${Be("root.compass_configured",this.hass,{entries:this._config.entry_ids.join(", ")})}
           </p>
         </div>
       </ha-card>`;const o=this._config;return q`
       <ha-card>
-        ${o.title?q`<div class="card-header">${o.title}</div>`:U}
+        ${o.title?q`<div class="card-header">${o.title}</div>`:W}
         <acp-sky-compass
           .hass=${this.hass}
           .discovered_list=${e}
@@ -2974,19 +2974,19 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
           .showCoverFill=${o.show_cover_fill??!0}
           .showWindowArrow=${o.show_window_arrow??!0}
           .coverColors=${o.cover_colors??[]}
-          .northOffsetDeg=${Ye(o.north_offset??0)}
+          .northOffsetDeg=${Qe(o.north_offset??0)}
         ></acp-sky-compass>
         ${!1!==o.show_elevation_chart?q`<acp-elevation-chart
               .hass=${this.hass}
               .discoveredList=${e}
               .coverColors=${o.cover_colors??[]}
               ?compact=${!!o.compact}
-            ></acp-elevation-chart>`:U}
+            ></acp-elevation-chart>`:W}
         ${t.length>0?q`<div class="warn dim">
-              ${De("root.compass_not_found",this.hass,{entries:t.join(", ")})}
-            </div>`:U}
+              ${Be("root.compass_not_found",this.hass,{entries:t.join(", ")})}
+            </div>`:W}
       </ha-card>
-    `}};xo.styles=a`
+    `}};Co.styles=r`
     :host {
       display: block;
     }
@@ -3013,42 +3013,42 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
       font-size: 0.78rem;
       text-align: center;
     }
-  `,e([ge({attribute:!1})],xo.prototype,"hass",void 0),e([me()],xo.prototype,"_config",void 0),e([me()],xo.prototype,"_registry",void 0),e([me()],xo.prototype,"_registryError",void 0),xo=e([he(ye)],xo),window.customCards=window.customCards||[],window.customCards.some(e=>e.type===ye)||window.customCards.push({type:ye,name:"Adaptive Cover Pro — Sky Compass",description:"Polar sun-vs-FOV plot; overlay one or more Adaptive Cover Pro entries on a single compass.",preview:!0,documentationURL:"https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card"});const $o=["sky","elevation","decision","covers","overrides","climate"];let Ao=class extends ce{constructor(){super(...arguments),this._registry=null,this._registryError=null,this._discovered=null,this._unsubRegistry=null,this._fetchInFlight=!1,this._memo=function(){let e=null,t=null;return(o,i,s)=>{const n=i.entry_id??"";return null!==e&&e.registry===s&&e.hass===o&&e.entryId===n||(e={registry:s,hass:o,entryId:n},t=Be(o,i,s)),t}}(),this._debounceTimer=null,this._debounceFirstAt=null,this._DEBOUNCE_DELAY=500,this._DEBOUNCE_MAX=2e3}setConfig(e){if(!e?.entry_id)throw new Error("adaptive-cover-pro-card: `entry_id` is required");if(this._config={...e},null===this._registry){const t=tt.get(e.entry_id);t&&(this._registry=t.entries)}}getCardSize(){return 6}getGridOptions(){return{columns:12,rows:"auto",min_columns:6,max_columns:12}}static async getConfigElement(){return document.createElement(ve)}static async getStubConfig(e){let t="";try{const o=await Ke(e);t=o[0]?.entry_id??""}catch{}return{type:`custom:${fe}`,entry_id:t}}connectedCallback(){super.connectedCallback(),this.hass&&this._ensureRegistry()}disconnectedCallback(){super.disconnectedCallback(),this._unsubRegistry&&(this._unsubRegistry(),this._unsubRegistry=null),null!==this._debounceTimer&&(clearTimeout(this._debounceTimer),this._debounceTimer=null,this._debounceFirstAt=null)}updated(e){e.has("hass")&&this.hass&&this._ensureRegistry()}willUpdate(e){null!==this._registry&&this._config&&this.hass&&(e.has("hass")||e.has("_registry")||e.has("_config"))&&(this._discovered=this._memo(this.hass,this._config,this._registry))}_ensureRegistry(){this._fetchRegistry(),this._unsubRegistry||(this._unsubRegistry=Xe(this.hass,e=>{const t=new Set(it(this._registry??[],this._config?.entry_id??"").map(e=>e.entity_id));(function(e,t){return"create"===e.action||t.has(e.entity_id)})(e,t)&&this._scheduleRefetch()}))}_fetchRegistry(){this._fetchInFlight||(this._fetchInFlight=!0,Je(this.hass).then(e=>{const t=this._config?.entry_id;if(t){const o=it(e,t);(null===this._registry||function(e,t){if(e.length!==t.length)return!0;const o=new Map(e.map(e=>[e.entity_id,ot(e)]));for(const e of t)if(o.get(e.entity_id)!==ot(e))return!0;return!1}(it(this._registry,t),o))&&(this._registry=e,tt.set(t,o))}else this._registry=e;this._registryError=null}).catch(e=>{this._registryError=e?.message??"entity registry fetch failed"}).finally(()=>{this._fetchInFlight=!1}))}_scheduleRefetch(){const e=Date.now();null===this._debounceFirstAt&&(this._debounceFirstAt=e);const t=e-this._debounceFirstAt,o=this._DEBOUNCE_MAX-t,i=Math.min(this._DEBOUNCE_DELAY,o);if(null!==this._debounceTimer&&clearTimeout(this._debounceTimer),i<=0)return this._debounceFirstAt=null,void this._fetchRegistry();this._debounceTimer=setTimeout(()=>{this._debounceTimer=null,this._debounceFirstAt=null,this._fetchRegistry()},i)}get _sections(){return this._config?.show_sections??$o}_renderHeader(e,t){const o=Ee[e.cover_type]??"mdi:window-shutter",i=e.entities.integration_enabled_switch,s=e.entities.automatic_control_switch,n=!i||"on"===this.hass.states[i]?.state,a=!s||"on"===this.hass.states[s]?.state;return q`
+  `,e([ge({attribute:!1})],Co.prototype,"hass",void 0),e([me()],Co.prototype,"_config",void 0),e([me()],Co.prototype,"_registry",void 0),e([me()],Co.prototype,"_registryError",void 0),Co=e([he(be)],Co),window.customCards=window.customCards||[],window.customCards.some(e=>e.type===be)||window.customCards.push({type:be,name:"Adaptive Cover Pro — Sky Compass",description:"Polar sun-vs-FOV plot; overlay one or more Adaptive Cover Pro entries on a single compass.",preview:!0,documentationURL:"https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card"});const So=["sky","elevation","decision","covers","overrides","climate"];let Eo=class extends ce{constructor(){super(...arguments),this._registry=null,this._registryError=null,this._discovered=null,this._discoveredList=[],this._discoveredListSource=null,this._unsubRegistry=null,this._fetchInFlight=!1,this._memo=function(){let e=null;return(t,o,s)=>{const i=o.entry_id??"";if(!i)return e=null,null;const n=null!==e&&e.registry===s&&e.entryId===i,r=n?e.base:Ke(i,s);if(!r)return e={registry:s,entryId:i,base:null,devices:null,posState:null,ctrlState:null,result:null},null;const a=t.devices,l=r.entities.target_position_sensor,c=r.entities.control_status_sensor,d=l?t.states[l]:void 0,h=c?t.states[c]:void 0;if(n&&null!==e&&null!==e.result&&e.devices===a&&e.posState===d&&e.ctrlState===h)return e.result;const u=Ve(t,i,r);return e={registry:s,entryId:i,base:r,devices:a,posState:d,ctrlState:h,result:u},u}}(),this._debounceTimer=null,this._debounceFirstAt=null,this._DEBOUNCE_DELAY=500,this._DEBOUNCE_MAX=2e3}setConfig(e){if(!e?.entry_id)throw new Error("adaptive-cover-pro-card: `entry_id` is required");if(this._config={...e},null===this._registry){const t=it.get(e.entry_id);t&&(this._registry=t.entries)}}getCardSize(){return 6}getGridOptions(){return{columns:12,rows:"auto",min_columns:6,max_columns:12}}static async getConfigElement(){return document.createElement(ye)}static async getStubConfig(e){let t="";try{const o=await qe(e);t=o[0]?.entry_id??""}catch{}return{type:`custom:${ve}`,entry_id:t}}connectedCallback(){super.connectedCallback(),this.hass&&this._ensureRegistry()}disconnectedCallback(){super.disconnectedCallback(),this._unsubRegistry&&(this._unsubRegistry(),this._unsubRegistry=null),null!==this._debounceTimer&&(clearTimeout(this._debounceTimer),this._debounceTimer=null,this._debounceFirstAt=null)}updated(e){e.has("hass")&&this.hass&&this._ensureRegistry()}shouldUpdate(e){return e.size>1||!e.has("hass")||(!this._discovered||_e(e.get("hass"),this.hass,Object.values(this._discovered.entities)))}willUpdate(e){null!==this._registry&&this._config&&this.hass&&(e.has("hass")||e.has("_registry")||e.has("_config"))&&(this._discovered=this._memo(this.hass,this._config,this._registry)),this._discovered!==this._discoveredListSource&&(this._discoveredListSource=this._discovered,this._discoveredList=this._discovered?[this._discovered]:[])}_ensureRegistry(){this._fetchRegistry(),this._unsubRegistry||(this._unsubRegistry=ot(this.hass,e=>{const t=new Set(rt(this._registry??[],this._config?.entry_id??"").map(e=>e.entity_id));(function(e,t){return"create"===e.action||t.has(e.entity_id)})(e,t)&&this._scheduleRefetch()}))}_fetchRegistry(){this._fetchInFlight||(this._fetchInFlight=!0,tt(this.hass).then(e=>{const t=this._config?.entry_id;if(t){const o=rt(e,t);(null===this._registry||function(e,t){if(e.length!==t.length)return!0;const o=new Map(e.map(e=>[e.entity_id,nt(e)]));for(const e of t)if(o.get(e.entity_id)!==nt(e))return!0;return!1}(rt(this._registry,t),o))&&(this._registry=e,it.set(t,o))}else this._registry=e;this._registryError=null}).catch(e=>{this._registryError=e?.message??"entity registry fetch failed"}).finally(()=>{this._fetchInFlight=!1}))}_scheduleRefetch(){const e=Date.now();null===this._debounceFirstAt&&(this._debounceFirstAt=e);const t=e-this._debounceFirstAt,o=this._DEBOUNCE_MAX-t,s=Math.min(this._DEBOUNCE_DELAY,o);if(null!==this._debounceTimer&&clearTimeout(this._debounceTimer),s<=0)return this._debounceFirstAt=null,void this._fetchRegistry();this._debounceTimer=setTimeout(()=>{this._debounceTimer=null,this._debounceFirstAt=null,this._fetchRegistry()},s)}get _sections(){return this._config?.show_sections??So}_renderHeader(e,t){const o=Ee[e.cover_type]??"mdi:window-shutter",s=e.entities.integration_enabled_switch,i=e.entities.automatic_control_switch,n=!s||"on"===this.hass.states[s]?.state,r=!i||"on"===this.hass.states[i]?.state;return q`
       <div class="header">
         <ha-icon .icon=${o}></ha-icon>
         <span class="title">${e.entry_title}</span>
         <span class="spacer"></span>
-        ${i?q`<acp-header-pill
+        ${s?q`<acp-header-pill
               .on=${n}
               .readonly=${!t.integration_enabled}
-              .label=${De(n?"header.on":"header.off",this.hass)}
-              title=${De("header.integration_enabled",this.hass)}
-              @pill-click=${()=>this._toggle(i)}
-            ></acp-header-pill>`:U}
-        ${s?q`<acp-header-pill
-              .on=${a}
-              .readonly=${!t.automatic_control}
-              .label=${De("header.auto",this.hass)}
-              title=${De("header.automatic_control",this.hass)}
+              .label=${Be(n?"header.on":"header.off",this.hass)}
+              title=${Be("header.integration_enabled",this.hass)}
               @pill-click=${()=>this._toggle(s)}
-            ></acp-header-pill>`:U}
+            ></acp-header-pill>`:W}
+        ${i?q`<acp-header-pill
+              .on=${r}
+              .readonly=${!t.automatic_control}
+              .label=${Be("header.auto",this.hass)}
+              title=${Be("header.automatic_control",this.hass)}
+              @pill-click=${()=>this._toggle(i)}
+            ></acp-header-pill>`:W}
       </div>
     `}_toggle(e){const t=e.split(".")[0];this.hass.callService(t,"toggle",{entity_id:e})}_renderLoading(){return q`
       <ha-card>
         <div class="empty">
-          <p class="dim">${De("root.loading_registry",this.hass)}</p>
+          <p class="dim">${Be("root.loading_registry",this.hass)}</p>
         </div>
       </ha-card>
-    `}_renderEmpty(e){const t=this._config.entry_id,o=this._registry?.length??0,i=this._registry?.filter(e=>e.config_entry_id===t&&"adaptive_cover_pro"===e.platform).length;return q`
+    `}_renderEmpty(e){const t=this._config.entry_id,o=this._registry?.length??0,s=this._registry?.filter(e=>e.config_entry_id===t&&"adaptive_cover_pro"===e.platform).length;return q`
       <ha-card>
         <div class="empty">
-          <p><strong>${De("root.no_entities_title",this.hass)}</strong></p>
+          <p><strong>${Be("root.no_entities_title",this.hass)}</strong></p>
           <p class="dim">Configured <code>entry_id</code>: <code>${t}</code></p>
           <ul class="diag">
             <li>Reason: <code>${e}</code></li>
             <li>Registry entries loaded: <code>${o}</code></li>
-            <li>ACP entities matching entry_id: <code>${i??"—"}</code></li>
-            ${this._registryError?q`<li>Registry fetch error: <code>${this._registryError}</code></li>`:U}
+            <li>ACP entities matching entry_id: <code>${s??"—"}</code></li>
+            ${this._registryError?q`<li>Registry fetch error: <code>${this._registryError}</code></li>`:W}
           </ul>
           <p class="dim">
             If the count is 0, the <code>entry_id</code> is wrong. Find it at
@@ -3057,53 +3057,53 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
           </p>
         </div>
       </ha-card>
-    `}render(){if(!this._config||!this.hass)return U;if(null===this._registry)return this._registryError?this._renderEmpty("registry fetch failed"):this._renderLoading();const e=this._discovered;if(!e)return this._renderEmpty("no matching entities after unique_id lookup");const t=(o=this._config,{...Pe,...o?.controls});var o;const i=this._sections;return q`
+    `}render(){if(!this._config||!this.hass)return W;if(null===this._registry)return this._registryError?this._renderEmpty("registry fetch failed"):this._renderLoading();const e=this._discovered;if(!e)return this._renderEmpty("no matching entities after unique_id lookup");const t=(o=this._config,{...je,...o?.controls});var o;const s=this._sections;return q`
       <ha-card>
         ${this._renderHeader(e,t)}
         <div class="body ${this._config.compact?"compact":""}">
-          ${i.includes("sky")?q`<acp-sky-compass
+          ${s.includes("sky")?q`<acp-sky-compass
                 .hass=${this.hass}
-                .discovered_list=${[e]}
+                .discovered_list=${this._discoveredList}
                 ?compact=${!!this._config.compact}
                 .showStats=${this._config.show_compass_stats??!0}
                 .showLegend=${this._config.show_compass_legend??!0}
                 .showMoon=${this._config.show_moon??!1}
                 .coverColors=${this._config.cover_colors??[]}
-                .northOffsetDeg=${Ye(this._config.north_offset??0)}
-              ></acp-sky-compass>`:U}
-          ${i.includes("elevation")?q`<acp-elevation-chart
+                .northOffsetDeg=${Qe(this._config.north_offset??0)}
+              ></acp-sky-compass>`:W}
+          ${s.includes("elevation")?q`<acp-elevation-chart
                 .hass=${this.hass}
-                .discoveredList=${[e]}
+                .discoveredList=${this._discoveredList}
                 ?compact=${!!this._config.compact}
                 .coverColors=${this._config.cover_colors??[]}
-              ></acp-elevation-chart>`:U}
-          ${i.includes("decision")?q`<acp-decision-strip
+              ></acp-elevation-chart>`:W}
+          ${s.includes("decision")?q`<acp-decision-strip
                 .hass=${this.hass}
                 .discovered=${e}
                 ?compact=${!!this._config.compact}
                 ?hide-inactive=${!!this._config.hide_inactive_handlers||!!this._config.compact}
                 ?show-summary=${!1!==this._config.show_decision_summary}
-              ></acp-decision-strip>`:U}
-          ${i.includes("covers")?q`<acp-cover-bar
+              ></acp-decision-strip>`:W}
+          ${s.includes("covers")?q`<acp-cover-bar
                 .hass=${this.hass}
                 .discovered=${e}
                 ?compact=${!!this._config.compact}
                 .coverColor=${this._config.cover_colors?.[0]??null}
-              ></acp-cover-bar>`:U}
-          ${i.includes("overrides")?q`<acp-overrides-panel
+              ></acp-cover-bar>`:W}
+          ${s.includes("overrides")?q`<acp-overrides-panel
                 .hass=${this.hass}
                 .discovered=${e}
                 ?compact=${!!this._config.compact}
                 .resetEnabled=${t.reset_manual_override}
-              ></acp-overrides-panel>`:U}
-          ${i.includes("climate")?q`<acp-climate-panel
+              ></acp-overrides-panel>`:W}
+          ${s.includes("climate")?q`<acp-climate-panel
                 .hass=${this.hass}
                 .discovered=${e}
                 ?compact=${!!this._config.compact}
-              ></acp-climate-panel>`:U}
+              ></acp-climate-panel>`:W}
         </div>
       </ha-card>
-    `}};Ao.styles=a`
+    `}};Eo.styles=r`
     :host {
       display: block;
     }
@@ -3157,4 +3157,4 @@ function e(e,t,o,i){var s,n=arguments.length,a=n<3?t:null===i?i=Object.getOwnPro
     .dim {
       color: var(--secondary-text-color);
     }
-  `,e([ge({attribute:!1})],Ao.prototype,"hass",void 0),e([me()],Ao.prototype,"_config",void 0),e([me()],Ao.prototype,"_registry",void 0),e([me()],Ao.prototype,"_registryError",void 0),e([me()],Ao.prototype,"_discovered",void 0),Ao=e([he(fe)],Ao),window.customCards=window.customCards||[],window.customCards.push({type:fe,name:"Adaptive Cover Pro",description:"Visualize sun/window geometry, the pipeline decision trace, and live cover positions with inline controls.",preview:!0,documentationURL:"https://github.com/jrhubott/adaptive-cover-pro-card"}),console.info(`%c adaptive-cover-pro-card %c v${_e} `,"color: white; background: #3f51b5; font-weight: 700;","color: #3f51b5; background: white; font-weight: 700;");export{Ao as AdaptiveCoverProCard};
+  `,e([ge({attribute:!1})],Eo.prototype,"hass",void 0),e([me()],Eo.prototype,"_config",void 0),e([me()],Eo.prototype,"_registry",void 0),e([me()],Eo.prototype,"_registryError",void 0),e([me()],Eo.prototype,"_discovered",void 0),Eo=e([he(ve)],Eo),window.customCards=window.customCards||[],window.customCards.push({type:ve,name:"Adaptive Cover Pro",description:"Visualize sun/window geometry, the pipeline decision trace, and live cover positions with inline controls.",preview:!0,documentationURL:"https://github.com/jrhubott/adaptive-cover-pro-card"}),console.info(`%c adaptive-cover-pro-card %c v${fe} `,"color: white; background: #3f51b5; font-weight: 700;","color: #3f51b5; background: white; font-weight: 700;");export{Eo as AdaptiveCoverProCard};

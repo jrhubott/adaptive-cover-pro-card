@@ -1,7 +1,8 @@
-import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { LitElement, html, css, nothing, type TemplateResult, type PropertyValues } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
+import { entityStateChanged } from '../lib/hass-change';
 import type { DiscoveredEntities } from '../types';
 import { t } from '../lib/i18n';
 
@@ -43,6 +44,15 @@ export class ClimatePanel extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ attribute: false }) public discovered!: DiscoveredEntities;
   @property({ type: Boolean, reflect: true }) public compact = false;
+
+  // Driven by the climate-status sensor (+ the climate-mode switch for the off label);
+  // skip hass ticks that touched neither.
+  protected shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.size > 1 || !changed.has('hass')) return true;
+    const old = changed.get('hass') as HomeAssistant | undefined;
+    const e = this.discovered?.entities;
+    return entityStateChanged(old, this.hass, [e?.climate_status_sensor, e?.climate_mode_switch]);
+  }
 
   protected render(): TemplateResult | typeof nothing {
     if (!this.hass || !this.discovered) return nothing;

@@ -1,6 +1,8 @@
-import { LitElement, html, css, svg, nothing, type TemplateResult } from 'lit';
+import { LitElement, html, css, svg, nothing, type TemplateResult, type PropertyValues } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
+
+import { entityStateChanged } from '../lib/hass-change';
 
 import type { ControlStatusAttributes, DiscoveredEntities, SunPositionAttributes } from '../types';
 import { findFovWindows, sampleDay, startOfDayInZone, type SunSample } from '../lib/sun-model';
@@ -38,6 +40,18 @@ export class ElevationChart extends LitElement {
   @property({ attribute: false }) public discoveredList: DiscoveredEntities[] = [];
   @property({ attribute: false }) public coverColors: (string | null | undefined)[] = [];
   @property({ type: Boolean, reflect: true }) public compact = false;
+
+  // Skip re-render on hass ticks that touched none of the entities this chart reads.
+  protected shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.size > 1 || !changed.has('hass')) return true;
+    const old = changed.get('hass') as HomeAssistant | undefined;
+    const ids: Array<string | undefined> = [];
+    for (const d of this.discoveredList) {
+      const e = d.entities;
+      ids.push(e.sun_sensor, e.decision_trace_sensor, e.control_status_sensor);
+    }
+    return entityStateChanged(old, this.hass, ids);
+  }
 
   private _sunAttrsFor(d: DiscoveredEntities): SunPositionAttributes | null {
     const id = d.entities.sun_sensor;
