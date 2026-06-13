@@ -2358,15 +2358,17 @@ function e(e,t,o,s){var i,n=arguments.length,r=n<3?t:null===s?s=Object.getOwnPro
         'icon detail-line detail-line controls'
         'icon resume      resume      resume';
     }
-    /* Narrow column (issue #136): when the dashboard column squeezes the tile,
-       the fixed ~180px ↑■▼ control block starves the name. Drop the controls to
-       their own full-width row beneath the name/detail lines so the name gets
-       the whole column. Each detailed grid variant is re-asserted here at equal
-       specificity — placed after the wide rules so it wins when the query
-       matches (the file's grid rules rely on source order, not just
-       specificity). The breakpoint sits below the harness's 360px tile floor so
-       only genuinely narrow columns reflow. */
-    @container (max-width: 340px) {
+    /* Narrow-to-mobile column (issues #136, #154): when the dashboard column
+       squeezes the tile, the fixed ~180px ↑■▼ control block starves the name.
+       Drop the controls to their own full-width row beneath the name/detail
+       lines so the name gets the whole column. Each detailed grid variant is
+       re-asserted here at equal specificity — placed after the wide rules so it
+       wins when the query matches (the file's grid rules rely on source order,
+       not just specificity). The 450px threshold covers full-viewport phone
+       tiles (~360-390px) where the controls were still inline and truncated the
+       cover name ("E…"). Two-column sections are typically ≥500px wide so the
+       wide inline layout remains there. */
+    @container (max-width: 450px) {
       .tile-body.detailed,
       .tile-body.detailed.has-state-label,
       .tile-body.detailed.has-floor-chip {

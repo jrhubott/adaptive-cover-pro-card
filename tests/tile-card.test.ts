@@ -1416,6 +1416,13 @@ describe('adaptive-cover-pro-tile-card narrow-column responsiveness (#136)', () 
     // 'controls'-spanning template area exists only in the narrow reflow.
     expect(css).toContain('controls controls controls');
   });
+
+  it('reflows at a mobile-realistic width so full-viewport phone tiles (#154) are not truncated', () => {
+    // A phone tile spans ~360-390px — above the old 340px breakpoint. The
+    // threshold must be raised to ≥450px so the reflow fires on real devices.
+    const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
+    expect(css).toContain('max-width: 450px');
+  });
 });
 
 interface GridOptions {

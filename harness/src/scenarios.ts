@@ -902,6 +902,39 @@ export const SCENARIOS: Scenario[] = [
       return c;
     },
   },
+  {
+    id: 'mobile-width-tiles',
+    label: 'Mobile-width tiles (repro #154)',
+    description:
+      'Three detailed tiles with long German cover names pinned to a 390px-wide column — realistic for a full-viewport phone tile. Before the #154 fix the ↑■▼ controls stay inline (old 340px breakpoint never fires) and truncate the name to "E…". After the fix the controls drop to their own row and the full name is readable.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'mobile-width-tiles';
+      c.tile.layout = 'detailed';
+      c.tile.tileWidth = 390;
+      c.entries = [
+        makeEntry({
+          entry_id: 'eg_flur',
+          title: 'EG Flur',
+          window_azimuth: 180,
+          color: '#ff7043',
+        }),
+        makeEntry({
+          entry_id: 'eg_wz_oberlicht',
+          title: 'EG WZ Oberlicht',
+          window_azimuth: 225,
+          color: '#26a69a',
+        }),
+        makeEntry({
+          entry_id: 'eg_wz_grosses_fenster',
+          title: 'EG WZ gr. Fenster',
+          window_azimuth: 270,
+          color: '#7e57c2',
+        }),
+      ];
+      return c;
+    },
+  },
 ];
 
 export function findScenario(id: string): Scenario | undefined {
