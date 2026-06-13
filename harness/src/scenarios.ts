@@ -902,6 +902,39 @@ export const SCENARIOS: Scenario[] = [
       return c;
     },
   },
+  {
+    id: 'mobile-width-tiles',
+    label: 'Mobile-width tiles (repro #154)',
+    description:
+      'Three detailed tiles with long German cover names pinned to a 390px-wide column — the same width as both a full-viewport phone tile and a medium tile in a multi-column desktop dashboard. The #154 reflow is gated on a narrow *viewport* (≤500px), not tile width alone: on this wide harness window the tiles stay inline (correct desktop behavior — no extra control row), and only when you shrink the browser window below 500px do the controls drop to their own row (the phone layout). Use the narrow-column-tiles scenario to see the #136 container-driven reflow without resizing.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'mobile-width-tiles';
+      c.tile.layout = 'detailed';
+      c.tile.tileWidth = 390;
+      c.entries = [
+        makeEntry({
+          entry_id: 'eg_flur',
+          title: 'EG Flur',
+          window_azimuth: 180,
+          color: '#ff7043',
+        }),
+        makeEntry({
+          entry_id: 'eg_wz_oberlicht',
+          title: 'EG WZ Oberlicht',
+          window_azimuth: 225,
+          color: '#26a69a',
+        }),
+        makeEntry({
+          entry_id: 'eg_wz_grosses_fenster',
+          title: 'EG WZ gr. Fenster',
+          window_azimuth: 270,
+          color: '#7e57c2',
+        }),
+      ];
+      return c;
+    },
+  },
 ];
 
 export function findScenario(id: string): Scenario | undefined {

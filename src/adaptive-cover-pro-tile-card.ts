@@ -927,14 +927,58 @@ export class AdaptiveCoverProTileCard extends LitElement {
         'icon detail-line detail-line controls'
         'icon resume      resume      resume';
     }
-    /* Narrow column (issue #136): when the dashboard column squeezes the tile,
-       the fixed ~180px ↑■▼ control block starves the name. Drop the controls to
-       their own full-width row beneath the name/detail lines so the name gets
-       the whole column. Each detailed grid variant is re-asserted here at equal
-       specificity — placed after the wide rules so it wins when the query
-       matches (the file's grid rules rely on source order, not just
-       specificity). The breakpoint sits below the harness's 360px tile floor so
-       only genuinely narrow columns reflow. */
+    /* Reflow (issues #136, #154): drop the ↑■▼ controls onto their own
+       full-width row beneath the name so the cover name gets the whole column.
+       The same reflow fires from two independent triggers, because "the tile is
+       narrow" alone can't tell a phone from a medium tile in a multi-column
+       desktop dashboard — both can be ~400px wide:
+
+         1. #154 — a phone: the whole viewport is narrow (≤500px) AND the tile is
+            near full-width (≤480px). Gated on the *viewport*, not the container
+            alone, so a ~400px tile on a wide laptop screen keeps the inline
+            layout and does not grow an extra control row (the bug from blanket
+            @container 450px).
+         2. #136 — a desktop "Sections" narrow column (≤340px): the tile width is
+            column-driven on a wide viewport, so @media can't see the squeeze;
+            the bare container query catches the genuinely-tiny column.
+
+       The two blocks below are identical reflow declarations — keep them in
+       sync. Each detailed grid variant is re-asserted (placed after the wide
+       rules so it wins when a query matches — the grid rules rely on source
+       order, not just specificity). */
+    @media (max-width: 500px) {
+      @container (max-width: 480px) {
+        .tile-body.detailed,
+        .tile-body.detailed.has-state-label,
+        .tile-body.detailed.has-floor-chip {
+          grid-template-columns: 24px minmax(0, 1fr) auto;
+          grid-template-rows: auto auto auto;
+          grid-template-areas:
+            'icon label       auto-line'
+            'icon detail-line detail-line'
+            'controls controls controls';
+        }
+        .tile-body.detailed.has-row3.has-floor-chip {
+          grid-template-columns: 24px minmax(0, 1fr) auto;
+          grid-template-rows: auto auto auto auto;
+          grid-template-areas:
+            'icon label       auto-line'
+            'icon detail-line detail-line'
+            'icon resume      resume'
+            'controls controls controls';
+        }
+        .tile-body.detailed .controls {
+          margin-top: 4px;
+          gap: 6px;
+          justify-content: space-between;
+        }
+        .tile-body.detailed .controls button {
+          flex: 1 1 0;
+          width: auto;
+          height: 40px;
+        }
+      }
+    }
     @container (max-width: 340px) {
       .tile-body.detailed,
       .tile-body.detailed.has-state-label,
