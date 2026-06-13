@@ -1417,11 +1417,21 @@ describe('adaptive-cover-pro-tile-card narrow-column responsiveness (#136)', () 
     expect(css).toContain('controls controls controls');
   });
 
-  it('reflows at a mobile-realistic width so full-viewport phone tiles (#154) are not truncated', () => {
-    // A phone tile spans ~360-390px — above the old 340px breakpoint. The
-    // threshold must be raised to ≥450px so the reflow fires on real devices.
+  it('reflows phone tiles via a viewport gate, not tile width alone (#154)', () => {
+    // A phone tile spans ~360-390px, the same as a medium tile in a multi-column
+    // desktop dashboard — so a bare container query can't tell them apart and a
+    // blanket raise made laptop tiles grow a control row. The phone reflow is
+    // gated on a narrow *viewport* (≤500px) so only real phones trigger it.
     const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
-    expect(css).toContain('max-width: 450px');
+    expect(css).toContain('@media (max-width: 500px)');
+    expect(css).toContain('max-width: 480px');
+  });
+
+  it('still reflows a genuinely narrow desktop column via the container query (#136)', () => {
+    // #136 is a column-driven squeeze on a wide viewport, where @media can't see
+    // the narrow tile — the bare container query at ≤340px must remain.
+    const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
+    expect(css).toContain('@container (max-width: 340px)');
   });
 });
 

@@ -906,7 +906,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'mobile-width-tiles',
     label: 'Mobile-width tiles (repro #154)',
     description:
-      'Three detailed tiles with long German cover names pinned to a 390px-wide column — realistic for a full-viewport phone tile. Before the #154 fix the ↑■▼ controls stay inline (old 340px breakpoint never fires) and truncate the name to "E…". After the fix the controls drop to their own row and the full name is readable.',
+      'Three detailed tiles with long German cover names pinned to a 390px-wide column — the same width as both a full-viewport phone tile and a medium tile in a multi-column desktop dashboard. The #154 reflow is gated on a narrow *viewport* (≤500px), not tile width alone: on this wide harness window the tiles stay inline (correct desktop behavior — no extra control row), and only when you shrink the browser window below 500px do the controls drop to their own row (the phone layout). Use the narrow-column-tiles scenario to see the #136 container-driven reflow without resizing.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'mobile-width-tiles';
