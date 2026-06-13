@@ -65,6 +65,19 @@ export class MoreInfoDialog extends LitElement {
   /** Per-kind badge opt-in, threaded down from the tile-card config. */
   @property({ attribute: false }) public badges?: AdaptiveCoverProTileCardConfig['badges'];
 
+  // Stable single-element wrapper for the embedded compass/chart, rebuilt only when
+  // `discovered` changes — a fresh `[this.discovered]` literal each render would churn
+  // the children's array prop and defeat their own `shouldUpdate` guards.
+  private _listSource: DiscoveredEntities | null = null;
+  private _list: DiscoveredEntities[] = [];
+  private get _discoveredList(): DiscoveredEntities[] {
+    if (this.discovered !== this._listSource) {
+      this._listSource = this.discovered;
+      this._list = this.discovered ? [this.discovered] : [];
+    }
+    return this._list;
+  }
+
   private _buildHandlerLabels(): Record<string, string> {
     const labels: Record<string, string> = {};
     for (const [key, dotted] of Object.entries(HANDLER_I18N_KEYS)) {
@@ -191,7 +204,7 @@ export class MoreInfoDialog extends LitElement {
                   ? html`<div class="advanced-compass">
                       <acp-sky-compass
                         .hass=${this.hass}
-                        .discovered_list=${[this.discovered]}
+                        .discovered_list=${this._discoveredList}
                         ?compact=${true}
                         .showLegend=${false}
                         .showStats=${true}
@@ -201,7 +214,7 @@ export class MoreInfoDialog extends LitElement {
                 ${this.showElevationChart
                   ? html`<acp-elevation-chart
                       .hass=${this.hass}
-                      .discoveredList=${[this.discovered]}
+                      .discoveredList=${this._discoveredList}
                       ?compact=${true}
                     ></acp-elevation-chart>`
                   : nothing}

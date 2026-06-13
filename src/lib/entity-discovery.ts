@@ -77,6 +77,66 @@ export function createDiscoveryMemo(): (
   };
 }
 
+/** Result of multi-entry discovery: the entries that resolved, plus the ids that didn't. */
+export interface DiscoveryListResult {
+  list: DiscoveredEntities[];
+  missing: string[];
+}
+
+/**
+ * Memoized discovery for the multi-entry cards (sky-compass card, …) which accept a
+ * list of `entry_ids`. Each id runs through its own {@link createDiscoveryMemo}, so a
+ * per-entry result is reference-stable across ticks. This wrapper additionally returns
+ * the **same `{ list, missing }` object** (and therefore the same `list` array) when the
+ * id list and every per-entry result are unchanged — so the array handed to the child
+ * compass/chart stays reference-stable and does not defeat their own `shouldUpdate`.
+ */
+export function createDiscoveryListMemo(): (
+  hass: HomeAssistant,
+  entryIds: string[],
+  registry: EntityRegistryEntry[],
+  type: string,
+) => DiscoveryListResult {
+  const memos = new Map<string, ReturnType<typeof createDiscoveryMemo>>();
+  let lastEntryIds: string[] = [];
+  let lastResults: (DiscoveredEntities | null)[] = [];
+  let cached: DiscoveryListResult = { list: [], missing: [] };
+
+  return (hass, entryIds, registry, type) => {
+    const results = entryIds.map((id) => {
+      let memo = memos.get(id);
+      if (!memo) {
+        memo = createDiscoveryMemo();
+        memos.set(id, memo);
+      }
+      return memo(hass, { type, entry_id: id }, registry);
+    });
+    // Drop per-entry memos for ids no longer configured.
+    if (memos.size > entryIds.length) {
+      for (const id of memos.keys()) if (!entryIds.includes(id)) memos.delete(id);
+    }
+
+    const unchanged =
+      lastEntryIds.length === entryIds.length &&
+      lastEntryIds.every((id, i) => id === entryIds[i]) &&
+      lastResults.length === results.length &&
+      lastResults.every((r, i) => r === results[i]);
+    if (unchanged) return cached;
+
+    lastEntryIds = entryIds.slice();
+    lastResults = results;
+    const list: DiscoveredEntities[] = [];
+    const missing: string[] = [];
+    entryIds.forEach((id, i) => {
+      const d = results[i];
+      if (d) list.push(d);
+      else missing.push(id);
+    });
+    cached = { list, missing };
+    return cached;
+  };
+}
+
 interface DeviceDisplay {
   id: string;
   name?: string;

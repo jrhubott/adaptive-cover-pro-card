@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { discoverEntities, createDiscoveryMemo } from '../src/lib/entity-discovery';
+import {
+  discoverEntities,
+  createDiscoveryMemo,
+  createDiscoveryListMemo,
+} from '../src/lib/entity-discovery';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { EntityRegistryEntry } from '../src/lib/entity-registry';
 
@@ -345,5 +349,63 @@ describe('createDiscoveryMemo', () => {
     const b = memo(hass, CONFIG, registry);
     expect(a).toBe(b);
     spy.mockRestore();
+  });
+});
+
+describe('createDiscoveryListMemo', () => {
+  const TYPE = 'custom:adaptive-cover-pro-sky-compass-card';
+
+  it('resolves configured entries and reports unknown ones as missing', () => {
+    const memo = createDiscoveryListMemo();
+    const result = memo(makeHass(), [ENTRY_ID, 'nope'], makeRegistry(), TYPE);
+    expect(result.list).toHaveLength(1);
+    expect(result.list[0].entry_id).toBe(ENTRY_ID);
+    expect(result.missing).toEqual(['nope']);
+  });
+
+  it('returns the SAME result object (and list array) across a new hass that shares the relevant state refs', () => {
+    const memo = createDiscoveryListMemo();
+    const registry = makeRegistry();
+    const hass1 = makeHass() as unknown as { devices: unknown; states: Record<string, unknown> };
+    const first = memo(hass1 as unknown as HomeAssistant, [ENTRY_ID], registry, TYPE);
+
+    const hass2 = {
+      devices: hass1.devices,
+      states: { ...hass1.states, 'light.kitchen': { state: 'on', attributes: {} } },
+    } as unknown as HomeAssistant;
+    const second = memo(hass2, [ENTRY_ID], registry, TYPE);
+    expect(second).toBe(first);
+    expect(second.list).toBe(first.list); // stable array reference → no child churn
+  });
+
+  it('recomputes when a relevant state object reference changes', () => {
+    const memo = createDiscoveryListMemo();
+    const registry = makeRegistry();
+    const hass1 = makeHass() as unknown as { devices: unknown; states: Record<string, unknown> };
+    const first = memo(hass1 as unknown as HomeAssistant, [ENTRY_ID], registry, TYPE);
+
+    const hass2 = {
+      devices: hass1.devices,
+      states: {
+        ...hass1.states,
+        'sensor.living_room_blinds_control_status': {
+          state: 'active',
+          attributes: { cover_type: 'cover_awning' },
+        },
+      },
+    } as unknown as HomeAssistant;
+    const second = memo(hass2, [ENTRY_ID], registry, TYPE);
+    expect(second).not.toBe(first);
+    expect(second.list[0].cover_type).toBe('cover_awning');
+  });
+
+  it('recomputes when the entry_ids list changes', () => {
+    const memo = createDiscoveryListMemo();
+    const hass = makeHass();
+    const registry = makeRegistry();
+    const first = memo(hass, [ENTRY_ID], registry, TYPE);
+    const second = memo(hass, [ENTRY_ID, 'nope'], registry, TYPE);
+    expect(second).not.toBe(first);
+    expect(second.missing).toEqual(['nope']);
   });
 });

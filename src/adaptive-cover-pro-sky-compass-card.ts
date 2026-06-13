@@ -1,9 +1,10 @@
-import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { LitElement, html, css, nothing, type TemplateResult, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
 import { SKY_COMPASS_CARD_EDITOR_NAME, SKY_COMPASS_CARD_NAME } from './const';
-import { discoverEntities } from './lib/entity-discovery';
+import { createDiscoveryListMemo, type DiscoveryListResult } from './lib/entity-discovery';
+import { entityStateChanged } from './lib/hass-change';
 import { fetchAcpConfigEntries } from './lib/config-entries';
 import { normalizeAzimuth } from './lib/geometry';
 import { t } from './lib/i18n';
@@ -12,7 +13,7 @@ import {
   subscribeEntityRegistry,
   type EntityRegistryEntry,
 } from './lib/entity-registry';
-import type { DiscoveredEntities, SkyCompassCardConfig } from './types';
+import type { SkyCompassCardConfig } from './types';
 
 import './components/sky-compass';
 import './components/elevation-chart';
@@ -28,6 +29,11 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
 
   private _unsubRegistry: (() => void) | null = null;
   private _fetchInFlight = false;
+
+  // Memoized multi-entry discovery → stable `list` array across ticks, so the hosted
+  // compass/chart aren't re-rendered by a churning array prop. See createDiscoveryListMemo.
+  private _listMemo = createDiscoveryListMemo();
+  private _discoveredResult: DiscoveryListResult = { list: [], missing: [] };
 
   public setConfig(config: SkyCompassCardConfig): void {
     if (!config || !Array.isArray(config.entry_ids) || config.entry_ids.length === 0) {
@@ -93,6 +99,33 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
     if (changed.has('hass') && this.hass) this._ensureRegistry();
   }
 
+  // This card forwards `hass` to the compass + chart, so it must re-render whenever any
+  // entity those children read changed — but it skips ticks that touched none of them.
+  protected shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.size > 1 || !changed.has('hass')) return true;
+    const ids: Array<string | undefined> = [];
+    for (const d of this._discoveredResult.list) ids.push(...Object.values(d.entities));
+    if (ids.length === 0) return true;
+    const old = changed.get('hass') as HomeAssistant | undefined;
+    return entityStateChanged(old, this.hass, ids);
+  }
+
+  protected willUpdate(changed: PropertyValues): void {
+    if (
+      this._config &&
+      this.hass &&
+      this._registry !== null &&
+      (changed.has('hass') || changed.has('_registry') || changed.has('_config'))
+    ) {
+      this._discoveredResult = this._listMemo(
+        this.hass,
+        this._config.entry_ids,
+        this._registry,
+        this._config.type,
+      );
+    }
+  }
+
   private _ensureRegistry(): void {
     if (this._registry === null && !this._fetchInFlight) this._fetchRegistry();
     if (!this._unsubRegistry) {
@@ -133,17 +166,7 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
       </ha-card>`;
     }
 
-    const discoveredList: DiscoveredEntities[] = [];
-    const missing: string[] = [];
-    for (const entryId of this._config.entry_ids) {
-      const d = discoverEntities(
-        this.hass,
-        { type: this._config.type, entry_id: entryId },
-        this._registry,
-      );
-      if (d) discoveredList.push(d);
-      else missing.push(entryId);
-    }
+    const { list: discoveredList, missing } = this._discoveredResult;
 
     if (discoveredList.length === 0) {
       return html`<ha-card>
