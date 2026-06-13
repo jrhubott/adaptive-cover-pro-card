@@ -660,3 +660,28 @@ describe('acp-elevation-chart: schedule-tick edge anchoring (issue #146)', () =>
     expect(['start', 'middle']).toContain(leftmost.anchor);
   });
 });
+
+describe('acp-elevation-chart: now-line minute timer', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('requests a re-render every minute while connected and stops on disconnect', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-13T10:00:00.000Z')); // on a boundary → first tick at +60s
+    const el = document.createElement('acp-elevation-chart') as ChartLike;
+    Object.assign(el, { hass: hass({}), discoveredList: [discovered] });
+    document.body.appendChild(el);
+
+    const spy = vi.spyOn(el as unknown as { requestUpdate: () => void }, 'requestUpdate');
+    vi.advanceTimersByTime(60_000);
+    expect(spy).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(120_000);
+    expect(spy).toHaveBeenCalledTimes(3);
+
+    el.remove();
+    spy.mockClear();
+    vi.advanceTimersByTime(180_000);
+    expect(spy).not.toHaveBeenCalled(); // interval cleared on disconnect
+  });
+});

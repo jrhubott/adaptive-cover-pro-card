@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { LitElement, html, css, nothing, type TemplateResult, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import {
   handleAction,
@@ -13,14 +13,14 @@ import {
   TILE_CARD_NAME,
   TILE_CARD_EDITOR_NAME,
 } from './const';
-import { discoverEntities } from './lib/entity-discovery';
+import { createDiscoveryMemo } from './lib/entity-discovery';
+import { entityStateChanged } from './lib/hass-change';
 import { fetchAcpConfigEntries } from './lib/config-entries';
 import { pickCoverIcon } from './lib/icons';
-import {
-  fetchEntityRegistry,
-  subscribeEntityRegistry,
-  type EntityRegistryEntry,
-} from './lib/entity-registry';
+import { subscribeEntityRegistry, type EntityRegistryEntry } from './lib/entity-registry';
+import { loadEntityRegistry, getCachedRegistry } from './lib/registry-store';
+import { registryCache } from './lib/registry-cache';
+import { filterAcp } from './lib/registry-diff';
 import type {
   AdaptiveCoverProTileCardConfig,
   DecisionTraceAttributes,
@@ -63,6 +63,11 @@ export class AdaptiveCoverProTileCard extends LitElement {
   private _unsubRegistry: (() => void) | null = null;
   private _fetchInFlight = false;
 
+  // Memoized discovery → stable `_discovered` reference across ticks (keeps the
+  // more-info-dialog and its compass from re-rendering on unrelated state changes).
+  private _memo = createDiscoveryMemo();
+  private _discovered: DiscoveredEntities | null = null;
+
   public setConfig(config: AdaptiveCoverProTileCardConfig): void {
     if (!config || typeof config.entry_id !== 'string' || config.entry_id.length === 0) {
       throw new Error(`${TILE_CARD_NAME}: \`entry_id\` is required and must be a non-empty string`);
@@ -75,6 +80,13 @@ export class AdaptiveCoverProTileCard extends LitElement {
       };
     }
     this._config = next;
+    // Warm-start synchronously from the persisted ACP slice so a reload skips the Loading
+    // state; the shared fetch below revalidates. Discovery filters the registry anyway, so
+    // holding just the slice is fine.
+    if (this._registry === null) {
+      const cached = registryCache.get(next.entry_id);
+      if (cached) this._registry = cached.entries;
+    }
   }
 
   public getCardSize(): number {
@@ -112,6 +124,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
   public connectedCallback(): void {
     super.connectedCallback();
+    if (this._registry === null) {
+      const mem = getCachedRegistry();
+      if (mem) this._registry = mem;
+    }
     if (this.hass) this._ensureRegistry();
   }
 
@@ -127,26 +143,55 @@ export class AdaptiveCoverProTileCard extends LitElement {
     if (changed.has('hass') && this.hass) this._ensureRegistry();
   }
 
+  // Re-render only on hass ticks that touched one of this entry's entities (the union
+  // covers the tile body and everything the more-info-dialog forwards).
+  protected shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.size > 1 || !changed.has('hass')) return true;
+    if (!this._discovered) return true;
+    const old = changed.get('hass') as HomeAssistant | undefined;
+    return entityStateChanged(old, this.hass, Object.values(this._discovered.entities));
+  }
+
+  protected willUpdate(changed: PropertyValues): void {
+    if (
+      this._config &&
+      this.hass &&
+      this._registry !== null &&
+      (changed.has('hass') || changed.has('_registry') || changed.has('_config'))
+    ) {
+      this._discovered = this._memo(
+        this.hass,
+        { type: this._config.type, entry_id: this._config.entry_id },
+        this._registry,
+      );
+    }
+  }
+
   private _ensureRegistry(): void {
-    if (this._registry === null && !this._fetchInFlight) this._fetchRegistry();
+    // Revalidate against the shared registry store — cheap when warm (no websocket call),
+    // so this also refreshes a slice we warm-started from localStorage.
+    this._fetchRegistry();
     if (!this._unsubRegistry) {
       this._unsubRegistry = subscribeEntityRegistry(this.hass, () => {
-        this._fetchRegistry();
+        this._fetchRegistry(true);
       });
     }
   }
 
-  private _fetchRegistry(): void {
+  private _fetchRegistry(force = false): void {
     if (this._fetchInFlight) return;
     this._fetchInFlight = true;
     // Capture a generation counter so a late-resolving stale fetch can't
     // overwrite a newer registry value injected (or assigned) in the meantime.
     const myGen = ++this._fetchGen;
-    fetchEntityRegistry(this.hass)
+    loadEntityRegistry(this.hass, force)
       .then((entries) => {
         if (myGen !== this._fetchGen) return;
+        if (entries === this._registry) return; // unchanged shared cache → O(1) revalidation
         this._registry = entries;
         this._registryError = null;
+        if (this._config)
+          registryCache.set(this._config.entry_id, filterAcp(entries, this._config.entry_id));
       })
       .catch((err: Error) => {
         if (myGen !== this._fetchGen) return;
@@ -174,11 +219,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       </ha-card>`;
     }
 
-    const discovered = discoverEntities(
-      this.hass,
-      { type: this._config.type, entry_id: this._config.entry_id },
-      this._registry,
-    );
+    const discovered = this._discovered;
     if (!discovered) {
       return html`<ha-card>
         <div class="empty">
@@ -588,11 +629,13 @@ export class AdaptiveCoverProTileCard extends LitElement {
   private _resolvedCoverFromState(): string | undefined {
     if (this._config?.cover) return this._config.cover;
     if (this._registry === null) return undefined;
-    const discovered = discoverEntities(
-      this.hass,
-      { type: this._config!.type, entry_id: this._config!.entry_id },
-      this._registry,
-    );
+    const discovered =
+      this._discovered ??
+      this._memo(
+        this.hass,
+        { type: this._config!.type, entry_id: this._config!.entry_id },
+        this._registry,
+      );
     return discovered?.managed_covers[0];
   }
 

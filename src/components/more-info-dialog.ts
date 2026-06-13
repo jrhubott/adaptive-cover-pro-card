@@ -19,6 +19,7 @@ import {
   resolveCustomPositionPct,
 } from '../lib/decision-summary';
 import { buildSolarActiveContext, selectVisibleBadges } from '../lib/badge-visibility';
+import { startMinuteTimer } from '../lib/minute-timer';
 import type {
   AdaptiveCoverProTileCardConfig,
   CustomPositionSlotSnapshot,
@@ -64,6 +65,42 @@ export class MoreInfoDialog extends LitElement {
 
   /** Per-kind badge opt-in, threaded down from the tile-card config. */
   @property({ attribute: false }) public badges?: AdaptiveCoverProTileCardConfig['badges'];
+
+  // Refresh the time-derived bits (the forecast strip's `now` cursor) every minute while
+  // the dialog is open, aligned to the minute boundary. The dialog is always in the DOM via
+  // the tile card, so gate on `open` rather than connection so a closed dialog isn't ticking.
+  private _cancelMinuteTimer: (() => void) | null = null;
+
+  protected updated(): void {
+    this._syncMinuteTimer(this.open);
+  }
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this._syncMinuteTimer(false);
+  }
+
+  private _syncMinuteTimer(active: boolean): void {
+    if (active && this._cancelMinuteTimer === null) {
+      this._cancelMinuteTimer = startMinuteTimer(() => this.requestUpdate());
+    } else if (!active && this._cancelMinuteTimer !== null) {
+      this._cancelMinuteTimer();
+      this._cancelMinuteTimer = null;
+    }
+  }
+
+  // Stable single-element wrapper for the embedded compass/chart, rebuilt only when
+  // `discovered` changes — a fresh `[this.discovered]` literal each render would churn
+  // the children's array prop and defeat their own `shouldUpdate` guards.
+  private _listSource: DiscoveredEntities | null = null;
+  private _list: DiscoveredEntities[] = [];
+  private get _discoveredList(): DiscoveredEntities[] {
+    if (this.discovered !== this._listSource) {
+      this._listSource = this.discovered;
+      this._list = this.discovered ? [this.discovered] : [];
+    }
+    return this._list;
+  }
 
   private _buildHandlerLabels(): Record<string, string> {
     const labels: Record<string, string> = {};
@@ -191,7 +228,7 @@ export class MoreInfoDialog extends LitElement {
                   ? html`<div class="advanced-compass">
                       <acp-sky-compass
                         .hass=${this.hass}
-                        .discovered_list=${[this.discovered]}
+                        .discovered_list=${this._discoveredList}
                         ?compact=${true}
                         .showLegend=${false}
                         .showStats=${true}
@@ -201,7 +238,7 @@ export class MoreInfoDialog extends LitElement {
                 ${this.showElevationChart
                   ? html`<acp-elevation-chart
                       .hass=${this.hass}
-                      .discoveredList=${[this.discovered]}
+                      .discoveredList=${this._discoveredList}
                       ?compact=${true}
                     ></acp-elevation-chart>`
                   : nothing}

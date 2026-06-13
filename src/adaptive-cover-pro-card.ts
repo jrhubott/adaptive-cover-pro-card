@@ -1,6 +1,8 @@
-import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { LitElement, html, css, nothing, type TemplateResult, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
+
+import { entityStateChanged } from './lib/hass-change';
 
 import {
   CARD_EDITOR_NAME,
@@ -13,11 +15,8 @@ import { t } from './lib/i18n';
 import { createDiscoveryMemo } from './lib/entity-discovery';
 import { fetchAcpConfigEntries } from './lib/config-entries';
 import { normalizeAzimuth } from './lib/geometry';
-import {
-  fetchEntityRegistry,
-  subscribeEntityRegistry,
-  type EntityRegistryEntry,
-} from './lib/entity-registry';
+import { subscribeEntityRegistry, type EntityRegistryEntry } from './lib/entity-registry';
+import { loadEntityRegistry, getCachedRegistry } from './lib/registry-store';
 import { registryCache } from './lib/registry-cache';
 import { registryChanged, isAcpRegistryEvent, filterAcp } from './lib/registry-diff';
 import type { AdaptiveCoverProCardConfig, CardSection, DiscoveredEntities } from './types';
@@ -50,6 +49,12 @@ export class AdaptiveCoverProCard extends LitElement {
   @state() private _registry: EntityRegistryEntry[] | null = null;
   @state() private _registryError: string | null = null;
   @state() private _discovered: DiscoveredEntities | null = null;
+
+  // Stable single-element wrapper list handed to the compass + elevation chart.
+  // Rebuilt only when `_discovered`'s reference changes, so a root re-render for
+  // header reasons doesn't churn those children's array prop on every tick.
+  private _discoveredList: DiscoveredEntities[] = [];
+  private _discoveredListSource: DiscoveredEntities | null = null;
 
   private _unsubRegistry: (() => void) | null = null;
   private _fetchInFlight = false;
@@ -107,6 +112,12 @@ export class AdaptiveCoverProCard extends LitElement {
 
   public connectedCallback(): void {
     super.connectedCallback();
+    // Warm-start from the in-memory registry if another card already fetched it this
+    // session — avoids the Loading flash on the 2nd..Nth card and after tab navigation.
+    if (this._registry === null) {
+      const mem = getCachedRegistry();
+      if (mem) this._registry = mem;
+    }
     if (this.hass) this._ensureRegistry();
   }
 
@@ -127,6 +138,19 @@ export class AdaptiveCoverProCard extends LitElement {
     if (changed.has('hass') && this.hass) this._ensureRegistry();
   }
 
+  // Root re-renders whenever ANY entity belonging to this config entry changed,
+  // because it is the one that forwards `hass` to every section — short-circuit
+  // here and the children never see the update. Each child then applies its own
+  // narrower guard so the expensive sections skip ticks they don't care about.
+  // Unrelated (non-ACP) state ticks change none of these ids, so the root (and
+  // therefore the whole card) skips them entirely.
+  protected shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.size > 1 || !changed.has('hass')) return true;
+    if (!this._discovered) return true;
+    const old = changed.get('hass') as HomeAssistant | undefined;
+    return entityStateChanged(old, this.hass, Object.values(this._discovered.entities));
+  }
+
   protected willUpdate(changed: Map<string, unknown>): void {
     if (
       this._registry !== null &&
@@ -135,6 +159,10 @@ export class AdaptiveCoverProCard extends LitElement {
       (changed.has('hass') || changed.has('_registry') || changed.has('_config'))
     ) {
       this._discovered = this._memo(this.hass, this._config, this._registry);
+    }
+    if (this._discovered !== this._discoveredListSource) {
+      this._discoveredListSource = this._discovered;
+      this._discoveredList = this._discovered ? [this._discovered] : [];
     }
   }
 
@@ -154,11 +182,14 @@ export class AdaptiveCoverProCard extends LitElement {
     }
   }
 
-  private _fetchRegistry(): void {
+  private _fetchRegistry(force = false): void {
     if (this._fetchInFlight) return;
     this._fetchInFlight = true;
-    fetchEntityRegistry(this.hass)
+    loadEntityRegistry(this.hass, force)
       .then((entries) => {
+        // Shared cache returned the same array we already hold — nothing changed, so the
+        // per-tick revalidation path costs O(1) instead of re-filtering the registry.
+        if (entries === this._registry) return;
         const entryId = this._config?.entry_id;
         if (entryId) {
           const slice = filterAcp(entries, entryId);
@@ -193,16 +224,17 @@ export class AdaptiveCoverProCard extends LitElement {
     if (this._debounceTimer !== null) clearTimeout(this._debounceTimer);
 
     if (delay <= 0) {
-      // Max wait exceeded — fire immediately.
+      // Max wait exceeded — fire immediately. Force past the shared cache so the registry
+      // change that triggered this refetch isn't masked by a stale cached value.
       this._debounceFirstAt = null;
-      this._fetchRegistry();
+      this._fetchRegistry(true);
       return;
     }
 
     this._debounceTimer = setTimeout(() => {
       this._debounceTimer = null;
       this._debounceFirstAt = null;
-      this._fetchRegistry();
+      this._fetchRegistry(true);
     }, delay);
   }
 
@@ -311,7 +343,7 @@ export class AdaptiveCoverProCard extends LitElement {
           ${sections.includes('sky')
             ? html`<acp-sky-compass
                 .hass=${this.hass}
-                .discovered_list=${[discovered]}
+                .discovered_list=${this._discoveredList}
                 ?compact=${!!this._config.compact}
                 .showStats=${this._config.show_compass_stats ?? true}
                 .showLegend=${this._config.show_compass_legend ?? true}
@@ -323,7 +355,7 @@ export class AdaptiveCoverProCard extends LitElement {
           ${sections.includes('elevation')
             ? html`<acp-elevation-chart
                 .hass=${this.hass}
-                .discoveredList=${[discovered]}
+                .discoveredList=${this._discoveredList}
                 ?compact=${!!this._config.compact}
                 .coverColors=${this._config.cover_colors ?? []}
               ></acp-elevation-chart>`

@@ -1,7 +1,8 @@
-import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { LitElement, html, css, nothing, type TemplateResult, type PropertyValues } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
+import { entityStateChanged } from '../lib/hass-change';
 import type { CoverPositionAttributes, DiscoveredEntities } from '../types';
 import { formatPercent } from '../lib/formatters';
 import { INTEGRATION_DOMAIN } from '../const';
@@ -16,6 +17,19 @@ export class CoverBar extends LitElement {
    *  closed segment to match the compass cover wedge. Null falls back to
    *  `--primary-color`, exactly like the compass in single-entry mode. */
   @property({ attribute: false }) public coverColor: string | null = null;
+
+  // Live positions come from the target sensor's `actual_positions`; mismatches from the
+  // position-mismatch binary. Per-cover friendly names are effectively static, so those
+  // two ids cover everything the bars render — skip unrelated hass ticks.
+  protected shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.size > 1 || !changed.has('hass')) return true;
+    const old = changed.get('hass') as HomeAssistant | undefined;
+    const e = this.discovered?.entities;
+    return entityStateChanged(old, this.hass, [
+      e?.target_position_sensor,
+      e?.position_mismatch_binary,
+    ]);
+  }
 
   private _target(): { target: number | null; covers: Record<string, number | null> } {
     const id = this.discovered.entities.target_position_sensor;
