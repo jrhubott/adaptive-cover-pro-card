@@ -1,6 +1,6 @@
 import type { HarnessConfig } from './types';
 
-const STORAGE_KEY = 'acp-harness-v1';
+export const STORAGE_KEY = 'acp-harness-v1';
 
 export function saveConfig(cfg: HarnessConfig): void {
   try {

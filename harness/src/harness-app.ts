@@ -7,7 +7,7 @@ import { SKY_COMPASS_CARD_NAME } from '../../src/const';
 import { buildMockHass, type ServiceCallEvent } from './mock/hass';
 import { applyService, type ServiceCall } from './mock/services';
 import { defaultScenarioConfig, findScenario, normalizeConfig, SCENARIOS } from './scenarios';
-import { loadConfig, saveConfig } from './persistence';
+import { loadConfig, saveConfig, STORAGE_KEY } from './persistence';
 import { setFakeNow } from './fake-clock';
 import { zoneForLongitude, zonedNowMs } from './zone';
 import {
@@ -59,6 +59,24 @@ function mergeCaptureConfig(base: HarnessConfig, p: CapturePartial): HarnessConf
 
 const MAX_LOG_ENTRIES = 200;
 
+/** Device-preview widths. A viewport @media breakpoint (e.g. the phone tile
+ *  reflow, gated on @media (max-width: 500px)) can only be exercised by giving
+ *  the card its own viewport — an iframe sized to the device. The tile-width
+ *  control fakes the *container* width and never trips a @media query. */
+const DEVICE_PRESETS: { label: string; w: number }[] = [
+  { label: 'Desktop (off)', w: 0 },
+  { label: 'Android (360)', w: 360 },
+  { label: 'iPhone (390)', w: 390 },
+  { label: 'iPhone Max (430)', w: 430 },
+  { label: 'Tablet (768)', w: 768 },
+];
+
+type StageTab = 'root' | 'compass' | 'tile' | 'badges';
+
+function parseEmbedTab(v: string | null): StageTab {
+  return v === 'root' || v === 'compass' || v === 'tile' || v === 'badges' ? v : 'tile';
+}
+
 @customElement('acp-harness-app')
 export class AcpHarnessApp extends LitElement {
   // URL hash > localStorage > default preset. Normalize so configs persisted
@@ -70,20 +88,34 @@ export class AcpHarnessApp extends LitElement {
   @state() private _log: ServiceCall[] = [];
   @state() private _shareToast: string | null = null;
   // Which stage view is shown. In-memory only — resets to "root" on reload.
-  @state() private _tab: 'root' | 'compass' | 'tile' | 'badges' = 'root';
+  @state() private _tab: StageTab = 'root';
+  // Device-preview width in px (0 = off). Renders the active card in an iframe
+  // sized to a device so viewport @media breakpoints actually fire.
+  @state() private _device = 0;
 
   // Capture mode (?capture URL param) keeps card-stage rendering all enabled
   // cards so the screenshot/time-lapse scripts work unchanged.
   private _capture = false;
+  // Embed mode (?embed=<tab> URL param) is the document loaded *inside* a
+  // device-preview iframe: it renders only the chosen card, drops the chrome,
+  // and mirrors the parent's config live via localStorage `storage` events.
+  private _embed = false;
 
   private _playInterval: ReturnType<typeof setInterval> | null = null;
   private _shareToastTimer: ReturnType<typeof setTimeout> | null = null;
 
   connectedCallback(): void {
     super.connectedCallback();
+    const params = new URLSearchParams(location.search);
+    if (params.has('embed')) {
+      // Running inside a device-preview iframe: mirror the parent, no chrome.
+      this._embed = true;
+      this._tab = parseEmbedTab(params.get('embed'));
+      window.addEventListener('storage', this._onStorage);
+    }
     this._rebuildHass();
     this._applyTheme();
-    if (new URLSearchParams(location.search).has('capture')) {
+    if (!this._embed && params.has('capture')) {
       this._capture = true;
       this._installCaptureBridge();
     }
@@ -92,7 +124,17 @@ export class AcpHarnessApp extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     this._clearPlayInterval();
+    window.removeEventListener('storage', this._onStorage);
   }
+
+  /** Embed mode only: the parent window writes config to localStorage on every
+   *  change; same-origin `storage` events deliver it here so the device preview
+   *  stays in lock-step without a postMessage channel. */
+  private _onStorage = (e: StorageEvent): void => {
+    if (e.key !== STORAGE_KEY) return;
+    const cfg = loadConfig();
+    if (cfg) this._config = normalizeConfig(cfg);
+  };
 
   protected willUpdate(changed: Map<string, unknown>): void {
     // Rebuild hass BEFORE render (not in updated(), which runs after) so the new
@@ -108,7 +150,9 @@ export class AcpHarnessApp extends LitElement {
     if (changed.has('_config')) {
       this._applyTheme();
       this._syncPlayState();
-      saveConfig(this._config);
+      // Embed mode is a read-only mirror — writing back would echo the parent's
+      // own value into a redundant `storage` round-trip.
+      if (!this._embed) saveConfig(this._config);
     }
   }
 
@@ -138,6 +182,9 @@ export class AcpHarnessApp extends LitElement {
   }
 
   private _syncPlayState(): void {
+    // The parent drives the clock; an embedded preview only mirrors it (a second
+    // interval would double-advance time against the storage-synced value).
+    if (this._embed) return;
     if (this._config.playing && !this._playInterval) {
       this._playInterval = setInterval(() => {
         const next = (this._config.timeOfDayMinutes + 1) % 1440;
@@ -248,7 +295,7 @@ export class AcpHarnessApp extends LitElement {
     }, 3000);
   }
 
-  private _tabButton(id: typeof this._tab, label: string): TemplateResult {
+  private _tabButton(id: StageTab, label: string): TemplateResult {
     return html`<button
       class="tab ${this._tab === id ? 'active' : ''}"
       @click=${() => (this._tab = id)}
@@ -257,11 +304,49 @@ export class AcpHarnessApp extends LitElement {
     </button>`;
   }
 
+  private _onDeviceChange = (e: Event): void => {
+    this._device = Number((e.target as HTMLSelectElement).value) || 0;
+  };
+
+  /** The active card rendered inside an iframe sized to a device width, so its
+   *  viewport @media breakpoints fire (the tile-width control can't reach them).
+   *  The iframe boots the same harness in `?embed` mode and live-syncs config
+   *  from this window via localStorage. */
+  private _renderDeviceFrame(): TemplateResult {
+    return html`<div class="device-wrap">
+      <div class="device" style="width:${this._device}px">
+        <div class="device-bar">${this._device}px · ${this._tab}</div>
+        <iframe
+          class="device-frame"
+          src="?embed=${this._tab}"
+          title="Device preview — ${this._device}px"
+        ></iframe>
+      </div>
+    </div>`;
+  }
+
+  private _deviceSelect(): TemplateResult {
+    return html`<label
+      class="device-select"
+      title="Render the active card in an iframe sized to a device. This is the only way to trip viewport @media breakpoints (e.g. the phone tile-reflow at ≤500px) — the tile-width control only fakes the container width."
+    >
+      📱
+      <select @change=${this._onDeviceChange}>
+        ${DEVICE_PRESETS.map(
+          (d) => html`<option value=${d.w} ?selected=${d.w === this._device}>${d.label}</option>`,
+        )}
+      </select>
+    </label>`;
+  }
+
   private _renderStage(): TemplateResult {
     const showGallery = this._tab === 'badges' && !this._capture;
     // Capture mode renders all enabled cards (activeCard undefined) so the
     // screenshot scripts keep working; otherwise show only the active card tab.
     const card = this._tab === 'badges' ? undefined : this._tab;
+    // Device preview owns the stage when on (but never in capture mode, where
+    // the screenshot scripts expect the cards rendered directly).
+    const showDevice = this._device > 0 && !this._capture;
     return html`
       ${this._capture
         ? // The capture scripts screenshot a single card's bounding box; a sticky
@@ -271,18 +356,34 @@ export class AcpHarnessApp extends LitElement {
         : html`<nav class="tabs">
             ${this._tabButton('root', 'Root')} ${this._tabButton('compass', 'Sky compass')}
             ${this._tabButton('tile', 'Tile')} ${this._tabButton('badges', 'Badge gallery')}
+            ${this._deviceSelect()}
           </nav>`}
-      ${showGallery
-        ? html`<acp-harness-badge-gallery .hass=${this._hass}></acp-harness-badge-gallery>`
-        : html`<acp-harness-card-stage
-            .hass=${this._hass}
-            .config=${this._config}
-            .activeCard=${this._capture ? undefined : card}
-          ></acp-harness-card-stage>`}
+      ${showDevice
+        ? this._renderDeviceFrame()
+        : showGallery
+          ? html`<acp-harness-badge-gallery .hass=${this._hass}></acp-harness-badge-gallery>`
+          : html`<acp-harness-card-stage
+              .hass=${this._hass}
+              .config=${this._config}
+              .activeCard=${this._capture ? undefined : card}
+            ></acp-harness-card-stage>`}
     `;
   }
 
   protected render(): TemplateResult {
+    if (this._embed) {
+      // Inside a device-preview iframe: just the active card, no chrome, filling
+      // (and scrolling within) the iframe's device-sized viewport.
+      return html`<div class="embed-stage">
+        ${this._tab === 'badges'
+          ? html`<acp-harness-badge-gallery .hass=${this._hass}></acp-harness-badge-gallery>`
+          : html`<acp-harness-card-stage
+              .hass=${this._hass}
+              .config=${this._config}
+              .activeCard=${this._tab}
+            ></acp-harness-card-stage>`}
+      </div>`;
+    }
     return html`
       <div class="layout">
         <aside class="controls">
@@ -425,6 +526,62 @@ export class AcpHarnessApp extends LitElement {
       color: var(--primary-text-color);
       background: var(--secondary-background-color);
       font-weight: 600;
+    }
+    .device-select {
+      margin-left: auto;
+      align-self: center;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.8rem;
+      color: var(--secondary-text-color);
+      cursor: pointer;
+      padding-bottom: 8px;
+    }
+    .device-select select {
+      font: inherit;
+      font-size: 0.76rem;
+      padding: 2px 4px;
+      border: 1px solid var(--harness-border);
+      border-radius: 4px;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+    }
+    .device-wrap {
+      display: flex;
+      justify-content: center;
+      padding: 16px;
+    }
+    .device {
+      max-width: 100%;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--harness-border);
+      border-radius: 16px;
+      overflow: hidden;
+      background: var(--card-background-color, #fff);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.22);
+    }
+    .device-bar {
+      font-size: 0.7rem;
+      text-align: center;
+      padding: 4px;
+      color: var(--secondary-text-color);
+      background: var(--secondary-background-color);
+      border-bottom: 1px solid var(--harness-border);
+    }
+    .device-frame {
+      border: 0;
+      width: 100%;
+      height: calc(100vh - 248px);
+      background: var(--card-background-color, #fff);
+    }
+    .embed-stage {
+      height: 100vh;
+      overflow: auto;
+      box-sizing: border-box;
+      padding: 8px;
     }
     .log {
       grid-area: log;
