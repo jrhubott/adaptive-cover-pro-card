@@ -17,11 +17,10 @@ import { createDiscoveryMemo } from './lib/entity-discovery';
 import { entityStateChanged } from './lib/hass-change';
 import { fetchAcpConfigEntries } from './lib/config-entries';
 import { pickCoverIcon } from './lib/icons';
-import {
-  fetchEntityRegistry,
-  subscribeEntityRegistry,
-  type EntityRegistryEntry,
-} from './lib/entity-registry';
+import { subscribeEntityRegistry, type EntityRegistryEntry } from './lib/entity-registry';
+import { loadEntityRegistry, getCachedRegistry } from './lib/registry-store';
+import { registryCache } from './lib/registry-cache';
+import { filterAcp } from './lib/registry-diff';
 import type {
   AdaptiveCoverProTileCardConfig,
   DecisionTraceAttributes,
@@ -81,6 +80,13 @@ export class AdaptiveCoverProTileCard extends LitElement {
       };
     }
     this._config = next;
+    // Warm-start synchronously from the persisted ACP slice so a reload skips the Loading
+    // state; the shared fetch below revalidates. Discovery filters the registry anyway, so
+    // holding just the slice is fine.
+    if (this._registry === null) {
+      const cached = registryCache.get(next.entry_id);
+      if (cached) this._registry = cached.entries;
+    }
   }
 
   public getCardSize(): number {
@@ -118,6 +124,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
   public connectedCallback(): void {
     super.connectedCallback();
+    if (this._registry === null) {
+      const mem = getCachedRegistry();
+      if (mem) this._registry = mem;
+    }
     if (this.hass) this._ensureRegistry();
   }
 
@@ -158,25 +168,30 @@ export class AdaptiveCoverProTileCard extends LitElement {
   }
 
   private _ensureRegistry(): void {
-    if (this._registry === null && !this._fetchInFlight) this._fetchRegistry();
+    // Revalidate against the shared registry store — cheap when warm (no websocket call),
+    // so this also refreshes a slice we warm-started from localStorage.
+    this._fetchRegistry();
     if (!this._unsubRegistry) {
       this._unsubRegistry = subscribeEntityRegistry(this.hass, () => {
-        this._fetchRegistry();
+        this._fetchRegistry(true);
       });
     }
   }
 
-  private _fetchRegistry(): void {
+  private _fetchRegistry(force = false): void {
     if (this._fetchInFlight) return;
     this._fetchInFlight = true;
     // Capture a generation counter so a late-resolving stale fetch can't
     // overwrite a newer registry value injected (or assigned) in the meantime.
     const myGen = ++this._fetchGen;
-    fetchEntityRegistry(this.hass)
+    loadEntityRegistry(this.hass, force)
       .then((entries) => {
         if (myGen !== this._fetchGen) return;
+        if (entries === this._registry) return; // unchanged shared cache → O(1) revalidation
         this._registry = entries;
         this._registryError = null;
+        if (this._config)
+          registryCache.set(this._config.entry_id, filterAcp(entries, this._config.entry_id));
       })
       .catch((err: Error) => {
         if (myGen !== this._fetchGen) return;

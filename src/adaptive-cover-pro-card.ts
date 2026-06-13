@@ -15,11 +15,8 @@ import { t } from './lib/i18n';
 import { createDiscoveryMemo } from './lib/entity-discovery';
 import { fetchAcpConfigEntries } from './lib/config-entries';
 import { normalizeAzimuth } from './lib/geometry';
-import {
-  fetchEntityRegistry,
-  subscribeEntityRegistry,
-  type EntityRegistryEntry,
-} from './lib/entity-registry';
+import { subscribeEntityRegistry, type EntityRegistryEntry } from './lib/entity-registry';
+import { loadEntityRegistry, getCachedRegistry } from './lib/registry-store';
 import { registryCache } from './lib/registry-cache';
 import { registryChanged, isAcpRegistryEvent, filterAcp } from './lib/registry-diff';
 import type { AdaptiveCoverProCardConfig, CardSection, DiscoveredEntities } from './types';
@@ -115,6 +112,12 @@ export class AdaptiveCoverProCard extends LitElement {
 
   public connectedCallback(): void {
     super.connectedCallback();
+    // Warm-start from the in-memory registry if another card already fetched it this
+    // session — avoids the Loading flash on the 2nd..Nth card and after tab navigation.
+    if (this._registry === null) {
+      const mem = getCachedRegistry();
+      if (mem) this._registry = mem;
+    }
     if (this.hass) this._ensureRegistry();
   }
 
@@ -179,11 +182,14 @@ export class AdaptiveCoverProCard extends LitElement {
     }
   }
 
-  private _fetchRegistry(): void {
+  private _fetchRegistry(force = false): void {
     if (this._fetchInFlight) return;
     this._fetchInFlight = true;
-    fetchEntityRegistry(this.hass)
+    loadEntityRegistry(this.hass, force)
       .then((entries) => {
+        // Shared cache returned the same array we already hold — nothing changed, so the
+        // per-tick revalidation path costs O(1) instead of re-filtering the registry.
+        if (entries === this._registry) return;
         const entryId = this._config?.entry_id;
         if (entryId) {
           const slice = filterAcp(entries, entryId);
@@ -218,16 +224,17 @@ export class AdaptiveCoverProCard extends LitElement {
     if (this._debounceTimer !== null) clearTimeout(this._debounceTimer);
 
     if (delay <= 0) {
-      // Max wait exceeded — fire immediately.
+      // Max wait exceeded — fire immediately. Force past the shared cache so the registry
+      // change that triggered this refetch isn't masked by a stale cached value.
       this._debounceFirstAt = null;
-      this._fetchRegistry();
+      this._fetchRegistry(true);
       return;
     }
 
     this._debounceTimer = setTimeout(() => {
       this._debounceTimer = null;
       this._debounceFirstAt = null;
-      this._fetchRegistry();
+      this._fetchRegistry(true);
     }, delay);
   }
 

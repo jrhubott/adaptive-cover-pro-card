@@ -8,11 +8,10 @@ import { entityStateChanged } from './lib/hass-change';
 import { fetchAcpConfigEntries } from './lib/config-entries';
 import { normalizeAzimuth } from './lib/geometry';
 import { t } from './lib/i18n';
-import {
-  fetchEntityRegistry,
-  subscribeEntityRegistry,
-  type EntityRegistryEntry,
-} from './lib/entity-registry';
+import { subscribeEntityRegistry, type EntityRegistryEntry } from './lib/entity-registry';
+import { loadEntityRegistry, getCachedRegistry } from './lib/registry-store';
+import { registryCache } from './lib/registry-cache';
+import { filterAcp } from './lib/registry-diff';
 import type { SkyCompassCardConfig } from './types';
 
 import './components/sky-compass';
@@ -45,6 +44,15 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
       );
     }
     this._config = { ...config, entry_ids: [...config.entry_ids] };
+    // Warm-start from the persisted ACP slices so a reload skips the Loading state — but
+    // only when every configured entry is cached, otherwise the missing ones would flash a
+    // false "not found" until the shared fetch revalidates.
+    if (this._registry === null) {
+      const slices = this._config.entry_ids.map((id) => registryCache.get(id)?.entries);
+      if (slices.every((s) => s !== undefined)) {
+        this._registry = (slices as EntityRegistryEntry[][]).flat();
+      }
+    }
   }
 
   public getCardSize(): number {
@@ -84,6 +92,10 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
 
   public connectedCallback(): void {
     super.connectedCallback();
+    if (this._registry === null) {
+      const mem = getCachedRegistry();
+      if (mem) this._registry = mem;
+    }
     if (this.hass) this._ensureRegistry();
   }
 
@@ -127,21 +139,27 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
   }
 
   private _ensureRegistry(): void {
-    if (this._registry === null && !this._fetchInFlight) this._fetchRegistry();
+    // Revalidate against the shared registry store — cheap when warm (no websocket call),
+    // so this also refreshes slices we warm-started from localStorage.
+    this._fetchRegistry();
     if (!this._unsubRegistry) {
       this._unsubRegistry = subscribeEntityRegistry(this.hass, () => {
-        this._fetchRegistry();
+        this._fetchRegistry(true);
       });
     }
   }
 
-  private _fetchRegistry(): void {
+  private _fetchRegistry(force = false): void {
     if (this._fetchInFlight) return;
     this._fetchInFlight = true;
-    fetchEntityRegistry(this.hass)
+    loadEntityRegistry(this.hass, force)
       .then((entries) => {
+        if (entries === this._registry) return; // unchanged shared cache → O(1) revalidation
         this._registry = entries;
         this._registryError = null;
+        if (this._config) {
+          for (const id of this._config.entry_ids) registryCache.set(id, filterAcp(entries, id));
+        }
       })
       .catch((err: Error) => {
         this._registryError = err?.message ?? 'entity registry fetch failed';
