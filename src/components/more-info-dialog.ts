@@ -65,6 +65,29 @@ export class MoreInfoDialog extends LitElement {
   /** Per-kind badge opt-in, threaded down from the tile-card config. */
   @property({ attribute: false }) public badges?: AdaptiveCoverProTileCardConfig['badges'];
 
+  // Refresh the time-derived bits (the forecast strip's `now` cursor) every minute while
+  // the dialog is open. The dialog is always in the DOM via the tile card, so gate on
+  // `open` rather than connection so a closed dialog isn't ticking for nothing.
+  private _minuteTick: ReturnType<typeof setInterval> | null = null;
+
+  protected updated(): void {
+    this._syncMinuteTimer(this.open);
+  }
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this._syncMinuteTimer(false);
+  }
+
+  private _syncMinuteTimer(active: boolean): void {
+    if (active && this._minuteTick === null) {
+      this._minuteTick = setInterval(() => this.requestUpdate(), 60_000);
+    } else if (!active && this._minuteTick !== null) {
+      clearInterval(this._minuteTick);
+      this._minuteTick = null;
+    }
+  }
+
   // Stable single-element wrapper for the embedded compass/chart, rebuilt only when
   // `discovered` changes — a fresh `[this.discovered]` literal each render would churn
   // the children's array prop and defeat their own `shouldUpdate` guards.

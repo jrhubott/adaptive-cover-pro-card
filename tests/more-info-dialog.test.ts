@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import '../src/components/more-info-dialog';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities } from '../src/types';
@@ -91,6 +91,33 @@ describe('acp-more-info-dialog: open/close', () => {
     el.addEventListener('acp-dialog-close', listener);
     (el.shadowRoot!.querySelector('button.close') as HTMLElement).click();
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('acp-more-info-dialog: minute timer (now cursor)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('ticks every minute only while open', async () => {
+    vi.useFakeTimers();
+    const el = await mount({ hass: hass(), discovered: discovered(), open: false });
+
+    const spy = vi.spyOn(el as unknown as { requestUpdate: () => void }, 'requestUpdate');
+    vi.advanceTimersByTime(180_000);
+    expect(spy).not.toHaveBeenCalled(); // closed → no timer
+
+    el.open = true;
+    await el.updateComplete;
+    spy.mockClear();
+    vi.advanceTimersByTime(120_000);
+    expect(spy).toHaveBeenCalledTimes(2);
+
+    el.open = false;
+    await el.updateComplete;
+    spy.mockClear();
+    vi.advanceTimersByTime(180_000);
+    expect(spy).not.toHaveBeenCalled(); // closed again → timer cleared
   });
 });
 

@@ -41,6 +41,24 @@ export class ElevationChart extends LitElement {
   @property({ attribute: false }) public coverColors: (string | null | undefined)[] = [];
   @property({ type: Boolean, reflect: true }) public compact = false;
 
+  // Advance the "now" cursor as wall-clock time passes. Rendering is otherwise gated to
+  // state changes (shouldUpdate), so without this the now-line would only move when a
+  // sensor updates. One re-render per minute is enough — the cursor is minute-resolution.
+  private _minuteTick: ReturnType<typeof setInterval> | null = null;
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this._minuteTick = setInterval(() => this.requestUpdate(), 60_000);
+  }
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    if (this._minuteTick !== null) {
+      clearInterval(this._minuteTick);
+      this._minuteTick = null;
+    }
+  }
+
   // Skip re-render on hass ticks that touched none of the entities this chart reads.
   protected shouldUpdate(changed: PropertyValues): boolean {
     if (changed.size > 1 || !changed.has('hass')) return true;
