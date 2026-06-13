@@ -668,6 +668,7 @@ describe('acp-elevation-chart: now-line minute timer', () => {
 
   it('requests a re-render every minute while connected and stops on disconnect', () => {
     vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-13T10:00:00.000Z')); // on a boundary → first tick at +60s
     const el = document.createElement('acp-elevation-chart') as ChartLike;
     Object.assign(el, { hass: hass({}), discoveredList: [discovered] });
     document.body.appendChild(el);

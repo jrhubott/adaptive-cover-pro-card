@@ -19,6 +19,7 @@ import {
   resolveCustomPositionPct,
 } from '../lib/decision-summary';
 import { buildSolarActiveContext, selectVisibleBadges } from '../lib/badge-visibility';
+import { startMinuteTimer } from '../lib/minute-timer';
 import type {
   AdaptiveCoverProTileCardConfig,
   CustomPositionSlotSnapshot,
@@ -66,9 +67,9 @@ export class MoreInfoDialog extends LitElement {
   @property({ attribute: false }) public badges?: AdaptiveCoverProTileCardConfig['badges'];
 
   // Refresh the time-derived bits (the forecast strip's `now` cursor) every minute while
-  // the dialog is open. The dialog is always in the DOM via the tile card, so gate on
-  // `open` rather than connection so a closed dialog isn't ticking for nothing.
-  private _minuteTick: ReturnType<typeof setInterval> | null = null;
+  // the dialog is open, aligned to the minute boundary. The dialog is always in the DOM via
+  // the tile card, so gate on `open` rather than connection so a closed dialog isn't ticking.
+  private _cancelMinuteTimer: (() => void) | null = null;
 
   protected updated(): void {
     this._syncMinuteTimer(this.open);
@@ -80,11 +81,11 @@ export class MoreInfoDialog extends LitElement {
   }
 
   private _syncMinuteTimer(active: boolean): void {
-    if (active && this._minuteTick === null) {
-      this._minuteTick = setInterval(() => this.requestUpdate(), 60_000);
-    } else if (!active && this._minuteTick !== null) {
-      clearInterval(this._minuteTick);
-      this._minuteTick = null;
+    if (active && this._cancelMinuteTimer === null) {
+      this._cancelMinuteTimer = startMinuteTimer(() => this.requestUpdate());
+    } else if (!active && this._cancelMinuteTimer !== null) {
+      this._cancelMinuteTimer();
+      this._cancelMinuteTimer = null;
     }
   }
 

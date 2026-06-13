@@ -101,6 +101,7 @@ describe('acp-more-info-dialog: minute timer (now cursor)', () => {
 
   it('ticks every minute only while open', async () => {
     vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-13T10:00:00.000Z')); // on a boundary → ticks at +60s, +120s
     const el = await mount({ hass: hass(), discovered: discovered(), open: false });
 
     const spy = vi.spyOn(el as unknown as { requestUpdate: () => void }, 'requestUpdate');

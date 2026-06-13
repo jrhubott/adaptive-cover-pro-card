@@ -7,6 +7,7 @@ import { entityStateChanged } from '../lib/hass-change';
 import type { ControlStatusAttributes, DiscoveredEntities, SunPositionAttributes } from '../types';
 import { findFovWindows, sampleDay, startOfDayInZone, type SunSample } from '../lib/sun-model';
 import { elevationBandFraction, ribbonLayout, scheduleZones } from '../lib/geometry';
+import { startMinuteTimer } from '../lib/minute-timer';
 import { sunDotState, SUN_DOT_CLASS } from '../lib/sun-dot-state';
 import { resolveCoverColor } from '../lib/palette';
 import { formatClock } from '../lib/formatters';
@@ -43,20 +44,19 @@ export class ElevationChart extends LitElement {
 
   // Advance the "now" cursor as wall-clock time passes. Rendering is otherwise gated to
   // state changes (shouldUpdate), so without this the now-line would only move when a
-  // sensor updates. One re-render per minute is enough — the cursor is minute-resolution.
-  private _minuteTick: ReturnType<typeof setInterval> | null = null;
+  // sensor updates. The timer is aligned to the minute boundary; one re-render per minute
+  // is enough — the cursor is minute-resolution.
+  private _cancelMinuteTimer: (() => void) | null = null;
 
   public connectedCallback(): void {
     super.connectedCallback();
-    this._minuteTick = setInterval(() => this.requestUpdate(), 60_000);
+    this._cancelMinuteTimer = startMinuteTimer(() => this.requestUpdate());
   }
 
   public disconnectedCallback(): void {
     super.disconnectedCallback();
-    if (this._minuteTick !== null) {
-      clearInterval(this._minuteTick);
-      this._minuteTick = null;
-    }
+    this._cancelMinuteTimer?.();
+    this._cancelMinuteTimer = null;
   }
 
   // Skip re-render on hass ticks that touched none of the entities this chart reads.
