@@ -84,6 +84,7 @@ export class FloatingTooltipElement extends LitElement {
       position: absolute;
       top: 0;
       left: 0;
+      width: max-content;
       max-width: 280px;
       padding: 6px 10px;
       border-radius: 6px;

@@ -16,6 +16,7 @@ function e(e,t,o,s){var i,n=arguments.length,r=n<3?t:null===s?s=Object.getOwnPro
       position: absolute;
       top: 0;
       left: 0;
+      width: max-content;
       max-width: 280px;
       padding: 6px 10px;
       border-radius: 6px;
