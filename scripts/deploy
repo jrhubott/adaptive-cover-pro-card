@@ -77,8 +77,8 @@ fi
 BASE_VERSION="$(node -p "require('./package.json').version")"
 DEV_VERSION="${BASE_VERSION}-dev.${GIT_HASH}"
 
-# If the tag already exists for this version, append an incrementing counter.
-# For dirty builds, counter is persisted in .dirty-deploy (gitignored).
+# For dirty builds, append an incrementing counter persisted in .dirty-deploy
+# (gitignored) so repeated deploys of the same dirty tree get unique versions.
 _DIRTY_N=""
 if [[ "$GIT_HASH" == *"-dirty" ]]; then
     _BASE_HASH="${GIT_HASH%%-dirty}"
@@ -90,14 +90,6 @@ if [[ "$GIT_HASH" == *"-dirty" ]]; then
         fi
     fi
     DEV_VERSION="${DEV_VERSION}.${_DIRTY_N}"
-else
-    _COUNTER=1
-    _VERSIONED="${DEV_VERSION}"
-    while git rev-parse "refs/tags/deploy/${_VERSIONED}" &>/dev/null; do
-        _VERSIONED="${DEV_VERSION}.${_COUNTER}"
-        _COUNTER=$((_COUNTER + 1))
-    done
-    DEV_VERSION="${_VERSIONED}"
 fi
 
 # ── Cleanup on exit ──────────────────────────────────────────────────────────
@@ -240,16 +232,9 @@ else
     echo ""
     echo "==> Deploy complete (version ${DEV_VERSION})."
 
-    # ── Tag the deployed commit in git ────────────────────────────────────────
-    GIT_TAG="deploy/${DEV_VERSION}"
+    # ── Persist the dirty-build deploy counter ────────────────────────────────
     if [[ "$GIT_HASH" == *"-dirty" ]]; then
-        echo "==> Skipping git tag — working tree is dirty."
         echo "${_BASE_HASH}:$((_DIRTY_N + 1))" > ".dirty-deploy"
-    else
-        echo "==> Tagging deployed commit as ${GIT_TAG}..."
-        git tag "${GIT_TAG}"
-        git push origin "${GIT_TAG}" 2>/dev/null && echo "    Tag pushed to origin." \
-            || echo "    Warning: tag created locally but could not push to origin."
     fi
 
     # ── Bump Lovelace resource URL so HA serves the new bundle ───────────────

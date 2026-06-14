@@ -13,6 +13,7 @@ import { loadEntityRegistry, getCachedRegistry } from './lib/registry-store';
 import { registryCache } from './lib/registry-cache';
 import { filterAcp } from './lib/registry-diff';
 import type { SkyCompassCardConfig } from './types';
+import { setTooltipDefaults } from './lib/tooltip';
 
 import './components/sky-compass';
 import './components/elevation-chart';
@@ -44,6 +45,7 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
       );
     }
     this._config = { ...config, entry_ids: [...config.entry_ids] };
+    if (config.tooltips) setTooltipDefaults(config.tooltips);
     // Warm-start from the persisted ACP slices so a reload skips the Loading state — but
     // only when every configured entry is cached, otherwise the missing ones would flash a
     // false "not found" until the shared fetch revalidates.

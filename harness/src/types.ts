@@ -14,6 +14,17 @@ export type ClimateInactiveReason =
   | 'readings_unavailable';
 export type DecisionMode = 'derived' | 'scripted';
 
+/** Floating-tooltip behavior mirror of the card's `tooltips` config. `mode`
+ *  maps to the card's `tooltips.enabled`: `floating` → true, `native` → false.
+ *  `off` also sets enabled false (native tooltips are the off-state). */
+export type TooltipMode = 'floating' | 'native';
+
+export interface TooltipsOptions {
+  mode: TooltipMode;
+  /** [right, down] cursor offset in px (mirrors `tooltips.offset`). */
+  offset: [number, number];
+}
+
 export interface CustomPositionSlotCfg {
   slot: 1 | 2 | 3 | 4 | 5;
   enabled: boolean;
@@ -200,6 +211,8 @@ export interface HarnessConfig {
   root: RootCardOptions;
   compass: SkyCompassCardOptions;
   tile: TileCardOptions;
+  /** Floating-tooltip behavior, threaded into all three card configs. */
+  tooltips: TooltipsOptions;
   /** Fixed stage height in px for the Sky Compass card, mimicking HA's
    *  fixed grid-row height in a Sections dashboard. 0 = grow freely (the
    *  harness default). A positive value caps the compass card-host and clips

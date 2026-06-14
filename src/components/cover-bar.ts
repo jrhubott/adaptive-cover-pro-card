@@ -7,6 +7,7 @@ import type { CoverPositionAttributes, DiscoveredEntities } from '../types';
 import { formatPercent } from '../lib/formatters';
 import { INTEGRATION_DOMAIN } from '../const';
 import { t } from '../lib/i18n';
+import { tooltip } from '../lib/tooltip';
 
 @customElement('acp-cover-bar')
 export class CoverBar extends LitElement {
@@ -101,12 +102,12 @@ export class CoverBar extends LitElement {
     const targetPct = target ?? 0;
     return html`
       <div class="cover ${mismatch ? 'mismatch' : ''}">
-        <div class="name" title=${entityId}>${friendly}</div>
+        <div class="name" ${tooltip(entityId)}>${friendly}</div>
         <div class="num">${formatPercent(actual)}</div>
         <div
           class="track"
           @click=${(e: MouseEvent) => this._handleTrackClick(e, entityId)}
-          title=${t('covers.click_to_set', this.hass)}
+          ${tooltip(t('covers.click_to_set', this.hass))}
         >
           <div class="fill" style="width:${actualPct}%"></div>
           <div class="fill-closed" style="width:${100 - actualPct}%"></div>
@@ -114,7 +115,7 @@ export class CoverBar extends LitElement {
             ? html`<div
                 class="marker"
                 style="left:${targetPct}%"
-                title=${t('covers.target_tooltip', this.hass, { pct: targetPct })}
+                ${tooltip(t('covers.target_tooltip', this.hass, { pct: targetPct }))}
               ></div>`
             : nothing}
         </div>
@@ -166,6 +167,14 @@ export class CoverBar extends LitElement {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+    /* The cover name hints with a help cursor; the track is clickable and keeps
+       its pointer cursor (it is excluded from the help rule below). Both revert
+       to their natural cursor once OUR bubble is shown. */
+    .name[data-tooltip]:hover {
+      cursor: help;
+    }
+    .name[data-tooltip][acp-tt-shown] {
       cursor: default;
     }
     .track {

@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 
+import { tooltip } from '../lib/tooltip';
+
 @customElement('acp-header-pill')
 export class AcpHeaderPill extends LitElement {
   @property({ type: Boolean }) public on = false;
@@ -17,7 +19,7 @@ export class AcpHeaderPill extends LitElement {
     return html`
       <button
         class="pill ${this.on ? 'on' : 'off'} ${this.readonly ? 'readonly' : ''}"
-        title=${this.title}
+        ${tooltip(this.title)}
         aria-disabled=${this.readonly ? 'true' : nothing}
         tabindex=${this.readonly ? '-1' : '0'}
         @click=${this._handleClick}
@@ -49,7 +51,15 @@ export class AcpHeaderPill extends LitElement {
     .pill.readonly {
       cursor: default;
       opacity: 0.85;
-      pointer-events: none;
+    }
+    /* Readonly pills aren't clickable, so a help cursor is a useful "hover for
+       more" hint; clickable pills keep their pointer cursor (below). The shown
+       state reverts to default once OUR bubble appears. */
+    .pill.readonly[data-tooltip]:hover {
+      cursor: help;
+    }
+    .pill[data-tooltip][acp-tt-shown] {
+      cursor: default;
     }
     .pill.on.readonly {
       opacity: 0.85;

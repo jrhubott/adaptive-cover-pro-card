@@ -251,7 +251,7 @@ describe('acp-elevation-chart: multi-window ribbon', () => {
     expect(el.shadowRoot!.querySelectorAll('rect.ribbon-track').length).toBe(2);
   });
 
-  it('gives each ribbon bar a <title> tooltip with the window name and FOV time range', async () => {
+  it('gives each ribbon bar a data-tooltip with the window name and FOV time range', async () => {
     const el = await mount({
       hass: twoWindowHass(),
       discoveredList: [discoveredSouth, discoveredWest],
@@ -259,7 +259,7 @@ describe('acp-elevation-chart: multi-window ribbon', () => {
     });
     const bars = el.shadowRoot!.querySelectorAll('rect.ribbon-bar');
     expect(bars.length).toBeGreaterThan(0);
-    const titles = Array.from(bars).map((b) => b.querySelector('title')?.textContent ?? '');
+    const titles = Array.from(bars).map((b) => b.getAttribute('data-tooltip') ?? '');
     // Every bar carries a tooltip; at least one names a window with a → range.
     expect(titles.every((tx) => tx.length > 0)).toBe(true);
     expect(titles.some((tx) => tx.includes('Living Room') && tx.includes('→'))).toBe(true);
@@ -273,7 +273,7 @@ describe('acp-elevation-chart: multi-window ribbon', () => {
       coverColors: ['#ff7043', '#7e57c2'],
     });
     const trackTitles = Array.from(el.shadowRoot!.querySelectorAll('rect.ribbon-track')).map(
-      (r) => r.querySelector('title')?.textContent ?? '',
+      (r) => r.getAttribute('data-tooltip') ?? '',
     );
     expect(trackTitles.some((tx) => tx.includes('Living Room'))).toBe(true);
     expect(trackTitles.some((tx) => tx.includes('Office'))).toBe(true);

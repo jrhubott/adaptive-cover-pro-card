@@ -32,6 +32,7 @@ import type {
 } from '../types';
 import { formatPercent } from '../lib/formatters';
 import { t } from '../lib/i18n';
+import { tooltip } from '../lib/tooltip';
 
 import './tile-badge';
 import './decision-strip';
@@ -175,7 +176,7 @@ export class MoreInfoDialog extends LitElement {
               class="icon-btn options-link"
               type="button"
               aria-label=${configureLabel}
-              title=${configureLabel}
+              ${tooltip(configureLabel)}
               @click=${this._openIntegrationPage}
             >
               <ha-icon icon="mdi:tune-variant"></ha-icon>
@@ -185,7 +186,7 @@ export class MoreInfoDialog extends LitElement {
                   class="icon-btn device-link"
                   type="button"
                   aria-label=${deviceLabel}
-                  title=${deviceLabel}
+                  ${tooltip(deviceLabel)}
                   @click=${this._openDevicePage}
                 >
                   <ha-icon icon="mdi:cog"></ha-icon>
@@ -355,11 +356,13 @@ export class MoreInfoDialog extends LitElement {
       slot.template === true
         ? html`<span
             class="slot-template"
-            title=${`Template${
-              sensorCount > 0
-                ? ` · ${sensorCount} sensors${slot.template_mode ? ` (${slot.template_mode})` : ''}`
-                : ''
-            }`}
+            ${tooltip(
+              `Template${
+                sensorCount > 0
+                  ? ` · ${sensorCount} sensors${slot.template_mode ? ` (${slot.template_mode})` : ''}`
+                  : ''
+              }`,
+            )}
           >
             <ha-icon icon="mdi:code-braces"></ha-icon>
           </span>`
@@ -373,7 +376,7 @@ export class MoreInfoDialog extends LitElement {
             class="slot-min-mode${slot.priority != null && slot.priority > MANUAL_OVERRIDE_PRIORITY
               ? ''
               : ' is-bypassable'}"
-            title=${t('dialog.floor_tooltip', this.hass)}
+            ${tooltip(t('dialog.floor_tooltip', this.hass))}
           >
             ${t('dialog.floor', this.hass)}
           </span>`
@@ -655,6 +658,16 @@ export class MoreInfoDialog extends LitElement {
       display: inline-flex;
       align-items: center;
       color: var(--secondary-text-color);
+    }
+    /* Floating-tooltip cursor lifecycle for the informational chips (the
+       clickable .icon-btn buttons keep their pointer cursor — they are excluded
+       from this rule). Help hint on hover, default once OUR bubble appears. */
+    .slot-template[data-tooltip]:hover,
+    .slot-min-mode[data-tooltip]:hover {
+      cursor: help;
+    }
+    .slot-template[data-tooltip][acp-tt-shown],
+    .slot-min-mode[data-tooltip][acp-tt-shown] {
       cursor: default;
     }
     .slot-template ha-icon {
@@ -666,7 +679,6 @@ export class MoreInfoDialog extends LitElement {
       border-radius: 999px;
       background: rgba(156, 39, 176, 0.22);
       color: #6a1b9a;
-      cursor: default;
     }
     /* Priority axis: floor whose priority ≤ manual-override is bypassable by a
        manual ↓ → subdued. Per-slot rows have no clamping notion, so no fill/outline. */

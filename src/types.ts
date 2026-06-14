@@ -5,6 +5,17 @@ export type { HomeAssistant };
 
 export type CardSection = 'sky' | 'elevation' | 'decision' | 'covers' | 'overrides' | 'climate';
 
+/**
+ * Card-owned floating-tooltip configuration. When `enabled === false` the card
+ * falls back to native browser `title=` tooltips. `offset` is the [right, down]
+ * pixel offset of the bubble from the cursor; `delay` is the open delay (ms).
+ */
+export interface TooltipsConfig {
+  enabled?: boolean;
+  offset?: [number, number];
+  delay?: number;
+}
+
 export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
   type: string;
   entry_id: string;
@@ -26,6 +37,9 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
     automatic_control?: boolean;
     reset_manual_override?: boolean;
   };
+  /** Card-owned floating tooltip behavior. Defaults: enabled, offset [12,16],
+   *  delay 400ms. Set `enabled: false` to use native browser tooltips. */
+  tooltips?: TooltipsConfig;
 }
 
 export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
@@ -89,6 +103,9 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   hold_action?: ActionConfig;
   /** Double-tap action. Standard HA `ActionConfig`. */
   double_tap_action?: ActionConfig;
+  /** Card-owned floating tooltip behavior. Defaults: enabled, offset [12,16],
+   *  delay 400ms. Set `enabled: false` to use native browser tooltips. */
+  tooltips?: TooltipsConfig;
 }
 
 export interface SkyCompassCardConfig extends LovelaceCardConfig {
@@ -111,6 +128,9 @@ export interface SkyCompassCardConfig extends LovelaceCardConfig {
   show_elevation_chart?: boolean;
   cover_colors?: (string | null)[];
   north_offset?: number;
+  /** Card-owned floating tooltip behavior. Defaults: enabled, offset [12,16],
+   *  delay 400ms. Set `enabled: false` to use native browser tooltips. */
+  tooltips?: TooltipsConfig;
 }
 
 export interface DiscoveredEntities {
