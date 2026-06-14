@@ -41,6 +41,7 @@ import {
 } from './lib/badge-visibility';
 import { formatCoverState, formatPercent } from './lib/formatters';
 import { t } from './lib/i18n';
+import { tooltip, setTooltipDefaults } from './lib/tooltip';
 
 import './components/tile-badge';
 import './components/more-info-dialog';
@@ -80,6 +81,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       };
     }
     this._config = next;
+    if (next.tooltips) setTooltipDefaults(next.tooltips);
     // Warm-start synchronously from the persisted ACP slice so a reload skips the Loading
     // state; the shared fetch below revalidates. Discovery filters the registry anyway, so
     // holding just the slice is fine.
@@ -357,7 +359,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
           class=${`acp-floor-chip${activeFloor!.clamping ? '' : ' is-armed'}${
             activeFloor!.resistsManual ? ' resists-manual' : ' is-bypassable'
           }`}
-          title=${t('dialog.floor_tooltip', this.hass)}
+          ${tooltip(t('dialog.floor_tooltip', this.hass))}
           >${t('dialog.floor', this.hass)} ${formatPercent(activeFloor!.position)}</span
         >`
       : nothing;
@@ -406,15 +408,15 @@ export class AdaptiveCoverProTileCard extends LitElement {
             ? html`<ha-icon
                 class="motion-overlay ${motionState}"
                 icon="mdi:motion-sensor"
-                title=${motionTitle}
+                ${tooltip(motionTitle)}
               ></ha-icon>`
             : nothing}
         </div>
         <div class="label">
-          <div class="title" title=${discovered.entry_title}>${title}</div>
+          <div class="title">${title}</div>
           ${summary && !detailed ? html`<div class="summary">${summary}</div>` : nothing}
           ${hasBottomSummary
-            ? html`<div class="summary inline-summary" title=${summary}>${summary}</div>`
+            ? html`<div class="summary inline-summary" ${tooltip(summary)}>${summary}</div>`
             : nothing}
         </div>
         ${detailed && showAutoBadge ? html`<div class="auto-line">${autoBadgeTpl}</div>` : nothing}
@@ -880,6 +882,14 @@ export class AdaptiveCoverProTileCard extends LitElement {
       border: 1px solid transparent;
       white-space: nowrap;
       align-self: center;
+    }
+    /* Floating-tooltip cursor lifecycle for the tooltip carriers inside the
+       tile (floor chip, title, inline summary, motion overlay). Help hint on
+       hover, default once OUR bubble appears. */
+    [data-tooltip]:hover {
+      cursor: help;
+    }
+    [data-tooltip][acp-tt-shown] {
       cursor: default;
     }
     /* Clamping axis: not-clamping → hollow/outline (transparent fill + purple border). */

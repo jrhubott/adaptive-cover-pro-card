@@ -10,6 +10,7 @@ import type {
   HarnessEntry,
   ManagedCoverCfg,
   MotionStatusValue,
+  TooltipMode,
 } from './types';
 
 /**
@@ -101,6 +102,60 @@ export class AcpHarnessControlPanel extends LitElement {
           <option value="dark" ?selected=${this.config.theme === 'dark'}>Dark</option>
         </select>
       </label>
+      <label class="row">
+        <span>Tooltips</span>
+        <select
+          @change=${(e: Event) =>
+            this._emit({
+              ...this.config,
+              tooltips: {
+                ...this.config.tooltips,
+                mode: (e.target as HTMLSelectElement).value as TooltipMode,
+              },
+            })}
+        >
+          <option value="floating" ?selected=${this.config.tooltips.mode === 'floating'}>
+            Floating (card-owned)
+          </option>
+          <option value="native" ?selected=${this.config.tooltips.mode === 'native'}>
+            Native (browser title)
+          </option>
+        </select>
+      </label>
+      ${this.config.tooltips.mode === 'floating'
+        ? html`
+            ${this._numberSlider(
+              'Tooltip offset → right',
+              this.config.tooltips.offset[0],
+              0,
+              48,
+              1,
+              (v) =>
+                this._emit({
+                  ...this.config,
+                  tooltips: {
+                    ...this.config.tooltips,
+                    offset: [v, this.config.tooltips.offset[1]],
+                  },
+                }),
+            )}
+            ${this._numberSlider(
+              'Tooltip offset ↓ down',
+              this.config.tooltips.offset[1],
+              0,
+              48,
+              1,
+              (v) =>
+                this._emit({
+                  ...this.config,
+                  tooltips: {
+                    ...this.config.tooltips,
+                    offset: [this.config.tooltips.offset[0], v],
+                  },
+                }),
+            )}
+          `
+        : ''}
       <button class="ghost" @click=${this._onReset}>Reset to preset</button>
     `;
   }

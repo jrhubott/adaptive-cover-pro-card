@@ -164,8 +164,13 @@ function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): Harne
     root: defaultRoot(),
     compass: defaultCompass(),
     tile: defaultTile(),
+    tooltips: defaultTooltips(),
     stageHeight: 0,
   };
+}
+
+export function defaultTooltips(): HarnessConfig['tooltips'] {
+  return { mode: 'floating', offset: [12, 16] };
 }
 
 export interface Scenario {
@@ -935,6 +940,23 @@ export const SCENARIOS: Scenario[] = [
       return c;
     },
   },
+  {
+    id: 'floating-tooltip',
+    label: 'Floating tooltip (#134)',
+    description:
+      'Card-owned floating tooltip enabled (down-and-right of the cursor, help cursor on hover that flips to default once the bubble shows). Hover the decision summary, the off-schedule banner, the compass FOV/sun groups, or the cover names. Switch the Tooltips control to "native" to compare with native browser tooltips.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 13 * 60);
+      c.scenario = 'floating-tooltip';
+      // Off-schedule banner + a manual override make several tooltip carriers
+      // appear at once (summary, banner, badge, compass groups, cover names).
+      c.entries[0].flags.in_time_window = false;
+      c.entries[0].flags.schedule_start_minutes = 9 * 60;
+      c.entries[0].flags.schedule_end_minutes = 11 * 60;
+      c.tooltips = { mode: 'floating', offset: [12, 16] };
+      return c;
+    },
+  },
 ];
 
 export function findScenario(id: string): Scenario | undefined {
@@ -960,5 +982,6 @@ export function normalizeConfig(cfg: HarnessConfig): HarnessConfig {
       badges: { ...defaultBadges(), ...(cfg.tile?.badges ?? {}) },
       tileWidth: cfg.tile?.tileWidth ?? 0,
     },
+    tooltips: { ...defaultTooltips(), ...(cfg.tooltips ?? {}) },
   };
 }

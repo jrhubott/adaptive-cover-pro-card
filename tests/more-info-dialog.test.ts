@@ -417,8 +417,8 @@ describe('acp-more-info-dialog: slot management', () => {
     const chips = el.shadowRoot!.querySelectorAll('.slot-row .slot-template');
     expect(chips.length).toBe(1);
     // The chip's tooltip surfaces the sensor count and combine mode.
-    expect(chips[0].getAttribute('title')).toContain('2 sensors');
-    expect(chips[0].getAttribute('title')).toContain('or');
+    expect(chips[0].getAttribute('data-tooltip')).toContain('2 sensors');
+    expect(chips[0].getAttribute('data-tooltip')).toContain('or');
   });
 
   it('floor pill is the ↥ glyph', async () => {

@@ -34,6 +34,7 @@ import { sunDotState, SUN_DOT_CLASS, type SunDotState } from '../lib/sun-dot-sta
 import { resolveCoverColor } from '../lib/palette';
 import { MOON_IMAGE } from '../lib/moon-image';
 import { t } from '../lib/i18n';
+import { tooltip } from '../lib/tooltip';
 
 // viewBox must have ~30 px of padding beyond OUTER_R so cardinal labels
 // (positioned at OUTER_R + 6..14) don't clip when rendered with
@@ -407,7 +408,7 @@ export class SkyCompass extends LitElement {
 
             ${
               this.showSunPath && sunPathRuns.length
-                ? svg`<g data-tooltip=${ttSunPath}><title>${ttSunPath}</title>${sunPathRuns
+                ? svg`<g ${tooltip(ttSunPath)}>${sunPathRuns
                     .filter((pts) => pts.length > 1)
                     .flatMap((pts, i) => {
                       const ptsStr = pts.map((p) => `${p.x},${p.y}`).join(' ');
@@ -453,8 +454,7 @@ export class SkyCompass extends LitElement {
             ${
               moonAboveHorizon
                 ? svg`
-              <g data-tooltip=${ttMoon}>
-                <title>${ttMoon}</title>
+              <g ${tooltip(ttMoon)}>
                 <circle class="moon-outline" cx=${moonX} cy=${moonY} r=${MOON_R}></circle>
                 <image
                   class="moon-img"
@@ -470,8 +470,7 @@ export class SkyCompass extends LitElement {
                 : nothing
             }
 
-            <g data-tooltip=${ttSun}>
-              <title>${ttSun}</title>
+            <g ${tooltip(ttSun)}>
               <circle class=${sunDotClass} cx=${sunPt.x * OUTER_R} cy=${sunPt.y * OUTER_R} r="7"></circle>
             </g>
           `}
@@ -665,14 +664,12 @@ export class SkyCompass extends LitElement {
     return svg`<g class="entry-overlay">
       ${
         showStaticUnderlay
-          ? svg`<g data-tooltip=${ttFovStatic}>
-              <title>${ttFovStatic}</title>
+          ? svg`<g ${tooltip(ttFovStatic)}>
               <path class="fov fov-static" style=${fovStyle} d=${fovStaticPath}></path>
             </g>`
           : nothing
       }
-      <g data-tooltip=${ttFov}>
-        <title>${ttFov}</title>
+      <g ${tooltip(ttFov)}>
         <path class="fov" style=${fovStyle} d=${fovPath}></path>
       </g>
       ${extraWedges.map((w) => {
@@ -681,20 +678,17 @@ export class SkyCompass extends LitElement {
           to: formatDegrees(w.to),
           elev: elevSuffix,
         })}`;
-        return svg`<g data-tooltip=${ttExtra}>
-          <title>${ttExtra}</title>
+        return svg`<g ${tooltip(ttExtra)}>
           <path class="fov-extra" style=${fovStyle} d=${w.fov}></path>
           ${w.cover ? svg`<path class="cover-fill-extra" style=${coverStyle} d=${w.cover}></path>` : nothing}
           ${w.actual ? svg`<path class="cover-actual-extra" style=${coverStyle} d=${w.actual}></path>` : nothing}
         </g>`;
       })}
-      <g class="arrow-group" data-tooltip=${ttWindow} style=${showArrow ? '' : hideStyle}>
-        <title>${ttWindow}</title>
+      <g class="arrow-group" style=${showArrow ? '' : hideStyle} ${tooltip(ttWindow)}>
         <path class="window" style=${arrowStyle} d=${arrowPath}></path>
         <circle class="window-base" style=${arrowBaseStyle} cx="0" cy="0" r="4"></circle>
       </g>
-      <g class="cover-group" data-tooltip=${ttCoverFill} style=${showCover ? '' : hideStyle}>
-        <title>${ttCoverFill}</title>
+      <g class="cover-group" style=${showCover ? '' : hideStyle} ${tooltip(ttCoverFill)}>
         <path class="cover-fill" style=${coverStyle} d=${coverPath}></path>
         ${
           this.showCoverFill && actualPath
@@ -702,8 +696,7 @@ export class SkyCompass extends LitElement {
             : nothing
         }
       </g>
-      <g class="blind-group" data-tooltip=${ttBlindSpot} style=${showBlind ? '' : hideStyle}>
-        <title>${ttBlindSpot}</title>
+      <g class="blind-group" style=${showBlind ? '' : hideStyle} ${tooltip(ttBlindSpot)}>
         <path class="blind-spot" style=${blindStyle} d=${blindSpot ?? ''}></path>
       </g>
     </g>`;
@@ -807,7 +800,9 @@ export class SkyCompass extends LitElement {
                 <span>∠${formatDegrees(o.sun.gamma)}</span>
                 <span>W ${formatDegrees(normalizeAzimuth(o.sun.window_azimuth))}</span>
                 ${o.sun.in_fov
-                  ? html`<span class="status in-fov" title=${t('compass.in_fov_tooltip', this.hass)}
+                  ? html`<span
+                      class="status in-fov"
+                      ${tooltip(t('compass.in_fov_tooltip', this.hass))}
                       >✓</span
                     >`
                   : nothing}
@@ -1126,7 +1121,13 @@ export class SkyCompass extends LitElement {
       background: var(--secondary-text-color);
       opacity: 0.6;
     }
-    g[data-tooltip] {
+    /* Floating-tooltip cursor lifecycle: a help cursor hints "there's more
+       here" on hover (SVG groups + the in-FOV status pip), flipping to default
+       the moment OUR bubble appears. */
+    [data-tooltip]:hover {
+      cursor: help;
+    }
+    [data-tooltip][acp-tt-shown] {
       cursor: default;
     }
   `;

@@ -12,6 +12,7 @@ import { sunDotState, SUN_DOT_CLASS } from '../lib/sun-dot-state';
 import { resolveCoverColor } from '../lib/palette';
 import { formatClock } from '../lib/formatters';
 import { t } from '../lib/i18n';
+import { tooltip } from '../lib/tooltip';
 
 const VIEWBOX_W = 400;
 const VIEWBOX_H = 160;
@@ -379,7 +380,8 @@ export class ElevationChart extends LitElement {
                 width=${VIEWBOX_W - PAD_L - PAD_R}
                 height=${row.height}
                 rx="2"
-              ><title>${trackTitle}</title></rect>`;
+                ${tooltip(trackTitle)}
+              ></rect>`;
               const bars = w.runBars.map(
                 (b) => svg`<rect
                   class="ribbon-bar"
@@ -389,10 +391,13 @@ export class ElevationChart extends LitElement {
                   height=${row.height}
                   rx="2"
                   style=${`fill:${w.color}`}
-                ><title>${t('elevation.fov_window_named', this.hass, {
-                  name: w.d.entry_title,
-                  windows: b.range,
-                })}</title></rect>`,
+                  ${tooltip(
+                    t('elevation.fov_window_named', this.hass, {
+                      name: w.d.entry_title,
+                      windows: b.range,
+                    }),
+                  )}
+                ></rect>`,
               );
               return [track, ...bars];
             })}
@@ -418,7 +423,8 @@ export class ElevationChart extends LitElement {
                 y1=${PAD_T}
                 x2=${b.x}
                 y2=${VIEWBOX_H - PAD_B}
-              ><title>${b.tooltip}</title></line>`,
+                ${tooltip(b.tooltip)}
+              ></line>`,
               svg`<text
                 class="schedule-tick"
                 x=${b.x}
@@ -433,8 +439,7 @@ export class ElevationChart extends LitElement {
             <!-- current-time cursor + sun dot, drawn last so they sit on top of
                  the curve AND the ribbon bars. A wide transparent hit-line widens
                  the hover target so the thin now-line is easy to tooltip. -->
-            <g class="now-group">
-              <title>${formatClock(now.toISOString(), time_zone)}</title>
+            <g class="now-group" ${tooltip(formatClock(now.toISOString(), time_zone))}>
               <line class="now-hit" x1=${nowX} y1=${PAD_T} x2=${nowX} y2=${nowY2} />
               <line class="now" x1=${nowX} y1=${PAD_T} x2=${nowX} y2=${nowY2} />
             </g>
@@ -558,10 +563,18 @@ export class ElevationChart extends LitElement {
       fill-opacity: 0.12;
       pointer-events: none;
     }
+    /* Floating-tooltip cursor lifecycle: help hint on hover, default once OUR
+       bubble is shown. Applies to every tooltip carrier (schedule bar, ribbon
+       track/bar, now-cursor group). */
+    [data-tooltip]:hover {
+      cursor: help;
+    }
+    [data-tooltip][acp-tt-shown] {
+      cursor: default;
+    }
     .schedule-bar {
       stroke: var(--divider-color);
       stroke-width: 1;
-      cursor: default;
     }
     .schedule-tick {
       font-size: 8px;
@@ -570,14 +583,12 @@ export class ElevationChart extends LitElement {
     .ribbon-track {
       fill: var(--divider-color);
       fill-opacity: 0.25;
-      cursor: default;
     }
     .ribbon-bar {
       /* Fallback only — the ribbon always sets an inline per-window fill. Kept on
          the cover colour for consistency with the FOV band. */
       fill: var(--primary-color);
       fill-opacity: 0.85;
-      cursor: default;
     }
     .curve {
       fill: none;
@@ -594,7 +605,6 @@ export class ElevationChart extends LitElement {
     .now-hit {
       stroke: transparent;
       stroke-width: 10;
-      cursor: default;
     }
     /* Colour states mirror acp-sky-compass .sun.* so the sun reads the same
        across both visuals. */

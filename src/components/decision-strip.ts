@@ -8,6 +8,7 @@ import type { DecisionTraceAttributes, DiscoveredEntities } from '../types';
 import { formatPercent } from '../lib/formatters';
 import { buildDecisionSentence, normalizeHandler } from '../lib/decision-summary';
 import { t } from '../lib/i18n';
+import { tooltip } from '../lib/tooltip';
 
 @customElement('acp-decision-strip')
 export class DecisionStrip extends LitElement {
@@ -84,13 +85,13 @@ export class DecisionStrip extends LitElement {
         ${trace.inTimeWindow === false
           ? html`<div
               class="off-schedule"
-              title=${t('decision.outside_schedule_tooltip', this.hass)}
+              ${tooltip(t('decision.outside_schedule_tooltip', this.hass))}
             >
               ${t('decision.outside_schedule', this.hass)}
             </div>`
           : nothing}
         ${this.showSummary && trace.summary
-          ? html`<div class="summary" title=${t('decision.summary_tooltip', this.hass)}>
+          ? html`<div class="summary" ${tooltip(t('decision.summary_tooltip', this.hass))}>
               ${trace.summary}
             </div>`
           : nothing}
@@ -120,6 +121,14 @@ export class DecisionStrip extends LitElement {
   public static styles = css`
     :host {
       display: block;
+    }
+    /* Floating-tooltip cursor lifecycle: a help cursor hints "there's more
+       here" on hover, flipping to default the moment OUR bubble appears. */
+    [data-tooltip]:hover {
+      cursor: help;
+    }
+    [data-tooltip][acp-tt-shown] {
+      cursor: default;
     }
     .wrap {
       display: flex;
@@ -208,7 +217,6 @@ export class DecisionStrip extends LitElement {
       line-height: 1.3;
       padding: 2px 4px 4px;
       color: var(--primary-text-color);
-      cursor: default;
     }
     :host([compact]) .summary {
       font-size: 0.75rem;
@@ -221,7 +229,6 @@ export class DecisionStrip extends LitElement {
       border-radius: 4px;
       border-left: 3px solid var(--secondary-text-color);
       background: rgba(127, 127, 127, 0.08);
-      cursor: default;
     }
     :host([compact]) .off-schedule {
       font-size: 0.72rem;
