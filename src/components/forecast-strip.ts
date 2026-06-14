@@ -26,6 +26,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  *     directive, with a help→default cursor handoff.
  *   - The curve shows a follow-along label with the nearest sample's time,
  *     position %, and handler (solar/default/...).
+ *   - The "now" cursor mirrors the elevation chart: a wide invisible hit line
+ *     plus a floating tooltip showing the current local time.
  */
 @customElement('acp-forecast-strip')
 export class ForecastStrip extends LitElement {
@@ -135,7 +137,10 @@ export class ForecastStrip extends LitElement {
     const nowX = xAt(nowMs);
     const nowInDay = nowMs >= dayStart && nowMs <= dayStart + DAY_MS;
     const nowCursor = nowInDay
-      ? svg`<line class="now" x1=${nowX.toFixed(1)} y1=${TOP_PAD} x2=${nowX.toFixed(1)} y2=${VIEW_H - 0.5}></line>`
+      ? svg`<g class="now-group" ${tooltip(formatClock(new Date(nowMs).toISOString()))}>
+          <line class="now-hit" x1=${nowX.toFixed(1)} y1=${TOP_PAD} x2=${nowX.toFixed(1)} y2=${VIEW_H - 0.5}></line>
+          <line class="now" x1=${nowX.toFixed(1)} y1=${TOP_PAD} x2=${nowX.toFixed(1)} y2=${VIEW_H - 0.5}></line>
+        </g>`
       : nothing;
 
     return html`
@@ -286,6 +291,11 @@ export class ForecastStrip extends LitElement {
     .now {
       stroke: var(--accent-color, crimson);
       stroke-width: 1.25;
+      pointer-events: none;
+    }
+    .now-hit {
+      stroke: transparent;
+      stroke-width: 10;
     }
   `;
 }
