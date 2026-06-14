@@ -413,7 +413,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
             : nothing}
         </div>
         <div class="label">
-          <div class="title" ${tooltip(discovered.entry_title)}>${title}</div>
+          <div class="title">${title}</div>
           ${summary && !detailed ? html`<div class="summary">${summary}</div>` : nothing}
           ${hasBottomSummary
             ? html`<div class="summary inline-summary" ${tooltip(summary)}>${summary}</div>`

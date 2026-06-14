@@ -2110,7 +2110,7 @@ function e(e,t,o,s){var i,n=arguments.length,r=n<3?t:null===s?s=Object.getOwnPro
               ></ha-icon>`:Y}
         </div>
         <div class="label">
-          <div class="title" ${ut(e.entry_title)}>${o}</div>
+          <div class="title">${o}</div>
           ${y&&!h?L`<div class="summary">${y}</div>`:Y}
           ${b?L`<div class="summary inline-summary" ${ut(y)}>${y}</div>`:Y}
         </div>
