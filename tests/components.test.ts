@@ -126,7 +126,9 @@ describe('acp-decision-strip', () => {
     const banner = el.shadowRoot!.querySelector('.off-schedule');
     expect(banner).toBeTruthy();
     expect(banner!.textContent).toContain('Outside schedule');
-    expect(banner!.getAttribute('title')).toContain('schedule window is not active');
+    // Floating tooltip: text now lives on data-tooltip (no native title=).
+    expect(banner!.getAttribute('data-tooltip')).toContain('schedule window is not active');
+    expect(banner!.hasAttribute('title')).toBe(false);
   });
 
   it('hides the off-schedule banner when in_time_window is true', async () => {

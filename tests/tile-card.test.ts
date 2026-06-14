@@ -1048,14 +1048,14 @@ describe('adaptive-cover-pro-tile-card motion indicator', () => {
     const el = await mountWithMotion({ type: TYPE, entry_id: ENTRY }, 'motion_detected');
     const overlay = el.shadowRoot!.querySelector('.motion-overlay');
     expect(overlay).toBeTruthy();
-    expect(overlay!.getAttribute('title')).toBe('Motion detected');
+    expect(overlay!.getAttribute('data-tooltip')).toBe('Motion detected');
   });
 
   it('renders the overlay when motion_status is timeout_pending', async () => {
     const el = await mountWithMotion({ type: TYPE, entry_id: ENTRY }, 'timeout_pending');
     const overlay = el.shadowRoot!.querySelector('.motion-overlay');
     expect(overlay).toBeTruthy();
-    expect(overlay!.getAttribute('title')).toBe('Motion timeout pending');
+    expect(overlay!.getAttribute('data-tooltip')).toBe('Motion timeout pending');
   });
 
   it('hides the overlay when motion_status is no_motion', async () => {

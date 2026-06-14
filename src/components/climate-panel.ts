@@ -5,6 +5,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import { entityStateChanged } from '../lib/hass-change';
 import type { DiscoveredEntities } from '../types';
 import { t } from '../lib/i18n';
+import { tooltip } from '../lib/tooltip';
 
 interface ClimateAttrs {
   active_temperature?: number;
@@ -204,7 +205,7 @@ export class ClimatePanel extends LitElement {
               <div class="conditions">
                 ${conditions.map(
                   (c) => html`
-                    <div class="chip ${c.value ? 'on' : 'off'}" title=${c.label}>
+                    <div class="chip ${c.value ? 'on' : 'off'}" ${tooltip(c.label)}>
                       <ha-icon icon=${c.icon}></ha-icon>
                       <span>${c.label}</span>
                     </div>
@@ -304,6 +305,11 @@ export class ClimatePanel extends LitElement {
       border-radius: 999px;
       font-size: 0.72rem;
       background: var(--secondary-background-color, rgba(0, 0, 0, 0.04));
+    }
+    [data-tooltip]:hover {
+      cursor: help;
+    }
+    [data-tooltip][acp-tt-shown] {
       cursor: default;
     }
     .chip.on {

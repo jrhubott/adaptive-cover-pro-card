@@ -7,6 +7,7 @@ import { formatClock } from '../lib/formatters';
 import { t } from '../lib/i18n';
 import { dayFractionX } from '../lib/geometry';
 import { startOfDay } from '../lib/sun-model';
+import { tooltip } from '../lib/tooltip';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -20,8 +21,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * (00:00→24:00) so it aligns with the elevation chart.
  *
  * Hover affordances:
- *   - Vertical event markers get a wide invisible hit area + cursor:help and
- *     a richer `<title>` (kind meaning + local time).
+ *   - Vertical event markers get a wide invisible hit area and a card-owned
+ *     floating tooltip (kind meaning + local time) via the `tooltip()`
+ *     directive, with a help→default cursor handoff.
  *   - The curve shows a follow-along label with the nearest sample's time,
  *     position %, and handler (solar/default/...).
  */
@@ -78,9 +80,8 @@ export class ForecastStrip extends LitElement {
           return null;
         const x = xAt(eventTime);
         const colorClass = `evt-${e.kind}`;
-        const tooltip = describeEvent(e, this.hass);
-        return svg`<g class="event-group" data-tooltip=${tooltip}>
-          <title>${tooltip}</title>
+        const ttText = describeEvent(e, this.hass);
+        return svg`<g class="event-group" ${tooltip(ttText)}>
           <line
             class="event-hit"
             x1=${x.toFixed(1)}
@@ -146,7 +147,6 @@ export class ForecastStrip extends LitElement {
           @pointermove=${this._onPointerMove}
           @pointerleave=${this._onPointerLeave}
         >
-          <title>${t('forecast.hover_hint', this.hass)}</title>
           <line class="baseline" x1="0" y1=${VIEW_H - 0.5} x2=${VIEW_W} y2=${VIEW_H - 0.5}></line>
           <text class="axis-label" x="4" y=${TOP_PAD + 8} text-anchor="start">100%</text>
           ${ticks}
@@ -212,7 +212,12 @@ export class ForecastStrip extends LitElement {
       stroke-width: 1.5;
       vector-effect: non-scaling-stroke;
     }
-    .event-group {
+    /* Floating-tooltip cursor lifecycle: a help cursor hints at the event
+       marker on hover, flipping to default once OUR bubble appears. */
+    [data-tooltip]:hover {
+      cursor: help;
+    }
+    [data-tooltip][acp-tt-shown] {
       cursor: default;
     }
     .event-hit {

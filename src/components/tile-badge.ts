@@ -6,6 +6,7 @@ import { BADGE_I18N_KEYS, BADGE_ICONS, BADGE_TOKENS, type BadgeKind } from '../c
 import { winnerBadgeKind } from '../lib/badge-visibility';
 import { formatClock } from '../lib/formatters';
 import { t } from '../lib/i18n';
+import { tooltip } from '../lib/tooltip';
 
 /**
  * Compact contextual badge for the tile card.
@@ -92,7 +93,7 @@ export class TileBadge extends LitElement {
         style="background:${tokens.bg};color:${tokens.fg};"
         part="badge"
         type="button"
-        title=${hint}
+        ${tooltip(hint)}
         aria-label=${hint}
         @click=${this._onResumeClick}
         @pointerdown=${this._stop}

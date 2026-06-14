@@ -403,7 +403,7 @@ describe('acp-sky-compass (multi-entry overlay)', () => {
     expect(ticks.length).toBe(2);
     ticks.forEach((tick) => {
       expect(tick.textContent?.trim()).toBe('✓');
-      const title = tick.getAttribute('title') ?? '';
+      const title = tick.getAttribute('data-tooltip') ?? '';
       expect(title).toContain('field of view');
     });
   });
@@ -585,9 +585,9 @@ describe('acp-sky-compass blind spot bearing conversion', () => {
       { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, blindSpot: [10, 30] },
     ]);
     const el = await mountCompass([d], hass);
-    const title = el.shadowRoot!.querySelector('g.blind-group > title');
-    expect(title?.textContent ?? '').toContain('150');
-    expect(title?.textContent ?? '').toContain('170');
+    const title = el.shadowRoot!.querySelector('g.blind-group')?.getAttribute('data-tooltip') ?? '';
+    expect(title).toContain('150');
+    expect(title).toContain('170');
   });
 });
 
@@ -882,7 +882,7 @@ describe('acp-sky-compass FOV elevation limits', () => {
     const hass = makeHass([{ sensorId, windowAzimuth: 180, minElevation: 10, maxElevation: 60 }]);
     const el = await mountCompass([d()], hass);
     const fovGroup = el.shadowRoot!.querySelector('path.fov')?.parentElement;
-    const titleText = fovGroup?.querySelector('title')?.textContent ?? '';
+    const titleText = fovGroup?.getAttribute('data-tooltip') ?? '';
     expect(titleText).toContain('10');
     expect(titleText).toContain('60');
   });
@@ -891,7 +891,7 @@ describe('acp-sky-compass FOV elevation limits', () => {
     const hass = makeHass([{ sensorId, windowAzimuth: 180 }]);
     const el = await mountCompass([d()], hass);
     const fovGroup = el.shadowRoot!.querySelector('path.fov')?.parentElement;
-    const titleText = fovGroup?.querySelector('title')?.textContent ?? '';
+    const titleText = fovGroup?.getAttribute('data-tooltip') ?? '';
     expect(titleText).not.toContain('elev');
   });
 });
@@ -1024,8 +1024,9 @@ describe('acp-sky-compass cover-fill polarity by cover_type', () => {
       },
     ]);
     const elAwning = await mountCompass([discAwning], hassAwning);
-    const awningTitle = elAwning.shadowRoot!.querySelector('g.cover-group > title');
-    expect(awningTitle?.textContent ?? '').toContain('Target (extended): 75%');
+    const awningTitle =
+      elAwning.shadowRoot!.querySelector('g.cover-group')?.getAttribute('data-tooltip') ?? '';
+    expect(awningTitle).toContain('Target (extended): 75%');
 
     const targetBlind = 'sensor.target_pos_blind7';
     const discBlind = makeDiscovered('blind7', 'Blind', {
@@ -1041,9 +1042,10 @@ describe('acp-sky-compass cover-fill polarity by cover_type', () => {
       },
     ]);
     const elBlind = await mountCompass([discBlind], hassBlind);
-    const blindTitle = elBlind.shadowRoot!.querySelector('g.cover-group > title');
-    expect(blindTitle?.textContent ?? '').toContain('Target: 75%');
-    expect(blindTitle?.textContent ?? '').not.toContain('extended');
+    const blindTitle =
+      elBlind.shadowRoot!.querySelector('g.cover-group')?.getAttribute('data-tooltip') ?? '';
+    expect(blindTitle).toContain('Target: 75%');
+    expect(blindTitle).not.toContain('extended');
   });
 });
 
@@ -1063,7 +1065,7 @@ describe('acp-sky-compass cover tooltip target + actual lines (#132)', () => {
       },
     ]);
     const el = await mountCompass([disc], hass);
-    const tt = el.shadowRoot!.querySelector('g.cover-group > title')?.textContent ?? '';
+    const tt = el.shadowRoot!.querySelector('g.cover-group')?.getAttribute('data-tooltip') ?? '';
     expect(tt).toContain('Target: 30%');
     expect(tt).toContain('Actual: 80%');
   });
@@ -1072,7 +1074,7 @@ describe('acp-sky-compass cover tooltip target + actual lines (#132)', () => {
     const disc = makeDiscovered('tt', 'Kitchen', { targetSensorId });
     const hass = makeHass([{ sensorId, windowAzimuth: 180, coverPos: 30, targetSensorId }]);
     const el = await mountCompass([disc], hass);
-    const tt = el.shadowRoot!.querySelector('g.cover-group > title')?.textContent ?? '';
+    const tt = el.shadowRoot!.querySelector('g.cover-group')?.getAttribute('data-tooltip') ?? '';
     expect(tt).toContain('Target: 30%');
     expect(tt).not.toContain('Actual');
   });
@@ -1233,7 +1235,7 @@ describe('acp-sky-compass manual-override divergence (#132 Problem A)', () => {
       },
     ]);
     const el = await mountCompass([disc()], hass);
-    const tt = el.shadowRoot!.querySelector('g.cover-group > title')?.textContent ?? '';
+    const tt = el.shadowRoot!.querySelector('g.cover-group')?.getAttribute('data-tooltip') ?? '';
     // Target line = solar would-be (20%); Actual line = held (80%).
     expect(tt).toContain('Target: 20%');
     expect(tt).toContain('Actual: 80%');
@@ -1513,7 +1515,7 @@ describe('acp-sky-compass active sun arc (start/end sensor azimuths)', () => {
     ]);
     const el = await mountCompass([d], hass);
     const fovGroup = el.shadowRoot!.querySelector('path.fov:not(.fov-static)')?.parentElement;
-    const titleText = fovGroup?.querySelector('title')?.textContent ?? '';
+    const titleText = fovGroup?.getAttribute('data-tooltip') ?? '';
     expect(titleText).toContain('Active sun arc');
     expect(titleText).toMatch(/150/);
     expect(titleText).toMatch(/210/);
@@ -1707,17 +1709,21 @@ describe('acp-sky-compass (multiple FOV crossings)', () => {
     // there is still exactly one primary active-arc wedge (plus its static underlay)
     expect(el.shadowRoot!.querySelectorAll('path.fov:not(.fov-static)').length).toBe(1);
     // each extra crossing reuses the active-sun-arc tooltip
-    const titleText = extras[0].parentElement?.querySelector('title')?.textContent ?? '';
+    const titleText = extras[0].parentElement?.getAttribute('data-tooltip') ?? '';
     expect(titleText).toContain('Active sun arc');
   });
 });
 
-describe('acp-sky-compass tooltip cursor', () => {
-  // Regression guard: tooltip carriers must use cursor: default, not cursor: help
-  // (issue #134 — the question-mark cursor confuses users).
+describe('acp-sky-compass tooltip cursor lifecycle', () => {
+  // Issue #134 follow-up: the help cursor is a brief discovery hint on hover,
+  // flipping to default the moment OUR floating tooltip appears (acp-tt-shown).
   const cssText = (SkyCompass as unknown as { styles: { cssText: string } }).styles.cssText;
 
-  it('g[data-tooltip] uses cursor: default, not cursor: help', () => {
-    expect(cssText).not.toContain('cursor: help');
+  it('hover shows a help cursor on tooltip carriers', () => {
+    expect(cssText).toMatch(/\[data-tooltip\]:hover\s*{\s*cursor:\s*help/);
+  });
+
+  it('the shown state reverts the cursor to default', () => {
+    expect(cssText).toMatch(/\[data-tooltip\]\[acp-tt-shown\]\s*{\s*cursor:\s*default/);
   });
 });

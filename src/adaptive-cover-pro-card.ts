@@ -12,6 +12,7 @@ import {
   resolveControlFlags,
 } from './const';
 import { t } from './lib/i18n';
+import { setTooltipDefaults } from './lib/tooltip';
 import { createDiscoveryMemo } from './lib/entity-discovery';
 import { fetchAcpConfigEntries } from './lib/config-entries';
 import { normalizeAzimuth } from './lib/geometry';
@@ -69,6 +70,7 @@ export class AdaptiveCoverProCard extends LitElement {
       throw new Error('adaptive-cover-pro-card: `entry_id` is required');
     }
     this._config = { ...config };
+    if (config.tooltips) setTooltipDefaults(config.tooltips);
     // Warm-start: synchronously hydrate registry from cache so first render skips loading state.
     if (this._registry === null) {
       const cached = registryCache.get(config.entry_id);

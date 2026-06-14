@@ -210,6 +210,17 @@ export class AcpHarnessCardStage extends LitElement {
       show_decision_summary: r.show_decision_summary,
       cover_colors: [this.config.entries[0].color],
       north_offset: r.north_offset,
+      tooltips: this._tooltipsConfig(),
+    };
+  }
+
+  /** Map the harness tooltips options onto the card's `tooltips` config.
+   *  `floating` → enabled; `native` → disabled (native browser tooltips). */
+  private _tooltipsConfig(): Record<string, unknown> {
+    const tt = this.config.tooltips;
+    return {
+      enabled: tt.mode === 'floating',
+      offset: tt.offset,
     };
   }
 
@@ -232,6 +243,7 @@ export class AcpHarnessCardStage extends LitElement {
       show_elevation_chart: c.show_elevation_chart,
       cover_colors: this.config.entries.map((e) => e.color),
       north_offset: c.north_offset,
+      tooltips: this._tooltipsConfig(),
     };
   }
 
@@ -255,6 +267,7 @@ export class AcpHarnessCardStage extends LitElement {
       show_elevation_chart: t.show_elevation_chart,
       show_motion_icon: t.show_motion_icon,
       layout: t.layout,
+      tooltips: this._tooltipsConfig(),
     };
   }
 

@@ -18,6 +18,57 @@ export function degToRad(deg: number): number {
   return (deg * Math.PI) / 180;
 }
 
+/** Default down-and-right offset (px) for the floating tooltip: [right, down]. */
+export const DEFAULT_TOOLTIP_OFFSET: readonly [number, number] = [12, 16];
+
+export interface PlaceTooltipArgs {
+  /** Pointer (or anchor) X in viewport coordinates. */
+  cursorX: number;
+  /** Pointer (or anchor) Y in viewport coordinates. */
+  cursorY: number;
+  /** Measured tooltip bubble width (px). */
+  ttW: number;
+  /** Measured tooltip bubble height (px). */
+  ttH: number;
+  /** Viewport width (px). */
+  vpW: number;
+  /** Viewport height (px). */
+  vpH: number;
+  /** [right, down] offset from the cursor; defaults to DEFAULT_TOOLTIP_OFFSET. */
+  offset?: readonly [number, number];
+}
+
+/**
+ * Position a floating tooltip down-and-right of the cursor, flipping to the
+ * opposite side of either axis when the preferred placement would overflow the
+ * viewport, and finally clamping both coordinates to be non-negative.
+ *
+ * Pure: takes the cursor position, the measured bubble size, the viewport size,
+ * and an offset; returns the top-left {x, y} of the bubble plus `flipped` (true
+ * when the X axis was flipped to the left of the cursor). All math lives here so
+ * the component and tests share one implementation.
+ */
+export function placeTooltip(args: PlaceTooltipArgs): { x: number; y: number; flipped: boolean } {
+  const { cursorX, cursorY, ttW, ttH, vpW, vpH } = args;
+  const [offsetX, offsetY] = args.offset ?? DEFAULT_TOOLTIP_OFFSET;
+
+  let x = cursorX + offsetX;
+  let flipped = false;
+  if (x + ttW > vpW) {
+    x = cursorX - offsetX - ttW;
+    flipped = true;
+  }
+  if (x < 0) x = 0;
+
+  let y = cursorY + offsetY;
+  if (y + ttH > vpH) {
+    y = cursorY - offsetY - ttH;
+  }
+  if (y < 0) y = 0;
+
+  return { x, y, flipped };
+}
+
 /** Azimuth (degrees, 0=N clockwise) + radius (0..1) → Cartesian point on a unit circle with +y down.
  *  northOffsetDeg rotates the whole compass clockwise by that many degrees (0 = North at top). */
 export function azimuthToCartesian(azimuthDeg: number, radius: number, northOffsetDeg = 0): Point {
