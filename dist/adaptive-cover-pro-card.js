@@ -1431,7 +1431,10 @@ function e(e,t,o,s){var i,n=arguments.length,r=n<3?t:null===s?s=Object.getOwnPro
         </div>`:Y,p=[0,6,12,18,24].map(e=>{const s=r(n+36e5*e);return q`
         <line class="grid faint" x1=${s} y1=${o} x2=${s} y2=${t-.5} />
         <text class="axis-label tick-time" x=${s} y=${t-3} text-anchor="middle">${e.toString().padStart(2,"0")}:00</text>
-      `}),_=this.now,m=r(_),g=_>=n&&_<=n+Mo?q`<line class="now" x1=${m.toFixed(1)} y1=${o} x2=${m.toFixed(1)} y2=${t-.5}></line>`:Y;return L`
+      `}),_=this.now,m=r(_),g=_>=n&&_<=n+Mo?q`<g class="now-group" ${ut(Ut(new Date(_).toISOString()))}>
+          <line class="now-hit" x1=${m.toFixed(1)} y1=${o} x2=${m.toFixed(1)} y2=${t-.5}></line>
+          <line class="now" x1=${m.toFixed(1)} y1=${o} x2=${m.toFixed(1)} y2=${t-.5}></line>
+        </g>`:Y;return L`
       <div class="wrap">
         <svg
           viewBox="0 0 ${e} ${t}"
@@ -1545,6 +1548,11 @@ function e(e,t,o,s){var i,n=arguments.length,r=n<3?t:null===s?s=Object.getOwnPro
     .now {
       stroke: var(--accent-color, crimson);
       stroke-width: 1.25;
+      pointer-events: none;
+    }
+    .now-hit {
+      stroke: transparent;
+      stroke-width: 10;
     }
   `,e([_e({attribute:!1})],Io.prototype,"hass",void 0),e([_e({attribute:!1})],Io.prototype,"samples",void 0),e([_e({attribute:!1})],Io.prototype,"events",void 0),e([_e({attribute:!1})],Io.prototype,"now",void 0),e([me()],Io.prototype,"_hoverIdx",void 0),Io=Oo=e([he("acp-forecast-strip")],Io);let To=class extends ce{constructor(){super(...arguments),this.open=!1,this.advancedOpen=!1,this.showCompass=!0,this.showElevationChart=!0,this._cancelMinuteTimer=null,this._listSource=null,this._list=[],this._onResume=()=>{const e=this.discovered.entities.reset_override_button;e&&this.hass.callService("button","press",{entity_id:e})},this._toggleAdvanced=()=>{this.advancedOpen=!this.advancedOpen},this._openDevicePage=()=>{const e=this.discovered.device_id;e&&this._navigate(`/config/devices/device/${e}`)},this._openIntegrationPage=()=>{this._navigate(`/config/integrations/integration/${Ae}`)},this._onBackdrop=e=>{e.target===e.currentTarget&&this._emitClose()},this._emitClose=()=>{this.dispatchEvent(new CustomEvent("acp-dialog-close",{bubbles:!0,composed:!0}))},this._stop=e=>{e.stopPropagation()}}updated(){this._syncMinuteTimer(this.open)}disconnectedCallback(){super.disconnectedCallback(),this._syncMinuteTimer(!1)}_syncMinuteTimer(e){e&&null===this._cancelMinuteTimer?this._cancelMinuteTimer=oo(()=>this.requestUpdate()):e||null===this._cancelMinuteTimer||(this._cancelMinuteTimer(),this._cancelMinuteTimer=null)}get _discoveredList(){return this.discovered!==this._listSource&&(this._listSource=this.discovered,this._list=this.discovered?[this.discovered]:[]),this._list}_buildHandlerLabels(){const e={};for(const[t,o]of Object.entries(Ee))e[t]=Be(o,this.hass);return e}render(){if(!this.open||!this.hass||!this.discovered)return Y;const e=this._winner(),t=this._traceAttrs(),o=this._matchedHandlers(t,e),s=lo(t),i=t?ho(t.trace??[],t,0,this._buildHandlerLabels(),Be("badge.safety",this.hass)):"",n=this._target(),r=this._shouldShowResume(e),a=this._switchOn("integration_enabled_switch"),l=this._switchOn("automatic_control_switch"),c=Be("dialog.configure_integration",this.hass),d=Be("dialog.open_device_page",this.hass),h=Be("dialog.close",this.hass);return L`
       <div class="backdrop" data-open @click=${this._onBackdrop}>

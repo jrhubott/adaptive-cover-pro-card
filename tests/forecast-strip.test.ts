@@ -186,4 +186,16 @@ describe('acp-forecast-strip', () => {
     expect(nowLine).toBeTruthy();
     expect(Number(nowLine!.getAttribute('x1'))).toBeCloseTo(0, 0);
   });
+
+  it('wraps the now cursor in a hoverable group with a current-time tooltip', async () => {
+    const samples = [sample(0, 0), sample(12 * 3600_000, 100)];
+    const el = await mount(samples, [], NOW);
+    const group = el.shadowRoot!.querySelector('g.now-group');
+    expect(group).toBeTruthy();
+    // Wide invisible hit area + the visible line, mirroring the elevation chart.
+    expect(group!.querySelector('line.now-hit')).toBeTruthy();
+    expect(group!.querySelector('line.now')).toBeTruthy();
+    // The tooltip() directive mirrors its text onto data-tooltip.
+    expect(group!.getAttribute('data-tooltip') ?? '').toMatch(/^\d{1,2}:\d{2}/);
+  });
 });
