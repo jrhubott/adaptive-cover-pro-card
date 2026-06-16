@@ -250,7 +250,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'manual-override-divergence',
     label: 'Manual override — solar diverges',
     description:
-      'Manual override holds the cover at 80% while the sun would have the integration close it to 20%. The sky compass draws the solar-target wedge plus the held/actual ring, and the COVERS bar labels Target: 20% (solar) with the fill/number at the held 80% and no alert badge — the divergence is intentional (#158). Toggle the override off to see the badge return for a genuine mismatch.',
+      'Manual override holds the cover at 80% while the sun would have the integration close it to 20%. The sky compass draws the solar-target wedge plus the held/actual ring, and the COVERS bar labels Target: 20% (solar) with the fill/number at the held 80% and no alert badge — the divergence is intentional (#158). The decision strip shows 80% (held) in the position column and "solar 20%" inline after the reason (#161). Toggle the override off to see the badge return for a genuine mismatch.',
     build: () => {
       const c = baseConfig('2026-06-21', 14 * 60);
       c.scenario = 'manual-override-divergence';
@@ -261,6 +261,23 @@ export const SCENARIOS: Scenario[] = [
       c.entries[0].target_position = 20;
       c.entries[0].flags.held_position = 80;
       c.entries[0].covers[0].position = 80;
+      return c;
+    },
+  },
+  {
+    id: 'manual-override-held-position',
+    label: 'Manual override — held_position field (#161)',
+    description:
+      'Exercises the held_position field on the manual_override trace step (integration #608). The decision strip must show the held value (44%) in the primary position column and append "solar 60%" as inline context after the reason. The solar would-be (60%) must not appear in the position column.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 11 * 60);
+      c.scenario = 'manual-override-held-position';
+      c.entries[0].flags.manual_override = true;
+      c.entries[0].flags.manual_override_minutes_from_now = 30;
+      // target_position = solar would-be; held_position = where the user parked it.
+      c.entries[0].target_position = 60;
+      c.entries[0].flags.held_position = 44;
+      c.entries[0].covers[0].position = 44;
       return c;
     },
   },

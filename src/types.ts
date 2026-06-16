@@ -150,6 +150,11 @@ export interface DecisionStep {
   matched: boolean;
   reason: string;
   position: number | null;
+  /** Position the integration is holding the cover at during a manual override.
+   *  Present only when the integration emits it (v2.x+, issue #608).
+   *  When present, `position` is the solar would-be target; this field is the
+   *  actual held value that should be displayed as the primary position. */
+  held_position?: number | null;
 }
 
 export interface DecisionTraceAttributes {
