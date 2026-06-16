@@ -127,7 +127,8 @@ export const fr: EnDict = {
     sun_path: 'Trajectoire solaire',
     sunrise: 'Lever du soleil',
     sunset: 'Coucher du soleil',
-    cover_position: 'Position du store',
+    cover_target: 'Cible du store',
+    cover_held: 'Position du store (maintenue)',
     window_normal: 'Azimut de la fenêtre',
     stat_sun: 'Soleil : ',
     stat_azi: 'Azi : ',
@@ -146,8 +147,11 @@ export const fr: EnDict = {
     placeholder: "Aucun store signalé par l'intégration.",
     title: 'Stores',
     target: 'Cible : {pct}',
+    target_solar: 'Cible solaire : {pct}',
     click_to_set: 'Cliquer pour définir la position',
     target_tooltip: 'Cible {pct}%',
+    target_tooltip_override:
+      'Cible solaire théorique {pct}% — le store est maintenu par la commande manuelle',
   },
   decision: {
     placeholder: "La trace de décision n'est pas encore renseignée.",
