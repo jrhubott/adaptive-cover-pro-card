@@ -155,7 +155,9 @@ describe('locale-table parity', () => {
 
 describe('cover position i18n (issue #132)', () => {
   const keys = [
-    'compass.cover_position',
+    // compass.cover_position retired in #158 → cover_target / cover_held.
+    'compass.cover_target',
+    'compass.cover_held',
     'compass.cover_position_target',
     'compass.cover_position_target_awning',
     'compass.cover_position_actual',

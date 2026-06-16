@@ -458,14 +458,80 @@ describe('acp-sky-compass (multi-entry overlay)', () => {
   });
 });
 
-describe('acp-sky-compass cover legend wording (#132)', () => {
-  it('legend shows "Cover position", not "Cover closed"', async () => {
+describe('acp-sky-compass cover legend wording (#132 / #158)', () => {
+  it('legend shows "Cover target" (retired "Cover position"), not "Cover closed"', async () => {
+    // #158 retired the ambiguous "Cover position" label: with no override
+    // divergence the single legend row names the solid wedge "Cover target".
     const d = makeDiscovered('entry1', 'Kitchen');
     const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
     const el = await mountCompass([d], hass);
     const text = el.shadowRoot!.textContent ?? '';
-    expect(text).toContain('Cover position');
+    expect(text).toContain('Cover target');
     expect(text).not.toContain('Cover closed');
+    expect(text).not.toContain('Cover position');
+  });
+});
+
+describe('acp-sky-compass cover legend target/held rows (#158)', () => {
+  // windowAzimuth=180, fov ±45 → full FOV wedge. No elevation limits.
+  const sensorId = 'sensor.sun_pos_leg';
+  const targetSensorId = 'sensor.target_pos_leg';
+  const overrideBinaryId = 'binary_sensor.mo_leg';
+  const disc = () => makeDiscovered('leg', 'Kitchen', { targetSensorId, overrideBinaryId });
+
+  it('renders TWO legend rows (Cover target + Cover position (held)) when the held ring is drawn', async () => {
+    // Diverging override: solar target 30 (held 70). Both map to non-empty
+    // blind wedges (open fractions 0.7 vs 0.3), so the compass draws the solid
+    // target wedge AND the dashed held ring, and the legend names both.
+    const hass = makeHass([
+      {
+        sensorId,
+        windowAzimuth: 180,
+        coverPos: 70, // sensor STATE = held during override
+        rawCalculatedPosition: 30, // solar would-be target
+        actualPositions: { 'cover.x': 70 },
+        targetSensorId,
+        overrideBinaryId,
+        manualOverride: true,
+      },
+    ]);
+    const el = await mountCompass([disc()], hass);
+    // Both wedges present and distinct.
+    const fill = el.shadowRoot!.querySelector('path.cover-fill') as SVGPathElement | null;
+    const actual = el.shadowRoot!.querySelector('path.cover-actual') as SVGPathElement | null;
+    expect(fill).not.toBeNull();
+    expect(actual).not.toBeNull();
+    expect(fill!.getAttribute('d')).not.toBe(actual!.getAttribute('d'));
+    expect(fill!.getAttribute('d')).not.toBe('');
+    expect(actual!.getAttribute('d')).not.toBe('');
+    // Legend: a solid "Cover target" swatch + a dashed "Cover position (held)" swatch.
+    const text = el.shadowRoot!.textContent ?? '';
+    expect(text).toContain('Cover target');
+    expect(text).toContain('Cover position (held)');
+    const heldSwatch = el.shadowRoot!.querySelector('.swatch.cover-actual-swatch');
+    expect(heldSwatch).not.toBeNull();
+  });
+
+  it('renders a SINGLE "Cover target" legend row with no held-ring divergence', async () => {
+    const hass = makeHass([{ sensorId, windowAzimuth: 180, coverPos: 40, targetSensorId }]);
+    const el = await mountCompass([disc()], hass);
+    const text = el.shadowRoot!.textContent ?? '';
+    expect(text).toContain('Cover target');
+    expect(text).not.toContain('Cover position (held)');
+    expect(el.shadowRoot!.querySelector('.swatch.cover-actual-swatch')).toBeNull();
+    // The retired key's wording must not resurface.
+    expect(text).not.toContain('Cover position');
+  });
+
+  it('defines a dashed .cover-actual-swatch mirroring the dashed held ring', () => {
+    const cssText = (SkyCompass as unknown as { styles: { cssText: string } }).styles.cssText;
+    const idx = cssText.indexOf('.cover-actual-swatch');
+    expect(idx).toBeGreaterThanOrEqual(0);
+    const open = cssText.indexOf('{', idx);
+    const close = cssText.indexOf('}', open);
+    const block = cssText.slice(open + 1, close);
+    // Dashed border to echo the dashed faint ring.
+    expect(block).toMatch(/dashed/);
   });
 });
 

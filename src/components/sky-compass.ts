@@ -749,6 +749,19 @@ export class SkyCompass extends LitElement {
     moon: MoonData | null,
   ): TemplateResult {
     const overrideColor = overlays[0]?.isOverride ? (overlays[0].color ?? null) : null;
+    // The dashed held ring is drawn whenever the live/actual position diverges
+    // from the solid target wedge (a manual override holding the cover away from
+    // the solar target, or a live actual ≠ target). When it shows, the legend
+    // names BOTH rings — solid "Cover target" + dashed "Cover position (held)" —
+    // so the relabelled solid wedge reads as the target, not the cover itself
+    // (#158). With no divergence a single "Cover target" row remains.
+    const first = overlays[0];
+    const showHeld =
+      first?.coverPos !== null &&
+      first?.actualPos !== null &&
+      first?.actualPos !== undefined &&
+      first?.coverPos !== undefined &&
+      Math.round(first.actualPos) !== Math.round(first.coverPos);
     if (multi) {
       return html`
         <div class="legend">
@@ -804,7 +817,18 @@ export class SkyCompass extends LitElement {
                 style=${overrideColor ? `background: ${overrideColor}` : ''}
               ></span
             ></span>
-            ${t('compass.cover_position', this.hass)}
+            ${t('compass.cover_target', this.hass)}
+          </div>`
+        : nothing}
+      ${this.showCoverFill && showHeld
+        ? html`<div>
+            <span class="licell"
+              ><span
+                class="swatch cover-actual-swatch"
+                style=${overrideColor ? `border-color: ${overrideColor}` : ''}
+              ></span
+            ></span>
+            ${t('compass.cover_held', this.hass)}
           </div>`
         : nothing}
       ${this.showWindowArrow
@@ -1148,6 +1172,15 @@ export class SkyCompass extends LitElement {
          legend swatch the same darker shade the reader sees in the plot. */
       opacity: 0.45;
       border-radius: 2px;
+    }
+    /* Mirrors the dashed, faint .cover-actual held ring: a near-transparent fill
+       inside a dashed primary-colour border, so the legend swatch reads like the
+       second (held) ring rather than the solid target wedge (#158). */
+    .swatch.cover-actual-swatch {
+      background: color-mix(in srgb, var(--primary-color) 15%, transparent);
+      border: 1px dashed var(--primary-color);
+      border-radius: 2px;
+      box-sizing: border-box;
     }
     .dot.rise-dot {
       background: var(--warning-color, gold);
