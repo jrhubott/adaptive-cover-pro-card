@@ -4,6 +4,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import { entityStateChanged } from '../lib/hass-change';
 import type { CoverPositionAttributes, DiscoveredEntities } from '../types';
+import { displayTarget, isOverrideDivergence } from '../lib/cover-position';
 import { formatPercent } from '../lib/formatters';
 import { INTEGRATION_DOMAIN } from '../const';
 import { t } from '../lib/i18n';
@@ -29,6 +30,7 @@ export class CoverBar extends LitElement {
     return entityStateChanged(old, this.hass, [
       e?.target_position_sensor,
       e?.position_mismatch_binary,
+      e?.manual_override_binary,
     ]);
   }
 
@@ -37,10 +39,12 @@ export class CoverBar extends LitElement {
     if (!id) return { target: null, covers: {} };
     const st = this.hass.states[id];
     if (!st) return { target: null, covers: {} };
-    const target = parseFloat(st.state);
     const attrs = st.attributes as unknown as CoverPositionAttributes;
     return {
-      target: Number.isNaN(target) ? null : target,
+      // During a diverging manual override the sensor state is the held value;
+      // surface the solar would-be target instead so the label and marker match
+      // the compass and reveal the held-vs-target gap (#158).
+      target: displayTarget(this.hass, this.discovered),
       covers: attrs?.actual_positions ?? {},
     };
   }
@@ -73,6 +77,10 @@ export class CoverBar extends LitElement {
     if (!this.hass || !this.discovered) return nothing;
     const { target, covers } = this._target();
     const mismatched = this._mismatched();
+    // A mismatch during a manual override is intentional (the user is holding
+    // the cover away from the solar target), so don't flag it as an alert — the
+    // marker/fill gap already shows it. Keep the badge for genuine mismatches.
+    const overrideDivergence = isOverrideDivergence(this.hass, this.discovered);
     const entries = Object.entries(covers);
     if (entries.length === 0) {
       return html`<div class="placeholder">${t('covers.placeholder', this.hass)}</div>`;
@@ -85,7 +93,9 @@ export class CoverBar extends LitElement {
             >${t('covers.target', this.hass, { pct: formatPercent(target) })}</span
           >
         </div>
-        ${entries.map(([id, actual]) => this._bar(id, actual, target, mismatched.has(id)))}
+        ${entries.map(([id, actual]) =>
+          this._bar(id, actual, target, mismatched.has(id), overrideDivergence),
+        )}
       </div>
     `;
   }
@@ -95,6 +105,7 @@ export class CoverBar extends LitElement {
     actual: number | null,
     target: number | null,
     mismatch: boolean,
+    overrideDivergence: boolean,
   ): TemplateResult {
     const friendly =
       (this.hass.states[entityId]?.attributes?.friendly_name as string | undefined) ?? entityId;
@@ -119,7 +130,7 @@ export class CoverBar extends LitElement {
               ></div>`
             : nothing}
         </div>
-        ${mismatch
+        ${mismatch && !overrideDivergence
           ? html`<ha-icon class="warn" icon="mdi:alert-circle-outline"></ha-icon>`
           : nothing}
       </div>
@@ -158,7 +169,10 @@ export class CoverBar extends LitElement {
     }
     .cover {
       display: grid;
-      grid-template-columns: minmax(80px, 1fr) 48px 3fr auto;
+      /* Final column is fixed at the warn-icon size (16px) rather than auto so
+         the track (3fr) keeps the same width whether or not the badge renders —
+         a toggling badge no longer reflows the bar graph (#158). */
+      grid-template-columns: minmax(80px, 1fr) 48px 3fr 16px;
       gap: 8px;
       align-items: center;
       font-size: 0.82rem;
