@@ -143,6 +143,9 @@ function makeEntry(
       schedule_start_minutes: 7 * 60 + 30, // 07:30
       schedule_end_minutes: 21 * 60, // 21:00
       default_position: 60,
+      throttle_pending: false,
+      throttle_skipped_minutes_ago: 2,
+      throttle_threshold_minutes: 15,
       ...overrides.flags,
     },
     entry_id: overrides.entry_id,
@@ -248,9 +251,9 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: 'manual-override-divergence',
-    label: 'Manual override — solar diverges',
+    label: 'Manual override — solar diverges (target 100%)',
     description:
-      'Manual override holds the cover at 80% while the sun would have the integration close it to 20%. The sky compass draws the solar-target wedge plus the held/actual ring, and the COVERS bar labels Target: 20% (solar) with the fill/number at the held 80% and no alert badge — the divergence is intentional (#158). The decision strip shows 80% (held) in the position column and "solar 20%" inline after the reason (#161). Toggle the override off to see the badge return for a genuine mismatch.',
+      'Manual override holds the cover at 70% while the sun would have the integration open it fully to 100% (the trailing #158 screenshot). The sky compass draws the solar "Cover target" wedge plus the dashed "Cover position (held)" ring, and the legend now names BOTH rows. The COVERS bar header reads "Solar target: 100%" (the solar would-be value, not the held setpoint), with the fill/number at the held 70% and no alert badge — the divergence is intentional (#158). The target marker is clamped just inside the right rail at 100% so it stays visible instead of clipping. The decision strip shows 70% (held) in the position column and "solar 100%" inline after the reason (#161). Toggle the override off to see the badge return for a genuine mismatch.',
     build: () => {
       const c = baseConfig('2026-06-21', 14 * 60);
       c.scenario = 'manual-override-divergence';
@@ -258,9 +261,25 @@ export const SCENARIOS: Scenario[] = [
       c.entries[0].flags.manual_override_minutes_from_now = 60;
       // target_position is the SOLAR would-be target (surfaces as
       // raw_calculated_position); held_position is where the user parked it.
-      c.entries[0].target_position = 20;
-      c.entries[0].flags.held_position = 80;
-      c.entries[0].covers[0].position = 80;
+      c.entries[0].target_position = 100;
+      c.entries[0].flags.held_position = 70;
+      c.entries[0].covers[0].position = 70;
+      return c;
+    },
+  },
+  {
+    id: 'manual-override-divergence-zero',
+    label: 'Manual override — solar diverges (target 0%)',
+    description:
+      'The 0% counterpart to the 100% divergence scenario: manual override holds the cover at 30% while the solar would-be target is a fully-closed 0%. The COVERS target marker is clamped just inside the LEFT rail at 0% so it stays visible instead of pinning to the corner (item B at the low extreme). The header reads "Solar target: 0%", the dashed "Cover position (held)" ring shows on the compass alongside the solid target wedge, and no alert badge appears — the divergence is intentional (#158).',
+    build: () => {
+      const c = baseConfig('2026-06-21', 14 * 60);
+      c.scenario = 'manual-override-divergence-zero';
+      c.entries[0].flags.manual_override = true;
+      c.entries[0].flags.manual_override_minutes_from_now = 60;
+      c.entries[0].target_position = 0;
+      c.entries[0].flags.held_position = 30;
+      c.entries[0].covers[0].position = 30;
       return c;
     },
   },
@@ -353,6 +372,24 @@ export const SCENARIOS: Scenario[] = [
       c.entries[0].flags.motion_status = 'timeout_pending';
       c.entries[0].flags.motion_timeout_minutes_from_now = 0.5;
       c.entries[0].target_position = 100;
+      c.entries[0].covers[0].position = 100;
+      return c;
+    },
+  },
+  {
+    id: 'throttled-waiting-interval',
+    label: 'Throttled — waiting on interval',
+    description:
+      'A move was just skipped by the minimum-interval throttle (time_delta_too_small) ~2 min ago with a 15 min interval, so the decision strip shows a "next adjustment allowed in …" countdown. The cover is still at its old position while the target has moved on.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'throttled-waiting-interval';
+      c.entries[0].flags.throttle_pending = true;
+      c.entries[0].flags.throttle_skipped_minutes_ago = 2;
+      c.entries[0].flags.throttle_threshold_minutes = 15;
+      // Live ≠ target: the throttle is a send-gate, so the target keeps tracking
+      // the solar position while the physical cover lags behind.
+      c.entries[0].target_position = 89;
       c.entries[0].covers[0].position = 100;
       return c;
     },

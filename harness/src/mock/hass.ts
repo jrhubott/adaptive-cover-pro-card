@@ -41,12 +41,32 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'decision.outside_schedule_tooltip':
     'The configured schedule window is not active, so automatic positioning is paused.',
   'decision.solar_would_be': 'solar {pct}',
+  'decision.next_change_in': 'Next adjustment allowed in {time}',
   'elevation.schedule': 'Schedule {from} – {to}',
   'elevation.schedule_from': 'Schedule from {from}',
   'elevation.schedule_until': 'Schedule until {to}',
   'elevation.schedule_start_tooltip': 'Schedule start',
   'elevation.schedule_end_tooltip': 'Schedule end',
   'compass.in_fov_tooltip': 'Sun is currently within this window’s field of view',
+  // Cover legend rows (#158): the solid wedge is the target, the dashed ring the
+  // held position. Mirror the real en.ts strings so the harness legend renders
+  // real text instead of the raw i18n keys.
+  'compass.cover_target': 'Cover target',
+  'compass.cover_held': 'Cover position (held)',
+  'compass.window_fov': 'Window FOV',
+  'compass.window_normal': 'Window azimuth',
+  'compass.sun': 'Sun',
+  'compass.moon': 'Moon',
+  // COVERS bar header + marker tooltip (#158): plain vs solar-target labelling
+  // and the base vs override marker tooltips.
+  'covers.title': 'Covers',
+  'covers.target': 'Target: {pct}',
+  'covers.target_solar': 'Solar target: {pct}',
+  'covers.target_tooltip': 'Target {pct}%',
+  'covers.target_tooltip_override':
+    'Would-be solar target {pct}% — cover is held by manual override',
+  'covers.click_to_set': 'Click to set position',
+  'covers.placeholder': 'No covers reported by the integration.',
   'root.loading_registry': 'Loading entity registry…',
   'root.no_entities_title': 'No matching entities',
   'root.footer_version': 'adaptive-cover-pro-card v{version}',

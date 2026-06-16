@@ -267,6 +267,18 @@ export interface ControlStatusAttributes {
   schedule_end?: string | null;
 }
 
+/**
+ * Attributes on the integration's `last_skipped_action` sensor. The sensor's
+ * state carries the skip `reason` (e.g. `time_delta_too_small`); these
+ * attributes describe the most recent skip. `timestamp` is a UTC ISO-8601
+ * datetime; `time_threshold_minutes` is the configured minimum interval.
+ */
+export interface LastSkippedAttributes {
+  timestamp?: string;
+  elapsed_minutes?: number;
+  time_threshold_minutes?: number;
+}
+
 export interface CoverPositionAttributes {
   actual_positions: Record<string, number | null>;
   all_at_target: boolean;

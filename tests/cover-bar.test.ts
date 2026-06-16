@@ -205,9 +205,30 @@ describe('acp-cover-bar manual-override divergence — issue #158', () => {
     const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
     const open = el.shadowRoot!.querySelector('.fill') as HTMLElement;
     const num = el.shadowRoot!.querySelector('.num')!.textContent!;
-    expect(marker.style.left).toBe('60%');
+    // Marker is clamped so its centred 2px box never clips at the rail ends; the
+    // 60% target sits inside the clamp window so the percent flows through.
+    // (happy-dom drops clamp() from style.left, so read the rendered attribute.)
+    expect(marker.getAttribute('style')).toContain('left:clamp(1px, 60%, calc(100% - 1px))');
     expect(open.style.width).toBe('44%');
     expect(num).toContain('44');
+  });
+
+  it('relabels the COVERS header to "Solar target" during a diverging override', async () => {
+    const el = await mount(overrideHass(true));
+    const target = el.shadowRoot!.querySelector('.head .target')!.textContent!;
+    // covers.target_solar = "Solar target: {pct}" — value stays the solar 60%.
+    expect(target).toContain('Solar target');
+    expect(target).toContain('60');
+  });
+
+  it('uses the override-specific marker tooltip during a diverging override', async () => {
+    const el = await mount(overrideHass(true));
+    const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
+    const tip = marker.getAttribute('data-tooltip') ?? '';
+    // covers.target_tooltip_override mentions the would-be solar target + held.
+    expect(tip).toContain('Would-be solar target');
+    expect(tip).toContain('60');
+    expect(tip).toContain('held by manual override');
   });
 
   it('suppresses the alert badge when the mismatch is an intentional override divergence', async () => {
@@ -224,6 +245,75 @@ describe('acp-cover-bar manual-override divergence — issue #158', () => {
     const styles = (CoverBar as unknown as { styles: CSSResult }).styles.cssText;
     expect(styles).toMatch(/grid-template-columns:[^;]*3fr\s+16px/);
     expect(styles).not.toMatch(/grid-template-columns:[^;]*3fr\s+auto/);
+  });
+
+  it('keeps the plain "Target" header label and base tooltip without a divergence', async () => {
+    // Override off → no divergence → the displayTarget is the held 44%, the
+    // header reads the plain "Target:" label and the marker keeps the base
+    // tooltip. Normal operation must be unchanged by the divergence relabel.
+    const el = await mount(overrideHass(false, false));
+    const target = el.shadowRoot!.querySelector('.head .target')!.textContent!;
+    expect(target).toContain('Target');
+    expect(target).not.toContain('Solar target');
+    const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
+    const tip = marker.getAttribute('data-tooltip') ?? '';
+    expect(tip).not.toContain('Would-be solar target');
+  });
+});
+
+describe('acp-cover-bar target marker clamp at extremes — issue #158 (trailing)', () => {
+  const baseDiscoveredLocal: DiscoveredEntities = {
+    ...baseDiscovered,
+    entities: { target_position_sensor: 'sensor.cover_position' },
+  };
+
+  // Held distinct from the solar target so displayTarget = the solar would-be
+  // value, letting us drive the marker to the 0% / 100% extremes.
+  async function mountAtTarget(solar: number, held: number): Promise<CoverBarLike> {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    document.body.appendChild(el);
+    el.hass = {
+      states: {
+        'sensor.cover_position': {
+          state: String(held),
+          attributes: {
+            actual_positions: { 'cover.a': held },
+            raw_calculated_position: solar,
+          },
+        },
+        'binary_sensor.manual_override': { state: 'on', attributes: {} },
+        'cover.a': { state: 'open', attributes: { friendly_name: 'Cover A' } },
+      },
+      callService: vi.fn(),
+    } as unknown as HomeAssistant;
+    el.discovered = {
+      ...baseDiscoveredLocal,
+      entities: {
+        target_position_sensor: 'sensor.cover_position',
+        manual_override_binary: 'binary_sensor.manual_override',
+      },
+    };
+    await el.updateComplete;
+    return el;
+  }
+
+  it('centres the marker on its value via translateX(-50%)', () => {
+    const styles = (CoverBar as unknown as { styles: CSSResult }).styles.cssText;
+    expect(styles).toMatch(/\.marker\s*{[^}]*translateX\(-50%\)/);
+  });
+
+  it('clamps the marker inside the rail at the 100% extreme', async () => {
+    const el = await mountAtTarget(100, 70);
+    const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
+    // left:100% would push the centred box off the right edge under
+    // overflow:hidden; the clamp keeps it inside the rail.
+    expect(marker.getAttribute('style')).toContain('left:clamp(1px, 100%, calc(100% - 1px))');
+  });
+
+  it('clamps the marker inside the rail at the 0% extreme', async () => {
+    const el = await mountAtTarget(0, 30);
+    const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
+    expect(marker.getAttribute('style')).toContain('left:clamp(1px, 0%, calc(100% - 1px))');
   });
 });
 

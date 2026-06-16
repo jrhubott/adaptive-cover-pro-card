@@ -221,9 +221,18 @@ function addEntryStates(
     `Set to ${entry.target_position}%`,
     { friendly_name: `${entry.title} Last Cover Action` },
   );
-  states[id('last_skipped_sensor')] = mkState(id('last_skipped_sensor'), 'none', {
-    friendly_name: `${entry.title} Last Skipped Action`,
-  });
+  if (f.throttle_pending) {
+    states[id('last_skipped_sensor')] = mkState(id('last_skipped_sensor'), 'time_delta_too_small', {
+      friendly_name: `${entry.title} Last Skipped Action`,
+      timestamp: new Date(now.getTime() - f.throttle_skipped_minutes_ago * 60_000).toISOString(),
+      elapsed_minutes: f.throttle_skipped_minutes_ago,
+      time_threshold_minutes: f.throttle_threshold_minutes,
+    });
+  } else {
+    states[id('last_skipped_sensor')] = mkState(id('last_skipped_sensor'), 'none', {
+      friendly_name: `${entry.title} Last Skipped Action`,
+    });
+  }
 
   const manualEnd = f.manual_override
     ? new Date(now.getTime() + f.manual_override_minutes_from_now * 60_000).toISOString()

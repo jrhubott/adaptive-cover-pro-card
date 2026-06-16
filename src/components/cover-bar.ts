@@ -90,7 +90,9 @@ export class CoverBar extends LitElement {
         <div class="head">
           <span class="label">${t('covers.title', this.hass)}</span>
           <span class="target"
-            >${t('covers.target', this.hass, { pct: formatPercent(target) })}</span
+            >${t(overrideDivergence ? 'covers.target_solar' : 'covers.target', this.hass, {
+              pct: formatPercent(target),
+            })}</span
           >
         </div>
         ${entries.map(([id, actual]) =>
@@ -125,8 +127,14 @@ export class CoverBar extends LitElement {
           ${target !== null
             ? html`<div
                 class="marker"
-                style="left:${targetPct}%"
-                ${tooltip(t('covers.target_tooltip', this.hass, { pct: targetPct }))}
+                style="left:clamp(1px, ${targetPct}%, calc(100% - 1px))"
+                ${tooltip(
+                  t(
+                    overrideDivergence ? 'covers.target_tooltip_override' : 'covers.target_tooltip',
+                    this.hass,
+                    { pct: targetPct },
+                  ),
+                )}
               ></div>`
             : nothing}
         </div>
@@ -226,12 +234,16 @@ export class CoverBar extends LitElement {
       background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 50%, transparent);
       transition: width 0.3s ease;
     }
+    /* The marker is centred on its left value via translateX(-50%) and its
+       left is clamped 1px inside the rail (inline), so the 2px box never gets
+       clipped by .track { overflow:hidden } at the 0%/100% extremes (#158). */
     .marker {
       position: absolute;
       top: -2px;
       width: 2px;
       height: 14px;
       background: var(--accent-color, red);
+      transform: translateX(-50%);
       transition: left 0.3s ease;
     }
     .num {

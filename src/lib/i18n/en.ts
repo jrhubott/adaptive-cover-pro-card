@@ -118,7 +118,8 @@ export const en = {
     sun_path: 'Sun path',
     sunrise: 'Sunrise',
     sunset: 'Sunset',
-    cover_position: 'Cover position',
+    cover_target: 'Cover target',
+    cover_held: 'Cover position (held)',
     window_normal: 'Window azimuth',
     stat_sun: 'Sun: ',
     stat_azi: 'Azi: ',
@@ -137,8 +138,10 @@ export const en = {
     placeholder: 'No covers reported by the integration.',
     title: 'Covers',
     target: 'Target: {pct}',
+    target_solar: 'Solar target: {pct}',
     click_to_set: 'Click to set position',
     target_tooltip: 'Target {pct}%',
+    target_tooltip_override: 'Would-be solar target {pct}% — cover is held by manual override',
   },
   decision: {
     placeholder: 'Decision trace not yet populated.',
@@ -151,6 +154,7 @@ export const en = {
     outside_schedule_tooltip:
       'The configured schedule window is not active, so automatic positioning is paused.',
     solar_would_be: 'solar {pct}',
+    next_change_in: 'Next adjustment allowed in {time}',
   },
   header: {
     on: 'ON',
