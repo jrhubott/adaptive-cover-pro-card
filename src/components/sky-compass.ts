@@ -681,8 +681,11 @@ export class SkyCompass extends LitElement {
    *  the plot CSS — glow only on `.sun.valid`. ViewBox is padded for the ~4px
    *  glow blur. Sized larger than the moon glyph. */
   private _legendSunGlyph(sunDotClass: string): TemplateResult {
+    // Rendered at 18px: the r=5 disc in the glow-padded 16-unit viewBox comes out
+    // ~11px across — visibly larger than the moon glyph (~9px), per the design's
+    // "sun larger than moon" intent (the glow padding otherwise shrinks the disc).
     return html`<span class="glyph"
-      ><svg viewBox="-8 -8 16 16" width="13" height="13">
+      ><svg viewBox="-8 -8 16 16" width="18" height="18">
         ${svg`<circle class=${sunDotClass} cx="0" cy="0" r="5"></circle>`}
       </svg></span
     >`;

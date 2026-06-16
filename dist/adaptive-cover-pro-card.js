@@ -161,7 +161,7 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
         <path class="blind-spot" style=${V} d=${$??""}></path>
       </g>
     </g>`}_legendSunGlyph(e){return L`<span class="glyph"
-      ><svg viewBox="-8 -8 16 16" width="13" height="13">
+      ><svg viewBox="-8 -8 16 16" width="18" height="18">
         ${q`<circle class=${e} cx="0" cy="0" r="5"></circle>`}
       </svg></span
     >`}_legendMoonGlyph(e){const t=e?lt(e.phase,4):0,o=this._legendMoonMaskId;return L`<span class="glyph"
