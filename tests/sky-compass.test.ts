@@ -1454,6 +1454,29 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     expect(sunUp).toMatch(/#ffe680/);
   });
 
+  it('plot-sizing rules are scoped to the direct-child plot svg, not every svg', () => {
+    // Regression: a bare `svg { width: 100%; min-width: 200px }` rule cascades
+    // onto the inline legend glyph SVGs, blowing them up (root card) or
+    // collapsing them to zero (narrow more-info dialog). The plot width rules
+    // MUST target `.compass > svg` so they never reach the deeper glyph SVGs.
+    expect(cssText).toContain('.compass > svg {');
+    const plot = cssBlock('.compass > svg ');
+    expect(plot).toMatch(/width:\s*100%/);
+    // No rule may select bare `svg` at a statement boundary (that selector also
+    // matches the legend glyphs). `.compass > svg` / `.glyph svg` are exempt
+    // because "svg" there is preceded by a combinator/descendant selector.
+    expect(cssText).not.toMatch(/(?:^|[\n;}])\s*svg\s*\{/m);
+  });
+
+  it('legend glyph SVGs neutralise any inherited svg sizing', () => {
+    // Defense-in-depth: even if a wide ancestor svg rule appears, the glyph
+    // wrapper resets min/max-width so the glyph keeps its attribute size.
+    const glyph = cssBlock('.glyph svg ');
+    expect(glyph).toMatch(/min-width:\s*0/);
+    expect(glyph).toMatch(/max-width:\s*none/);
+    expect(glyph).toMatch(/display:\s*block/);
+  });
+
   it('does not pin a percentage max-height on the side-column legend (issue #146)', () => {
     // @container side-column rule: a percentage `max-height: 100%` against a
     // flex parent with no definite height decouples the .compass box from the

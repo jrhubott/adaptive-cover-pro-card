@@ -876,13 +876,16 @@ export class SkyCompass extends LitElement {
       align-items: center;
       gap: 6px;
     }
-    svg {
+    /* Plot SVG only — scoped to the direct child of .compass so these sizing
+       rules never cascade onto the small inline legend glyph SVGs (which size
+       themselves via their width/height attributes). */
+    .compass > svg {
       width: 100%;
       max-width: 260px;
       height: auto;
       display: block;
     }
-    :host([compact]) svg {
+    :host([compact]) .compass > svg {
       max-width: 180px;
     }
     :host([compact]) .legend {
@@ -896,12 +899,12 @@ export class SkyCompass extends LitElement {
         justify-content: center;
         gap: 16px;
       }
-      .compass svg {
+      .compass > svg {
         max-width: none;
         flex: 1 1 0;
         min-width: 200px;
       }
-      :host([compact]) .compass svg {
+      :host([compact]) .compass > svg {
         max-width: 280px;
       }
       .compass .legend,
@@ -1081,7 +1084,13 @@ export class SkyCompass extends LitElement {
       margin-right: 4px;
     }
     .glyph svg {
+      /* Size comes from each glyph's own width/height attributes; display:block
+         inside the inline-block wrapper avoids inline-descender spacing. The
+         explicit min/max-width reset guards against any ancestor svg rule. */
+      display: block;
       overflow: visible;
+      min-width: 0;
+      max-width: none;
     }
     /* Arrowhead on the legend window-azimuth glyph (and matched on the plotted
        window line); follows the override colour via inline style when set. */
