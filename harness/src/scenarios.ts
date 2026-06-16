@@ -250,7 +250,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'manual-override-divergence',
     label: 'Manual override — solar diverges',
     description:
-      'Manual override holds the cover at 80% while the sun would have the integration close it to 20%. The sky compass draws the solar-target wedge plus the held/actual ring so you can see where automatic control would put it.',
+      'Manual override holds the cover at 80% while the sun would have the integration close it to 20%. The sky compass draws the solar-target wedge plus the held/actual ring, and the COVERS bar labels Target: 20% (solar) with the fill/number at the held 80% and no alert badge — the divergence is intentional (#158). The decision strip shows 80% (held) in the position column and "solar 20%" inline after the reason (#161). Toggle the override off to see the badge return for a genuine mismatch.',
     build: () => {
       const c = baseConfig('2026-06-21', 14 * 60);
       c.scenario = 'manual-override-divergence';
@@ -261,6 +261,23 @@ export const SCENARIOS: Scenario[] = [
       c.entries[0].target_position = 20;
       c.entries[0].flags.held_position = 80;
       c.entries[0].covers[0].position = 80;
+      return c;
+    },
+  },
+  {
+    id: 'manual-override-held-position',
+    label: 'Manual override — held_position field (#161)',
+    description:
+      'Exercises the held_position field on the manual_override trace step (integration #608). The decision strip must show the held value (44%) in the primary position column and append "solar 60%" as inline context after the reason. The solar would-be (60%) must not appear in the position column.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 11 * 60);
+      c.scenario = 'manual-override-held-position';
+      c.entries[0].flags.manual_override = true;
+      c.entries[0].flags.manual_override_minutes_from_now = 30;
+      // target_position = solar would-be; held_position = where the user parked it.
+      c.entries[0].target_position = 60;
+      c.entries[0].flags.held_position = 44;
+      c.entries[0].covers[0].position = 44;
       return c;
     },
   },
@@ -935,6 +952,31 @@ export const SCENARIOS: Scenario[] = [
           title: 'EG WZ gr. Fenster',
           window_azimuth: 270,
           color: '#7e57c2',
+        }),
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'legend-live-glyphs',
+    label: 'Legend live glyphs (issue #157)',
+    description:
+      'The reworked sky-compass legend (issue #157). A north-facing window at solar noon puts the sun SOUTH, OUTSIDE the FOV, so the legend Sun glyph (points 1/5) renders as a plain light disc with NO glow — the glyph tracks the live sun-dot state instead of a hardcoded valid gold. With Show moon on and a partial (waxing) phase, the Moon glyph (point 2) shows the real lit fraction via its own phase mask. The window row (points 3/4) is now an arrow glyph labelled "Window azimuth" (not "Window normal"), and the plotted window line carries a matching arrowhead at the rim. Change entry 0\'s colour to watch the arrow glyph + line follow the override.',
+    build: () => {
+      // 2026-06-21 noon: moon phase ≈ 0.24 (a clear partial waxing crescent) and
+      // the noon sun sits ~south while the window faces north → sun outside FOV.
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'legend-live-glyphs';
+      c.root.show_moon = true;
+      c.compass.show_moon = true;
+      c.entries = [
+        makeEntry({
+          entry_id: 'north_window',
+          title: 'Loft',
+          window_azimuth: 0,
+          fov_left: 45,
+          fov_right: 45,
+          color: '#26a69a',
         }),
       ];
       return c;

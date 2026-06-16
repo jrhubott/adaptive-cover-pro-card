@@ -62,6 +62,7 @@ export function decide(input: DecisionInput): DecisionResult {
       matched: !matched && evalResult.matches,
       reason: evalResult.reason,
       position: evalResult.position,
+      ...(evalResult.held_position != null ? { held_position: evalResult.held_position } : {}),
     });
     if (!matched && evalResult.matches) {
       matched = true;
@@ -119,6 +120,10 @@ interface HandlerEval {
   matches: boolean;
   position: number | null;
   reason: string;
+  /** Mirrors DecisionStep.held_position — emitted by the manual handler when
+   *  the integration is holding the cover at a position that diverges from the
+   *  solar would-be (entry.target_position). */
+  held_position?: number | null;
 }
 
 interface DerivedConditions {
@@ -158,15 +163,18 @@ function evalHandler(
         position: null,
         reason: 'no weather alert',
       };
-    case 'manual':
+    case 'manual': {
+      const heldPos = f.manual_override && f.held_position != null ? f.held_position : undefined;
       return {
         enabled: true,
         matches: f.manual_override,
         position: entry.target_position,
+        ...(heldPos !== undefined ? { held_position: heldPos } : {}),
         reason: f.manual_override
-          ? `Manual override active — holding at ${entry.target_position}%`
+          ? `Manual override active — holding at ${heldPos ?? entry.target_position}%`
           : 'no manual override',
       };
+    }
     case 'custom_position': {
       const slot = winningSlot(entry);
       // A priority-100 safety slot wins even with automatic control off — it

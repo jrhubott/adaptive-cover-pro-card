@@ -45,6 +45,7 @@ export class DecisionStrip extends LitElement {
         matched: row.matched,
         reason: row.reason,
         position: row.position,
+        held_position: row.held_position,
       });
     }
     const labels: Record<string, string> = {};
@@ -107,12 +108,21 @@ export class DecisionStrip extends LitElement {
     const matched = row?.matched ?? false;
     const reason = row?.reason ?? t('decision.not_evaluated', this.hass);
     const pos = row?.position;
+    // Use explicit != null guard so that held_position: 0 is treated as "present".
+    const held = row?.held_position;
+    const hasHeld = held != null;
+    const posDisplay = hasHeld ? formatPercent(held) : pos != null ? formatPercent(pos) : '';
+    // When a held position is present, append the solar would-be as inline context.
+    const solarContext =
+      hasHeld && pos != null
+        ? html` · ${t('decision.solar_would_be', this.hass, { pct: formatPercent(pos) })}`
+        : nothing;
     return html`
       <div class="row ${isWinner ? 'winner' : matched ? 'match' : 'skip'}">
         <span class="name">${t(HANDLER_I18N_KEYS[h], this.hass)}</span>
         <span class="dots" aria-hidden="true">${matched ? '████' : '────'}</span>
-        <span class="pos">${pos !== null && pos !== undefined ? formatPercent(pos) : ''}</span>
-        <span class="reason-inline dim">${reason}</span>
+        <span class="pos">${posDisplay}</span>
+        <span class="reason-inline dim">${reason}${solarContext}</span>
         ${isWinner ? html`<span class="badge">✓</span>` : nothing}
       </div>
     `;
@@ -275,6 +285,8 @@ interface TraceRow {
   matched: boolean;
   reason: string;
   position: number | null;
+  /** Forwarded from DecisionStep.held_position — see types.ts for semantics. */
+  held_position?: number | null;
 }
 
 // normalizeHandler lives in src/lib/decision-summary.ts so the helper and the

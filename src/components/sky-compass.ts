@@ -7,8 +7,8 @@ import { entityStateChanged } from '../lib/hass-change';
 
 import type { DiscoveredEntities, SunPositionAttributes } from '../types';
 import {
-  aggregateActualPosition,
   arcsOverlap,
+  arrowheadPath,
   azimuthToCartesian,
   blindSpotBearings,
   clampActiveArcToFov,
@@ -16,11 +16,12 @@ import {
   elevationGatedFovBounds,
   fovBandRadii,
   fovRunBounds,
+  moonPhaseShadowDx,
   normalizeAzimuth,
-  overrideDivergenceTarget,
   sunDotPosition,
   wedgePath,
 } from '../lib/geometry';
+import { coverActualPosition, displayTarget } from '../lib/cover-position';
 import {
   aboveHorizonSegments,
   findFovWindows,
@@ -28,6 +29,7 @@ import {
   startOfDayInZone,
   getMoonData,
   type SunSample,
+  type MoonData,
 } from '../lib/sun-model';
 import { formatDegrees } from '../lib/formatters';
 import { sunDotState, SUN_DOT_CLASS, type SunDotState } from '../lib/sun-dot-state';
@@ -41,6 +43,11 @@ import { tooltip } from '../lib/tooltip';
 // text-anchor="middle" (~7px half-width at 12px font).
 const VIEWBOX = 280;
 const OUTER_R = 110;
+
+// Monotonic counter giving each compass instance a unique legend moon-mask id,
+// so the legend's phase mask never collides with the plot's hardcoded
+// `moon-phase-mask` or with another compass on the same page.
+let LEGEND_MOON_MASK_SEQ = 0;
 
 interface EntryOverlay {
   d: DiscoveredEntities;
@@ -74,6 +81,9 @@ export class SkyCompass extends LitElement {
   @property({ attribute: false }) public northOffsetDeg = 0;
 
   @state() private _hiddenEntries = new Set<string>();
+
+  // Instance-unique id for the legend moon-phase mask (see LEGEND_MOON_MASK_SEQ).
+  private readonly _legendMoonMaskId = `acp-legend-moon-${LEGEND_MOON_MASK_SEQ++}`;
 
   // Skip re-render on hass ticks that touched none of the entities this compass reads.
   protected shouldUpdate(changed: PropertyValues): boolean {
@@ -122,45 +132,6 @@ export class SkyCompass extends LitElement {
     };
   }
 
-  private _coverPositionFor(d: DiscoveredEntities): number | null {
-    const id = d.entities.target_position_sensor;
-    if (!id) return null;
-    const val = parseFloat(this.hass.states[id]?.state ?? '');
-    return Number.isNaN(val) ? null : val;
-  }
-
-  /** Mean of the live per-cover positions on the target sensor's
-   *  `actual_positions` attribute. Null when absent, empty, or all-null. */
-  private _actualPositionFor(d: DiscoveredEntities): number | null {
-    const id = d.entities.target_position_sensor;
-    if (!id) return null;
-    const attrs = this.hass.states[id]?.attributes as
-      | { actual_positions?: Record<string, number | null> }
-      | undefined;
-    if (!attrs?.actual_positions) return null;
-    return aggregateActualPosition(attrs.actual_positions);
-  }
-
-  /** The integration's solar would-be target, published on the target sensor's
-   *  `raw_calculated_position` attribute even while a manual override holds the
-   *  cover. Null when the attribute is absent or non-finite. */
-  private _solarTargetFor(d: DiscoveredEntities): number | null {
-    const id = d.entities.target_position_sensor;
-    if (!id) return null;
-    const attrs = this.hass.states[id]?.attributes as
-      | { raw_calculated_position?: number }
-      | undefined;
-    const val = attrs?.raw_calculated_position;
-    return typeof val === 'number' && Number.isFinite(val) ? val : null;
-  }
-
-  /** True when the discovered manual-override binary sensor is `on`. */
-  private _manualOverrideActive(d: DiscoveredEntities): boolean {
-    const id = d.entities.manual_override_binary;
-    if (!id) return false;
-    return this.hass.states[id]?.state === 'on';
-  }
-
   private _sunInfrontFor(d: DiscoveredEntities): boolean {
     const id = d.entities.sun_infront_binary;
     if (!id) return false;
@@ -203,23 +174,17 @@ export class SkyCompass extends LitElement {
       const { color, isOverride } = resolveCoverColor(this.coverColors?.[i], i);
       // During a manual override the Cover_Position sensor STATE returns the
       // held position, so the target wedge and actual ring would collapse onto
-      // the same value. When the integration still publishes a divergent solar
-      // would-be target (raw_calculated_position), draw the target wedge at the
-      // solar value and keep the actual ring at the held/actual position (#132).
-      const held = this._coverPositionFor(d);
-      const solarTarget = overrideDivergenceTarget(
-        this._manualOverrideActive(d),
-        this._solarTargetFor(d),
-        held,
-      );
+      // the same value. `displayTarget` draws the target wedge at the divergent
+      // solar would-be target (raw_calculated_position) when present, keeping the
+      // actual ring at the held/actual position (#132, shared with the bar #158).
       out.push({
         d,
         sun,
         sunAzi,
         sunInfront: this._sunInfrontFor(d),
         dotState: this._sunDotStateFor(d, sun),
-        coverPos: solarTarget ?? held,
-        actualPos: this._actualPositionFor(d),
+        coverPos: displayTarget(this.hass, d),
+        actualPos: coverActualPosition(this.hass, d),
         coverType: d.cover_type,
         color,
         isOverride,
@@ -284,11 +249,7 @@ export class SkyCompass extends LitElement {
     const moonAboveHorizon = moon !== null && moon.elevation > 0;
     // Moon disc is 2/3 the sun marker's 18px diameter → 12px (radius 6).
     const MOON_R = 6;
-    const moonShadowDx = moon
-      ? moon.phase < 0.5
-        ? -4 * MOON_R * moon.phase
-        : 4 * MOON_R * (1 - moon.phase)
-      : 0;
+    const moonShadowDx = moon ? moonPhaseShadowDx(moon.phase, MOON_R) : 0;
     const moonPt = moonAboveHorizon ? sunDotPosition(moon!.azimuth, moon!.elevation, o) : null;
     const moonX = moonPt ? moonPt.x * OUTER_R : 0;
     const moonY = moonPt ? moonPt.y * OUTER_R : 0;
@@ -475,7 +436,7 @@ export class SkyCompass extends LitElement {
             </g>
           `}
         </svg>
-        ${this.showLegend ? this._renderLegend(overlays, multi) : nothing}
+        ${this.showLegend ? this._renderLegend(overlays, multi, sunDotClass, moon) : nothing}
         ${this.showStats ? this._renderStats(overlays, multi) : nothing}
       </div>
     `;
@@ -654,6 +615,18 @@ export class SkyCompass extends LitElement {
     const showBlind = this.showBlindSpot && !!blindSpot;
     const showArrow = this.showWindowArrow;
     const arrowPath = `M 0 0 L ${windowArrow.x} ${windowArrow.y}`;
+    // Arrowhead at the rim end of the window line, pointing along the window
+    // bearing (so it reads as a vector — issue #157 point 4). It shares the
+    // line's arrowStyle so an override recolours head and shaft together; the
+    // line uses stroke and the head uses fill, so the inline style carries both.
+    const arrowHeadStyle = groupColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
+    const arrowHeadPath = arrowheadPath(
+      windowArrow.x,
+      windowArrow.y,
+      windowAzi + northOffsetDeg,
+      9,
+      5,
+    );
     const hideStyle = 'display: none;';
 
     const ttFovStatic = `${label}${t('compass.fov_arc', this.hass, {
@@ -686,6 +659,7 @@ export class SkyCompass extends LitElement {
       })}
       <g class="arrow-group" style=${showArrow ? '' : hideStyle} ${tooltip(ttWindow)}>
         <path class="window" style=${arrowStyle} d=${arrowPath}></path>
+        <path class="window-head" style=${arrowHeadStyle} d=${arrowHeadPath}></path>
         <circle class="window-base" style=${arrowBaseStyle} cx="0" cy="0" r="4"></circle>
       </g>
       <g class="cover-group" style=${showCover ? '' : hideStyle} ${tooltip(ttCoverFill)}>
@@ -702,10 +676,86 @@ export class SkyCompass extends LitElement {
     </g>`;
   }
 
-  private _renderLegend(overlays: EntryOverlay[], multi: boolean): TemplateResult {
+  /** Inline sun glyph: a small SVG circle carrying the EXACT live plot class
+   *  string (`sun valid` | `sun in-fov` | `sun up` | `sun night`) so it inherits
+   *  the plot CSS — glow only on `.sun.valid`. ViewBox is padded for the ~4px
+   *  glow blur. Sized larger than the moon glyph. */
+  private _legendSunGlyph(sunDotClass: string): TemplateResult {
+    // Rendered at 20px: the r=5 disc in the glow-padded 16-unit viewBox comes out
+    // ~12.5px across — visibly larger than the moon glyph (~9px), per the design's
+    // "sun larger than moon" intent (the glow padding otherwise shrinks the disc).
+    return html`<span class="glyph"
+      ><svg viewBox="-8 -8 16 16" width="20" height="20">
+        ${svg`<circle class=${sunDotClass} cx="0" cy="0" r="5"></circle>`}
+      </svg></span
+    >`;
+  }
+
+  /** Inline moon glyph: the photographic disc clipped by a legend-scoped phase
+   *  mask mirroring the plot mask (instance-unique id to avoid collisions).
+   *  Sized smaller than the sun glyph. */
+  private _legendMoonGlyph(moon: MoonData | null): TemplateResult {
+    const r = 4;
+    const shadowDx = moon ? moonPhaseShadowDx(moon.phase, r) : 0;
+    const maskId = this._legendMoonMaskId;
+    return html`<span class="glyph"
+      ><svg viewBox="-5 -5 10 10" width="11" height="11">
+        ${svg`
+          <defs>
+            <mask id=${maskId}>
+              <circle cx="0" cy="0" r=${r} fill="white"></circle>
+              <circle cx=${shadowDx} cy="0" r=${r} fill="black"></circle>
+            </mask>
+          </defs>
+          <circle class="moon-outline" cx="0" cy="0" r=${r}></circle>
+          <image
+            class="moon-img"
+            href=${MOON_IMAGE}
+            x=${-r}
+            y=${-r}
+            width=${r * 2}
+            height=${r * 2}
+            mask=${`url(#${maskId})`}
+          ></image>
+        `}
+      </svg></span
+    >`;
+  }
+
+  /** Inline window-azimuth glyph: a short line + arrowhead (it is a vector).
+   *  Carries the override color inline when the first overlay is an override,
+   *  matching the plotted window line. */
+  private _legendWindowGlyph(overrideColor: string | null): TemplateResult {
+    const style = overrideColor ? `stroke: ${overrideColor};` : '';
+    const headStyle = overrideColor ? `fill: ${overrideColor};` : '';
+    // Horizontal arrow pointing right (bearing 90 in compass terms): tip at +5,
+    // arrowhead 4 long / 4 wide (base at x=1). The shaft stops just inside the
+    // base (x=1.5) so the thick round line cap never pokes past the head tip.
+    const head = arrowheadPath(5, 0, 90, 4, 2);
+    return html`<span class="glyph"
+      ><svg class="window-glyph" viewBox="-6 -6 12 12" width="13" height="13">
+        ${svg`
+          <line class="window" style=${style} x1="-5" y1="0" x2="1.5" y2="0"></line>
+          <path class="window-head" style=${headStyle} d=${head}></path>
+        `}
+      </svg></span
+    >`;
+  }
+
+  private _renderLegend(
+    overlays: EntryOverlay[],
+    multi: boolean,
+    sunDotClass: string,
+    moon: MoonData | null,
+  ): TemplateResult {
+    const overrideColor = overlays[0]?.isOverride ? (overlays[0].color ?? null) : null;
     if (multi) {
       return html`
         <div class="legend">
+          <div>${this._legendSunGlyph(sunDotClass)} ${t('compass.sun', this.hass)}</div>
+          ${this.showMoon
+            ? html`<div>${this._legendMoonGlyph(moon)} ${t('compass.moon', this.hass)}</div>`
+            : nothing}
           ${overlays.map(
             (o) => html`
               <button
@@ -717,7 +767,9 @@ export class SkyCompass extends LitElement {
                 aria-pressed=${!this._hiddenEntries.has(o.d.entry_id)}
                 @click=${() => this._toggleEntry(o.d.entry_id)}
               >
-                <span class="swatch entry" style="background: ${o.color}"></span>
+                <span class="licell"
+                  ><span class="swatch entry" style="background: ${o.color}"></span
+                ></span>
                 ${o.d.entry_title}
                 ${o.sunInfront
                   ? html`<span class="status valid">${t('compass.in_fov_check', this.hass)}</span>`
@@ -727,41 +779,37 @@ export class SkyCompass extends LitElement {
               </button>
             `,
           )}
-          <div><span class="dot sun valid"></span> ${t('compass.sun', this.hass)}</div>
-          ${this.showMoon
-            ? html`<div><span class="dot moon-dot"></span> ${t('compass.moon', this.hass)}</div>`
-            : nothing}
         </div>
       `;
     }
     return html`<div class="legend">
-      <div><span class="dot sun valid"></span> ${t('compass.sun', this.hass)}</div>
+      <div>${this._legendSunGlyph(sunDotClass)} ${t('compass.sun', this.hass)}</div>
       ${this.showMoon
-        ? html`<div><span class="dot moon-dot"></span> ${t('compass.moon', this.hass)}</div>`
+        ? html`<div>${this._legendMoonGlyph(moon)} ${t('compass.moon', this.hass)}</div>`
         : nothing}
       <div>
-        <span
-          class="swatch fov"
-          style=${overlays[0]?.isOverride ? `background: ${overlays[0].color}` : ''}
+        <span class="licell"
+          ><span
+            class="swatch fov"
+            style=${overrideColor ? `background: ${overrideColor}` : ''}
+          ></span
         ></span>
         ${t('compass.window_fov', this.hass)}
       </div>
       ${this.showCoverFill
         ? html`<div>
-            <span
-              class="swatch cover-fill-swatch"
-              style=${overlays[0]?.isOverride ? `background: ${overlays[0].color}` : ''}
+            <span class="licell"
+              ><span
+                class="swatch cover-fill-swatch"
+                style=${overrideColor ? `background: ${overrideColor}` : ''}
+              ></span
             ></span>
             ${t('compass.cover_position', this.hass)}
           </div>`
         : nothing}
       ${this.showWindowArrow
         ? html`<div>
-            <span
-              class="swatch window-swatch"
-              style=${overlays[0]?.isOverride ? `background: ${overlays[0].color}` : ''}
-            ></span>
-            ${t('compass.window_normal', this.hass)}
+            ${this._legendWindowGlyph(overrideColor)} ${t('compass.window_normal', this.hass)}
           </div>`
         : nothing}
     </div>`;
@@ -839,13 +887,16 @@ export class SkyCompass extends LitElement {
       align-items: center;
       gap: 6px;
     }
-    svg {
+    /* Plot SVG only — scoped to the direct child of .compass so these sizing
+       rules never cascade onto the small inline legend glyph SVGs (which size
+       themselves via their width/height attributes). */
+    .compass > svg {
       width: 100%;
       max-width: 260px;
       height: auto;
       display: block;
     }
-    :host([compact]) svg {
+    :host([compact]) .compass > svg {
       max-width: 180px;
     }
     :host([compact]) .legend {
@@ -859,12 +910,12 @@ export class SkyCompass extends LitElement {
         justify-content: center;
         gap: 16px;
       }
-      .compass svg {
+      .compass > svg {
         max-width: none;
         flex: 1 1 0;
         min-width: 200px;
       }
-      :host([compact]) .compass svg {
+      :host([compact]) .compass > svg {
         max-width: 280px;
       }
       .compass .legend,
@@ -875,8 +926,19 @@ export class SkyCompass extends LitElement {
         align-items: flex-start;
         justify-content: center;
       }
-      .compass .stats-row {
+      /* Match the stats column's row rhythm to the legend's so the two side-by-
+         side columns share the same vertical spacing: same row gap as .legend
+         (12px) and the same per-row height as the legend's 20px icon cell, with
+         the stat text vertically centred in that height. */
+      .compass .stats {
+        gap: 12px;
+      }
+      .compass .stats-row,
+      .compass .stats > span {
         justify-content: flex-start;
+        min-height: 20px;
+        display: flex;
+        align-items: center;
       }
     }
     .grid {
@@ -992,6 +1054,15 @@ export class SkyCompass extends LitElement {
       flex-wrap: wrap;
       justify-content: center;
     }
+    /* Centre each glyph/swatch row against its label so larger glyphs (the sun)
+       stay vertically aligned — vertical-align:middle drifts as the glyph grows.
+       The cover-entry rows are buttons that already do this; these are the
+       plain sun/moon/window/FOV rows. The glyph/swatch margin-right keeps the
+       gap between icon and text. */
+    .legend > div {
+      display: flex;
+      align-items: center;
+    }
     button.entry-toggle {
       background: none;
       border: 0;
@@ -1023,7 +1094,6 @@ export class SkyCompass extends LitElement {
       height: 10px;
       border-radius: 50%;
       vertical-align: middle;
-      margin-right: 4px;
     }
     .swatch.fov {
       background: var(--warning-color, gold);
@@ -1034,15 +1104,41 @@ export class SkyCompass extends LitElement {
       border-radius: 2px;
       opacity: 0.9;
     }
-    .dot.sun {
-      background: var(--secondary-text-color);
+    /* Uniform fixed-width icon cell shared by every legend row's leading icon —
+       glyph wrappers (.glyph: live sun, phased moon, window arrow) and swatch
+       wrappers (.licell). Centring each icon in a constant-width cell keeps all
+       labels left-aligned in a column even though the glyphs differ in size
+       (the sun is intentionally the largest). The cell is a fixed flex item of
+       the flex legend rows; overflow stays visible so the sun's glow isn't
+       clipped. */
+    .glyph,
+    .licell {
+      flex: 0 0 20px;
+      height: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 6px;
     }
-    .dot.sun.valid {
-      background: var(--warning-color, gold);
+    .glyph svg {
+      /* Size comes from each glyph's own width/height attributes; display:block
+         inside the inline-block wrapper avoids inline-descender spacing. The
+         explicit min/max-width reset guards against any ancestor svg rule. */
+      display: block;
+      overflow: visible;
+      min-width: 0;
+      max-width: none;
     }
-    .dot.sun.up {
-      background: var(--secondary-text-color);
-      opacity: 0.7;
+    /* The legend arrow reuses the plot's .window stroke colour but the plot's
+       stroke-width: 3 is far too heavy for the 12-unit glyph viewBox — scope a
+       proportional shaft width here so it reads as a slim arrow, not a blob. */
+    .window-glyph .window {
+      stroke-width: 1.6;
+    }
+    /* Arrowhead on the legend window-azimuth glyph (and matched on the plotted
+       window line); follows the override colour via inline style when set. */
+    .window-head {
+      fill: var(--primary-color);
     }
     .swatch.cover-fill-swatch {
       background: var(--primary-color);
@@ -1051,10 +1147,6 @@ export class SkyCompass extends LitElement {
          cover's 0.30 → 1 − (1−0.22)(1−0.30) ≈ 0.45. Matching that here keeps the
          legend swatch the same darker shade the reader sees in the plot. */
       opacity: 0.45;
-      border-radius: 2px;
-    }
-    .swatch.window-swatch {
-      background: var(--primary-color);
       border-radius: 2px;
     }
     .dot.rise-dot {
@@ -1116,10 +1208,6 @@ export class SkyCompass extends LitElement {
     /* Photographic moon disc, clipped to the lit fraction by moon-phase-mask. */
     .moon-img {
       opacity: 0.95;
-    }
-    .dot.moon-dot {
-      background: var(--secondary-text-color);
-      opacity: 0.6;
     }
     /* Floating-tooltip cursor lifecycle: a help cursor hints "there's more
        here" on hover (SVG groups + the in-FOV status pip), flipping to default

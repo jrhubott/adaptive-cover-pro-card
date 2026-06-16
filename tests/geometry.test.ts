@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   aggregateActualPosition,
   arcsOverlap,
+  arrowheadPath,
   azimuthToCartesian,
   blindSpotBearings,
   clampActiveArcToFov,
@@ -12,6 +13,7 @@ import {
   elevationToRadius,
   fovBandRadii,
   fovRunBounds,
+  moonPhaseShadowDx,
   normalizeAzimuth,
   overrideDivergenceTarget,
   ribbonLayout,
@@ -662,5 +664,78 @@ describe('overrideDivergenceTarget', () => {
   it('returns null when raw_calculated_position is non-finite', () => {
     expect(overrideDivergenceTarget(true, NaN, 80)).toBeNull();
     expect(overrideDivergenceTarget(true, Infinity, 80)).toBeNull();
+  });
+});
+
+describe('moonPhaseShadowDx', () => {
+  // The shadow circle (drawn in black over the lit disc inside the phase mask)
+  // is offset horizontally so the unmasked sliver matches the lit fraction.
+  // Sign convention must match the plot's existing inline ternary so the
+  // refactor produces identical output.
+  it('is zero at new moon (phase 0)', () => {
+    // -4*r*0 yields -0, which is numerically zero and matches the existing plot.
+    expect(moonPhaseShadowDx(0, 6)).toBeCloseTo(0, 10);
+  });
+
+  it('is zero at full moon (phase 1)', () => {
+    expect(moonPhaseShadowDx(1, 6)).toBe(0);
+  });
+
+  it('shifts the shadow left (negative) for a waxing phase < 0.5', () => {
+    // -4 * r * phase
+    expect(moonPhaseShadowDx(0.25, 6)).toBe(-4 * 6 * 0.25);
+  });
+
+  it('shifts the shadow right (positive) for a waning phase ≥ 0.5', () => {
+    // 4 * r * (1 - phase)
+    expect(moonPhaseShadowDx(0.75, 6)).toBe(4 * 6 * (1 - 0.75));
+  });
+
+  it('scales linearly with the radius', () => {
+    expect(moonPhaseShadowDx(0.25, 12)).toBe(2 * moonPhaseShadowDx(0.25, 6));
+  });
+});
+
+describe('arrowheadPath', () => {
+  // A closed triangular arrowhead path "M … L … L … Z" with its tip at
+  // (tipX, tipY) pointing along bearingDeg (0 = North/up, CW).
+  it('returns a closed three-point path starting with M and ending with Z', () => {
+    const d = arrowheadPath(0, -100, 0, 8, 4);
+    expect(d.startsWith('M ')).toBe(true);
+    expect(d.trimEnd().endsWith('Z')).toBe(true);
+    // M + 2×L = tip and two base corners.
+    expect((d.match(/L /g) ?? []).length).toBe(2);
+  });
+
+  it('places the tip exactly at (tipX, tipY)', () => {
+    const d = arrowheadPath(10, -100, 0, 8, 4);
+    expect(d.startsWith('M 10 -100')).toBe(true);
+  });
+
+  it('for a north-pointing arrow (bearing 0) the base sits below the tip', () => {
+    // bearing 0 = up (-y). Base corners are `length` back along +y from the tip.
+    const tipY = -100;
+    const length = 8;
+    const d = arrowheadPath(0, tipY, 0, length, 4);
+    const nums = d.match(/-?\d+(\.\d+)?/g)!.map(Number);
+    // nums: [tipX, tipY, c1x, c1y, c2x, c2y]
+    const baseY1 = nums[3];
+    const baseY2 = nums[5];
+    expect(baseY1).toBeCloseTo(tipY + length, 6);
+    expect(baseY2).toBeCloseTo(tipY + length, 6);
+    // The two base corners straddle the centerline by ±halfWidth.
+    expect(nums[2]).toBeCloseTo(4, 6);
+    expect(nums[4]).toBeCloseTo(-4, 6);
+  });
+
+  it('for an east-pointing arrow (bearing 90) the base sits left (−x) of the tip', () => {
+    const d = arrowheadPath(100, 0, 90, 8, 4);
+    const nums = d.match(/-?\d+(\.\d+)?/g)!.map(Number);
+    // tip at (100,0); base centre is `length` back along −x → x≈92.
+    expect(nums[2]).toBeCloseTo(92, 6);
+    expect(nums[4]).toBeCloseTo(92, 6);
+    // Base corners straddle along ±y by halfWidth (order: +y then −y).
+    expect(nums[3]).toBeCloseTo(4, 6);
+    expect(nums[5]).toBeCloseTo(-4, 6);
   });
 });

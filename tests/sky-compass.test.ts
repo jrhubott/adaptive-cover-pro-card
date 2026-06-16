@@ -12,6 +12,7 @@ interface SkyCompassLike extends HTMLElement {
   coverColors?: (string | null | undefined)[];
   showLegend?: boolean;
   showStats?: boolean;
+  showMoon?: boolean;
   showCardinals?: boolean;
   showBlindSpot?: boolean;
   showSunPath?: boolean;
@@ -170,11 +171,59 @@ async function mountCompass(
 }
 
 describe('acp-sky-compass (single entry)', () => {
-  it('legend contains "Window normal" entry by default', async () => {
+  it('legend contains "Window azimuth" entry by default', async () => {
     const d = makeDiscovered('entry1', 'Kitchen');
     const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
     const el = await mountCompass([d], hass);
-    expect(el.shadowRoot!.textContent).toContain('Window normal');
+    expect(el.shadowRoot!.textContent).toContain('Window azimuth');
+  });
+
+  it('legend sun glyph is an SVG circle carrying the live sun-dot class (in-FOV → no glow)', async () => {
+    // Default makeHass: elevation 30, in_fov true, no direct_sun_valid → the
+    // aggregate state is in_fov_not_valid → class "sun in-fov" (gold, NO glow).
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
+    const el = await mountCompass([d], hass);
+    const glyph = el.shadowRoot!.querySelector('.legend circle.sun') as SVGCircleElement | null;
+    expect(glyph).not.toBeNull();
+    expect(glyph!.classList.contains('in-fov')).toBe(true);
+    expect(glyph!.classList.contains('valid')).toBe(false);
+  });
+
+  it('legend sun glyph adopts the no-glow class when the sun is outside the FOV', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, inFov: false },
+    ]);
+    const el = await mountCompass([d], hass);
+    const glyph = el.shadowRoot!.querySelector('.legend circle.sun') as SVGCircleElement | null;
+    expect(glyph).not.toBeNull();
+    // outside_fov but above horizon → class "sun up" (light yellow, no glow).
+    expect(glyph!.classList.contains('up')).toBe(true);
+    expect(glyph!.classList.contains('valid')).toBe(false);
+  });
+
+  it('legend renders a phased moon glyph (image + instance-unique phase mask) when show_moon is on', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
+    const el = await mountCompass([d], hass, { showMoon: true });
+    const moonImg = el.shadowRoot!.querySelector(
+      '.legend image.moon-img',
+    ) as SVGImageElement | null;
+    expect(moonImg).not.toBeNull();
+    // Phase mask is wired through a url(#…) reference to an instance-unique id.
+    const maskRef = moonImg!.getAttribute('mask') ?? '';
+    expect(maskRef).toMatch(/^url\(#acp-legend-moon-\d+\)$/);
+    const maskId = maskRef.slice(5, -1);
+    const mask = el.shadowRoot!.querySelector(`.legend mask#${maskId}`);
+    expect(mask).not.toBeNull();
+  });
+
+  it('legend has no moon glyph when show_moon is off', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
+    const el = await mountCompass([d], hass, { showMoon: false });
+    expect(el.shadowRoot!.querySelector('.legend image.moon-img')).toBeNull();
   });
 
   it('empty discovered_list shows placeholder', async () => {
@@ -480,10 +529,10 @@ describe('acp-sky-compass coverColors', () => {
     expect(swatch!.getAttribute('style') ?? '').toBe('');
   });
 
-  it('single-entry override colors the legend window-normal swatch to match the line', async () => {
+  it('single-entry override colors the legend window-azimuth glyph to match the line', async () => {
     // The plotted window line follows the override color via arrowStyle; the
-    // legend window-normal swatch must carry the same inline background so the
-    // legend and plot agree (it previously stayed stuck on --primary-color).
+    // legend window-azimuth glyph (line + arrowhead) must carry the same inline
+    // color so the legend and plot agree.
     const targetSensorId = 'sensor.target_pos_entry1';
     const d = makeDiscovered('entry1', 'Kitchen', { targetSensorId });
     const hass = makeHass([
@@ -492,18 +541,45 @@ describe('acp-sky-compass coverColors', () => {
     const el = await mountCompass([d], hass, { coverColors: ['#ff3366'] });
     const line = el.shadowRoot!.querySelector('path.window') as SVGPathElement;
     expect(line.getAttribute('style') ?? '').toContain('#ff3366');
-    const swatch = el.shadowRoot!.querySelector('.swatch.window-swatch') as HTMLElement | null;
-    expect(swatch).not.toBeNull();
-    expect(swatch!.getAttribute('style') ?? '').toContain('#ff3366');
+    const glyphLine = el.shadowRoot!.querySelector('.window-glyph line') as SVGLineElement | null;
+    expect(glyphLine).not.toBeNull();
+    expect(glyphLine!.getAttribute('style') ?? '').toContain('#ff3366');
+    const glyphHead = el.shadowRoot!.querySelector(
+      '.window-glyph path.window-head',
+    ) as SVGPathElement | null;
+    expect(glyphHead).not.toBeNull();
+    expect(glyphHead!.getAttribute('style') ?? '').toContain('#ff3366');
   });
 
-  it('single-entry WITHOUT override leaves the window-normal swatch on its theme default', async () => {
+  it('single-entry WITHOUT override leaves the window-azimuth glyph on its theme default', async () => {
     const d = makeDiscovered('entry1', 'Kitchen');
     const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
     const el = await mountCompass([d], hass);
-    const swatch = el.shadowRoot!.querySelector('.swatch.window-swatch') as HTMLElement | null;
-    expect(swatch).not.toBeNull();
-    expect(swatch!.getAttribute('style') ?? '').toBe('');
+    const glyphLine = el.shadowRoot!.querySelector('.window-glyph line') as SVGLineElement | null;
+    expect(glyphLine).not.toBeNull();
+    expect(glyphLine!.getAttribute('style') ?? '').toBe('');
+    const glyphHead = el.shadowRoot!.querySelector(
+      '.window-glyph path.window-head',
+    ) as SVGPathElement | null;
+    expect(glyphHead).not.toBeNull();
+    expect(glyphHead!.getAttribute('style') ?? '').toBe('');
+  });
+
+  it('plotted window line carries an arrowhead at the rim that follows the override color', async () => {
+    // Point 4: the plotted window normal is a vector, so it gains an arrowhead
+    // (path.window-head) inside the arrow group, sharing the line's arrowStyle.
+    const targetSensorId = 'sensor.target_pos_entry1';
+    const d = makeDiscovered('entry1', 'Kitchen', { targetSensorId });
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, coverPos: 40, targetSensorId },
+    ]);
+    const el = await mountCompass([d], hass, { coverColors: ['#ff3366'] });
+    const head = el.shadowRoot!.querySelector(
+      '.arrow-group path.window-head',
+    ) as SVGPathElement | null;
+    expect(head).not.toBeNull();
+    expect(head!.getAttribute('d') ?? '').toMatch(/^M /);
+    expect(head!.getAttribute('style') ?? '').toContain('#ff3366');
   });
 
   it('null slot falls back to palette color in multi-entry compass', async () => {
@@ -1326,14 +1402,17 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     return cssText.slice(open + 1, close);
   }
 
-  it('legend renders a single Sun swatch (valid)', async () => {
+  it('legend renders a single Sun glyph carrying the live sun-dot class', async () => {
+    // The legend sun glyph now tracks live state instead of a hardcoded valid.
+    // Default makeHass (in_fov true, no direct_sun_valid) → in_fov_not_valid →
+    // class "sun in-fov" (gold, no glow). Exactly one glyph circle.
     const d = makeDiscovered('entry1', 'Kitchen');
     const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
     const el = await mountCompass([d], hass);
-    const dots = Array.from(el.shadowRoot!.querySelectorAll('.legend .dot.sun'));
+    const dots = Array.from(el.shadowRoot!.querySelectorAll('.legend circle.sun'));
     expect(dots.length).toBe(1);
-    expect(dots[0].classList.contains('valid')).toBe(true);
-    expect(dots.some((dot) => dot.classList.contains('in-fov'))).toBe(false);
+    expect(dots[0].classList.contains('in-fov')).toBe(true);
+    expect(dots[0].classList.contains('valid')).toBe(false);
   });
 
   it('legend labels the single sun swatch "Sun"', async () => {
@@ -1362,16 +1441,40 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     expect(swatch).toMatch(/opacity:\s*0\.45/);
   });
 
-  it('valid sun glow and the legend dot share the warning theme token', () => {
+  it('the legend sun glyph reuses the plot .sun.valid token + glow', () => {
+    // The legend sun is now an inline SVG circle carrying the EXACT plot class
+    // string, so it shares the single .sun.valid rule — gold token + glow blur.
     const circleValid = cssBlock('.sun.valid ');
-    const dotValid = cssBlock('.dot.sun.valid ');
     expect(circleValid).toMatch(/var\(--warning-color/);
-    expect(dotValid).toMatch(/var\(--warning-color/);
+    expect(circleValid).toMatch(/drop-shadow/);
   });
 
-  it('legend outside-FOV sun dot uses a dim neutral token', () => {
-    const dotUp = cssBlock('.dot.sun.up ');
-    expect(dotUp).toMatch(/var\(--secondary-text-color/);
+  it('the plot .sun.up token (inherited by the no-glow legend glyph) is a light neutral', () => {
+    const sunUp = cssBlock('.sun.up ');
+    expect(sunUp).toMatch(/#ffe680/);
+  });
+
+  it('plot-sizing rules are scoped to the direct-child plot svg, not every svg', () => {
+    // Regression: a bare `svg { width: 100%; min-width: 200px }` rule cascades
+    // onto the inline legend glyph SVGs, blowing them up (root card) or
+    // collapsing them to zero (narrow more-info dialog). The plot width rules
+    // MUST target `.compass > svg` so they never reach the deeper glyph SVGs.
+    expect(cssText).toContain('.compass > svg {');
+    const plot = cssBlock('.compass > svg ');
+    expect(plot).toMatch(/width:\s*100%/);
+    // No rule may select bare `svg` at a statement boundary (that selector also
+    // matches the legend glyphs). `.compass > svg` / `.glyph svg` are exempt
+    // because "svg" there is preceded by a combinator/descendant selector.
+    expect(cssText).not.toMatch(/(?:^|[\n;}])\s*svg\s*\{/m);
+  });
+
+  it('legend glyph SVGs neutralise any inherited svg sizing', () => {
+    // Defense-in-depth: even if a wide ancestor svg rule appears, the glyph
+    // wrapper resets min/max-width so the glyph keeps its attribute size.
+    const glyph = cssBlock('.glyph svg ');
+    expect(glyph).toMatch(/min-width:\s*0/);
+    expect(glyph).toMatch(/max-width:\s*none/);
+    expect(glyph).toMatch(/display:\s*block/);
   });
 
   it('does not pin a percentage max-height on the side-column legend (issue #146)', () => {
