@@ -297,6 +297,28 @@ describe('card-stage activeCard filter (one tab per card)', () => {
   });
 });
 
+describe('legend-live-glyphs scenario (issue #157)', () => {
+  it('exposes a "legend-live-glyphs" scenario with the compass legend + moon on', () => {
+    const scenario = findScenario('legend-live-glyphs');
+    expect(scenario).toBeTruthy();
+    const cfg = scenario!.build();
+    expect(cfg.root.show_compass_legend).toBe(true);
+    expect(cfg.compass.show_legend).toBe(true);
+    expect(cfg.root.show_moon).toBe(true);
+    expect(cfg.compass.show_moon).toBe(true);
+  });
+
+  it('places the sun OUTSIDE the FOV so the legend sun glyph renders without glow', () => {
+    const cfg = findScenario('legend-live-glyphs')!.build();
+    const entry = cfg.entries[0];
+    // A north-facing window at solar noon: the sun sits south, well outside the
+    // window's azimuth FOV — the legend sun glyph state is then outside_fov.
+    expect(entry.window_azimuth).toBe(0);
+    // Narrow enough FOV that the southern noon sun cannot land inside it.
+    expect(entry.fov_left + entry.fov_right).toBeLessThanOrEqual(120);
+  });
+});
+
 describe('show_elevation_chart harness plumbing', () => {
   it('default scenario config sets compass.show_elevation_chart and tile.show_elevation_chart to true', () => {
     const cfg = defaultScenarioConfig();
