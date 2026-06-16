@@ -926,8 +926,17 @@ export class SkyCompass extends LitElement {
         align-items: flex-start;
         justify-content: center;
       }
+      /* Match the stats column's row rhythm to the legend's so the two side-by-
+         side columns share the same vertical spacing: same row gap as .legend
+         (12px) and the same per-row height as the legend's 20px icon cell, with
+         the stat text vertically centred in that height. */
+      .compass .stats {
+        gap: 12px;
+      }
       .compass .stats-row {
         justify-content: flex-start;
+        min-height: 20px;
+        align-items: center;
       }
     }
     .grid {
