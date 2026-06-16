@@ -725,12 +725,14 @@ export class SkyCompass extends LitElement {
   private _legendWindowGlyph(overrideColor: string | null): TemplateResult {
     const style = overrideColor ? `stroke: ${overrideColor};` : '';
     const headStyle = overrideColor ? `fill: ${overrideColor};` : '';
-    // Horizontal arrow pointing right (bearing 90 in compass terms): tip at +5.
-    const head = arrowheadPath(5, 0, 90, 4, 2.6);
+    // Horizontal arrow pointing right (bearing 90 in compass terms): tip at +5,
+    // arrowhead 4 long / 4 wide (base at x=1). The shaft stops just inside the
+    // base (x=1.5) so the thick round line cap never pokes past the head tip.
+    const head = arrowheadPath(5, 0, 90, 4, 2);
     return html`<span class="glyph"
       ><svg class="window-glyph" viewBox="-6 -6 12 12" width="13" height="13">
         ${svg`
-          <line class="window" style=${style} x1="-5" y1="0" x2="5" y2="0"></line>
+          <line class="window" style=${style} x1="-5" y1="0" x2="1.5" y2="0"></line>
           <path class="window-head" style=${headStyle} d=${head}></path>
         `}
       </svg></span
@@ -1091,6 +1093,12 @@ export class SkyCompass extends LitElement {
       overflow: visible;
       min-width: 0;
       max-width: none;
+    }
+    /* The legend arrow reuses the plot's .window stroke colour but the plot's
+       stroke-width: 3 is far too heavy for the 12-unit glyph viewBox — scope a
+       proportional shaft width here so it reads as a slim arrow, not a blob. */
+    .window-glyph .window {
+      stroke-width: 1.6;
     }
     /* Arrowhead on the legend window-azimuth glyph (and matched on the plotted
        window line); follows the override colour via inline style when set. */

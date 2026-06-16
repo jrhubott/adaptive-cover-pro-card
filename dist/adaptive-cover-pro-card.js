@@ -185,10 +185,10 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
           ></image>
         `}
       </svg></span
-    >`}_legendWindowGlyph(e){const t=e?`stroke: ${e};`:"",o=e?`fill: ${e};`:"",i=ct(5,0,90,4,2.6);return L`<span class="glyph"
+    >`}_legendWindowGlyph(e){const t=e?`stroke: ${e};`:"",o=e?`fill: ${e};`:"",i=ct(5,0,90,4,2);return L`<span class="glyph"
       ><svg class="window-glyph" viewBox="-6 -6 12 12" width="13" height="13">
         ${q`
-          <line class="window" style=${t} x1="-5" y1="0" x2="5" y2="0"></line>
+          <line class="window" style=${t} x1="-5" y1="0" x2="1.5" y2="0"></line>
           <path class="window-head" style=${o} d=${i}></path>
         `}
       </svg></span
@@ -487,6 +487,12 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
       overflow: visible;
       min-width: 0;
       max-width: none;
+    }
+    /* The legend arrow reuses the plot's .window stroke colour but the plot's
+       stroke-width: 3 is far too heavy for the 12-unit glyph viewBox — scope a
+       proportional shaft width here so it reads as a slim arrow, not a blob. */
+    .window-glyph .window {
+      stroke-width: 1.6;
     }
     /* Arrowhead on the legend window-azimuth glyph (and matched on the plotted
        window line); follows the override colour via inline style when set. */
