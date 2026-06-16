@@ -8,6 +8,7 @@ import { entityStateChanged } from '../lib/hass-change';
 import type { DiscoveredEntities, SunPositionAttributes } from '../types';
 import {
   arcsOverlap,
+  arrowheadPath,
   azimuthToCartesian,
   blindSpotBearings,
   clampActiveArcToFov,
@@ -15,6 +16,7 @@ import {
   elevationGatedFovBounds,
   fovBandRadii,
   fovRunBounds,
+  moonPhaseShadowDx,
   normalizeAzimuth,
   sunDotPosition,
   wedgePath,
@@ -27,6 +29,7 @@ import {
   startOfDayInZone,
   getMoonData,
   type SunSample,
+  type MoonData,
 } from '../lib/sun-model';
 import { formatDegrees } from '../lib/formatters';
 import { sunDotState, SUN_DOT_CLASS, type SunDotState } from '../lib/sun-dot-state';
@@ -40,6 +43,11 @@ import { tooltip } from '../lib/tooltip';
 // text-anchor="middle" (~7px half-width at 12px font).
 const VIEWBOX = 280;
 const OUTER_R = 110;
+
+// Monotonic counter giving each compass instance a unique legend moon-mask id,
+// so the legend's phase mask never collides with the plot's hardcoded
+// `moon-phase-mask` or with another compass on the same page.
+let LEGEND_MOON_MASK_SEQ = 0;
 
 interface EntryOverlay {
   d: DiscoveredEntities;
@@ -73,6 +81,9 @@ export class SkyCompass extends LitElement {
   @property({ attribute: false }) public northOffsetDeg = 0;
 
   @state() private _hiddenEntries = new Set<string>();
+
+  // Instance-unique id for the legend moon-phase mask (see LEGEND_MOON_MASK_SEQ).
+  private readonly _legendMoonMaskId = `acp-legend-moon-${LEGEND_MOON_MASK_SEQ++}`;
 
   // Skip re-render on hass ticks that touched none of the entities this compass reads.
   protected shouldUpdate(changed: PropertyValues): boolean {
@@ -238,11 +249,7 @@ export class SkyCompass extends LitElement {
     const moonAboveHorizon = moon !== null && moon.elevation > 0;
     // Moon disc is 2/3 the sun marker's 18px diameter → 12px (radius 6).
     const MOON_R = 6;
-    const moonShadowDx = moon
-      ? moon.phase < 0.5
-        ? -4 * MOON_R * moon.phase
-        : 4 * MOON_R * (1 - moon.phase)
-      : 0;
+    const moonShadowDx = moon ? moonPhaseShadowDx(moon.phase, MOON_R) : 0;
     const moonPt = moonAboveHorizon ? sunDotPosition(moon!.azimuth, moon!.elevation, o) : null;
     const moonX = moonPt ? moonPt.x * OUTER_R : 0;
     const moonY = moonPt ? moonPt.y * OUTER_R : 0;
@@ -429,7 +436,7 @@ export class SkyCompass extends LitElement {
             </g>
           `}
         </svg>
-        ${this.showLegend ? this._renderLegend(overlays, multi) : nothing}
+        ${this.showLegend ? this._renderLegend(overlays, multi, sunDotClass, moon) : nothing}
         ${this.showStats ? this._renderStats(overlays, multi) : nothing}
       </div>
     `;
@@ -608,6 +615,18 @@ export class SkyCompass extends LitElement {
     const showBlind = this.showBlindSpot && !!blindSpot;
     const showArrow = this.showWindowArrow;
     const arrowPath = `M 0 0 L ${windowArrow.x} ${windowArrow.y}`;
+    // Arrowhead at the rim end of the window line, pointing along the window
+    // bearing (so it reads as a vector — issue #157 point 4). It shares the
+    // line's arrowStyle so an override recolours head and shaft together; the
+    // line uses stroke and the head uses fill, so the inline style carries both.
+    const arrowHeadStyle = groupColor ? `fill: ${o.color}; stroke: ${o.color};` : '';
+    const arrowHeadPath = arrowheadPath(
+      windowArrow.x,
+      windowArrow.y,
+      windowAzi + northOffsetDeg,
+      9,
+      5,
+    );
     const hideStyle = 'display: none;';
 
     const ttFovStatic = `${label}${t('compass.fov_arc', this.hass, {
@@ -640,6 +659,7 @@ export class SkyCompass extends LitElement {
       })}
       <g class="arrow-group" style=${showArrow ? '' : hideStyle} ${tooltip(ttWindow)}>
         <path class="window" style=${arrowStyle} d=${arrowPath}></path>
+        <path class="window-head" style=${arrowHeadStyle} d=${arrowHeadPath}></path>
         <circle class="window-base" style=${arrowBaseStyle} cx="0" cy="0" r="4"></circle>
       </g>
       <g class="cover-group" style=${showCover ? '' : hideStyle} ${tooltip(ttCoverFill)}>
@@ -656,7 +676,76 @@ export class SkyCompass extends LitElement {
     </g>`;
   }
 
-  private _renderLegend(overlays: EntryOverlay[], multi: boolean): TemplateResult {
+  /** Inline sun glyph: a small SVG circle carrying the EXACT live plot class
+   *  string (`sun valid` | `sun in-fov` | `sun up` | `sun night`) so it inherits
+   *  the plot CSS — glow only on `.sun.valid`. ViewBox is padded for the ~4px
+   *  glow blur. Sized larger than the moon glyph. */
+  private _legendSunGlyph(sunDotClass: string): TemplateResult {
+    return html`<span class="glyph"
+      ><svg viewBox="-8 -8 16 16" width="13" height="13">
+        ${svg`<circle class=${sunDotClass} cx="0" cy="0" r="5"></circle>`}
+      </svg></span
+    >`;
+  }
+
+  /** Inline moon glyph: the photographic disc clipped by a legend-scoped phase
+   *  mask mirroring the plot mask (instance-unique id to avoid collisions).
+   *  Sized smaller than the sun glyph. */
+  private _legendMoonGlyph(moon: MoonData | null): TemplateResult {
+    const r = 4;
+    const shadowDx = moon ? moonPhaseShadowDx(moon.phase, r) : 0;
+    const maskId = this._legendMoonMaskId;
+    return html`<span class="glyph"
+      ><svg viewBox="-5 -5 10 10" width="11" height="11">
+        ${svg`
+          <defs>
+            <mask id=${maskId}>
+              <circle cx="0" cy="0" r=${r} fill="white"></circle>
+              <circle cx=${shadowDx} cy="0" r=${r} fill="black"></circle>
+            </mask>
+          </defs>
+          <circle class="moon-outline" cx="0" cy="0" r=${r}></circle>
+          <image
+            class="moon-img"
+            href=${MOON_IMAGE}
+            x=${-r}
+            y=${-r}
+            width=${r * 2}
+            height=${r * 2}
+            mask=${`url(#${maskId})`}
+          ></image>
+        `}
+      </svg></span
+    >`;
+  }
+
+  /** Inline window-azimuth glyph: a short line + arrowhead (it is a vector).
+   *  Carries the override color inline when the first overlay is an override,
+   *  matching the plotted window line. */
+  private _legendWindowGlyph(overrideColor: string | null): TemplateResult {
+    const style = overrideColor ? `stroke: ${overrideColor};` : '';
+    const headStyle = overrideColor ? `fill: ${overrideColor};` : '';
+    // Horizontal arrow pointing right (bearing 90 in compass terms): tip at +5,
+    // arrowhead 4 long / 4 wide (base at x=1). The shaft stops just inside the
+    // base (x=1.5) so the thick round line cap never pokes past the head tip.
+    const head = arrowheadPath(5, 0, 90, 4, 2);
+    return html`<span class="glyph"
+      ><svg class="window-glyph" viewBox="-6 -6 12 12" width="13" height="13">
+        ${svg`
+          <line class="window" style=${style} x1="-5" y1="0" x2="1.5" y2="0"></line>
+          <path class="window-head" style=${headStyle} d=${head}></path>
+        `}
+      </svg></span
+    >`;
+  }
+
+  private _renderLegend(
+    overlays: EntryOverlay[],
+    multi: boolean,
+    sunDotClass: string,
+    moon: MoonData | null,
+  ): TemplateResult {
+    const overrideColor = overlays[0]?.isOverride ? (overlays[0].color ?? null) : null;
     if (multi) {
       return html`
         <div class="legend">
@@ -681,22 +770,22 @@ export class SkyCompass extends LitElement {
               </button>
             `,
           )}
-          <div><span class="dot sun valid"></span> ${t('compass.sun', this.hass)}</div>
+          <div>${this._legendSunGlyph(sunDotClass)} ${t('compass.sun', this.hass)}</div>
           ${this.showMoon
-            ? html`<div><span class="dot moon-dot"></span> ${t('compass.moon', this.hass)}</div>`
+            ? html`<div>${this._legendMoonGlyph(moon)} ${t('compass.moon', this.hass)}</div>`
             : nothing}
         </div>
       `;
     }
     return html`<div class="legend">
-      <div><span class="dot sun valid"></span> ${t('compass.sun', this.hass)}</div>
+      <div>${this._legendSunGlyph(sunDotClass)} ${t('compass.sun', this.hass)}</div>
       ${this.showMoon
-        ? html`<div><span class="dot moon-dot"></span> ${t('compass.moon', this.hass)}</div>`
+        ? html`<div>${this._legendMoonGlyph(moon)} ${t('compass.moon', this.hass)}</div>`
         : nothing}
       <div>
         <span
           class="swatch fov"
-          style=${overlays[0]?.isOverride ? `background: ${overlays[0].color}` : ''}
+          style=${overrideColor ? `background: ${overrideColor}` : ''}
         ></span>
         ${t('compass.window_fov', this.hass)}
       </div>
@@ -704,18 +793,14 @@ export class SkyCompass extends LitElement {
         ? html`<div>
             <span
               class="swatch cover-fill-swatch"
-              style=${overlays[0]?.isOverride ? `background: ${overlays[0].color}` : ''}
+              style=${overrideColor ? `background: ${overrideColor}` : ''}
             ></span>
             ${t('compass.cover_position', this.hass)}
           </div>`
         : nothing}
       ${this.showWindowArrow
         ? html`<div>
-            <span
-              class="swatch window-swatch"
-              style=${overlays[0]?.isOverride ? `background: ${overlays[0].color}` : ''}
-            ></span>
-            ${t('compass.window_normal', this.hass)}
+            ${this._legendWindowGlyph(overrideColor)} ${t('compass.window_normal', this.hass)}
           </div>`
         : nothing}
     </div>`;
@@ -793,13 +878,16 @@ export class SkyCompass extends LitElement {
       align-items: center;
       gap: 6px;
     }
-    svg {
+    /* Plot SVG only — scoped to the direct child of .compass so these sizing
+       rules never cascade onto the small inline legend glyph SVGs (which size
+       themselves via their width/height attributes). */
+    .compass > svg {
       width: 100%;
       max-width: 260px;
       height: auto;
       display: block;
     }
-    :host([compact]) svg {
+    :host([compact]) .compass > svg {
       max-width: 180px;
     }
     :host([compact]) .legend {
@@ -813,12 +901,12 @@ export class SkyCompass extends LitElement {
         justify-content: center;
         gap: 16px;
       }
-      .compass svg {
+      .compass > svg {
         max-width: none;
         flex: 1 1 0;
         min-width: 200px;
       }
-      :host([compact]) .compass svg {
+      :host([compact]) .compass > svg {
         max-width: 280px;
       }
       .compass .legend,
@@ -988,15 +1076,34 @@ export class SkyCompass extends LitElement {
       border-radius: 2px;
       opacity: 0.9;
     }
-    .dot.sun {
-      background: var(--secondary-text-color);
+    /* Wrapper for the inline legend glyphs (live sun, phased moon, window arrow).
+       line-height:0 + vertical-align:middle centre the small SVGs on the text
+       baseline without a manual y-nudge. */
+    .glyph {
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 0;
+      margin-right: 4px;
     }
-    .dot.sun.valid {
-      background: var(--warning-color, gold);
+    .glyph svg {
+      /* Size comes from each glyph's own width/height attributes; display:block
+         inside the inline-block wrapper avoids inline-descender spacing. The
+         explicit min/max-width reset guards against any ancestor svg rule. */
+      display: block;
+      overflow: visible;
+      min-width: 0;
+      max-width: none;
     }
-    .dot.sun.up {
-      background: var(--secondary-text-color);
-      opacity: 0.7;
+    /* The legend arrow reuses the plot's .window stroke colour but the plot's
+       stroke-width: 3 is far too heavy for the 12-unit glyph viewBox — scope a
+       proportional shaft width here so it reads as a slim arrow, not a blob. */
+    .window-glyph .window {
+      stroke-width: 1.6;
+    }
+    /* Arrowhead on the legend window-azimuth glyph (and matched on the plotted
+       window line); follows the override colour via inline style when set. */
+    .window-head {
+      fill: var(--primary-color);
     }
     .swatch.cover-fill-swatch {
       background: var(--primary-color);
@@ -1005,10 +1112,6 @@ export class SkyCompass extends LitElement {
          cover's 0.30 → 1 − (1−0.22)(1−0.30) ≈ 0.45. Matching that here keeps the
          legend swatch the same darker shade the reader sees in the plot. */
       opacity: 0.45;
-      border-radius: 2px;
-    }
-    .swatch.window-swatch {
-      background: var(--primary-color);
       border-radius: 2px;
     }
     .dot.rise-dot {
@@ -1070,10 +1173,6 @@ export class SkyCompass extends LitElement {
     /* Photographic moon disc, clipped to the lit fraction by moon-phase-mask. */
     .moon-img {
       opacity: 0.95;
-    }
-    .dot.moon-dot {
-      background: var(--secondary-text-color);
-      opacity: 0.6;
     }
     /* Floating-tooltip cursor lifecycle: a help cursor hints "there's more
        here" on hover (SVG groups + the in-FOV status pip), flipping to default

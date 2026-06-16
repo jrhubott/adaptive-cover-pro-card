@@ -488,6 +488,45 @@ export function overrideDivergenceTarget(
 }
 
 /**
+ * Horizontal offset (px) of the moon-phase mask's shadow circle for a given
+ * illuminated `phase` (0 = new, 0.5 = full, 1 = new again) and disc radius `r`.
+ *
+ * The phase mask paints a white lit disc with a black shadow circle of the same
+ * radius offset by this dx; the unmasked crescent/gibbous sliver is what shows.
+ * A waxing phase (< 0.5) shifts the shadow left (negative); a waning phase
+ * (≥ 0.5) shifts it right (positive). New and full moons return 0.
+ */
+export function moonPhaseShadowDx(phase: number, r: number): number {
+  return phase < 0.5 ? -4 * r * phase : 4 * r * (1 - phase);
+}
+
+/**
+ * Closed triangular arrowhead SVG path "M tip L corner L corner Z" with its tip
+ * at (tipX, tipY) pointing along `bearingDeg` (0 = North/up, clockwise, matching
+ * `azimuthToCartesian`). The base sits `length` back from the tip along the
+ * reverse bearing, with the two corners straddling the centerline by ±halfWidth.
+ */
+export function arrowheadPath(
+  tipX: number,
+  tipY: number,
+  bearingDeg: number,
+  length: number,
+  halfWidth: number,
+): string {
+  // Unit forward vector along the bearing; perpendicular for the base corners.
+  const fwd = azimuthToCartesian(bearingDeg, 1);
+  const perpX = -fwd.y;
+  const perpY = fwd.x;
+  const baseX = tipX - fwd.x * length;
+  const baseY = tipY - fwd.y * length;
+  const c1x = baseX + perpX * halfWidth;
+  const c1y = baseY + perpY * halfWidth;
+  const c2x = baseX - perpX * halfWidth;
+  const c2y = baseY - perpY * halfWidth;
+  return `M ${tipX} ${tipY} L ${c1x} ${c1y} L ${c2x} ${c2y} Z`;
+}
+
+/**
  * Convert the integration's blind_spot_range (FOV-left-relative offsets,
  * [fov_left − blind_spot_right, fov_left − blind_spot_left]) into absolute
  * compass bearings [startAzi, endAzi] suitable for wedgePath.

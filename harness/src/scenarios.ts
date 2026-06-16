@@ -941,6 +941,31 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'legend-live-glyphs',
+    label: 'Legend live glyphs (issue #157)',
+    description:
+      'The reworked sky-compass legend (issue #157). A north-facing window at solar noon puts the sun SOUTH, OUTSIDE the FOV, so the legend Sun glyph (points 1/5) renders as a plain light disc with NO glow — the glyph tracks the live sun-dot state instead of a hardcoded valid gold. With Show moon on and a partial (waxing) phase, the Moon glyph (point 2) shows the real lit fraction via its own phase mask. The window row (points 3/4) is now an arrow glyph labelled "Window azimuth" (not "Window normal"), and the plotted window line carries a matching arrowhead at the rim. Change entry 0\'s colour to watch the arrow glyph + line follow the override.',
+    build: () => {
+      // 2026-06-21 noon: moon phase ≈ 0.24 (a clear partial waxing crescent) and
+      // the noon sun sits ~south while the window faces north → sun outside FOV.
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'legend-live-glyphs';
+      c.root.show_moon = true;
+      c.compass.show_moon = true;
+      c.entries = [
+        makeEntry({
+          entry_id: 'north_window',
+          title: 'Loft',
+          window_azimuth: 0,
+          fov_left: 45,
+          fov_right: 45,
+          color: '#26a69a',
+        }),
+      ];
+      return c;
+    },
+  },
+  {
     id: 'floating-tooltip',
     label: 'Floating tooltip (#134)',
     description:
