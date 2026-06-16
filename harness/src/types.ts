@@ -117,6 +117,15 @@ export interface HarnessEntry {
      *  the integration. */
     schedule_end_minutes: number | null;
     default_position: number;
+    /** When true, the integration's minimum-interval throttle blocked the last
+     *  move: `last_skipped_sensor` reports `time_delta_too_small` and the card
+     *  shows a "next adjustment allowed in …" countdown. */
+    throttle_pending: boolean;
+    /** Minutes ago the throttled skip was recorded (drives the countdown's
+     *  remaining time = threshold − this). */
+    throttle_skipped_minutes_ago: number;
+    /** Configured minimum interval between position changes, in minutes. */
+    throttle_threshold_minutes: number;
   };
 }
 

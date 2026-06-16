@@ -367,6 +367,9 @@ export class AcpHarnessControlPanel extends LitElement {
         schedule_start_minutes: 7 * 60 + 30,
         schedule_end_minutes: 21 * 60,
         default_position: 60,
+        throttle_pending: false,
+        throttle_skipped_minutes_ago: 2,
+        throttle_threshold_minutes: 15,
       },
     };
     this._emit({ ...this.config, entries: [...this.config.entries, newEntry] });
@@ -674,6 +677,29 @@ export class AcpHarnessControlPanel extends LitElement {
             ${this._numberSlider('Default position %', e.flags.default_position, 0, 100, 1, (v) =>
               this._patchFlags(idx, { default_position: v }),
             )}
+            ${this._checkbox('Throttle pending', e.flags.throttle_pending, (v) =>
+              this._patchFlags(idx, { throttle_pending: v }),
+            )}
+            ${e.flags.throttle_pending
+              ? html`
+                  ${this._numberSlider(
+                    'Skipped … min ago',
+                    e.flags.throttle_skipped_minutes_ago,
+                    0,
+                    60,
+                    1,
+                    (v) => this._patchFlags(idx, { throttle_skipped_minutes_ago: v }),
+                  )}
+                  ${this._numberSlider(
+                    'Interval (min)',
+                    e.flags.throttle_threshold_minutes,
+                    1,
+                    60,
+                    1,
+                    (v) => this._patchFlags(idx, { throttle_threshold_minutes: v }),
+                  )}
+                `
+              : ''}
           </fieldset>
         `,
       )}

@@ -66,6 +66,24 @@ export function formatDuration(seconds: number | null | undefined): string {
   return `${h}h ${m % 60}m`;
 }
 
+/**
+ * Compute `timestampIso + thresholdMinutes` as an ISO-8601 string, or `null`
+ * when either input is missing/invalid. Used to derive the next-allowed time
+ * for the minimum-interval throttle countdown without inlining date math in
+ * components.
+ */
+export function nextAllowedIso(
+  timestampIso: string | null | undefined,
+  thresholdMinutes: number | null | undefined,
+): string | null {
+  if (!timestampIso) return null;
+  if (thresholdMinutes === null || thresholdMinutes === undefined || Number.isNaN(thresholdMinutes))
+    return null;
+  const base = new Date(timestampIso).getTime();
+  if (Number.isNaN(base)) return null;
+  return new Date(base + thresholdMinutes * 60_000).toISOString();
+}
+
 /** Human-readable seconds until a future ISO datetime, or "now" / "past".
  *  Pass `hass` to localize the "expired" sentinel; without it, the EN value
  *  is returned so pure-helper callers remain locale-agnostic. */

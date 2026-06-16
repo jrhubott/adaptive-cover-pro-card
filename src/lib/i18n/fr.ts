@@ -164,6 +164,7 @@ export const fr: EnDict = {
     outside_schedule_tooltip:
       "La fenêtre de planning configurée n'est pas active, le positionnement automatique est donc en pause.",
     solar_would_be: 'solaire {pct}',
+    next_change_in: 'Prochain ajustement autorisé dans {time}',
   },
   header: {
     on: 'ON',
