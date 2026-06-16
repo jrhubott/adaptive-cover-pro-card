@@ -250,7 +250,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'manual-override-divergence',
     label: 'Manual override — solar diverges',
     description:
-      'Manual override holds the cover at 80% while the sun would have the integration close it to 20%. The sky compass draws the solar-target wedge plus the held/actual ring so you can see where automatic control would put it.',
+      'Manual override holds the cover at 80% while the sun would have the integration close it to 20%. The sky compass draws the solar-target wedge plus the held/actual ring, and the COVERS bar labels Target: 20% (solar) with the fill/number at the held 80% and no alert badge — the divergence is intentional (#158). Toggle the override off to see the badge return for a genuine mismatch.',
     build: () => {
       const c = baseConfig('2026-06-21', 14 * 60);
       c.scenario = 'manual-override-divergence';

@@ -148,6 +148,85 @@ describe('acp-cover-bar two-tone fill — issue #135 follow-up', () => {
   });
 });
 
+describe('acp-cover-bar manual-override divergence — issue #158', () => {
+  // Cover held at 44% while the solar would-be target is 60% with a manual
+  // override active and a position mismatch flagged for the cover.
+  function overrideHass(mismatch: boolean, override = true): HomeAssistant {
+    return {
+      states: {
+        'sensor.cover_position': {
+          state: '44',
+          attributes: {
+            actual_positions: { 'cover.a': 44 },
+            raw_calculated_position: 60,
+          },
+        },
+        'binary_sensor.manual_override': {
+          state: override ? 'on' : 'off',
+          attributes: {},
+        },
+        'binary_sensor.position_mismatch': {
+          state: mismatch ? 'on' : 'off',
+          attributes: { entities: { 'cover.a': { mismatch } } },
+        },
+        'cover.a': { state: 'open', attributes: { friendly_name: 'Cover A' } },
+      },
+      callService: vi.fn(),
+    } as unknown as HomeAssistant;
+  }
+
+  const overrideDiscovered: DiscoveredEntities = {
+    ...baseDiscovered,
+    entities: {
+      target_position_sensor: 'sensor.cover_position',
+      manual_override_binary: 'binary_sensor.manual_override',
+      position_mismatch_binary: 'binary_sensor.position_mismatch',
+    },
+  };
+
+  async function mount(hass: HomeAssistant): Promise<CoverBarLike> {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    document.body.appendChild(el);
+    el.hass = hass;
+    el.discovered = overrideDiscovered;
+    await el.updateComplete;
+    return el;
+  }
+
+  it('labels the COVERS target with the solar would-be value (60%), not the held 44%', async () => {
+    const el = await mount(overrideHass(true));
+    const target = el.shadowRoot!.querySelector('.head .target')!.textContent!;
+    expect(target).toContain('60');
+    expect(target).not.toContain('44');
+  });
+
+  it('draws the target marker at the solar target while fill/num stay at the held value', async () => {
+    const el = await mount(overrideHass(true));
+    const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
+    const open = el.shadowRoot!.querySelector('.fill') as HTMLElement;
+    const num = el.shadowRoot!.querySelector('.num')!.textContent!;
+    expect(marker.style.left).toBe('60%');
+    expect(open.style.width).toBe('44%');
+    expect(num).toContain('44');
+  });
+
+  it('suppresses the alert badge when the mismatch is an intentional override divergence', async () => {
+    const el = await mount(overrideHass(true));
+    expect(el.shadowRoot!.querySelector('.cover ha-icon.warn')).toBeNull();
+  });
+
+  it('keeps the alert badge for a genuine mismatch with no active override', async () => {
+    const el = await mount(overrideHass(true, false));
+    expect(el.shadowRoot!.querySelector('.cover ha-icon.warn')).not.toBeNull();
+  });
+
+  it('reserves a fixed badge column so the track does not reflow', () => {
+    const styles = (CoverBar as unknown as { styles: CSSResult }).styles.cssText;
+    expect(styles).toMatch(/grid-template-columns:[^;]*3fr\s+16px/);
+    expect(styles).not.toMatch(/grid-template-columns:[^;]*3fr\s+auto/);
+  });
+});
+
 describe('acp-cover-bar track-click → set_position', () => {
   it('calls adaptive_cover_pro.set_position when the track is clicked', async () => {
     const callService = vi.fn();
