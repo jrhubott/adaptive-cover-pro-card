@@ -6,6 +6,7 @@ import {
   formatDuration,
   countdownTo,
   formatCoverState,
+  nextAllowedIso,
 } from '../src/lib/formatters';
 
 describe('formatters', () => {
@@ -103,6 +104,26 @@ describe('formatters', () => {
       expect(formatCoverState(hass, 'cover.missing')).toBeNull();
       expect(formatCoverState(hass, 'cover.unknown')).toBeNull();
       expect(formatCoverState(hass, 'cover.unavailable')).toBeNull();
+    });
+  });
+
+  describe('nextAllowedIso', () => {
+    it('adds the threshold minutes to the timestamp and returns ISO', () => {
+      expect(nextAllowedIso('2026-06-16T12:00:00Z', 15)).toBe('2026-06-16T12:15:00.000Z');
+    });
+
+    it('returns null for an invalid timestamp', () => {
+      expect(nextAllowedIso('not-a-date', 15)).toBeNull();
+    });
+
+    it('returns null when minutes is NaN or missing', () => {
+      expect(nextAllowedIso('2026-06-16T12:00:00Z', Number.NaN)).toBeNull();
+      expect(nextAllowedIso('2026-06-16T12:00:00Z', undefined)).toBeNull();
+    });
+
+    it('returns null when the timestamp is missing', () => {
+      expect(nextAllowedIso(undefined, 15)).toBeNull();
+      expect(nextAllowedIso(null, 15)).toBeNull();
     });
   });
 });

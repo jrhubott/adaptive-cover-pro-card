@@ -4,8 +4,8 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import { entityStateChanged } from '../lib/hass-change';
 import { HANDLER_I18N_KEYS, HANDLER_ORDER, type HandlerName } from '../const';
-import type { DecisionTraceAttributes, DiscoveredEntities } from '../types';
-import { formatPercent } from '../lib/formatters';
+import type { DecisionTraceAttributes, DiscoveredEntities, LastSkippedAttributes } from '../types';
+import { formatPercent, countdownTo, nextAllowedIso } from '../lib/formatters';
 import { buildDecisionSentence, normalizeHandler } from '../lib/decision-summary';
 import { t } from '../lib/i18n';
 import { tooltip } from '../lib/tooltip';
@@ -18,11 +18,58 @@ export class DecisionStrip extends LitElement {
 
   @property({ type: Boolean, reflect: true, attribute: 'show-summary' }) public showSummary = true;
 
-  // Only the decision-trace sensor drives this strip; skip unrelated hass ticks.
+  // The throttle countdown is derived from a fixed next-allowed time, so the
+  // backing entity does not change as time passes. A 1 s timer drives the live
+  // countdown, scoped to this strip and torn down on disconnect; it runs only
+  // while the banner is actually visible.
+  private _tick: ReturnType<typeof setInterval> | null = null;
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this._syncTimer(false);
+  }
+
+  protected updated(): void {
+    const active = Boolean(this.hass && this.discovered && this._throttleNextAllowedIso());
+    this._syncTimer(active);
+  }
+
+  private _syncTimer(active: boolean): void {
+    if (active && this._tick === null) {
+      this._tick = setInterval(() => this.requestUpdate(), 1000);
+    } else if (!active && this._tick !== null) {
+      clearInterval(this._tick);
+      this._tick = null;
+    }
+  }
+
+  // The decision-trace and last-skipped sensors drive this strip; skip unrelated
+  // hass ticks. The throttle countdown's own 1 s timer requests an update with an
+  // empty `changed` (size 0, no 'hass'), which passes through to render.
   protected shouldUpdate(changed: PropertyValues): boolean {
     if (changed.size > 1 || !changed.has('hass')) return true;
     const old = changed.get('hass') as HomeAssistant | undefined;
-    return entityStateChanged(old, this.hass, [this.discovered?.entities.decision_trace_sensor]);
+    const e = this.discovered?.entities;
+    return entityStateChanged(old, this.hass, [e?.decision_trace_sensor, e?.last_skipped_sensor]);
+  }
+
+  /**
+   * Derive the ISO time at which the next position change is allowed, but only
+   * while the minimum-interval throttle is what blocked the last move and that
+   * time is still in the future. Returns null otherwise (no banner). The skip
+   * record is latched (last-event), so an expired record yields null and the
+   * banner drops on its own.
+   */
+  private _throttleNextAllowedIso(): string | null {
+    const id = this.discovered.entities.last_skipped_sensor;
+    if (!id) return null;
+    const st = this.hass.states[id];
+    if (!st || st.state !== 'time_delta_too_small') return null;
+    const attrs = st.attributes as unknown as LastSkippedAttributes;
+    const iso = nextAllowedIso(attrs?.timestamp, attrs?.time_threshold_minutes);
+    if (!iso) return null;
+    if (new Date(iso).getTime() <= Date.now()) return null;
+    return iso;
   }
 
   private _trace(): {
@@ -69,6 +116,7 @@ export class DecisionStrip extends LitElement {
     if (!this.hass || !this.discovered) return nothing;
     const trace = this._trace();
     if (!trace) return html`<div class="placeholder">${t('decision.placeholder', this.hass)}</div>`;
+    const throttleIso = this._throttleNextAllowedIso();
     const disabled = computeDisabledHandlers(trace.enabledHandlers);
     const visible = selectVisibleHandlers(
       HANDLER_ORDER,
@@ -89,6 +137,16 @@ export class DecisionStrip extends LitElement {
               ${tooltip(t('decision.outside_schedule_tooltip', this.hass))}
             >
               ${t('decision.outside_schedule', this.hass)}
+            </div>`
+          : nothing}
+        ${throttleIso
+          ? html`<div class="throttle-countdown">
+              <ha-icon icon="mdi:timer-sand"></ha-icon>
+              <span
+                >${t('decision.next_change_in', this.hass, {
+                  time: countdownTo(throttleIso, this.hass),
+                })}</span
+              >
             </div>`
           : nothing}
         ${this.showSummary && trace.summary
@@ -243,6 +301,28 @@ export class DecisionStrip extends LitElement {
     :host([compact]) .off-schedule {
       font-size: 0.72rem;
       padding: 2px 6px;
+    }
+    .throttle-countdown {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      color: var(--secondary-text-color);
+      padding: 3px 8px;
+      border-radius: 4px;
+      border-left: 3px solid var(--primary-color);
+      background: rgba(127, 127, 127, 0.08);
+    }
+    .throttle-countdown ha-icon {
+      --mdc-icon-size: 16px;
+      color: var(--primary-color);
+    }
+    :host([compact]) .throttle-countdown {
+      font-size: 0.72rem;
+      padding: 2px 6px;
+    }
+    :host([compact]) .throttle-countdown ha-icon {
+      --mdc-icon-size: 14px;
     }
     .dim {
       color: var(--secondary-text-color);

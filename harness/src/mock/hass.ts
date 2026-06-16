@@ -41,6 +41,7 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'decision.outside_schedule_tooltip':
     'The configured schedule window is not active, so automatic positioning is paused.',
   'decision.solar_would_be': 'solar {pct}',
+  'decision.next_change_in': 'Next adjustment allowed in {time}',
   'elevation.schedule': 'Schedule {from} – {to}',
   'elevation.schedule_from': 'Schedule from {from}',
   'elevation.schedule_until': 'Schedule until {to}',

@@ -143,6 +143,9 @@ function makeEntry(
       schedule_start_minutes: 7 * 60 + 30, // 07:30
       schedule_end_minutes: 21 * 60, // 21:00
       default_position: 60,
+      throttle_pending: false,
+      throttle_skipped_minutes_ago: 2,
+      throttle_threshold_minutes: 15,
       ...overrides.flags,
     },
     entry_id: overrides.entry_id,
@@ -369,6 +372,24 @@ export const SCENARIOS: Scenario[] = [
       c.entries[0].flags.motion_status = 'timeout_pending';
       c.entries[0].flags.motion_timeout_minutes_from_now = 0.5;
       c.entries[0].target_position = 100;
+      c.entries[0].covers[0].position = 100;
+      return c;
+    },
+  },
+  {
+    id: 'throttled-waiting-interval',
+    label: 'Throttled — waiting on interval',
+    description:
+      'A move was just skipped by the minimum-interval throttle (time_delta_too_small) ~2 min ago with a 15 min interval, so the decision strip shows a "next adjustment allowed in …" countdown. The cover is still at its old position while the target has moved on.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'throttled-waiting-interval';
+      c.entries[0].flags.throttle_pending = true;
+      c.entries[0].flags.throttle_skipped_minutes_ago = 2;
+      c.entries[0].flags.throttle_threshold_minutes = 15;
+      // Live ≠ target: the throttle is a send-gate, so the target keeps tracking
+      // the solar position while the physical cover lags behind.
+      c.entries[0].target_position = 89;
       c.entries[0].covers[0].position = 100;
       return c;
     },
