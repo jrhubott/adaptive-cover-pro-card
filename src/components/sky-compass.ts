@@ -681,11 +681,11 @@ export class SkyCompass extends LitElement {
    *  the plot CSS — glow only on `.sun.valid`. ViewBox is padded for the ~4px
    *  glow blur. Sized larger than the moon glyph. */
   private _legendSunGlyph(sunDotClass: string): TemplateResult {
-    // Rendered at 18px: the r=5 disc in the glow-padded 16-unit viewBox comes out
-    // ~11px across — visibly larger than the moon glyph (~9px), per the design's
+    // Rendered at 20px: the r=5 disc in the glow-padded 16-unit viewBox comes out
+    // ~12.5px across — visibly larger than the moon glyph (~9px), per the design's
     // "sun larger than moon" intent (the glow padding otherwise shrinks the disc).
     return html`<span class="glyph"
-      ><svg viewBox="-8 -8 16 16" width="18" height="18">
+      ><svg viewBox="-8 -8 16 16" width="20" height="20">
         ${svg`<circle class=${sunDotClass} cx="0" cy="0" r="5"></circle>`}
       </svg></span
     >`;
@@ -1036,6 +1036,15 @@ export class SkyCompass extends LitElement {
       color: var(--secondary-text-color);
       flex-wrap: wrap;
       justify-content: center;
+    }
+    /* Centre each glyph/swatch row against its label so larger glyphs (the sun)
+       stay vertically aligned — vertical-align:middle drifts as the glyph grows.
+       The cover-entry rows are buttons that already do this; these are the
+       plain sun/moon/window/FOV rows. The glyph/swatch margin-right keeps the
+       gap between icon and text. */
+    .legend > div {
+      display: flex;
+      align-items: center;
     }
     button.entry-toggle {
       background: none;
