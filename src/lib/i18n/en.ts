@@ -150,6 +150,7 @@ export const en = {
     outside_schedule: 'Outside schedule — automatic control paused',
     outside_schedule_tooltip:
       'The configured schedule window is not active, so automatic positioning is paused.',
+    solar_would_be: 'solar {pct}',
   },
   header: {
     on: 'ON',
