@@ -752,6 +752,10 @@ export class SkyCompass extends LitElement {
     if (multi) {
       return html`
         <div class="legend">
+          <div>${this._legendSunGlyph(sunDotClass)} ${t('compass.sun', this.hass)}</div>
+          ${this.showMoon
+            ? html`<div>${this._legendMoonGlyph(moon)} ${t('compass.moon', this.hass)}</div>`
+            : nothing}
           ${overlays.map(
             (o) => html`
               <button
@@ -775,10 +779,6 @@ export class SkyCompass extends LitElement {
               </button>
             `,
           )}
-          <div>${this._legendSunGlyph(sunDotClass)} ${t('compass.sun', this.hass)}</div>
-          ${this.showMoon
-            ? html`<div>${this._legendMoonGlyph(moon)} ${t('compass.moon', this.hass)}</div>`
-            : nothing}
         </div>
       `;
     }

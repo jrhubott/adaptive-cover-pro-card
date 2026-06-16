@@ -194,6 +194,8 @@ function e(e,t,s,o){var i,n=arguments.length,r=n<3?t:null===o?o=Object.getOwnPro
       </svg></span
     >`}_renderLegend(e,t,s,o){const i=e[0]?.isOverride?e[0].color??null:null;return t?L`
         <div class="legend">
+          <div>${this._legendSunGlyph(s)} ${Be("compass.sun",this.hass)}</div>
+          ${this.showMoon?L`<div>${this._legendMoonGlyph(o)} ${Be("compass.moon",this.hass)}</div>`:Y}
           ${e.map(e=>L`
               <button
                 type="button"
@@ -208,8 +210,6 @@ function e(e,t,s,o){var i,n=arguments.length,r=n<3?t:null===o?o=Object.getOwnPro
                 ${e.sunInfront?L`<span class="status valid">${Be("compass.in_fov_check",this.hass)}</span>`:e.sun.in_fov?L`<span class="status in-fov">${Be("compass.in_fov",this.hass)}</span>`:L`<span class="status">${Be("compass.none",this.hass)}</span>`}
               </button>
             `)}
-          <div>${this._legendSunGlyph(s)} ${Be("compass.sun",this.hass)}</div>
-          ${this.showMoon?L`<div>${this._legendMoonGlyph(o)} ${Be("compass.moon",this.hass)}</div>`:Y}
         </div>
       `:L`<div class="legend">
       <div>${this._legendSunGlyph(s)} ${Be("compass.sun",this.hass)}</div>
