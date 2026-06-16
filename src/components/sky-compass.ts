@@ -933,9 +933,11 @@ export class SkyCompass extends LitElement {
       .compass .stats {
         gap: 12px;
       }
-      .compass .stats-row {
+      .compass .stats-row,
+      .compass .stats > span {
         justify-content: flex-start;
         min-height: 20px;
+        display: flex;
         align-items: center;
       }
     }
@@ -1112,6 +1114,7 @@ export class SkyCompass extends LitElement {
     .glyph,
     .licell {
       flex: 0 0 20px;
+      height: 20px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
