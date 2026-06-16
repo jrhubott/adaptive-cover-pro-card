@@ -763,7 +763,9 @@ export class SkyCompass extends LitElement {
                 aria-pressed=${!this._hiddenEntries.has(o.d.entry_id)}
                 @click=${() => this._toggleEntry(o.d.entry_id)}
               >
-                <span class="swatch entry" style="background: ${o.color}"></span>
+                <span class="licell"
+                  ><span class="swatch entry" style="background: ${o.color}"></span
+                ></span>
                 ${o.d.entry_title}
                 ${o.sunInfront
                   ? html`<span class="status valid">${t('compass.in_fov_check', this.hass)}</span>`
@@ -786,17 +788,21 @@ export class SkyCompass extends LitElement {
         ? html`<div>${this._legendMoonGlyph(moon)} ${t('compass.moon', this.hass)}</div>`
         : nothing}
       <div>
-        <span
-          class="swatch fov"
-          style=${overrideColor ? `background: ${overrideColor}` : ''}
+        <span class="licell"
+          ><span
+            class="swatch fov"
+            style=${overrideColor ? `background: ${overrideColor}` : ''}
+          ></span
         ></span>
         ${t('compass.window_fov', this.hass)}
       </div>
       ${this.showCoverFill
         ? html`<div>
-            <span
-              class="swatch cover-fill-swatch"
-              style=${overrideColor ? `background: ${overrideColor}` : ''}
+            <span class="licell"
+              ><span
+                class="swatch cover-fill-swatch"
+                style=${overrideColor ? `background: ${overrideColor}` : ''}
+              ></span
             ></span>
             ${t('compass.cover_position', this.hass)}
           </div>`
@@ -1077,7 +1083,6 @@ export class SkyCompass extends LitElement {
       height: 10px;
       border-radius: 50%;
       vertical-align: middle;
-      margin-right: 4px;
     }
     .swatch.fov {
       background: var(--warning-color, gold);
@@ -1088,14 +1093,20 @@ export class SkyCompass extends LitElement {
       border-radius: 2px;
       opacity: 0.9;
     }
-    /* Wrapper for the inline legend glyphs (live sun, phased moon, window arrow).
-       line-height:0 + vertical-align:middle centre the small SVGs on the text
-       baseline without a manual y-nudge. */
-    .glyph {
-      display: inline-block;
-      vertical-align: middle;
-      line-height: 0;
-      margin-right: 4px;
+    /* Uniform fixed-width icon cell shared by every legend row's leading icon —
+       glyph wrappers (.glyph: live sun, phased moon, window arrow) and swatch
+       wrappers (.licell). Centring each icon in a constant-width cell keeps all
+       labels left-aligned in a column even though the glyphs differ in size
+       (the sun is intentionally the largest). The cell is a fixed flex item of
+       the flex legend rows; overflow stays visible so the sun's glow isn't
+       clipped. */
+    .glyph,
+    .licell {
+      flex: 0 0 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 6px;
     }
     .glyph svg {
       /* Size comes from each glyph's own width/height attributes; display:block
