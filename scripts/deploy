@@ -70,12 +70,11 @@ if $DRY_RUN; then
 fi
 
 # ── Compute dev version ───────────────────────────────────────────────────────
-GIT_HASH="$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")"
+GIT_HASH="$(git rev-parse --short=7 HEAD 2>/dev/null || echo "unknown")"
 if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
     GIT_HASH="${GIT_HASH}-dirty"
 fi
-BASE_VERSION="$(node -p "require('./package.json').version")"
-DEV_VERSION="${BASE_VERSION}-dev.${GIT_HASH}"
+DEV_VERSION="${GIT_HASH}"
 
 # For dirty builds, append an incrementing counter persisted in .dirty-deploy
 # (gitignored) so repeated deploys of the same dirty tree get unique versions.
