@@ -2203,34 +2203,34 @@ function e(e,t,s,o){var i,n=arguments.length,r=n<3?t:null===o?o=Object.getOwnPro
             ${Be("tile.entry_not_found",this.hass,{entry:this._config.entry_id})}
           </p>
         </div>
-      </ha-card>`}_buildHandlerLabels(){const e={};for(const[t,s]of Object.entries(Se))e[t]=Be(s,this.hass);return e}_renderTile(e){const t=this._config,s=t.name??e.entry_title,o=this._resolvedCover(e),i=t.icon??function(e,t){if(null!==t&&!Number.isNaN(t)){if(t>=95)return ze[e]??"mdi:window-shutter-open";if(t<=5)return Oe[e]??"mdi:window-shutter"}return Ee[e]??"mdi:window-shutter"}(e.cover_type,this._liveCoverPosition(o)),n=!1!==t.show_position,r=!1!==t.show_state,a=!1!==t.show_controls,l=!1!==t.show_badge,c=!1!==t.show_motion_icon?this._motionActiveState(e):null,d=Be("timeout_pending"===c?"tile.motion_pending":"tile.motion_detected",this.hass),h="one-line"!==t.layout,u=this._currentPosition(e),p=this._liveCoverPosition(o)??u,g=this._winner(e),m=this._traceAttrs(e),_=this._manualEndIso(e),f=this._isFullyInert(t),v=vs(m),y=!0===t.show_decision_summary&&m?bs(m.trace??[],m,0,this._buildHandlerLabels(),Be("badge.safety",this.hass)):"",b=!!y&&h,w=this._switchOn(e,"integration_enabled_switch"),x=this._switchOn(e,"automatic_control_switch"),$=this._manualOverrideOn(e),A=function(e){const t=function(e){const t=Ms(e);return"motion"!==t?t:!1===e.badges?.motion||e.showMotionIcon?!1===e.badges?.auto?null:"auto":t}(e);return!1===e.inTimeWindow&&!1!==e.badges?.off_schedule&&"off"!==t&&"manual"!==t&&"force"!==t?"off_schedule":t}({winner:g,integrationEnabled:w,manualActive:$,badges:t.badges,showMotionIcon:!1!==t.show_motion_icon,inTimeWindow:m?.in_time_window}),k=Is(m?.trace,g),C=null!==A&&Es([A],t.badges,k).length>0,S=l&&C&&!(!1===x&&!0===w),E=function(e){if(!e.integrationEnabled)return!1;if(!e.automaticControl)return!1;if(e.manualActive)return!1;const t=ys(e.winner);return"force"!==t&&("custom_position"!==t||!e.bypassAutoControl&&!0!==e.safetyActive)}({winner:g,integrationEnabled:w,automaticControl:x,manualActive:$,bypassAutoControl:!0===m?.bypass_auto_control,safetyActive:v}),z=h&&l&&!1!==t.badges?.auto&&E,O=!(z&&"auto"===A),M=r?function(e,t){if(!e||!t)return null;const s=e.states[t];if(!s?.state||"unknown"===s.state||"unavailable"===s.state)return null;if("function"==typeof e.formatEntityState){const t=e.formatEntityState(s);if(t)return t}if("function"==typeof e.localize){const t=e.localize(`component.cover.entity_component._.state.${s.state}`);if(t)return t}return s.state.charAt(0).toUpperCase()+s.state.slice(1)}(this.hass,o):null,I=[M,n&&null!==p?Zt(p):null].filter(e=>!!e),T=!!M,F=function(e,t,s){if(!Array.isArray(e?.custom_position_slots))return null;const o=e.custom_position_slots.filter(e=>!0===e.min_mode&&!0===e.enabled&&null!==e.sensor&&null!==e.position&&"on"===t[e.sensor]?.state);if(0===o.length)return null;const i=o.reduce((e,t)=>(t.position??0)>(e.position??0)?t:e),n=i.position,r=i.priority??null;return{slot:i.slot,position:n,label:i.sensor_name??`#${i.slot}`,clamping:null!==s&&n>s,sensorOn:!0,priority:r,resistsManual:null!=r&&r>80}}(m,this.hass.states,u),P=ys(g),j=!!F&&!("custom_position"===P&&!0===m?.custom_position_minimum_mode)&&w,N=$&&!!e.entities.reset_override_button,R=I.length>0?L`<div class="position">${I.join(" · ")}</div>`:Y,D=j?L`<span
-          class=${`acp-floor-chip${F.clamping?"":" is-armed"}${F.resistsManual?" resists-manual":" is-bypassable"}`}
+      </ha-card>`}_buildHandlerLabels(){const e={};for(const[t,s]of Object.entries(Se))e[t]=Be(s,this.hass);return e}_renderTile(e){const t=this._config,s=t.name??e.entry_title,o=this._resolvedCover(e),i=t.icon??function(e,t){if(null!==t&&!Number.isNaN(t)){if(t>=95)return ze[e]??"mdi:window-shutter-open";if(t<=5)return Oe[e]??"mdi:window-shutter"}return Ee[e]??"mdi:window-shutter"}(e.cover_type,this._liveCoverPosition(o)),n=!1!==t.show_position,r=!1!==t.show_state,a=!1!==t.show_controls,l=!1!==t.show_badge,c=!1!==t.show_motion_icon?this._motionActiveState(e):null,d=Be("timeout_pending"===c?"tile.motion_pending":"tile.motion_detected",this.hass),h="one-line"!==t.layout,u=this._currentPosition(e),p=this._liveCoverPosition(o),g=p??u,m=null!==p&&p>=100,_=null!==p&&p<=0,f=this._winner(e),v=this._traceAttrs(e),y=this._manualEndIso(e),b=this._isFullyInert(t),w=vs(v),x=!0===t.show_decision_summary&&v?bs(v.trace??[],v,0,this._buildHandlerLabels(),Be("badge.safety",this.hass)):"",$=!!x&&h,A=this._switchOn(e,"integration_enabled_switch"),k=this._switchOn(e,"automatic_control_switch"),C=this._manualOverrideOn(e),S=function(e){const t=function(e){const t=Ms(e);return"motion"!==t?t:!1===e.badges?.motion||e.showMotionIcon?!1===e.badges?.auto?null:"auto":t}(e);return!1===e.inTimeWindow&&!1!==e.badges?.off_schedule&&"off"!==t&&"manual"!==t&&"force"!==t?"off_schedule":t}({winner:f,integrationEnabled:A,manualActive:C,badges:t.badges,showMotionIcon:!1!==t.show_motion_icon,inTimeWindow:v?.in_time_window}),E=Is(v?.trace,f),z=null!==S&&Es([S],t.badges,E).length>0,O=l&&z&&!(!1===k&&!0===A),M=function(e){if(!e.integrationEnabled)return!1;if(!e.automaticControl)return!1;if(e.manualActive)return!1;const t=ys(e.winner);return"force"!==t&&("custom_position"!==t||!e.bypassAutoControl&&!0!==e.safetyActive)}({winner:f,integrationEnabled:A,automaticControl:k,manualActive:C,bypassAutoControl:!0===v?.bypass_auto_control,safetyActive:w}),I=h&&l&&!1!==t.badges?.auto&&M,T=!(I&&"auto"===S),F=r?function(e,t){if(!e||!t)return null;const s=e.states[t];if(!s?.state||"unknown"===s.state||"unavailable"===s.state)return null;if("function"==typeof e.formatEntityState){const t=e.formatEntityState(s);if(t)return t}if("function"==typeof e.localize){const t=e.localize(`component.cover.entity_component._.state.${s.state}`);if(t)return t}return s.state.charAt(0).toUpperCase()+s.state.slice(1)}(this.hass,o):null,P=[F,n&&null!==g?Zt(g):null].filter(e=>!!e),j=!!F,N=function(e,t,s){if(!Array.isArray(e?.custom_position_slots))return null;const o=e.custom_position_slots.filter(e=>!0===e.min_mode&&!0===e.enabled&&null!==e.sensor&&null!==e.position&&"on"===t[e.sensor]?.state);if(0===o.length)return null;const i=o.reduce((e,t)=>(t.position??0)>(e.position??0)?t:e),n=i.position,r=i.priority??null;return{slot:i.slot,position:n,label:i.sensor_name??`#${i.slot}`,clamping:null!==s&&n>s,sensorOn:!0,priority:r,resistsManual:null!=r&&r>80}}(v,this.hass.states,u),R=ys(f),D=!!N&&!("custom_position"===R&&!0===v?.custom_position_minimum_mode)&&A,B=C&&!!e.entities.reset_override_button,V=P.length>0?L`<div class="position">${P.join(" · ")}</div>`:Y,K=D?L`<span
+          class=${`acp-floor-chip${N.clamping?"":" is-armed"}${N.resistsManual?" resists-manual":" is-bypassable"}`}
           ${mt(Be("dialog.floor_tooltip",this.hass))}
-          >${Be("dialog.floor",this.hass)} ${Zt(F.position)}</span
-        >`:Y,B=S?L`<acp-tile-badge
+          >${Be("dialog.floor",this.hass)} ${Zt(N.position)}</span
+        >`:Y,G=O?L`<acp-tile-badge
           .hass=${this.hass}
-          .winner=${g}
-          .kindOverride=${A??void 0}
-          .integrationEnabled=${w}
-          .slotNumber=${m?.custom_position_active_slot}
-          .slotName=${m?.custom_position_active_slot_name}
-          .pct=${fs(m,u)??void 0}
-          .minimumMode=${m?.custom_position_minimum_mode}
-          .safetyActive=${v}
-          .manualEndIso=${_}
-          .manualActive=${$}
-          .resumable=${N}
+          .winner=${f}
+          .kindOverride=${S??void 0}
+          .integrationEnabled=${A}
+          .slotNumber=${v?.custom_position_active_slot}
+          .slotName=${v?.custom_position_active_slot_name}
+          .pct=${fs(v,u)??void 0}
+          .minimumMode=${v?.custom_position_minimum_mode}
+          .safetyActive=${w}
+          .manualEndIso=${y}
+          .manualActive=${C}
+          .resumable=${B}
           @acp-resume=${()=>this._resume(e)}
-        ></acp-tile-badge>`:Y,V=z?L`<acp-tile-badge
+        ></acp-tile-badge>`:Y,q=I?L`<acp-tile-badge
           .hass=${this.hass}
-          .winner=${g}
+          .winner=${f}
           .kindOverride=${"auto"}
-          .integrationEnabled=${w}
+          .integrationEnabled=${A}
         ></acp-tile-badge>`:Y;return L`
       <div
-        class=${`tile-body${h?" detailed":""}${b?" has-summary":""}${T?" has-state-label":""}${j?" has-floor-chip":""}`}
-        role=${f?"group":"button"}
-        tabindex=${f?-1:0}
+        class=${`tile-body${h?" detailed":""}${$?" has-summary":""}${j?" has-state-label":""}${D?" has-floor-chip":""}`}
+        role=${b?"group":"button"}
+        tabindex=${b?-1:0}
         @pointerdown=${this._onPointerDown}
         @pointerup=${this._onPointerUp}
         @pointercancel=${this._onPointerCancel}
@@ -2247,19 +2247,19 @@ function e(e,t,s,o){var i,n=arguments.length,r=n<3?t:null===o?o=Object.getOwnPro
         </div>
         <div class="label">
           <div class="title">${s}</div>
-          ${y&&!h?L`<div class="summary">${y}</div>`:Y}
-          ${b?L`<div class="summary inline-summary" ${mt(y)}>${y}</div>`:Y}
+          ${x&&!h?L`<div class="summary">${x}</div>`:Y}
+          ${$?L`<div class="summary inline-summary" ${mt(x)}>${x}</div>`:Y}
         </div>
-        ${h&&z?L`<div class="auto-line">${V}</div>`:Y}
+        ${h&&I?L`<div class="auto-line">${q}</div>`:Y}
         ${h?L`<div class="detail-line">
-              ${R}${D}${O?B:Y}
-            </div>`:L`${R}${D}`}
+              ${V}${K}${T?G:Y}
+            </div>`:L`${V}${K}`}
         ${a?L`<div class="controls" @click=${this._stop} @pointerdown=${this._stop}>
               <button
                 class="up"
                 type="button"
                 aria-label=${Be("tile.open",this.hass)}
-                ?disabled=${!o}
+                ?disabled=${!o||m}
                 @click=${()=>this._setCoverPosition(o,100)}
               >
                 <ha-icon icon="mdi:arrow-up"></ha-icon>
@@ -2277,13 +2277,13 @@ function e(e,t,s,o){var i,n=arguments.length,r=n<3?t:null===o?o=Object.getOwnPro
                 class="down"
                 type="button"
                 aria-label=${Be("tile.close",this.hass)}
-                ?disabled=${!o}
+                ?disabled=${!o||_}
                 @click=${()=>this._setCoverPosition(o,0)}
               >
                 <ha-icon icon="mdi:arrow-down"></ha-icon>
               </button>
             </div>`:Y}
-        ${h?Y:B}
+        ${h?Y:G}
       </div>
     `}_resolvedCover(e){return this._config?.cover?this._config.cover:e.managed_covers[0]}_currentPosition(e){const t=e.entities.target_position_sensor;if(!t)return null;const s=this.hass.states[t];if(!s)return null;const o=parseFloat(s.state);return Number.isNaN(o)?null:o}_liveCoverPosition(e){if(!e)return null;const t=this.hass.states[e]?.attributes?.current_position;return"number"!=typeof t||Number.isNaN(t)?null:t}_winner(e){const t=e.entities.decision_trace_sensor;return t?this.hass.states[t]?.state??"default":"default"}_traceAttrs(e){const t=e.entities.decision_trace_sensor;if(t)return this.hass.states[t]?.attributes}_motionActiveState(e){const t=e.entities.motion_status_sensor;if(!t)return null;const s=this.hass.states[t]?.state;return"motion_detected"===s||"timeout_pending"===s?s:null}_manualOverrideOn(e){const t=e.entities.manual_override_binary;return!!t&&"on"===this.hass.states[t]?.state}_switchOn(e,t){const s=e.entities[t];return!s||"off"!==this.hass.states[s]?.state}_manualEndIso(e){if(!this._manualOverrideOn(e))return;const t=e.entities.manual_override_end_sensor;return t?this.hass.states[t]?.state:void 0}_setCoverPosition(e,t){e&&this.hass.callService(Ae,"set_position",{position:t},{entity_id:e})}_stopCover(e){e&&this.hass.callService(Ae,"stop",{},{entity_id:e})}_resume(e){const t=e.entities.reset_override_button;t&&this.hass.callService("button","press",{entity_id:t})}_tapActionConfig(){const e=this._config?.tap_action;if("string"!=typeof e)return e}_isFullyInert(e){return!!(e=>!!e&&"none"===e.action)(this._tapActionConfig())&&!Ss(e.hold_action)&&!Ss(e.double_tap_action)}_fireAction(e){if(!this._config||!this.hass)return;const t=this._tapActionConfig();if("tap"===e&&void 0===t)return this._dialogOpen=!0,void this.dispatchEvent(new CustomEvent("acp-tile-tap",{bubbles:!0,composed:!0}));const s=this._resolvedCoverFromState();((e,t,s,o)=>{let i;"double_tap"===o&&s.double_tap_action?i=s.double_tap_action:"hold"===o&&s.hold_action?i=s.hold_action:"tap"===o&&s.tap_action&&(i=s.tap_action),((e,t,s,o)=>{if(o||(o={action:"more-info"}),!o.confirmation||o.confirmation.exemptions&&o.confirmation.exemptions.some(e=>e.user===t.user.id)||(Cs("warning"),confirm(o.confirmation.text||`Are you sure you want to ${o.action}?`)))switch(o.action){case"more-info":(s.entity||s.camera_image)&&ks(e,"hass-more-info",{entityId:s.entity?s.entity:s.camera_image});break;case"navigate":o.navigation_path&&((e,t,s=!1)=>{s?history.replaceState(null,"",t):history.pushState(null,"",t),ks(window,"location-changed",{replace:s})})(0,o.navigation_path);break;case"url":o.url_path&&window.open(o.url_path);break;case"toggle":s.entity&&(((e,t)=>{((e,t,s=!0)=>{const o=function(e){return e.substr(0,e.indexOf("."))}(t),i="group"===o?"homeassistant":o;let n;switch(o){case"lock":n=s?"unlock":"lock";break;case"cover":n=s?"open_cover":"close_cover";break;default:n=s?"turn_on":"turn_off"}e.callService(i,n,{entity_id:t})})(e,t,As.includes(e.states[t].state))})(t,s.entity),Cs("success"));break;case"call-service":{if(!o.service)return void Cs("failure");const[e,s]=o.service.split(".",2);t.callService(e,s,o.service_data,o.target),Cs("success");break}case"fire-dom-event":ks(e,"ll-custom",o)}})(e,t,s,i)})(this,this.hass,{entity:s,tap_action:t,hold_action:this._config.hold_action,double_tap_action:this._config.double_tap_action},e)}_resolvedCoverFromState(){if(this._config?.cover)return this._config.cover;if(null===this._registry)return;const e=this._discovered??this._memo(this.hass,{type:this._config.type,entry_id:this._config.entry_id},this._registry);return e?.managed_covers[0]}_stop(e){e.stopPropagation()}};Qs.styles=r`
     :host {

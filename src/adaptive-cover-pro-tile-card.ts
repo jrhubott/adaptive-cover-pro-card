@@ -277,7 +277,13 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // `detailed` is the default layout; `one-line` is the compact opt-out.
     const detailed = cfg.layout !== 'one-line';
     const calculatedPosition = this._currentPosition(discovered);
-    const livePosition = this._liveCoverPosition(cover) ?? calculatedPosition;
+    const reportedPosition = this._liveCoverPosition(cover);
+    const livePosition = reportedPosition ?? calculatedPosition;
+    // When the cover reports its position, disable the control that can't do
+    // anything: open (↑) at fully-open, close (↓) at fully-closed. Covers that
+    // don't report a position leave both enabled (gate stays on `!cover`).
+    const atOpen = reportedPosition !== null && reportedPosition >= 100;
+    const atClosed = reportedPosition !== null && reportedPosition <= 0;
     const winner = this._winner(discovered);
     const traceAttrs = this._traceAttrs(discovered);
     const manualEndIso = this._manualEndIso(discovered);
@@ -431,7 +437,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 class="up"
                 type="button"
                 aria-label=${t('tile.open', this.hass)}
-                ?disabled=${!cover}
+                ?disabled=${!cover || atOpen}
                 @click=${() => this._setCoverPosition(cover, 100)}
               >
                 <ha-icon icon="mdi:arrow-up"></ha-icon>
@@ -449,7 +455,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 class="down"
                 type="button"
                 aria-label=${t('tile.close', this.hass)}
-                ?disabled=${!cover}
+                ?disabled=${!cover || atClosed}
                 @click=${() => this._setCoverPosition(cover, 0)}
               >
                 <ha-icon icon="mdi:arrow-down"></ha-icon>

@@ -216,6 +216,44 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'cover-at-travel-limits',
+    label: 'Cover at travel limits — disabled controls',
+    description:
+      'Two windows whose covers report being fully open (100%) and fully closed (0%). The tile control cluster disables the button that can do nothing: ↑ (open) is dimmed/disabled on the fully-open cover, ↓ (close) on the fully-closed one. ■ (stop) stays active on both.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'cover-at-travel-limits';
+      c.entries = [
+        makeEntry({
+          entry_id: 'open_window',
+          title: 'Fully open',
+          window_azimuth: 180,
+          covers: [
+            {
+              entity_id: 'cover.open_window_main',
+              friendly_name: 'Fully open cover',
+              position: 100,
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'closed_window',
+          title: 'Fully closed',
+          window_azimuth: 180,
+          color: '#42a5f5',
+          covers: [
+            {
+              entity_id: 'cover.closed_window_main',
+              friendly_name: 'Fully closed cover',
+              position: 0,
+            },
+          ],
+        }),
+      ];
+      return c;
+    },
+  },
+  {
     id: 'single-entry-cover-color',
     label: 'Single entry — custom cover color',
     description:

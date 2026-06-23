@@ -591,6 +591,53 @@ describe('adaptive-cover-pro-tile-card service calls', () => {
   });
 });
 
+describe('adaptive-cover-pro-tile-card control disabling at travel limits', () => {
+  const upBtn = (el: CardLike) => el.shadowRoot!.querySelector('button.up') as HTMLButtonElement;
+  const stopBtn = (el: CardLike) =>
+    el.shadowRoot!.querySelector('button.stop') as HTMLButtonElement;
+  const downBtn = (el: CardLike) =>
+    el.shadowRoot!.querySelector('button.down') as HTMLButtonElement;
+
+  it('disables ↑ (open) but not ↓ (close) when the cover reports fully open (100)', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftCurrentPosition: 100 }),
+    );
+    expect(upBtn(el).disabled).toBe(true);
+    expect(downBtn(el).disabled).toBe(false);
+    expect(stopBtn(el).disabled).toBe(false);
+  });
+
+  it('disables ↓ (close) but not ↑ (open) when the cover reports fully closed (0)', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftCurrentPosition: 0 }),
+    );
+    expect(downBtn(el).disabled).toBe(true);
+    expect(upBtn(el).disabled).toBe(false);
+    expect(stopBtn(el).disabled).toBe(false);
+  });
+
+  it('leaves both ↑ and ↓ enabled at a mid position (40)', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftCurrentPosition: 40 }),
+    );
+    expect(upBtn(el).disabled).toBe(false);
+    expect(downBtn(el).disabled).toBe(false);
+    expect(stopBtn(el).disabled).toBe(false);
+  });
+
+  it('leaves both enabled when the cover does not report a position', async () => {
+    // No current_position attribute → cannot prove the cover is at a limit, so
+    // neither button is disabled.
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
+    expect(upBtn(el).disabled).toBe(false);
+    expect(downBtn(el).disabled).toBe(false);
+    expect(stopBtn(el).disabled).toBe(false);
+  });
+});
+
 describe('adaptive-cover-pro-tile-card tap action', () => {
   it('fires acp-tile-tap event on tile body click when tap_action is default (dialog)', async () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
