@@ -301,6 +301,17 @@ function addEntryStates(
     },
   );
 
+  // Solar Calculation diagnostic sensor (issue #169). The raw geometric trace
+  // behind the Solar handler. STATE is the raw position % (or `unknown` when
+  // there is no solar target); attributes carry the full per-cover-type
+  // breakdown and are populated either way so the card keys off them.
+  const solar = buildSolarCalc(entry, sun.elevation, decision);
+  states[id('solar_calculation_sensor')] = mkState(
+    id('solar_calculation_sensor'),
+    solar.position_pct === null ? 'unknown' : String(solar.position_pct),
+    { friendly_name: `${entry.title} Solar Calculation`, unit_of_measurement: '%', ...solar },
+  );
+
   // Binary sensors
   states[id('sun_infront_binary')] = mkState(
     id('sun_infront_binary'),
@@ -388,6 +399,100 @@ function addCoverStates(states: Record<string, HassState>, entry: HarnessEntry):
       supported_features: 15,
       device_class: 'shade',
     });
+  }
+}
+
+/**
+ * Build the `solar_calculation` sensor's attribute set (issue #169). Derives a
+ * plausible per-cover-type geometric trace from the mock sun elevation, the
+ * decision's gamma, and whether direct sun is valid. When direct sun is not
+ * valid there is no solar target: `position_pct` is null, `status` carries the
+ * fallback reason, and the (still-populated) intermediates reflect the inputs.
+ */
+function buildSolarCalc(
+  entry: HarnessEntry,
+  elevationDeg: number,
+  decision: DecisionResult,
+): Record<string, unknown> {
+  const a = decision.attrs;
+  const gammaDeg = a.gamma;
+  const gammaRad = (gammaDeg * Math.PI) / 180;
+  const cosGamma = Math.cos(gammaRad);
+  const hasTarget = a.direct_sun_valid;
+  const status = hasTarget
+    ? 'Direct Sun'
+    : !a.in_field_of_view
+      ? 'Default: FOV Exit'
+      : !a.elevation_valid
+        ? 'Default: Elevation Limit'
+        : a.in_blind_spot
+          ? 'Default: Blind Spot'
+          : a.is_sunset_active
+            ? 'Default: Sunset Offset'
+            : 'Default';
+  const positionPct = hasTarget ? decision.position : null;
+  const base = {
+    sol_elev_deg: Number(elevationDeg.toFixed(1)),
+    gamma_deg: Number(gammaDeg.toFixed(1)),
+    position_pct: positionPct,
+    status,
+  };
+
+  // Vertical-blind trace, also reused as the venetian position axis.
+  const blind = () => ({
+    cover_type: 'cover_blind',
+    ...base,
+    edge_case_detected: false,
+    effective_distance_m: 1.84,
+    effective_distance_source: 'window_depth',
+    window_depth_contribution_m: 0.15,
+    sill_height_offset_m: 0.0,
+    safety_margin: 0.95,
+    glare_zones_active: [],
+    cos_gamma: Number(cosGamma.toFixed(3)),
+    cos_gamma_clamped: Number(Math.max(0, cosGamma).toFixed(3)),
+    path_length_m: Number((1.84 / Math.max(0.05, Math.cos(gammaRad))).toFixed(3)),
+    base_height_m: 1.2,
+    adjusted_height_m: Number((1.2 * Math.max(0, cosGamma)).toFixed(3)),
+    clamped_to_window: false,
+  });
+  const tilt = () => {
+    const betaRad = (Math.max(0, elevationDeg) * Math.PI) / 180;
+    const slat = hasTarget ? Number((90 - Math.max(0, elevationDeg)).toFixed(1)) : null;
+    return {
+      cover_type: 'cover_tilt',
+      ...base,
+      beta_rad: Number(betaRad.toFixed(3)),
+      discriminant: 0.42,
+      negative_discriminant: false,
+      slat_angle_raw_deg: slat,
+      nan_result: false,
+      max_degrees: 90,
+      tilt_mode: 'mid',
+    };
+  };
+
+  switch (entry.cover_type) {
+    case 'cover_awning':
+      return {
+        cover_type: 'cover_awning',
+        ...base,
+        awn_angle_deg: 40,
+        a_angle_deg: Number(Math.max(0, elevationDeg).toFixed(1)),
+        c_angle_deg: Number((180 - 40 - Math.max(0, elevationDeg)).toFixed(1)),
+        vertical_position_m: 1.1,
+        sin_c: 0.64,
+        sin_c_near_zero: false,
+        length_m: 1.5,
+        clamped_to_awn_length: false,
+      };
+    case 'cover_tilt':
+      return tilt();
+    case 'cover_venetian':
+      return { ...blind(), cover_type: 'cover_venetian', tilt: tilt() };
+    case 'cover_blind':
+    default:
+      return blind();
   }
 }
 

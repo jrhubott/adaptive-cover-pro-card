@@ -10,6 +10,8 @@ function defaultRoot(): HarnessConfig['root'] {
       covers: true,
       overrides: true,
       climate: true,
+      // Opt-in diagnostic section — off by default, mirroring the card.
+      solar: false,
     },
     compact: false,
     show_compass_stats: true,
@@ -67,6 +69,7 @@ function defaultTile(): HarnessConfig['tile'] {
     badges: defaultBadges(),
     show_compass: true,
     show_elevation_chart: true,
+    show_solar_calc: true,
     show_motion_icon: true,
     layout: 'detailed',
     tileWidth: 0,
@@ -1071,6 +1074,55 @@ export const SCENARIOS: Scenario[] = [
       c.entries[0].flags.schedule_start_minutes = 9 * 60;
       c.entries[0].flags.schedule_end_minutes = 11 * 60;
       c.tooltips = { mode: 'floating', offset: [12, 16] };
+      return c;
+    },
+  },
+  {
+    id: 'solar-calculation',
+    label: 'Solar calculation (issue #169)',
+    description:
+      'Exercises the new Solar Calculation diagnostic section across all four cover types. Four south-facing entries (blind, awning, tilt, venetian) at solar noon render their input → intermediate → output breakdown; the venetian shows both position and tilt axes. A fifth north-facing entry has the sun outside its FOV, so its panel shows the "No solar target" fallback with the Default status. The Solar section is enabled in root; toggle "Show all" on each panel to reveal every raw value.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'solar-calculation';
+      c.root.show_sections.solar = true;
+      c.entries = [
+        makeEntry({
+          entry_id: 'blind_window',
+          title: 'Blind (S)',
+          cover_type: 'cover_blind',
+          window_azimuth: 180,
+          color: '#ff7043',
+        }),
+        makeEntry({
+          entry_id: 'awning_window',
+          title: 'Awning (S)',
+          cover_type: 'cover_awning',
+          window_azimuth: 180,
+          color: '#42a5f5',
+        }),
+        makeEntry({
+          entry_id: 'tilt_window',
+          title: 'Tilt (S)',
+          cover_type: 'cover_tilt',
+          window_azimuth: 180,
+          color: '#66bb6a',
+        }),
+        makeEntry({
+          entry_id: 'venetian_window',
+          title: 'Venetian (S)',
+          cover_type: 'cover_venetian',
+          window_azimuth: 180,
+          color: '#ab47bc',
+        }),
+        makeEntry({
+          entry_id: 'north_window',
+          title: 'No target (N)',
+          cover_type: 'cover_blind',
+          window_azimuth: 0,
+          color: '#bdbdbd',
+        }),
+      ];
       return c;
     },
   },

@@ -30,6 +30,7 @@ import './adaptive-cover-pro-tile-card';
 import './components/cover-bar';
 import './components/overrides-panel';
 import './components/climate-panel';
+import './components/solar-calc';
 import './adaptive-cover-pro-card-editor';
 import './adaptive-cover-pro-sky-compass-card';
 
@@ -393,6 +394,13 @@ export class AdaptiveCoverProCard extends LitElement {
                 .discovered=${discovered}
                 ?compact=${!!this._config.compact}
               ></acp-climate-panel>`
+            : nothing}
+          ${sections.includes('solar')
+            ? html`<acp-solar-calc
+                .hass=${this.hass}
+                .discovered=${discovered}
+                ?compact=${!!this._config.compact}
+              ></acp-solar-calc>`
             : nothing}
         </div>
       </ha-card>

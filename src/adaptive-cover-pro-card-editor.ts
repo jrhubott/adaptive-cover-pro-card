@@ -14,6 +14,10 @@ interface SectionRow {
   key: CardSection;
   labelKey: string;
   descKey: string;
+  /** Whether the section is on when `show_sections` is unset. Defaults to true;
+   *  set false for opt-in diagnostic sections so the toggle still lists but
+   *  starts unchecked. Must mirror the card's own `DEFAULT_SECTIONS`. */
+  enabledByDefault?: boolean;
 }
 
 const SECTION_ROWS: SectionRow[] = [
@@ -47,9 +51,19 @@ const SECTION_ROWS: SectionRow[] = [
     labelKey: 'editor.main.section_climate_label',
     descKey: 'editor.main.section_climate_desc',
   },
+  {
+    key: 'solar',
+    labelKey: 'editor.main.section_solar_label',
+    descKey: 'editor.main.section_solar_desc',
+    enabledByDefault: false,
+  },
 ];
 
-const DEFAULT_SECTIONS: CardSection[] = SECTION_ROWS.map((r) => r.key);
+// Mirrors the card's own DEFAULT_SECTIONS: opt-in rows (enabledByDefault: false)
+// are excluded so an unset `show_sections` omits them.
+const DEFAULT_SECTIONS: CardSection[] = SECTION_ROWS.filter(
+  (r) => r.enabledByDefault !== false,
+).map((r) => r.key);
 
 @customElement(CARD_EDITOR_NAME)
 export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCardEditor {
