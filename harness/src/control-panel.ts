@@ -413,7 +413,7 @@ export class AcpHarnessControlPanel extends LitElement {
                 cover_type: (ev.target as HTMLSelectElement).value as CoverType,
               })}
           >
-            ${(['cover_blind', 'cover_awning', 'cover_tilt'] as CoverType[]).map(
+            ${(['cover_blind', 'cover_awning', 'cover_tilt', 'cover_venetian'] as CoverType[]).map(
               (c) =>
                 html`<option value=${c} ?selected=${e.cover_type === c}>${c.slice(6)}</option>`,
             )}
@@ -882,7 +882,9 @@ export class AcpHarnessControlPanel extends LitElement {
           this._emit({ ...this.config, root: { ...this.config.root, north_offset: v } }),
         )}
         <p class="hint">Sections to show:</p>
-        ${(['sky', 'elevation', 'decision', 'covers', 'overrides', 'climate'] as const).map((s) =>
+        ${(
+          ['sky', 'elevation', 'decision', 'covers', 'overrides', 'climate', 'solar'] as const
+        ).map((s) =>
           this._checkbox(s, this.config.root.show_sections[s], (v) =>
             this._emit({
               ...this.config,
@@ -955,6 +957,7 @@ export class AcpHarnessControlPanel extends LitElement {
             'show_badge',
             'show_compass',
             'show_elevation_chart',
+            'show_solar_calc',
             'show_motion_icon',
           ] as const
         ).map((k) =>
@@ -1014,6 +1017,21 @@ export class AcpHarnessControlPanel extends LitElement {
           480,
           10,
           (v) => this._emit({ ...this.config, tile: { ...this.config.tile, tileWidth: v } }),
+        )}
+      </fieldset>
+
+      <fieldset class="entry">
+        <legend>Decision card</legend>
+        ${this._checkbox('Enabled', this.config.decision.enabled, (v) =>
+          this._emit({ ...this.config, decision: { ...this.config.decision, enabled: v } }),
+        )}
+        ${this._textRow('Title', this.config.decision.title, (v) =>
+          this._emit({ ...this.config, decision: { ...this.config.decision, title: v } }),
+        )}
+        ${(['compact', 'hide_inactive_handlers', 'show_decision_summary'] as const).map((k) =>
+          this._checkbox(k, this.config.decision[k], (v) =>
+            this._emit({ ...this.config, decision: { ...this.config.decision, [k]: v } }),
+          ),
         )}
       </fieldset>
     `;

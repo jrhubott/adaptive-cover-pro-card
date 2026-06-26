@@ -1,6 +1,6 @@
 import type { HandlerName } from '../../src/const';
 
-export type CoverType = 'cover_blind' | 'cover_awning' | 'cover_tilt';
+export type CoverType = 'cover_blind' | 'cover_awning' | 'cover_tilt' | 'cover_venetian';
 
 export type MotionStatusValue = 'idle' | 'motion_detected' | 'timeout_pending';
 export type ClimateStrategy = 'summer_mode' | 'winter_mode' | 'intermediate' | 'unknown';
@@ -138,6 +138,7 @@ export interface RootCardOptions {
     covers: boolean;
     overrides: boolean;
     climate: boolean;
+    solar: boolean;
   };
   compact: boolean;
   show_compass_stats: boolean;
@@ -187,6 +188,7 @@ export interface TileCardOptions {
   };
   show_compass: boolean;
   show_elevation_chart: boolean;
+  show_solar_calc: boolean;
   show_motion_icon: boolean;
   layout: 'one-line' | 'detailed';
   /** Simulated tile width in px, mimicking a narrow HA "Sections" column.
@@ -194,6 +196,14 @@ export interface TileCardOptions {
    *  value pins every tile to exactly that width so the card's narrow-column
    *  responsive behavior (issue #136) can be exercised below 360px. */
   tileWidth: number;
+}
+
+export interface DecisionCardOptions {
+  enabled: boolean;
+  title: string;
+  compact: boolean;
+  hide_inactive_handlers: boolean;
+  show_decision_summary: boolean;
 }
 
 export interface HarnessConfig {
@@ -220,6 +230,7 @@ export interface HarnessConfig {
   root: RootCardOptions;
   compass: SkyCompassCardOptions;
   tile: TileCardOptions;
+  decision: DecisionCardOptions;
   /** Floating-tooltip behavior, threaded into all three card configs. */
   tooltips: TooltipsOptions;
   /** Fixed stage height in px for the Sky Compass card, mimicking HA's

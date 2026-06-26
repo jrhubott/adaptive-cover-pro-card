@@ -5,6 +5,8 @@ export const SKY_COMPASS_CARD_NAME = 'adaptive-cover-pro-sky-compass-card';
 export const SKY_COMPASS_CARD_EDITOR_NAME = 'adaptive-cover-pro-sky-compass-card-editor';
 export const TILE_CARD_NAME = 'adaptive-cover-pro-tile-card';
 export const TILE_CARD_EDITOR_NAME = 'adaptive-cover-pro-tile-card-editor';
+export const DECISION_CARD_NAME = 'adaptive-cover-pro-decision-card';
+export const DECISION_CARD_EDITOR_NAME = 'adaptive-cover-pro-decision-card-editor';
 
 export const INTEGRATION_DOMAIN = 'adaptive_cover_pro';
 
@@ -229,6 +231,7 @@ export type EntityRole =
   | 'motion_status_sensor'
   | 'climate_status_sensor'
   | 'position_forecast_sensor'
+  | 'solar_calculation_sensor'
   | 'sun_infront_binary'
   | 'manual_override_binary'
   | 'position_mismatch_binary'
@@ -295,6 +298,7 @@ export const UNIQUE_ID_ROLES: Record<string, EntityRole> = {
   // exists, so its role mapping is dropped.
   'sensor:climate_status': 'climate_status_sensor',
   'sensor:position_forecast': 'position_forecast_sensor',
+  'sensor:solar_calculation': 'solar_calculation_sensor',
 
   // binary_sensor
   'binary_sensor:sun_motion': 'sun_infront_binary',

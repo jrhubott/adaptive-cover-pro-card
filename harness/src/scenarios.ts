@@ -10,6 +10,8 @@ function defaultRoot(): HarnessConfig['root'] {
       covers: true,
       overrides: true,
       climate: true,
+      // Opt-in diagnostic section — off by default, mirroring the card.
+      solar: false,
     },
     compact: false,
     show_compass_stats: true,
@@ -56,6 +58,16 @@ export function defaultBadges(): HarnessConfig['tile']['badges'] {
   };
 }
 
+function defaultDecision(): HarnessConfig['decision'] {
+  return {
+    enabled: true,
+    title: 'Decision',
+    compact: false,
+    hide_inactive_handlers: false,
+    show_decision_summary: true,
+  };
+}
+
 function defaultTile(): HarnessConfig['tile'] {
   return {
     enabled: true,
@@ -67,6 +79,7 @@ function defaultTile(): HarnessConfig['tile'] {
     badges: defaultBadges(),
     show_compass: true,
     show_elevation_chart: true,
+    show_solar_calc: true,
     show_motion_icon: true,
     layout: 'detailed',
     tileWidth: 0,
@@ -167,6 +180,7 @@ function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): Harne
     root: defaultRoot(),
     compass: defaultCompass(),
     tile: defaultTile(),
+    decision: defaultDecision(),
     tooltips: defaultTooltips(),
     stageHeight: 0,
   };
@@ -210,6 +224,44 @@ export const SCENARIOS: Scenario[] = [
           fov_right: 30,
           min_elevation: 10,
           color: '#42a5f5',
+        }),
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'cover-at-travel-limits',
+    label: 'Cover at travel limits — disabled controls',
+    description:
+      'Two windows whose covers report being fully open (100%) and fully closed (0%). The tile control cluster disables the button that can do nothing: ↑ (open) is dimmed/disabled on the fully-open cover, ↓ (close) on the fully-closed one. ■ (stop) stays active on both.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'cover-at-travel-limits';
+      c.entries = [
+        makeEntry({
+          entry_id: 'open_window',
+          title: 'Fully open',
+          window_azimuth: 180,
+          covers: [
+            {
+              entity_id: 'cover.open_window_main',
+              friendly_name: 'Fully open cover',
+              position: 100,
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'closed_window',
+          title: 'Fully closed',
+          window_azimuth: 180,
+          color: '#42a5f5',
+          covers: [
+            {
+              entity_id: 'cover.closed_window_main',
+              friendly_name: 'Fully closed cover',
+              position: 0,
+            },
+          ],
         }),
       ];
       return c;
@@ -421,6 +473,20 @@ export const SCENARIOS: Scenario[] = [
       // Derived mode produces a real trace where solar matched and cloud is not
       // the winner, so the solar-active badge shows regardless of cloud config.
       c.decisionMode = 'derived';
+      return c;
+    },
+  },
+  {
+    id: 'decision-standalone-card',
+    label: 'Decision card — standalone strip',
+    description:
+      'Exercises the standalone custom:adaptive-cover-pro-decision-card (issue #170). The same acp-decision-strip renders in the root card Decision section, inside the more-info dialog Advanced area, AND as its own card on the Decision tab — all identical. The standalone card carries a "Why this position?" header and hides inactive handlers; toggle compact / hide-inactive / show-summary in the Decision card fieldset to verify they reach the strip.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'decision-standalone-card';
+      c.decisionMode = 'derived';
+      c.decision.title = 'Why this position?';
+      c.decision.hide_inactive_handlers = true;
       return c;
     },
   },
@@ -1036,6 +1102,55 @@ export const SCENARIOS: Scenario[] = [
       return c;
     },
   },
+  {
+    id: 'solar-calculation',
+    label: 'Solar calculation (issue #169)',
+    description:
+      'Exercises the new Solar Calculation diagnostic section across all four cover types. Four south-facing entries (blind, awning, tilt, venetian) at solar noon render their input → intermediate → output breakdown; the venetian shows both position and tilt axes. A fifth north-facing entry has the sun outside its FOV, so its panel shows the "No solar target" fallback with the Default status. The Solar section is enabled in root; toggle "Show all" on each panel to reveal every raw value.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'solar-calculation';
+      c.root.show_sections.solar = true;
+      c.entries = [
+        makeEntry({
+          entry_id: 'blind_window',
+          title: 'Blind (S)',
+          cover_type: 'cover_blind',
+          window_azimuth: 180,
+          color: '#ff7043',
+        }),
+        makeEntry({
+          entry_id: 'awning_window',
+          title: 'Awning (S)',
+          cover_type: 'cover_awning',
+          window_azimuth: 180,
+          color: '#42a5f5',
+        }),
+        makeEntry({
+          entry_id: 'tilt_window',
+          title: 'Tilt (S)',
+          cover_type: 'cover_tilt',
+          window_azimuth: 180,
+          color: '#66bb6a',
+        }),
+        makeEntry({
+          entry_id: 'venetian_window',
+          title: 'Venetian (S)',
+          cover_type: 'cover_venetian',
+          window_azimuth: 180,
+          color: '#ab47bc',
+        }),
+        makeEntry({
+          entry_id: 'north_window',
+          title: 'No target (N)',
+          cover_type: 'cover_blind',
+          window_azimuth: 0,
+          color: '#bdbdbd',
+        }),
+      ];
+      return c;
+    },
+  },
 ];
 
 export function findScenario(id: string): Scenario | undefined {
@@ -1061,6 +1176,7 @@ export function normalizeConfig(cfg: HarnessConfig): HarnessConfig {
       badges: { ...defaultBadges(), ...(cfg.tile?.badges ?? {}) },
       tileWidth: cfg.tile?.tileWidth ?? 0,
     },
+    decision: { ...defaultDecision(), ...(cfg.decision ?? {}) },
     tooltips: { ...defaultTooltips(), ...(cfg.tooltips ?? {}) },
   };
 }

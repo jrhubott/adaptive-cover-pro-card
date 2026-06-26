@@ -3,7 +3,14 @@ import type { EntityRole, HandlerName } from './const';
 
 export type { HomeAssistant };
 
-export type CardSection = 'sky' | 'elevation' | 'decision' | 'covers' | 'overrides' | 'climate';
+export type CardSection =
+  | 'sky'
+  | 'elevation'
+  | 'decision'
+  | 'covers'
+  | 'overrides'
+  | 'climate'
+  | 'solar';
 
 /**
  * Card-owned floating-tooltip configuration. When `enabled === false` the card
@@ -87,6 +94,10 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   /** Render the "Sun today" elevation chart inside the more-info dialog's
    *  Advanced section (default true). */
   show_elevation_chart?: boolean;
+  /** Render the Solar Calculation breakdown inside the more-info dialog's
+   *  Advanced section (default true). Self-hides when the integration is older
+   *  and does not expose the `solar_calculation` diagnostic sensor. */
+  show_solar_calc?: boolean;
   /** Render a small motion indicator overlaid on the cover icon when the
    *  motion handler reports `motion_detected` (default true). */
   show_motion_icon?: boolean;
@@ -128,6 +139,23 @@ export interface SkyCompassCardConfig extends LovelaceCardConfig {
   show_elevation_chart?: boolean;
   cover_colors?: (string | null)[];
   north_offset?: number;
+  /** Card-owned floating tooltip behavior. Defaults: enabled, offset [12,16],
+   *  delay 400ms. Set `enabled: false` to use native browser tooltips. */
+  tooltips?: TooltipsConfig;
+}
+
+export interface AdaptiveCoverProDecisionCardConfig extends LovelaceCardConfig {
+  type: string;
+  entry_id: string;
+  /** Optional header rendered above the strip in the card's `ha-card`. */
+  title?: string;
+  /** Tighter row layout; also forces `hide_inactive_handlers` on. */
+  compact?: boolean;
+  /** Show only the winner and actively matched pipeline handlers. */
+  hide_inactive_handlers?: boolean;
+  /** Render the plain-English "Why this position?" summary above the strip's
+   *  row grid. Defaults to true. */
+  show_decision_summary?: boolean;
   /** Card-owned floating tooltip behavior. Defaults: enabled, offset [12,16],
    *  delay 400ms. Set `enabled: false` to use native browser tooltips. */
   tooltips?: TooltipsConfig;
@@ -289,3 +317,91 @@ export interface CoverPositionAttributes {
   safety_margin?: number;
   effective_distance?: number;
 }
+
+/**
+ * Reason string on the `solar_calculation` sensor's `status` attribute. `Direct
+ * Sun` is the live-geometry case; every `Default: *` value means the geometry
+ * fell back to the default position for the stated reason (so there is no solar
+ * target and `position_pct` is null). Typed as a union for the known v1 values
+ * but widened with `string` so an unrecognised future reason still renders.
+ */
+export type SolarCalcStatus =
+  | 'Direct Sun'
+  | 'Default: FOV Exit'
+  | 'Default: Elevation Limit'
+  | 'Default: Sunset Offset'
+  | 'Default: Blind Spot'
+  | 'Default'
+  | string;
+
+/** Keys common to every cover type's `solar_calculation` attribute set. */
+interface SolarCalcBase {
+  /** Discriminator. */
+  cover_type: string;
+  /** Sun elevation input (°). */
+  sol_elev_deg?: number;
+  /** Relative azimuth input (°). */
+  gamma_deg?: number;
+  /** Raw geometric output (%); null when there is no solar target. */
+  position_pct?: number | null;
+  /** Reason the calculation produced its output (see {@link SolarCalcStatus}). */
+  status?: SolarCalcStatus;
+}
+
+/** Vertical-blind solar geometry trace (`cover_blind`). */
+export interface SolarCalcBlindAttributes extends SolarCalcBase {
+  cover_type: 'cover_blind';
+  edge_case_detected?: boolean;
+  effective_distance_m?: number;
+  effective_distance_source?: string;
+  window_depth_contribution_m?: number;
+  sill_height_offset_m?: number;
+  safety_margin?: number;
+  glare_zones_active?: string[];
+  cos_gamma?: number;
+  cos_gamma_clamped?: number;
+  path_length_m?: number;
+  base_height_m?: number;
+  adjusted_height_m?: number;
+  clamped_to_window?: boolean;
+}
+
+/** Horizontal-awning solar geometry trace (`cover_awning`). */
+export interface SolarCalcAwningAttributes extends SolarCalcBase {
+  cover_type: 'cover_awning';
+  awn_angle_deg?: number;
+  a_angle_deg?: number;
+  c_angle_deg?: number;
+  vertical_position_m?: number;
+  sin_c?: number;
+  sin_c_near_zero?: boolean;
+  length_m?: number;
+  clamped_to_awn_length?: boolean;
+}
+
+/** Tilt (slat-angle) solar geometry trace (`cover_tilt`). */
+export interface SolarCalcTiltAttributes extends SolarCalcBase {
+  cover_type: 'cover_tilt';
+  beta_rad?: number;
+  discriminant?: number;
+  negative_discriminant?: boolean;
+  slat_angle_raw_deg?: number | null;
+  nan_result?: boolean;
+  max_degrees?: number;
+  tilt_mode?: string;
+}
+
+/**
+ * Venetian solar geometry trace (`cover_venetian`): the vertical/position keys
+ * at top level plus a nested `tilt` sub-trace for the slat-angle axis.
+ */
+export interface SolarCalcVenetianAttributes extends Omit<SolarCalcBlindAttributes, 'cover_type'> {
+  cover_type: 'cover_venetian';
+  tilt?: Omit<SolarCalcTiltAttributes, 'cover_type'> & { cover_type?: string };
+}
+
+export type SolarCalculationAttributes =
+  | SolarCalcBlindAttributes
+  | SolarCalcAwningAttributes
+  | SolarCalcTiltAttributes
+  | SolarCalcVenetianAttributes;

@@ -496,6 +496,7 @@ describe('adaptive-cover-pro-tile-card editor — schema', () => {
       'show_motion_icon',
       'show_compass',
       'show_elevation_chart',
+      'show_solar_calc',
       'tap_action',
       'hold_action',
       'double_tap_action',

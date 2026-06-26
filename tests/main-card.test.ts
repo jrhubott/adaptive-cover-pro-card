@@ -154,6 +154,35 @@ describe('AdaptiveCoverProCard.getGridOptions', () => {
   });
 });
 
+describe('main card show_decision_summary config (issue #173)', () => {
+  it('sets showSummary to false on the strip when show_decision_summary: false', async () => {
+    const el = await mountWithRegistry({
+      type: 'custom:adaptive-cover-pro-card',
+      entry_id: ENTRY,
+      show_decision_summary: false,
+    });
+    interface StripEl extends HTMLElement {
+      showSummary?: boolean;
+    }
+    const strip = el.shadowRoot!.querySelector('acp-decision-strip') as StripEl;
+    expect(strip).toBeTruthy();
+    expect(strip.showSummary).toBe(false);
+  });
+
+  it('keeps showSummary true when show_decision_summary is omitted', async () => {
+    const el = await mountWithRegistry({
+      type: 'custom:adaptive-cover-pro-card',
+      entry_id: ENTRY,
+    });
+    interface StripEl extends HTMLElement {
+      showSummary?: boolean;
+    }
+    const strip = el.shadowRoot!.querySelector('acp-decision-strip') as StripEl;
+    expect(strip).toBeTruthy();
+    expect(strip.showSummary).toBe(true);
+  });
+});
+
 describe('header layout — long entry title', () => {
   it('renders the header with a title span', async () => {
     const el = await mountWithRegistry({
