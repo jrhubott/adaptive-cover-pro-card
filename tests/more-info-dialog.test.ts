@@ -10,6 +10,7 @@ interface DialogLike extends HTMLElement {
   open?: boolean;
   showCompass?: boolean;
   showElevationChart?: boolean;
+  showSolarCalc?: boolean;
   badges?: Record<string, boolean>;
 }
 
@@ -598,6 +599,32 @@ describe('acp-more-info-dialog: elevation chart', () => {
   it('does not render the elevation chart while advanced is collapsed', async () => {
     const el = await mount({ hass: hass(), discovered: discovered(), open: true });
     expect(el.shadowRoot!.querySelector('acp-elevation-chart')).toBeNull();
+  });
+});
+
+describe('acp-more-info-dialog: solar calculation', () => {
+  it('renders the solar-calc panel in the advanced section by default', async () => {
+    const el = await mount({ hass: hass(), discovered: discovered(), open: true });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('.advanced acp-solar-calc')).toBeTruthy();
+  });
+
+  it('hides the solar-calc panel when showSolarCalc=false', async () => {
+    const el = await mount({
+      hass: hass(),
+      discovered: discovered(),
+      open: true,
+      showSolarCalc: false,
+    });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('.advanced acp-solar-calc')).toBeNull();
+  });
+
+  it('does not render the solar-calc panel while advanced is collapsed', async () => {
+    const el = await mount({ hass: hass(), discovered: discovered(), open: true });
+    expect(el.shadowRoot!.querySelector('acp-solar-calc')).toBeNull();
   });
 });
 

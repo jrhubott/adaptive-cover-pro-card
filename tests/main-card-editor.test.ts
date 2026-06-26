@@ -9,6 +9,7 @@ interface EditorLike extends HTMLElement {
   _entries: { entry_id: string; title: string }[] | null;
   _onCoverColorChange(value: string): void;
   _onCoverColorReset(): void;
+  _onSectionToggle(key: string, enabled: boolean): void;
 }
 
 function makeEditor(): EditorLike {
@@ -49,6 +50,29 @@ describe('main-card editor cover colors (issue #132)', () => {
     el._onCoverColorChange('#123456');
     expect(emitted).not.toBeNull();
     expect(emitted!.cover_colors).toEqual(['#123456']);
+  });
+
+  it('renders a Solar calculation section toggle, off by default', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: 'a', title: 'Kitchen' }];
+    el.setConfig({ type: 'custom:adaptive-cover-pro-card', entry_id: 'a' });
+    document.body.appendChild(el);
+    await el.updateComplete;
+    const labels = Array.from(el.shadowRoot!.querySelectorAll('*'))
+      .map((n) => n.textContent ?? '')
+      .join(' ');
+    expect(labels).toContain('Solar calculation');
+    // Opt-in: an unset show_sections must not enable solar by default. Toggling
+    // it on emits a show_sections array that includes 'solar'.
+    let emitted: AdaptiveCoverProCardConfig | null = null;
+    el.addEventListener('config-changed', (e: Event) => {
+      emitted = (e as CustomEvent).detail.config;
+    });
+    el._onSectionToggle('solar', true);
+    expect(emitted!.show_sections).toContain('solar');
+    // And the other (default-on) sections are preserved, solar last in order.
+    expect(emitted!.show_sections).toContain('sky');
+    expect(emitted!.show_sections!.indexOf('solar')).toBe(emitted!.show_sections!.length - 1);
   });
 
   it('reset emits a config without cover_colors', () => {

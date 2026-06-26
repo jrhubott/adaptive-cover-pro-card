@@ -242,6 +242,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
         .open=${this._dialogOpen}
         .showCompass=${this._config.show_compass !== false}
         .showElevationChart=${this._config.show_elevation_chart !== false}
+        .showSolarCalc=${this._config.show_solar_calc !== false}
         .badges=${this._config.badges}
         @acp-dialog-close=${this._closeDialog}
       ></acp-more-info-dialog>
