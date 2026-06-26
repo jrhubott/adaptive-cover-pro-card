@@ -198,6 +198,14 @@ export interface TileCardOptions {
   tileWidth: number;
 }
 
+export interface DecisionCardOptions {
+  enabled: boolean;
+  title: string;
+  compact: boolean;
+  hide_inactive_handlers: boolean;
+  show_decision_summary: boolean;
+}
+
 export interface HarnessConfig {
   /** Latitude for solar math. */
   latitude: number;
@@ -222,6 +230,7 @@ export interface HarnessConfig {
   root: RootCardOptions;
   compass: SkyCompassCardOptions;
   tile: TileCardOptions;
+  decision: DecisionCardOptions;
   /** Floating-tooltip behavior, threaded into all three card configs. */
   tooltips: TooltipsOptions;
   /** Fixed stage height in px for the Sky Compass card, mimicking HA's

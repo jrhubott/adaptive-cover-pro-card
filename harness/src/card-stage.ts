@@ -1,7 +1,12 @@
 import { LitElement, css, html, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
-import { CARD_NAME, SKY_COMPASS_CARD_NAME, TILE_CARD_NAME } from '../../src/const';
+import {
+  CARD_NAME,
+  DECISION_CARD_NAME,
+  SKY_COMPASS_CARD_NAME,
+  TILE_CARD_NAME,
+} from '../../src/const';
 import { _resetRegistryStore } from '../../src/lib/registry-store';
 import type { HarnessConfig } from './types';
 
@@ -16,7 +21,7 @@ export class AcpHarnessCardStage extends LitElement {
   @property({ attribute: false }) config!: HarnessConfig;
   /** When set, render only this card; undefined renders all enabled cards
    *  (the contract the config tests and capture scripts rely on). */
-  @property({ attribute: false }) activeCard?: 'root' | 'compass' | 'tile';
+  @property({ attribute: false }) activeCard?: 'root' | 'compass' | 'tile' | 'decision';
   /** Device-preview mode (rendered inside a device-sized iframe): drop the
    *  harness chrome (headings, padding, max-width) and let the card fill the
    *  viewport full-bleed like a real phone, ignoring the tile-width control —
@@ -26,11 +31,12 @@ export class AcpHarnessCardStage extends LitElement {
   private _rootEl?: CardElement;
   private _compassEl?: CardElement;
   private _tileEls: CardElement[] = [];
+  private _decisionEl?: CardElement;
   private _entrySig?: string;
 
   /** True when `card` should render — either it's the active card, or no active
    *  card is set (render-all mode for the config tests and capture scripts). */
-  private _shows(card: 'root' | 'compass' | 'tile'): boolean {
+  private _shows(card: 'root' | 'compass' | 'tile' | 'decision'): boolean {
     return this.activeCard === undefined || this.activeCard === card;
   }
 
@@ -74,6 +80,18 @@ export class AcpHarnessCardStage extends LitElement {
                 </h2>`}
             ${this.config.tile.enabled
               ? html`<div class="tile-row" id="tile-host" style=${this._tileRowStyle()}></div>`
+              : html`<p class="disabled">Disabled — toggle in Per-card config.</p>`}
+          `
+        : ''}
+      ${this._shows('decision')
+        ? html`
+            ${this.embed
+              ? ''
+              : html`<h2 class="card-heading">
+                  Decision card · <code>custom:${DECISION_CARD_NAME}</code>
+                </h2>`}
+            ${this.config.decision.enabled
+              ? html`<div class="card-host" id="decision-host"></div>`
               : html`<p class="disabled">Disabled — toggle in Per-card config.</p>`}
           `
         : ''}
@@ -130,6 +148,8 @@ export class AcpHarnessCardStage extends LitElement {
       this._compassEl = undefined;
       for (const el of this._tileEls) el.remove();
       this._tileEls = [];
+      this._decisionEl?.remove();
+      this._decisionEl = undefined;
     }
     this._entrySig = entrySig;
 
@@ -186,12 +206,27 @@ export class AcpHarnessCardStage extends LitElement {
       for (const el of this._tileEls) el.remove();
       this._tileEls = [];
     }
+
+    const decisionHost = this.renderRoot.querySelector<HTMLElement>('#decision-host');
+    if (this.config.decision.enabled && decisionHost) {
+      if (!this._decisionEl) {
+        this._decisionEl = document.createElement(DECISION_CARD_NAME) as CardElement;
+        decisionHost.appendChild(this._decisionEl);
+      } else if (this._decisionEl.parentElement !== decisionHost) {
+        decisionHost.appendChild(this._decisionEl);
+      }
+      this._decisionEl.setConfig?.(this._decisionConfig());
+    } else if (this._decisionEl && !this.config.decision.enabled) {
+      this._decisionEl.remove();
+      this._decisionEl = undefined;
+    }
   }
 
   private _pushHass(): void {
     if (this._rootEl) this._rootEl.hass = this.hass;
     if (this._compassEl) this._compassEl.hass = this.hass;
     for (const t of this._tileEls) t.hass = this.hass;
+    if (this._decisionEl) this._decisionEl.hass = this.hass;
   }
 
   private _rootConfig(): Record<string, unknown> {
@@ -268,6 +303,19 @@ export class AcpHarnessCardStage extends LitElement {
       show_solar_calc: t.show_solar_calc,
       show_motion_icon: t.show_motion_icon,
       layout: t.layout,
+      tooltips: this._tooltipsConfig(),
+    };
+  }
+
+  private _decisionConfig(): Record<string, unknown> {
+    const d = this.config.decision;
+    return {
+      type: `custom:${DECISION_CARD_NAME}`,
+      entry_id: this.config.entries[0].entry_id,
+      title: d.title,
+      compact: d.compact,
+      hide_inactive_handlers: d.hide_inactive_handlers,
+      show_decision_summary: d.show_decision_summary,
       tooltips: this._tooltipsConfig(),
     };
   }

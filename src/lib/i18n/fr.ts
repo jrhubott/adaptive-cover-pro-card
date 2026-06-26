@@ -370,5 +370,16 @@ export const fr: EnDict = {
       toggle_elevation_chart_desc:
         "Graphique élévation/temps sous la boussole, avec bande FOV et limites d'élévation.",
     },
+    decision: {
+      title: 'Titre (facultatif)',
+      compact_label: 'Mode compact',
+      compact_desc: 'Lignes plus serrées ; masque aussi les gestionnaires inactifs.',
+      hide_inactive_handlers_label: 'Masquer les gestionnaires inactifs',
+      hide_inactive_handlers_desc:
+        'Afficher uniquement le gestionnaire sélectionné et les gestionnaires du pipeline actifs.',
+      show_decision_summary_label: 'Afficher le résumé de décision',
+      show_decision_summary_desc:
+        'Afficher une phrase explicite « Pourquoi cette position ? » au-dessus de la bande.',
+    },
   },
 };

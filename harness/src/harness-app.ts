@@ -17,6 +17,7 @@ import {
   writeStateToUrl,
 } from './share-state';
 import type {
+  DecisionCardOptions,
   HarnessConfig,
   RootCardOptions,
   SkyCompassCardOptions,
@@ -29,10 +30,13 @@ import './badge-gallery';
 import './service-log';
 
 /** A shallow-by-section partial of {@link HarnessConfig} accepted by the capture bridge. */
-export type CapturePartial = Partial<Omit<HarnessConfig, 'root' | 'compass' | 'tile'>> & {
+export type CapturePartial = Partial<
+  Omit<HarnessConfig, 'root' | 'compass' | 'tile' | 'decision'>
+> & {
   root?: Partial<RootCardOptions>;
   compass?: Partial<SkyCompassCardOptions>;
   tile?: Partial<TileCardOptions>;
+  decision?: Partial<DecisionCardOptions>;
 };
 
 /**
@@ -54,6 +58,7 @@ function mergeCaptureConfig(base: HarnessConfig, p: CapturePartial): HarnessConf
     root: { ...base.root, ...(p.root ?? {}) },
     compass: { ...base.compass, ...(p.compass ?? {}) },
     tile: { ...base.tile, ...(p.tile ?? {}) },
+    decision: { ...base.decision, ...(p.decision ?? {}) },
   };
 }
 
@@ -71,10 +76,12 @@ const DEVICE_PRESETS: { label: string; w: number }[] = [
   { label: 'Tablet (768)', w: 768 },
 ];
 
-type StageTab = 'root' | 'compass' | 'tile' | 'badges';
+type StageTab = 'root' | 'compass' | 'tile' | 'decision' | 'badges';
 
 function parseEmbedTab(v: string | null): StageTab {
-  return v === 'root' || v === 'compass' || v === 'tile' || v === 'badges' ? v : 'tile';
+  return v === 'root' || v === 'compass' || v === 'tile' || v === 'decision' || v === 'badges'
+    ? v
+    : 'tile';
 }
 
 @customElement('acp-harness-app')
@@ -355,8 +362,8 @@ export class AcpHarnessApp extends LitElement {
           ''
         : html`<nav class="tabs">
             ${this._tabButton('root', 'Root')} ${this._tabButton('compass', 'Sky compass')}
-            ${this._tabButton('tile', 'Tile')} ${this._tabButton('badges', 'Badge gallery')}
-            ${this._deviceSelect()}
+            ${this._tabButton('tile', 'Tile')} ${this._tabButton('decision', 'Decision')}
+            ${this._tabButton('badges', 'Badge gallery')} ${this._deviceSelect()}
           </nav>`}
       ${showDevice
         ? this._renderDeviceFrame()

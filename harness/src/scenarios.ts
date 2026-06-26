@@ -58,6 +58,16 @@ export function defaultBadges(): HarnessConfig['tile']['badges'] {
   };
 }
 
+function defaultDecision(): HarnessConfig['decision'] {
+  return {
+    enabled: true,
+    title: 'Decision',
+    compact: false,
+    hide_inactive_handlers: false,
+    show_decision_summary: true,
+  };
+}
+
 function defaultTile(): HarnessConfig['tile'] {
   return {
     enabled: true,
@@ -170,6 +180,7 @@ function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): Harne
     root: defaultRoot(),
     compass: defaultCompass(),
     tile: defaultTile(),
+    decision: defaultDecision(),
     tooltips: defaultTooltips(),
     stageHeight: 0,
   };
@@ -462,6 +473,20 @@ export const SCENARIOS: Scenario[] = [
       // Derived mode produces a real trace where solar matched and cloud is not
       // the winner, so the solar-active badge shows regardless of cloud config.
       c.decisionMode = 'derived';
+      return c;
+    },
+  },
+  {
+    id: 'decision-standalone-card',
+    label: 'Decision card — standalone strip',
+    description:
+      'Exercises the standalone custom:adaptive-cover-pro-decision-card (issue #170). The same acp-decision-strip renders in the root card Decision section, inside the more-info dialog Advanced area, AND as its own card on the Decision tab — all identical. The standalone card carries a "Why this position?" header and hides inactive handlers; toggle compact / hide-inactive / show-summary in the Decision card fieldset to verify they reach the strip.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'decision-standalone-card';
+      c.decisionMode = 'derived';
+      c.decision.title = 'Why this position?';
+      c.decision.hide_inactive_handlers = true;
       return c;
     },
   },
@@ -1151,6 +1176,7 @@ export function normalizeConfig(cfg: HarnessConfig): HarnessConfig {
       badges: { ...defaultBadges(), ...(cfg.tile?.badges ?? {}) },
       tileWidth: cfg.tile?.tileWidth ?? 0,
     },
+    decision: { ...defaultDecision(), ...(cfg.decision ?? {}) },
     tooltips: { ...defaultTooltips(), ...(cfg.tooltips ?? {}) },
   };
 }

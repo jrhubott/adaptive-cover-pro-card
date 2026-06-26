@@ -351,6 +351,16 @@ export const en = {
       toggle_elevation_chart_desc:
         'Elevation-vs-time chart below the compass, with FOV band and elevation limits.',
     },
+    decision: {
+      title: 'Title (optional)',
+      compact_label: 'Compact mode',
+      compact_desc: 'Tighter rows; also hides inactive handlers.',
+      hide_inactive_handlers_label: 'Hide inactive handlers',
+      hide_inactive_handlers_desc: 'Show only the winner and actively matched pipeline handlers.',
+      show_decision_summary_label: 'Show decision summary',
+      show_decision_summary_desc:
+        'Render a plain-English "Why this position?" sentence above the strip.',
+    },
   },
 } as const;
 
