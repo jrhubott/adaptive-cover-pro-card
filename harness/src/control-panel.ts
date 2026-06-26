@@ -1019,6 +1019,21 @@ export class AcpHarnessControlPanel extends LitElement {
           (v) => this._emit({ ...this.config, tile: { ...this.config.tile, tileWidth: v } }),
         )}
       </fieldset>
+
+      <fieldset class="entry">
+        <legend>Decision card</legend>
+        ${this._checkbox('Enabled', this.config.decision.enabled, (v) =>
+          this._emit({ ...this.config, decision: { ...this.config.decision, enabled: v } }),
+        )}
+        ${this._textRow('Title', this.config.decision.title, (v) =>
+          this._emit({ ...this.config, decision: { ...this.config.decision, title: v } }),
+        )}
+        ${(['compact', 'hide_inactive_handlers', 'show_decision_summary'] as const).map((k) =>
+          this._checkbox(k, this.config.decision[k], (v) =>
+            this._emit({ ...this.config, decision: { ...this.config.decision, [k]: v } }),
+          ),
+        )}
+      </fieldset>
     `;
   }
 

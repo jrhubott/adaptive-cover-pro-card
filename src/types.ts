@@ -144,6 +144,23 @@ export interface SkyCompassCardConfig extends LovelaceCardConfig {
   tooltips?: TooltipsConfig;
 }
 
+export interface AdaptiveCoverProDecisionCardConfig extends LovelaceCardConfig {
+  type: string;
+  entry_id: string;
+  /** Optional header rendered above the strip in the card's `ha-card`. */
+  title?: string;
+  /** Tighter row layout; also forces `hide_inactive_handlers` on. */
+  compact?: boolean;
+  /** Show only the winner and actively matched pipeline handlers. */
+  hide_inactive_handlers?: boolean;
+  /** Render the plain-English "Why this position?" summary above the strip's
+   *  row grid. Defaults to true. */
+  show_decision_summary?: boolean;
+  /** Card-owned floating tooltip behavior. Defaults: enabled, offset [12,16],
+   *  delay 400ms. Set `enabled: false` to use native browser tooltips. */
+  tooltips?: TooltipsConfig;
+}
+
 export interface DiscoveredEntities {
   entry_id: string;
   entry_title: string;
