@@ -3599,7 +3599,7 @@ function e(e,t,s,i){var o,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
                 .discovered=${e}
                 ?compact=${!!this._config.compact}
                 ?hide-inactive=${!!this._config.hide_inactive_handlers||!!this._config.compact}
-                ?show-summary=${!1!==this._config.show_decision_summary}
+                .showSummary=${!1!==this._config.show_decision_summary}
               ></acp-decision-strip>`:W}
           ${i.includes("covers")?L`<acp-cover-bar
                 .hass=${this.hass}
