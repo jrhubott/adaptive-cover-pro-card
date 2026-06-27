@@ -103,6 +103,20 @@ export class AcpHarnessControlPanel extends LitElement {
         </select>
       </label>
       <label class="row">
+        <span>Language</span>
+        <select
+          @change=${(e: Event) =>
+            this._emit({
+              ...this.config,
+              language: (e.target as HTMLSelectElement).value as 'en' | 'fr' | 'de',
+            })}
+        >
+          <option value="en" ?selected=${this.config.language === 'en'}>English</option>
+          <option value="fr" ?selected=${this.config.language === 'fr'}>Français</option>
+          <option value="de" ?selected=${this.config.language === 'de'}>Deutsch</option>
+        </select>
+      </label>
+      <label class="row">
         <span>Tooltips</span>
         <select
           @change=${(e: Event) =>
@@ -164,13 +178,13 @@ export class AcpHarnessControlPanel extends LitElement {
     const id = (e.target as HTMLSelectElement).value;
     const s = SCENARIOS.find((x) => x.id === id);
     if (!s) return;
-    this._emit({ ...s.build(), theme: this.config.theme });
+    this._emit({ ...s.build(), theme: this.config.theme, language: this.config.language });
   };
 
   private _onReset = (): void => {
     const s = SCENARIOS.find((x) => x.id === this.config.scenario);
     if (!s) return;
-    this._emit({ ...s.build(), theme: this.config.theme });
+    this._emit({ ...s.build(), theme: this.config.theme, language: this.config.language });
   };
 
   private _renderLocation(): TemplateResult {
