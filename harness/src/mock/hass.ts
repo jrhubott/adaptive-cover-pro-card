@@ -1,5 +1,10 @@
 import type { HomeAssistant } from 'custom-card-helpers';
-import { HANDLER_I18N_KEYS, HANDLER_LABELS, type HandlerName } from '../../../src/const';
+import {
+  HANDLER_I18N_KEYS,
+  HANDLER_LABELS,
+  INTEGRATION_DOMAIN,
+  type HandlerName,
+} from '../../../src/const';
 import type { HarnessConfig } from '../types';
 import { zoneForLongitude } from '../zone';
 import { buildRegistry } from './registry';
@@ -112,10 +117,20 @@ export function buildMockHass(
     };
   }
 
-  // hass.callWS handles only the entity-registry list call we care about.
+  // hass.callWS handles the entity-registry list and config-entries calls.
   const callWS = async <T>(msg: { type: string }): Promise<T> => {
     if (msg.type === 'config/entity_registry/list') {
       return registry as unknown as T;
+    }
+    if (msg.type === 'config_entries/get') {
+      // Return the harness entries as simulated cover-profile config entries so
+      // the card editor's instance picker still shows them after the platform
+      // filter was added in fetchAcpConfigEntries (issue #176).
+      return cfg.entries.map((e) => ({
+        entry_id: e.entry_id,
+        title: e.title,
+        domain: INTEGRATION_DOMAIN,
+      })) as unknown as T;
     }
     return [] as unknown as T;
   };
