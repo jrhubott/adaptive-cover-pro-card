@@ -174,6 +174,7 @@ function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): Harne
     playing: false,
     scenario: 'summer-noon-south',
     theme: 'light',
+    language: 'en',
     entries: [makeEntry({ entry_id: 'south_window', title: 'Living Room', window_azimuth: 180 })],
     decisionMode: 'derived',
     scriptedWinner: 'solar',

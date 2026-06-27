@@ -221,6 +221,9 @@ export interface HarnessConfig {
   scenario: string;
   /** Theme (light/dark) toggle for the harness page. */
   theme: 'light' | 'dark';
+  /** Language fed into the mock hass locale, so the card's i18n renders in
+   *  the chosen locale. Mirrors the card's supported Locale set. */
+  language: 'en' | 'fr' | 'de';
   /** Entries to simulate (1..4). */
   entries: HarnessEntry[];
   /** Forces a specific handler winner instead of running the mock pipeline. */

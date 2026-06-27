@@ -148,9 +148,9 @@ export function buildMockHass(
       time_zone: zoneForLongitude(cfg.longitude),
       unit_system: { temperature: '°C', length: 'km', mass: 'kg' },
     } as unknown as HomeAssistant['config'],
-    language: 'en' as HomeAssistant['language'],
+    language: (cfg.language ?? 'en') as HomeAssistant['language'],
     locale: {
-      language: 'en',
+      language: cfg.language ?? 'en',
       number_format: 'comma_decimal',
       time_format: '24',
     } as unknown as HomeAssistant['locale'],
