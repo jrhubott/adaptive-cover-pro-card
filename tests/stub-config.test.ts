@@ -13,10 +13,39 @@ const ACP_ENTRIES = [
   { entry_id: 'b2', title: 'Kitchen', domain: 'adaptive_cover_pro' },
 ];
 
+/** Minimal registry entries so fetchAcpConfigEntries' platform filter passes. */
+const ACP_REGISTRY = [
+  {
+    entity_id: 'sensor.a1_foo',
+    unique_id: 'a1_foo',
+    platform: 'adaptive_cover_pro',
+    config_entry_id: 'a1',
+    device_id: null,
+  },
+  {
+    entity_id: 'sensor.b2_foo',
+    unique_id: 'b2_foo',
+    platform: 'adaptive_cover_pro',
+    config_entry_id: 'b2',
+    device_id: null,
+  },
+];
+
+/**
+ * A callWS mock that dispatches between config_entries/get and the entity
+ * registry list — fetchAcpConfigEntries now calls both in parallel.
+ */
+function makeAcpCallWS() {
+  return vi.fn().mockImplementation((msg: { type: string }) => {
+    if (msg.type === 'config/entity_registry/list') return Promise.resolve(ACP_REGISTRY);
+    return Promise.resolve(ACP_ENTRIES);
+  });
+}
+
 describe('getStubConfig — card-picker preview discovery', () => {
   describe('main card', () => {
     it('returns the first discovered entry_id', async () => {
-      const hass = makeHass(vi.fn().mockResolvedValue(ACP_ENTRIES));
+      const hass = makeHass(makeAcpCallWS());
       const stub = await AdaptiveCoverProCard.getStubConfig(hass);
       expect(stub).toEqual({ type: 'custom:adaptive-cover-pro-card', entry_id: 'a1' });
     });
@@ -36,7 +65,7 @@ describe('getStubConfig — card-picker preview discovery', () => {
 
   describe('tile card', () => {
     it('returns the first discovered entry_id', async () => {
-      const hass = makeHass(vi.fn().mockResolvedValue(ACP_ENTRIES));
+      const hass = makeHass(makeAcpCallWS());
       const stub = await AdaptiveCoverProTileCard.getStubConfig(hass);
       expect(stub).toEqual({ type: 'custom:adaptive-cover-pro-tile-card', entry_id: 'a1' });
     });
@@ -50,7 +79,7 @@ describe('getStubConfig — card-picker preview discovery', () => {
 
   describe('sky compass card', () => {
     it('wraps the first discovered entry_id in entry_ids', async () => {
-      const hass = makeHass(vi.fn().mockResolvedValue(ACP_ENTRIES));
+      const hass = makeHass(makeAcpCallWS());
       const stub = await AdaptiveCoverProSkyCompassCard.getStubConfig(hass);
       expect(stub).toEqual({
         type: 'custom:adaptive-cover-pro-sky-compass-card',
