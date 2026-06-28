@@ -149,6 +149,39 @@ async function mount(
   return el;
 }
 
+// Dual-axis fixtures: a venetian entry that also exposes the Cover_Tilt sensor.
+const TILT_REGISTRY: EntityRegistryEntry[] = [
+  ...REGISTRY,
+  {
+    entity_id: 'sensor.cover_tilt',
+    unique_id: `${ENTRY}_Cover_Tilt`,
+    config_entry_id: ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+];
+
+function tiltHass(callService?: (...args: unknown[]) => unknown): HomeAssistant {
+  const h = makeHass({ callService });
+  h.states['sensor.cover_tilt'] = { state: '70', attributes: {} } as never;
+  (h.states['cover.left'].attributes as Record<string, unknown>).current_tilt_position = 35;
+  (h as unknown as { callWS: unknown }).callWS = vi.fn().mockResolvedValue(TILT_REGISTRY);
+  return h;
+}
+
+async function mountTilt(
+  config: AdaptiveCoverProTileCardConfig,
+  hass: HomeAssistant,
+): Promise<CardLike> {
+  const el = makeCard();
+  el.setConfig(config);
+  el.hass = hass;
+  document.body.appendChild(el);
+  el._registry = TILT_REGISTRY;
+  await el.updateComplete;
+  return el;
+}
+
 describe('adaptive-cover-pro-tile-card setConfig', () => {
   it('throws when entry_id is missing', () => {
     const el = makeCard();
@@ -175,6 +208,36 @@ describe('adaptive-cover-pro-tile-card render', () => {
     // cover.left has state 'open' in the fixture; no localizer is mocked so
     // formatCoverState falls back to capitalizing the raw state.
     expect(root.querySelector('.position')?.textContent?.trim()).toBe('Open · 42%');
+  });
+
+  it('renders the mini tilt bar for a dual-axis venetian cover', async () => {
+    const el = await mountTilt({ type: TYPE, entry_id: ENTRY }, tiltHass());
+    const tilt = el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
+      actual: number | null;
+      target: number | null;
+    };
+    expect(tilt).not.toBeNull();
+    expect(tilt.actual).toBe(35);
+    expect(tilt.target).toBe(70);
+  });
+
+  it('omits the tilt bar when show_tilt is false', async () => {
+    const el = await mountTilt({ type: TYPE, entry_id: ENTRY, show_tilt: false }, tiltHass());
+    expect(el.shadowRoot!.querySelector('acp-tilt-bar')).toBeNull();
+  });
+
+  it('calls adaptive_cover_pro.set_tilt when the tilt bar requests a value', async () => {
+    const callService = vi.fn();
+    const el = await mountTilt({ type: TYPE, entry_id: ENTRY }, tiltHass(callService));
+    el.shadowRoot!.querySelector('acp-tilt-bar')!.dispatchEvent(
+      new CustomEvent('acp-tilt-set', { detail: 80, bubbles: true }),
+    );
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_tilt',
+      { tilt: 80 },
+      { entity_id: 'cover.left' },
+    );
   });
 
   it('renders only the percentage when show_state is false (legacy behavior)', async () => {
