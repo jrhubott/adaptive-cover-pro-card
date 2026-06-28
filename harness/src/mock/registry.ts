@@ -34,6 +34,9 @@ export function buildRegistry(entries: HarnessEntry[]): EntityRegistryEntry[] {
   const out: EntityRegistryEntry[] = [];
   for (const entry of entries) {
     for (const spec of ROLE_SPECS) {
+      // The Cover_Tilt sensor only exists for dual-axis venetian covers — its
+      // presence is the card's dual-axis gate, so don't register it elsewhere.
+      if (spec.role === 'target_tilt_sensor' && entry.cover_type !== 'cover_venetian') continue;
       const entity_id = `${spec.platform}.${entityObjectId(entry.entry_id, spec.suffix)}`;
       out.push({
         entity_id,

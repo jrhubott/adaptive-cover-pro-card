@@ -44,6 +44,7 @@ import { t } from './lib/i18n';
 import { tooltip, setTooltipDefaults } from './lib/tooltip';
 
 import './components/tile-badge';
+import './components/tilt-bar';
 import './components/more-info-dialog';
 import './adaptive-cover-pro-tile-card-editor';
 
@@ -280,6 +281,12 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const calculatedPosition = this._currentPosition(discovered);
     const reportedPosition = this._liveCoverPosition(cover);
     const livePosition = reportedPosition ?? calculatedPosition;
+    // Dual-axis (venetian) entries expose the Cover_Tilt sensor. The detailed
+    // layout gets a mini tilt bar; one-line folds tilt into the readout.
+    const dualAxis = !!discovered.entities.target_tilt_sensor;
+    const showTilt = cfg.show_tilt !== false && dualAxis;
+    const liveTilt = this._liveTilt(cover);
+    const tiltTarget = this._tiltTarget(discovered);
     // When the cover reports its position, disable the control that can't do
     // anything: open (↑) at fully-open, close (↓) at fully-closed. Covers that
     // don't report a position leave both enabled (gate stays on `!cover`).
@@ -340,7 +347,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const inlineWinnerBadge = !(showAutoBadge && winnerKind === 'auto');
     const stateText = showState ? formatCoverState(this.hass, cover) : null;
     const positionText = showPosition && livePosition !== null ? formatPercent(livePosition) : null;
-    const labelParts = [stateText, positionText].filter((p): p is string => !!p);
+    // One-line has no room for the bar, so fold tilt into the readout as ⟂30%.
+    const tiltText =
+      showTilt && !detailed && liveTilt !== null ? `⟂${formatPercent(liveTilt)}` : null;
+    const labelParts = [stateText, positionText, tiltText].filter((p): p is string => !!p);
     const hasStateLabel = !!stateText;
 
     const activeFloor = resolveActiveMinModeFloor(traceAttrs, this.hass.states, calculatedPosition);
@@ -400,7 +410,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
     return html`
       <div
-        class=${`tile-body${detailed ? ' detailed' : ''}${hasBottomSummary ? ' has-summary' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip ? ' has-floor-chip' : ''}`}
+        class=${`tile-body${detailed ? ' detailed' : ''}${hasBottomSummary ? ' has-summary' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip ? ' has-floor-chip' : ''}${showTilt && detailed ? ' has-tilt' : ''}`}
         role=${inert ? 'group' : 'button'}
         tabindex=${inert ? -1 : 0}
         @pointerdown=${this._onPointerDown}
@@ -432,6 +442,22 @@ export class AdaptiveCoverProTileCard extends LitElement {
               ${positionTpl}${floorChipTpl}${inlineWinnerBadge ? badgeTpl : nothing}
             </div>`
           : html`${positionTpl}${floorChipTpl}`}
+        ${showTilt && detailed
+          ? html`<div
+              class="tilt-line"
+              @click=${this._stop}
+              @pointerdown=${this._stop}
+              @pointerup=${this._stop}
+            >
+              <acp-tilt-bar
+                layout="tile"
+                .hass=${this.hass}
+                .actual=${liveTilt}
+                .target=${tiltTarget}
+                @acp-tilt-set=${(e: CustomEvent<number>) => this._setTilt(cover, e.detail)}
+              ></acp-tilt-bar>
+            </div>`
+          : nothing}
         ${showControls
           ? html`<div class="controls" @click=${this._stop} @pointerdown=${this._stop}>
               <button
@@ -537,6 +563,26 @@ export class AdaptiveCoverProTileCard extends LitElement {
   private _stopCover(cover: string | undefined): void {
     if (!cover) return;
     this.hass.callService(INTEGRATION_DOMAIN, 'stop', {}, { entity_id: cover });
+  }
+
+  private _setTilt(cover: string | undefined, tilt: number): void {
+    if (!cover) return;
+    this.hass.callService(INTEGRATION_DOMAIN, 'set_tilt', { tilt }, { entity_id: cover });
+  }
+
+  /** Solar tilt target (0–100) from the dual-axis `Cover_Tilt` sensor, else null. */
+  private _tiltTarget(discovered: DiscoveredEntities): number | null {
+    const id = discovered.entities.target_tilt_sensor;
+    if (!id) return null;
+    const v = parseFloat(this.hass.states[id]?.state ?? '');
+    return Number.isNaN(v) ? null : v;
+  }
+
+  /** Live slat position for a cover from its `current_tilt_position` attribute. */
+  private _liveTilt(cover: string | undefined): number | null {
+    if (!cover) return null;
+    const v = this.hass.states[cover]?.attributes?.current_tilt_position;
+    return typeof v === 'number' && !Number.isNaN(v) ? v : null;
   }
 
   private _resume(discovered: DiscoveredEntities): void {
@@ -743,6 +789,24 @@ export class AdaptiveCoverProTileCard extends LitElement {
       grid-template-areas:
         'icon label       auto-line   controls'
         'icon detail-line detail-line controls';
+    }
+    /* Dual-axis venetian: add a third full-width row for the mini tilt bar,
+       beneath the detail line and spanning under the controls column. */
+    .tile-body.detailed.has-tilt,
+    .tile-body.detailed.has-tilt.has-state-label {
+      grid-template-rows: auto auto auto;
+      /* The tilt row skips the icon column so "TILT" aligns with the state text
+         ("open · 60%") rather than the icon. */
+      grid-template-areas:
+        'icon label       auto-line   controls'
+        'icon detail-line detail-line controls'
+        '.    tilt-line   tilt-line   tilt-line';
+    }
+    .tilt-line {
+      grid-area: tilt-line;
+      min-width: 0;
+      margin-top: 2px;
+      cursor: default;
     }
     .tile-body.detailed.has-summary .label {
       display: flex;

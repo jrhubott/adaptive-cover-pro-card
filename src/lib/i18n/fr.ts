@@ -152,6 +152,10 @@ export const fr: EnDict = {
     target_tooltip: 'Cible {pct}%',
     target_tooltip_override:
       'Cible solaire théorique {pct}% — le store est maintenu par la commande manuelle',
+    tilt_title: 'Inclinaison',
+    tilt_target: 'Inclinaison : {pct}',
+    tilt_click_to_set: "Cliquer pour définir l'inclinaison",
+    tilt_target_tooltip: 'Cible inclinaison {pct}%',
   },
   decision: {
     placeholder: "La trace de décision n'est pas encore renseignée.",

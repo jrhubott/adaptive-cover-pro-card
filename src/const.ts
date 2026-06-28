@@ -219,6 +219,7 @@ export const BADGE_ICONS: Record<BadgeKind, string> = {
 /** Logical slots the card binds to. */
 export type EntityRole =
   | 'target_position_sensor'
+  | 'target_tilt_sensor'
   | 'sun_sensor'
   | 'start_sensor'
   | 'end_sensor'
@@ -283,6 +284,9 @@ export function resolveControlFlags(
 export const UNIQUE_ID_ROLES: Record<string, EntityRole> = {
   // sensor
   'sensor:Cover_Position': 'target_position_sensor',
+  // Venetian dual-axis only — present when the integration's cover type exposes
+  // a tilt (slat-angle) axis. Its presence is the card's dual-axis gate.
+  'sensor:Cover_Tilt': 'target_tilt_sensor',
   'sensor:sun_position': 'sun_sensor',
   'sensor:Start Sun': 'start_sensor',
   'sensor:End Sun': 'end_sensor',

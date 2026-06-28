@@ -464,6 +464,14 @@ export class AcpHarnessControlPanel extends LitElement {
             covers: e.covers.map((c) => ({ ...c, position: v })),
           }),
         )}
+        ${e.cover_type === 'cover_venetian'
+          ? this._numberSlider('Target tilt %', e.target_tilt ?? 50, 0, 100, 1, (v) =>
+              this._patchEntry(idx, {
+                target_tilt: v,
+                covers: e.covers.map((c) => ({ ...c, tilt: v })),
+              }),
+            )
+          : ''}
         ${this._renderCovers(e, idx)}
       </fieldset>
     `;
@@ -509,6 +517,7 @@ export class AcpHarnessControlPanel extends LitElement {
                 entity_id: `cover.${e.entry_id}_${n}`,
                 friendly_name: `${e.title} ${n}`,
                 position: e.target_position,
+                tilt: e.target_tilt ?? 50,
               };
               this._patchEntry(idx, { covers: [...e.covers, next] });
             }}
@@ -533,6 +542,7 @@ export class AcpHarnessControlPanel extends LitElement {
                 type="number"
                 min="0"
                 max="100"
+                title="Position %"
                 .value=${String(c.position ?? '')}
                 @change=${(ev: Event) => {
                   const v = (ev.target as HTMLInputElement).value;
@@ -542,6 +552,22 @@ export class AcpHarnessControlPanel extends LitElement {
                   this._patchEntry(idx, { covers });
                 }}
               />
+              ${e.cover_type === 'cover_venetian'
+                ? html`<input
+                    type="number"
+                    min="0"
+                    max="100"
+                    title="Tilt %"
+                    .value=${String(c.tilt ?? '')}
+                    @change=${(ev: Event) => {
+                      const v = (ev.target as HTMLInputElement).value;
+                      const covers = e.covers.map((cc, i) =>
+                        i === ci ? { ...cc, tilt: v === '' ? null : parseInt(v, 10) } : cc,
+                      );
+                      this._patchEntry(idx, { covers });
+                    }}
+                  />`
+                : ''}
               ${e.covers.length > 1
                 ? html`<button
                     class="ghost tiny"
@@ -969,6 +995,7 @@ export class AcpHarnessControlPanel extends LitElement {
             'show_decision_summary',
             'show_controls',
             'show_badge',
+            'show_tilt',
             'show_compass',
             'show_elevation_chart',
             'show_solar_calc',

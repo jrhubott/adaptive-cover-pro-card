@@ -142,6 +142,10 @@ export const en = {
     click_to_set: 'Click to set position',
     target_tooltip: 'Target {pct}%',
     target_tooltip_override: 'Would-be solar target {pct}% — cover is held by manual override',
+    tilt_title: 'Tilt',
+    tilt_target: 'Tilt: {pct}',
+    tilt_click_to_set: 'Click to set tilt',
+    tilt_target_tooltip: 'Tilt target {pct}%',
   },
   decision: {
     placeholder: 'Decision trace not yet populated.',
