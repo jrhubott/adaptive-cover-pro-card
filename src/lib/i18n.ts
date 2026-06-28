@@ -1,9 +1,10 @@
 import { en, type EnDict } from './i18n/en';
 import { fr } from './i18n/fr';
+import { de } from './i18n/de';
 
-export type Locale = 'en' | 'fr';
+export type Locale = 'en' | 'fr' | 'de';
 
-const TABLES: Record<Locale, EnDict> = { en, fr };
+const TABLES: Record<Locale, EnDict> = { en, fr, de };
 
 interface HassLocaleLike {
   language?: string;

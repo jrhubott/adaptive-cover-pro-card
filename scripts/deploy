@@ -70,26 +70,36 @@ if $DRY_RUN; then
 fi
 
 # ── Compute dev version ───────────────────────────────────────────────────────
+# Carry the 7-char commit sha as SemVer build metadata on the card's real
+# version (e.g. 2.9.0+873727b) so the deployed version stays a valid SemVer that
+# shows both the release it's based on and the exact commit. Mirrors how the
+# adaptive-cover-pro integration repo's deploy script stamps its manifest.json.
+BASE_VERSION="$(sed -n "s/.*CARD_VERSION = '\([^']*\)'.*/\1/p" src/const.ts | head -1)"
+BASE_VERSION="${BASE_VERSION%%+*}"   # strip any prior build metadata
 GIT_HASH="$(git rev-parse --short=7 HEAD 2>/dev/null || echo "unknown")"
+DEV_SHA="${GIT_HASH}"
+IS_DIRTY=false
 if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
-    GIT_HASH="${GIT_HASH}-dirty"
+    IS_DIRTY=true
+    DEV_SHA="${DEV_SHA}.dirty"
 fi
-DEV_VERSION="${GIT_HASH}"
 
 # For dirty builds, append an incrementing counter persisted in .dirty-deploy
-# (gitignored) so repeated deploys of the same dirty tree get unique versions.
+# (gitignored) so repeated deploys of the same dirty tree get unique versions —
+# the Lovelace resource URL below is cache-busted on this version.
 _DIRTY_N=""
-if [[ "$GIT_HASH" == *"-dirty" ]]; then
-    _BASE_HASH="${GIT_HASH%%-dirty}"
+if $IS_DIRTY; then
     _DIRTY_N=1
     if [[ -f ".dirty-deploy" ]]; then
         IFS=: read -r _SAVED_HASH _SAVED_N < ".dirty-deploy"
-        if [[ "$_SAVED_HASH" == "$_BASE_HASH" ]]; then
+        if [[ "$_SAVED_HASH" == "$GIT_HASH" ]]; then
             _DIRTY_N="${_SAVED_N:-1}"
         fi
     fi
-    DEV_VERSION="${DEV_VERSION}.${_DIRTY_N}"
+    DEV_SHA="${DEV_SHA}.${_DIRTY_N}"
 fi
+
+DEV_VERSION="${BASE_VERSION}+${DEV_SHA}"
 
 # ── Cleanup on exit ──────────────────────────────────────────────────────────
 cleanup() {
@@ -232,8 +242,8 @@ else
     echo "==> Deploy complete (version ${DEV_VERSION})."
 
     # ── Persist the dirty-build deploy counter ────────────────────────────────
-    if [[ "$GIT_HASH" == *"-dirty" ]]; then
-        echo "${_BASE_HASH}:$((_DIRTY_N + 1))" > ".dirty-deploy"
+    if $IS_DIRTY; then
+        echo "${GIT_HASH}:$((_DIRTY_N + 1))" > ".dirty-deploy"
     fi
 
     # ── Bump Lovelace resource URL so HA serves the new bundle ───────────────

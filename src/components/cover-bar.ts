@@ -9,6 +9,7 @@ import { formatPercent } from '../lib/formatters';
 import { INTEGRATION_DOMAIN } from '../const';
 import { t } from '../lib/i18n';
 import { tooltip } from '../lib/tooltip';
+import './tilt-bar';
 
 @customElement('acp-cover-bar')
 export class CoverBar extends LitElement {
@@ -27,10 +28,14 @@ export class CoverBar extends LitElement {
     if (changed.size > 1 || !changed.has('hass')) return true;
     const old = changed.get('hass') as HomeAssistant | undefined;
     const e = this.discovered?.entities;
+    // Tilt actuals live on the cover entities (`current_tilt_position`), not on a
+    // sensor attribute, so the managed covers must be in the watch list too.
     return entityStateChanged(old, this.hass, [
       e?.target_position_sensor,
+      e?.target_tilt_sensor,
       e?.position_mismatch_binary,
       e?.manual_override_binary,
+      ...(this.discovered?.managed_covers ?? []),
     ]);
   }
 
@@ -73,6 +78,25 @@ export class CoverBar extends LitElement {
     );
   }
 
+  private _setTilt(entityId: string, tilt: number): void {
+    this.hass.callService(INTEGRATION_DOMAIN, 'set_tilt', { tilt }, { entity_id: entityId });
+  }
+
+  /** Solar tilt target (0–100) from the dual-axis `Cover_Tilt` sensor, or null
+   *  when this entry is not dual-axis (sensor absent / non-numeric). */
+  private _tiltTarget(): number | null {
+    const id = this.discovered.entities.target_tilt_sensor;
+    if (!id) return null;
+    const v = parseFloat(this.hass.states[id]?.state ?? '');
+    return Number.isNaN(v) ? null : v;
+  }
+
+  /** Live slat position for a cover from its `current_tilt_position` attribute. */
+  private _actualTilt(entityId: string): number | null {
+    const v = this.hass.states[entityId]?.attributes?.current_tilt_position;
+    return typeof v === 'number' ? v : null;
+  }
+
   protected render(): TemplateResult | typeof nothing {
     if (!this.hass || !this.discovered) return nothing;
     const { target, covers } = this._target();
@@ -85,18 +109,45 @@ export class CoverBar extends LitElement {
     if (entries.length === 0) {
       return html`<div class="placeholder">${t('covers.placeholder', this.hass)}</div>`;
     }
+    // Dual-axis (venetian) entries expose the Cover_Tilt sensor — gate the tilt
+    // row on its discovery, not on the target value (which is null at night).
+    const dualAxis = !!this.discovered.entities.target_tilt_sensor;
+    const tiltTarget = this._tiltTarget();
     return html`
       <div class="wrap" style=${this.coverColor ? `--acp-cover-color:${this.coverColor}` : nothing}>
         <div class="head">
           <span class="label">${t('covers.title', this.hass)}</span>
-          <span class="target"
-            >${t(overrideDivergence ? 'covers.target_solar' : 'covers.target', this.hass, {
-              pct: formatPercent(target),
-            })}</span
-          >
+          <span class="targets">
+            <span class="target"
+              >${t(overrideDivergence ? 'covers.target_solar' : 'covers.target', this.hass, {
+                pct: formatPercent(target),
+              })}</span
+            >
+            ${dualAxis
+              ? html`<span class="target"
+                  >${t('covers.tilt_target', this.hass, {
+                    pct: formatPercent(tiltTarget),
+                  })}</span
+                >`
+              : nothing}
+          </span>
         </div>
-        ${entries.map(([id, actual]) =>
-          this._bar(id, actual, target, mismatched.has(id), overrideDivergence),
+        ${entries.map(
+          ([id, actual]) => html`
+            <div class="cover-group">
+              ${this._bar(id, actual, target, mismatched.has(id), overrideDivergence)}
+              ${dualAxis
+                ? html`<acp-tilt-bar
+                    .hass=${this.hass}
+                    .actual=${this._actualTilt(id)}
+                    .target=${tiltTarget}
+                    .coverColor=${this.coverColor}
+                    .compact=${this.compact}
+                    @acp-tilt-set=${(e: CustomEvent<number>) => this._setTilt(id, e.detail)}
+                  ></acp-tilt-bar>`
+                : nothing}
+            </div>
+          `,
         )}
       </div>
     `;
@@ -172,8 +223,23 @@ export class CoverBar extends LitElement {
       letter-spacing: 0.05em;
       text-transform: uppercase;
     }
+    .targets {
+      display: flex;
+      gap: 12px;
+    }
     .target {
       font-variant-numeric: tabular-nums;
+    }
+    /* Position + (optional) tilt row stack for one cover. */
+    .cover-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .cover-group acp-tilt-bar {
+      /* Indent the tilt row under the position track so the two read as one
+         cover's two axes. Aligns roughly with the position bar's track column. */
+      padding-left: 0;
     }
     .cover {
       display: grid;

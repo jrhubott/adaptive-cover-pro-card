@@ -317,6 +317,83 @@ describe('acp-cover-bar target marker clamp at extremes — issue #158 (trailing
   });
 });
 
+describe('acp-cover-bar dual-axis tilt row', () => {
+  function dualAxisHass(callService = vi.fn()): HomeAssistant {
+    return {
+      states: {
+        'sensor.cover_position': {
+          state: '60',
+          attributes: { actual_positions: { 'cover.a': 60 } },
+        },
+        'sensor.cover_tilt': { state: '70', attributes: {} },
+        'cover.a': {
+          state: 'open',
+          attributes: { friendly_name: 'Cover A', current_tilt_position: 35 },
+        },
+      },
+      callService,
+    } as unknown as HomeAssistant;
+  }
+
+  const dualDiscovered: DiscoveredEntities = {
+    ...baseDiscovered,
+    cover_type: 'cover_venetian',
+    entities: {
+      target_position_sensor: 'sensor.cover_position',
+      target_tilt_sensor: 'sensor.cover_tilt',
+    },
+  };
+
+  async function mount(hass: HomeAssistant, discovered: DiscoveredEntities): Promise<CoverBarLike> {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    document.body.appendChild(el);
+    el.hass = hass;
+    el.discovered = discovered;
+    await el.updateComplete;
+    return el;
+  }
+
+  it('renders a tilt bar with the cover’s current_tilt_position and solar target', async () => {
+    const el = await mount(dualAxisHass(), dualDiscovered);
+    const tilt = el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
+      actual: number | null;
+      target: number | null;
+    };
+    expect(tilt).not.toBeNull();
+    expect(tilt.actual).toBe(35);
+    expect(tilt.target).toBe(70);
+  });
+
+  it('omits the tilt bar when the entry has no Cover_Tilt sensor', async () => {
+    const el = await mount(dualAxisHass(), {
+      ...baseDiscovered,
+      entities: { target_position_sensor: 'sensor.cover_position' },
+    });
+    expect(el.shadowRoot!.querySelector('acp-tilt-bar')).toBeNull();
+  });
+
+  it('shows the tilt target alongside the position target in the header', async () => {
+    const el = await mount(dualAxisHass(), dualDiscovered);
+    const targets = el.shadowRoot!.querySelector('.head .targets')!.textContent!;
+    expect(targets).toContain('60');
+    expect(targets).toContain('Tilt');
+    expect(targets).toContain('70');
+  });
+
+  it('calls adaptive_cover_pro.set_tilt when the tilt bar requests a value', async () => {
+    const callService = vi.fn();
+    const el = await mount(dualAxisHass(callService), dualDiscovered);
+    const tilt = el.shadowRoot!.querySelector('acp-tilt-bar')!;
+    tilt.dispatchEvent(new CustomEvent('acp-tilt-set', { detail: 80, bubbles: true }));
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_tilt',
+      { tilt: 80 },
+      { entity_id: 'cover.a' },
+    );
+  });
+});
+
 describe('acp-cover-bar track-click → set_position', () => {
   it('calls adaptive_cover_pro.set_position when the track is clicked', async () => {
     const callService = vi.fn();

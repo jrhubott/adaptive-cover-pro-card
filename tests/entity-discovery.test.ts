@@ -168,6 +168,32 @@ describe('discoverEntities (unique_id based)', () => {
     expect(d!.device_id).toBe('acp_device_living');
   });
 
+  it('resolves the dual-axis Cover_Tilt sensor to the target_tilt_sensor role', () => {
+    const reg = makeRegistry();
+    reg.push({
+      entity_id: 'sensor.living_room_blinds_cover_tilt',
+      unique_id: `${ENTRY_ID}_Cover_Tilt`,
+      platform: 'adaptive_cover_pro',
+      config_entry_id: ENTRY_ID,
+      device_id: 'acp_device_living',
+    });
+    const d = discoverEntities(
+      makeHass(),
+      { type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY_ID },
+      reg,
+    );
+    expect(d!.entities.target_tilt_sensor).toBe('sensor.living_room_blinds_cover_tilt');
+  });
+
+  it('leaves target_tilt_sensor unset for single-axis covers (no Cover_Tilt entity)', () => {
+    const d = discoverEntities(
+      makeHass(),
+      { type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY_ID },
+      makeRegistry(),
+    );
+    expect(d!.entities.target_tilt_sensor).toBeUndefined();
+  });
+
   it('disambiguates manual_override binary vs Manual Override switch by platform', () => {
     const d = discoverEntities(
       makeHass(),

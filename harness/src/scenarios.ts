@@ -76,6 +76,7 @@ function defaultTile(): HarnessConfig['tile'] {
     show_decision_summary: false,
     show_controls: true,
     show_badge: true,
+    show_tilt: true,
     badges: defaultBadges(),
     show_compass: true,
     show_elevation_chart: true,
@@ -99,11 +100,13 @@ function makeEntry(
     max_elevation: overrides.max_elevation,
     blind_spot_range: overrides.blind_spot_range,
     target_position: overrides.target_position ?? 40,
+    target_tilt: overrides.target_tilt ?? 50,
     covers: overrides.covers ?? [
       {
         entity_id: `cover.${overrides.entry_id}_main`,
         friendly_name: `${overrides.title ?? 'Living Room'} cover`,
         position: 40,
+        tilt: 50,
       },
     ],
     color: overrides.color ?? '#ff7043',
@@ -174,6 +177,7 @@ function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): Harne
     playing: false,
     scenario: 'summer-noon-south',
     theme: 'light',
+    language: 'en',
     entries: [makeEntry({ entry_id: 'south_window', title: 'Living Room', window_azimuth: 180 })],
     decisionMode: 'derived',
     scriptedWinner: 'solar',
@@ -205,6 +209,36 @@ export const SCENARIOS: Scenario[] = [
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'summer-noon-south';
+      return c;
+    },
+  },
+  {
+    id: 'venetian-dual-axis',
+    label: 'Venetian — dual-axis (position + tilt)',
+    description:
+      'A venetian blind exposing the new tilt (slat) axis. The cover bar shows a second Tilt bar under Position, and the tile card shows the mini tilt bar. Actual tilt (35%) diverges from the solar tilt target (70%) so the marker is offset from the fill. Drag either tilt track → set_tilt fires; switch the cover type off venetian to confirm the tilt UI disappears.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'venetian-dual-axis';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Living Room',
+          cover_type: 'cover_venetian',
+          window_azimuth: 180,
+          color: '#26a69a',
+          target_position: 60,
+          target_tilt: 70,
+          covers: [
+            {
+              entity_id: 'cover.south_window_main',
+              friendly_name: 'Living Room venetian',
+              position: 60,
+              tilt: 35,
+            },
+          ],
+        }),
+      ];
       return c;
     },
   },

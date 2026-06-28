@@ -103,6 +103,20 @@ export class AcpHarnessControlPanel extends LitElement {
         </select>
       </label>
       <label class="row">
+        <span>Language</span>
+        <select
+          @change=${(e: Event) =>
+            this._emit({
+              ...this.config,
+              language: (e.target as HTMLSelectElement).value as 'en' | 'fr' | 'de',
+            })}
+        >
+          <option value="en" ?selected=${this.config.language === 'en'}>English</option>
+          <option value="fr" ?selected=${this.config.language === 'fr'}>Français</option>
+          <option value="de" ?selected=${this.config.language === 'de'}>Deutsch</option>
+        </select>
+      </label>
+      <label class="row">
         <span>Tooltips</span>
         <select
           @change=${(e: Event) =>
@@ -164,13 +178,13 @@ export class AcpHarnessControlPanel extends LitElement {
     const id = (e.target as HTMLSelectElement).value;
     const s = SCENARIOS.find((x) => x.id === id);
     if (!s) return;
-    this._emit({ ...s.build(), theme: this.config.theme });
+    this._emit({ ...s.build(), theme: this.config.theme, language: this.config.language });
   };
 
   private _onReset = (): void => {
     const s = SCENARIOS.find((x) => x.id === this.config.scenario);
     if (!s) return;
-    this._emit({ ...s.build(), theme: this.config.theme });
+    this._emit({ ...s.build(), theme: this.config.theme, language: this.config.language });
   };
 
   private _renderLocation(): TemplateResult {
@@ -450,6 +464,14 @@ export class AcpHarnessControlPanel extends LitElement {
             covers: e.covers.map((c) => ({ ...c, position: v })),
           }),
         )}
+        ${e.cover_type === 'cover_venetian'
+          ? this._numberSlider('Target tilt %', e.target_tilt ?? 50, 0, 100, 1, (v) =>
+              this._patchEntry(idx, {
+                target_tilt: v,
+                covers: e.covers.map((c) => ({ ...c, tilt: v })),
+              }),
+            )
+          : ''}
         ${this._renderCovers(e, idx)}
       </fieldset>
     `;
@@ -495,6 +517,7 @@ export class AcpHarnessControlPanel extends LitElement {
                 entity_id: `cover.${e.entry_id}_${n}`,
                 friendly_name: `${e.title} ${n}`,
                 position: e.target_position,
+                tilt: e.target_tilt ?? 50,
               };
               this._patchEntry(idx, { covers: [...e.covers, next] });
             }}
@@ -519,6 +542,7 @@ export class AcpHarnessControlPanel extends LitElement {
                 type="number"
                 min="0"
                 max="100"
+                title="Position %"
                 .value=${String(c.position ?? '')}
                 @change=${(ev: Event) => {
                   const v = (ev.target as HTMLInputElement).value;
@@ -528,6 +552,22 @@ export class AcpHarnessControlPanel extends LitElement {
                   this._patchEntry(idx, { covers });
                 }}
               />
+              ${e.cover_type === 'cover_venetian'
+                ? html`<input
+                    type="number"
+                    min="0"
+                    max="100"
+                    title="Tilt %"
+                    .value=${String(c.tilt ?? '')}
+                    @change=${(ev: Event) => {
+                      const v = (ev.target as HTMLInputElement).value;
+                      const covers = e.covers.map((cc, i) =>
+                        i === ci ? { ...cc, tilt: v === '' ? null : parseInt(v, 10) } : cc,
+                      );
+                      this._patchEntry(idx, { covers });
+                    }}
+                  />`
+                : ''}
               ${e.covers.length > 1
                 ? html`<button
                     class="ghost tiny"
@@ -955,6 +995,7 @@ export class AcpHarnessControlPanel extends LitElement {
             'show_decision_summary',
             'show_controls',
             'show_badge',
+            'show_tilt',
             'show_compass',
             'show_elevation_chart',
             'show_solar_calc',

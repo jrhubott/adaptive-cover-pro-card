@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { en } from '../src/lib/i18n/en';
 import { fr } from '../src/lib/i18n/fr';
+import { de } from '../src/lib/i18n/de';
 import { resolveLocale, t } from '../src/lib/i18n';
 
 describe('resolveLocale', () => {
@@ -25,8 +26,16 @@ describe('resolveLocale', () => {
     expect(resolveLocale({ locale: { language: 'FR-ca' } })).toBe('fr');
   });
 
+  it('resolves the German locale', () => {
+    expect(resolveLocale({ locale: { language: 'de' } })).toBe('de');
+  });
+
+  it('strips the region tag from German BCP-47 codes', () => {
+    expect(resolveLocale({ locale: { language: 'de-AT' } })).toBe('de');
+  });
+
   it('falls back to "en" for an unknown locale', () => {
-    expect(resolveLocale({ locale: { language: 'de' } })).toBe('en');
+    expect(resolveLocale({ locale: { language: 'es' } })).toBe('en');
   });
 
   it('falls back to "en" for an empty locale string', () => {
@@ -45,6 +54,11 @@ describe('t', () => {
 
   it('returns the FR table value for fr locale', () => {
     expect(t('handler.solar', { locale: { language: 'fr' } })).toBe('Suivi solaire');
+  });
+
+  it('returns the DE table value for de locale', () => {
+    expect(t('handler.solar', { locale: { language: 'de' } })).toBe(de.handler.solar);
+    expect(de.handler.solar).not.toBe(en.handler.solar);
   });
 
   it('returns the key name when neither table has the entry for fr locale', () => {
@@ -142,14 +156,41 @@ describe('version footer i18n', () => {
 
 describe('locale-table parity', () => {
   // Compile-time parity comes from `const fr: typeof en = {...}` in fr.ts. Runtime check is defense-in-depth.
+  const flat = (o: unknown, prefix = ''): string[] =>
+    typeof o === 'object' && o !== null && !Array.isArray(o)
+      ? Object.entries(o as Record<string, unknown>).flatMap(([k, v]) =>
+          flat(v, prefix ? `${prefix}.${k}` : k),
+        )
+      : [prefix];
+
   it('FR has exactly the same key paths as EN', () => {
-    const flat = (o: unknown, prefix = ''): string[] =>
-      typeof o === 'object' && o !== null && !Array.isArray(o)
-        ? Object.entries(o as Record<string, unknown>).flatMap(([k, v]) =>
-            flat(v, prefix ? `${prefix}.${k}` : k),
-          )
-        : [prefix];
     expect(flat(fr).sort()).toEqual(flat(en).sort());
+  });
+
+  it('DE has exactly the same key paths as EN', () => {
+    expect(flat(de).sort()).toEqual(flat(en).sort());
+  });
+
+  const leaves = (o: unknown, prefix = ''): Array<[string, unknown]> =>
+    typeof o === 'object' && o !== null && !Array.isArray(o)
+      ? Object.entries(o as Record<string, unknown>).flatMap(([k, v]) =>
+          leaves(v, prefix ? `${prefix}.${k}` : k),
+        )
+      : [[prefix, o]];
+
+  it('every DE value is a non-empty string', () => {
+    for (const [key, value] of leaves(de)) {
+      expect(typeof value, key).toBe('string');
+      expect((value as string).length, key).toBeGreaterThan(0);
+    }
+  });
+
+  it('DE placeholder tokens match EN for every interpolated key', () => {
+    const tokens = (s: string): string[] => (s.match(/\{(\w+)\}/g) ?? []).sort();
+    const enLeaves = Object.fromEntries(leaves(en) as Array<[string, string]>);
+    for (const [key, value] of leaves(de) as Array<[string, string]>) {
+      expect(tokens(value), key).toEqual(tokens(enLeaves[key]));
+    }
   });
 });
 
