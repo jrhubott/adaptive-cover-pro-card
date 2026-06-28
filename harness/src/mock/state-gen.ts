@@ -128,6 +128,17 @@ function addEntryStates(
     raw_calculated_position: decision.position,
   });
 
+  // Dual-axis venetian: the Cover_Tilt sensor publishes the solar slat target
+  // (0–100, no attributes). Its presence is the card's dual-axis gate, so only
+  // emit it for venetian entries (matches the gated registry entry).
+  if (entry.cover_type === 'cover_venetian') {
+    const tiltTarget = entry.target_tilt ?? 50;
+    states[id('target_tilt_sensor')] = mkState(id('target_tilt_sensor'), String(tiltTarget), {
+      friendly_name: `${entry.title} Cover Tilt`,
+      unit_of_measurement: '%',
+    });
+  }
+
   states[id('sun_sensor')] = mkState(id('sun_sensor'), sun.azimuth.toFixed(2), {
     friendly_name: `${entry.title} Sun Position`,
     elevation: sun.elevation,
@@ -390,14 +401,21 @@ function addEntryStates(
 }
 
 function addCoverStates(states: Record<string, HassState>, entry: HarnessEntry): void {
+  const dualAxis = entry.cover_type === 'cover_venetian';
   for (const c of entry.covers) {
     const pos = c.position ?? entry.target_position;
     const state = pos === 0 ? 'closed' : pos === 100 ? 'open' : 'open';
+    // Venetian covers carry a live slat angle the card reads directly off the
+    // cover entity (the integration does not aggregate tilts into a sensor).
+    const tilt = dualAxis ? (c.tilt ?? entry.target_tilt ?? 50) : undefined;
     states[c.entity_id] = mkState(c.entity_id, state, {
       friendly_name: c.friendly_name,
       current_position: c.position,
-      supported_features: 15,
-      device_class: 'shade',
+      ...(tilt !== undefined ? { current_tilt_position: tilt } : {}),
+      // Bit 16 (SET_TILT_POSITION) added for venetian so the cover advertises
+      // tilt support alongside the position features (15).
+      supported_features: dualAxis ? 143 : 15,
+      device_class: dualAxis ? 'blind' : 'shade',
     });
   }
 }

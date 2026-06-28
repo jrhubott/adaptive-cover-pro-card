@@ -69,6 +69,10 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   show_decision_summary?: boolean;
   /** Render the ↑■▼ controls row (default true). */
   show_controls?: boolean;
+  /** Render the mini tilt (slat-angle) bar for dual-axis venetian covers
+   *  (default true). Self-hides when the entry exposes no `Cover_Tilt` sensor,
+   *  and on the `one-line` layout (tilt folds into the readout there). */
+  show_tilt?: boolean;
   /** Render the contextual badge (default true). Master switch for the tile
    *  badge — `badges` filters within it. */
   show_badge?: boolean;
@@ -164,7 +168,7 @@ export interface AdaptiveCoverProDecisionCardConfig extends LovelaceCardConfig {
 export interface DiscoveredEntities {
   entry_id: string;
   entry_title: string;
-  cover_type: 'cover_blind' | 'cover_awning' | 'cover_tilt' | string;
+  cover_type: 'cover_blind' | 'cover_awning' | 'cover_tilt' | 'cover_venetian' | string;
   entities: Partial<Record<EntityRole, string>>;
   /** Underlying HA cover entity_ids the integration controls. */
   managed_covers: string[];

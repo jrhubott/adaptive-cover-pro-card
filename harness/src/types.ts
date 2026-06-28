@@ -48,6 +48,9 @@ export interface ManagedCoverCfg {
   friendly_name: string;
   /** Live cover position in 0..100; null = unknown */
   position: number | null;
+  /** Live slat tilt in 0..100 (venetian dual-axis only); null = unknown.
+   *  Emitted as `current_tilt_position` on the cover state. */
+  tilt?: number | null;
 }
 
 export interface HarnessEntry {
@@ -69,6 +72,9 @@ export interface HarnessEntry {
   blind_spot_range?: [number, number];
   /** Target position 0..100 (integration output). */
   target_position: number;
+  /** Solar tilt target 0..100 for venetian dual-axis covers (integration
+   *  output, emitted on the Cover_Tilt sensor). Ignored for other cover types. */
+  target_tilt?: number;
   /** Managed cover entities and their live positions. */
   covers: ManagedCoverCfg[];
   /** Single hex color used in the sky compass legend. */
@@ -173,6 +179,8 @@ export interface TileCardOptions {
   show_decision_summary: boolean;
   show_controls: boolean;
   show_badge: boolean;
+  /** Render the mini tilt bar on dual-axis venetian tiles (default true). */
+  show_tilt: boolean;
   /** Per-kind badge opt-in. All default on; only `false` hides the kind. */
   badges: {
     auto: boolean;

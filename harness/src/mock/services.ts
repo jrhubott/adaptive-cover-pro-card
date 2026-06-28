@@ -59,6 +59,16 @@ export function applyService(
     };
   }
 
+  // adaptive_cover_pro.set_tilt — update the venetian slat target + cover tilt
+  if (key === `${INTEGRATION_DOMAIN}.set_tilt`) {
+    const tilt = typeof data?.tilt === 'number' ? data.tilt : undefined;
+    if (tilt === undefined) return { next: cfg, applied: false };
+    return {
+      next: updateTiltForCover(cfg, target?.entity_id ?? (data?.entity_id as string), tilt),
+      applied: true,
+    };
+  }
+
   // adaptive_cover_pro.stop — leave the position alone but log it.
   if (key === `${INTEGRATION_DOMAIN}.stop`) {
     return { next: cfg, applied: true };
@@ -139,6 +149,27 @@ function bumpTarget(entry: HarnessEntry, pos: number, only?: string): HarnessEnt
     ...entry,
     target_position: pos,
     covers: entry.covers.map((c) => (!only || c.entity_id === only ? { ...c, position: pos } : c)),
+  };
+}
+
+function updateTiltForCover(
+  cfg: HarnessConfig,
+  coverEntityId: string | undefined,
+  tilt: number,
+): HarnessConfig {
+  const bump = (entry: HarnessEntry, only?: string): HarnessEntry => ({
+    ...entry,
+    target_tilt: tilt,
+    covers: entry.covers.map((c) => (!only || c.entity_id === only ? { ...c, tilt } : c)),
+  });
+  if (!coverEntityId) {
+    return { ...cfg, entries: cfg.entries.map((e) => bump(e)) };
+  }
+  return {
+    ...cfg,
+    entries: cfg.entries.map((e) =>
+      e.covers.some((c) => c.entity_id === coverEntityId) ? bump(e, coverEntityId) : e,
+    ),
   };
 }
 
