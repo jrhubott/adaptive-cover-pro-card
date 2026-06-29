@@ -72,8 +72,7 @@ fi
 # ── Compute dev version ───────────────────────────────────────────────────────
 # Carry the 7-char commit sha as SemVer build metadata on the card's real
 # version (e.g. 2.9.0+873727b) so the deployed version stays a valid SemVer that
-# shows both the release it's based on and the exact commit. Mirrors how the
-# adaptive-cover-pro integration repo's deploy script stamps its manifest.json.
+# shows both the release it's based on and the exact commit.
 BASE_VERSION="$(sed -n "s/.*CARD_VERSION = '\([^']*\)'.*/\1/p" src/const.ts | head -1)"
 BASE_VERSION="${BASE_VERSION%%+*}"   # strip any prior build metadata
 GIT_HASH="$(git rev-parse --short=7 HEAD 2>/dev/null || echo "unknown")"
