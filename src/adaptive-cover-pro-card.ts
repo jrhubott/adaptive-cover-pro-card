@@ -202,7 +202,7 @@ export class AdaptiveCoverProCard extends LitElement {
             registryChanged(filterAcp(this._registry, entryId), slice)
           ) {
             this._registry = entries;
-            registryCache.set(entryId, slice);
+            if (slice.length) registryCache.set(entryId, slice);
           }
         } else {
           this._registry = entries;
