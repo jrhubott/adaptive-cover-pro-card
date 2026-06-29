@@ -92,7 +92,7 @@ describe('registryCache.invalidate', () => {
   it('invalidate removes only the target entry', async () => {
     const cache = await getCache();
     cache.set(ENTRY_ID, ENTRIES as never);
-    cache.set(OTHER_ENTRY_ID, [] as never);
+    cache.set(OTHER_ENTRY_ID, ENTRIES as never);
     cache.invalidate(ENTRY_ID);
     expect(cache.get(ENTRY_ID)).toBeNull();
     expect(cache.get(OTHER_ENTRY_ID)).not.toBeNull();
@@ -155,5 +155,47 @@ describe('registryCache schema validation', () => {
       throw new Error('quota exceeded');
     });
     expect(() => cache.set(ENTRY_ID, ENTRIES as never)).not.toThrow();
+  });
+});
+
+describe('registryCache empty-slice guard', () => {
+  it('set with empty entries does not persist a usable cache entry', async () => {
+    const cache = await getCache();
+    cache.set(ENTRY_ID, [] as never);
+    expect(cache.get(ENTRY_ID)).toBeNull();
+  });
+});
+
+describe('registryCache TTL guard', () => {
+  it('get returns null when fetchedAt exceeds the TTL', async () => {
+    const cache = await getCache();
+    const key = `acp-card:registry:v1:${ENTRY_ID}`;
+    mockStorage.setItem(
+      key,
+      JSON.stringify({
+        schemaVersion: 1,
+        cardVersion: '1.0.0',
+        fetchedAt: Date.now() - 61_000,
+        entries: ENTRIES,
+      }),
+    );
+    expect(cache.get(ENTRY_ID)).toBeNull();
+  });
+
+  it('get returns stored entries when fetchedAt is within the TTL', async () => {
+    const cache = await getCache();
+    const key = `acp-card:registry:v1:${ENTRY_ID}`;
+    mockStorage.setItem(
+      key,
+      JSON.stringify({
+        schemaVersion: 1,
+        cardVersion: '1.0.0',
+        fetchedAt: Date.now(),
+        entries: ENTRIES,
+      }),
+    );
+    const result = cache.get(ENTRY_ID);
+    expect(result).not.toBeNull();
+    expect(result!.entries).toEqual(ENTRIES);
   });
 });

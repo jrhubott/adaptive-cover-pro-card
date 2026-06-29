@@ -2,6 +2,7 @@ import { CARD_VERSION } from '../const';
 import type { EntityRegistryEntry } from './entity-registry';
 
 const SCHEMA_VERSION = 1;
+const REGISTRY_CACHE_TTL_MS = 60_000;
 
 function cacheKey(entryId: string): string {
   return `acp-card:registry:v1:${entryId}`;
@@ -21,6 +22,12 @@ export const registryCache = {
       if (!raw) return null;
       const parsed = JSON.parse(raw) as RegistryCacheEntry;
       if (parsed.schemaVersion !== SCHEMA_VERSION) return null;
+      if (!parsed.entries?.length) return null;
+      if (
+        typeof parsed.fetchedAt === 'number' &&
+        Date.now() - parsed.fetchedAt > REGISTRY_CACHE_TTL_MS
+      )
+        return null;
       return parsed;
     } catch {
       return null;
@@ -28,6 +35,7 @@ export const registryCache = {
   },
 
   set(entryId: string, entries: EntityRegistryEntry[]): void {
+    if (entries.length === 0) return;
     try {
       const payload: RegistryCacheEntry = {
         schemaVersion: SCHEMA_VERSION,
