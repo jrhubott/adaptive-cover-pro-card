@@ -249,7 +249,8 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 'summer-noon-south',
     label: 'Summer noon — south window',
-    description: 'High elevation, sun in FOV, solar handler tracking.',
+    description:
+      'High elevation, sun in FOV, solar handler tracking. Issue #200: the Root card header (icon + entry title) is now a tap target too — click it to open the same acp-more-info-dialog the Tile card opens on tap; clicking a header pill (Enabled/Auto) or anywhere in the body still does its own thing and must NOT open the dialog.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'summer-noon-south';

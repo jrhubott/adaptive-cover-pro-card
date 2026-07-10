@@ -53,7 +53,10 @@ export class AcpHarnessCardStage extends LitElement {
         ? html`
             ${this.embed
               ? ''
-              : html`<h2 class="card-heading">Root card · <code>custom:${CARD_NAME}</code></h2>`}
+              : html`<h2 class="card-heading">
+                  Root card · <code>custom:${CARD_NAME}</code>
+                  <span class="hint">(tap the header icon/name to open more-info dialog)</span>
+                </h2>`}
             ${this.config.root.enabled
               ? html`<div class="card-host" id="root-host"></div>`
               : html`<p class="disabled">Disabled — toggle in Per-card config.</p>`}
