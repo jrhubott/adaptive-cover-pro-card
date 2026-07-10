@@ -6,7 +6,9 @@ import { entityStateChanged } from '../lib/hass-change';
 import type { CoverPositionAttributes, DiscoveredEntities } from '../types';
 import { displayTarget, isOverrideDivergence } from '../lib/cover-position';
 import { formatPercent } from '../lib/formatters';
-import { INTEGRATION_DOMAIN } from '../const';
+import { AXIS_LABEL_I18N_KEYS } from '../const';
+import { resolveAxes, type ResolvedAxis } from '../lib/axes';
+import { setAxes } from '../lib/services';
 import { t } from '../lib/i18n';
 import { tooltip } from '../lib/tooltip';
 import './tilt-bar';
@@ -28,11 +30,16 @@ export class CoverBar extends LitElement {
     if (changed.size > 1 || !changed.has('hass')) return true;
     const old = changed.get('hass') as HomeAssistant | undefined;
     const e = this.discovered?.entities;
-    // Tilt actuals live on the cover entities (`current_tilt_position`), not on a
-    // sensor attribute, so the managed covers must be in the watch list too.
+    // Watch each resolved axis's target sensor (position + any secondary axis).
+    // Secondary-axis actuals live on the cover entities (per-axis state attr),
+    // not on a sensor attribute, so the managed covers stay in the watch list.
+    const axisTargetIds = this.discovered
+      ? resolveAxes(this.discovered)
+          .map((a) => (a.targetRole ? e?.[a.targetRole] : undefined))
+          .filter((id): id is string => !!id)
+      : [];
     return entityStateChanged(old, this.hass, [
-      e?.target_position_sensor,
-      e?.target_tilt_sensor,
+      ...axisTargetIds,
       e?.position_mismatch_binary,
       e?.manual_override_binary,
       ...(this.discovered?.managed_covers ?? []),
@@ -69,32 +76,46 @@ export class CoverBar extends LitElement {
     );
   }
 
-  private _setPosition(entityId: string, position: number): void {
-    this.hass.callService(
-      INTEGRATION_DOMAIN,
-      'set_position',
-      { position },
-      { entity_id: entityId },
-    );
+  /** Move a single axis for a cover. Routes through {@link setAxes}, which uses
+   *  the integration's combined `set_axes` when available and falls back to the
+   *  legacy per-axis service otherwise. Interactive drags omit `force` so the
+   *  service default (no forced override) preserves today's semantics. */
+  private _setAxis(entityId: string, axisId: string, value: number): void {
+    setAxes(this.hass, entityId, { [axisId]: value });
   }
 
-  private _setTilt(entityId: string, tilt: number): void {
-    this.hass.callService(INTEGRATION_DOMAIN, 'set_tilt', { tilt }, { entity_id: entityId });
-  }
-
-  /** Solar tilt target (0–100) from the dual-axis `Cover_Tilt` sensor, or null
-   *  when this entry is not dual-axis (sensor absent / non-numeric). */
-  private _tiltTarget(): number | null {
-    const id = this.discovered.entities.target_tilt_sensor;
+  /** Solar target for an axis from its target sensor's state, or null when the
+   *  sensor is absent / non-numeric. */
+  private _axisTarget(axis: ResolvedAxis): number | null {
+    const role = axis.targetRole;
+    if (!role) return null;
+    const id = this.discovered.entities[role];
     if (!id) return null;
     const v = parseFloat(this.hass.states[id]?.state ?? '');
     return Number.isNaN(v) ? null : v;
   }
 
-  /** Live slat position for a cover from its `current_tilt_position` attribute. */
-  private _actualTilt(entityId: string): number | null {
-    const v = this.hass.states[entityId]?.attributes?.current_tilt_position;
+  /** Live value for a secondary axis from the cover's per-axis state attribute. */
+  private _axisActual(axis: ResolvedAxis, entityId: string): number | null {
+    if (!axis.stateAttr) return null;
+    const v = this.hass.states[entityId]?.attributes?.[axis.stateAttr];
     return typeof v === 'number' ? v : null;
+  }
+
+  /** Display label for an axis: card i18n key wins for known ids, else the
+   *  discovery label, else a capitalized id (already baked into axis.label). */
+  private _axisLabel(axis: ResolvedAxis): string {
+    const key = AXIS_LABEL_I18N_KEYS[axis.id];
+    return key ? t(key, this.hass) : axis.label;
+  }
+
+  /** Header target chip for a secondary axis. Tilt keeps its dedicated i18n
+   *  string; any other axis reads `Label: pct`. */
+  private _axisTargetLabel(axis: ResolvedAxis, target: number | null): string {
+    if (axis.id === 'tilt') {
+      return t('covers.tilt_target', this.hass, { pct: formatPercent(target) });
+    }
+    return `${this._axisLabel(axis)}: ${formatPercent(target)}`;
   }
 
   protected render(): TemplateResult | typeof nothing {
@@ -109,10 +130,13 @@ export class CoverBar extends LitElement {
     if (entries.length === 0) {
       return html`<div class="placeholder">${t('covers.placeholder', this.hass)}</div>`;
     }
-    // Dual-axis (venetian) entries expose the Cover_Tilt sensor — gate the tilt
-    // row on its discovery, not on the target value (which is null at night).
-    const dualAxis = !!this.discovered.entities.target_tilt_sensor;
-    const tiltTarget = this._tiltTarget();
+    // Data-driven axes: the position axis renders through the rich `_bar()`;
+    // every other declared axis (e.g. venetian tilt) renders through the
+    // generalized axis-bar. On an older integration `resolveAxes` synthesizes
+    // the same position (+ optional tilt) set, so output is unchanged.
+    const axes = resolveAxes(this.discovered);
+    const secondaryAxes = axes.filter((a) => a.id !== 'position');
+    const secondaryTargets = new Map(secondaryAxes.map((a) => [a.id, this._axisTarget(a)]));
     return html`
       <div class="wrap" style=${this.coverColor ? `--acp-cover-color:${this.coverColor}` : nothing}>
         <div class="head">
@@ -123,29 +147,34 @@ export class CoverBar extends LitElement {
                 pct: formatPercent(target),
               })}</span
             >
-            ${dualAxis
-              ? html`<span class="target"
-                  >${t('covers.tilt_target', this.hass, {
-                    pct: formatPercent(tiltTarget),
-                  })}</span
-                >`
-              : nothing}
+            ${secondaryAxes.map(
+              (axis) =>
+                html`<span class="target"
+                  >${this._axisTargetLabel(axis, secondaryTargets.get(axis.id) ?? null)}</span
+                >`,
+            )}
           </span>
         </div>
         ${entries.map(
           ([id, actual]) => html`
             <div class="cover-group">
               ${this._bar(id, actual, target, mismatched.has(id), overrideDivergence)}
-              ${dualAxis
-                ? html`<acp-tilt-bar
+              ${secondaryAxes.map(
+                (axis) =>
+                  html`<acp-tilt-bar
                     .hass=${this.hass}
-                    .actual=${this._actualTilt(id)}
-                    .target=${tiltTarget}
+                    .label=${this._axisLabel(axis)}
+                    .min=${axis.min}
+                    .max=${axis.max}
+                    .unit=${axis.unit}
+                    .actual=${this._axisActual(axis, id)}
+                    .target=${secondaryTargets.get(axis.id) ?? null}
                     .coverColor=${this.coverColor}
                     .compact=${this.compact}
-                    @acp-tilt-set=${(e: CustomEvent<number>) => this._setTilt(id, e.detail)}
-                  ></acp-tilt-bar>`
-                : nothing}
+                    @acp-tilt-set=${(e: CustomEvent<number>) =>
+                      this._setAxis(id, axis.id, e.detail)}
+                  ></acp-tilt-bar>`,
+              )}
             </div>
           `,
         )}
@@ -201,7 +230,7 @@ export class CoverBar extends LitElement {
     const rect = track.getBoundingClientRect();
     const pct = Math.round(((e.clientX - rect.left) / rect.width) * 100);
     const clamped = Math.max(0, Math.min(100, pct));
-    this._setPosition(entityId, clamped);
+    this._setAxis(entityId, 'position', clamped);
   }
 
   public static styles = css`

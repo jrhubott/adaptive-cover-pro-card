@@ -3,24 +3,19 @@ import { INTEGRATION_DOMAIN } from '../const';
 import type { GroupScene } from '../types';
 
 /**
- * Typed `hass.callService` helpers for the Cover Group feature (issue #185).
+ * Typed `hass.callService` helpers for the card.
  *
- * Two flavours live here:
+ * Introduced per CLAUDE.md's rule that a service call growing past ~2 arg kinds
+ * moves out of the component. Two feature groups live here:
  *
- * 1. **Integration service helpers** (`group_*` services on the
- *    `adaptive_cover_pro` domain, targeting the group entity_id). These are the
- *    authoritative controls; Phase 3's main-card group view drives them.
- * 2. **Entity-driven helpers** (`select.select_option`, `switch.turn_on/off`).
- *    Where an entity already exists (scene select, lock/automation switches) the
- *    UI prefers these so Home Assistant's own optimistic-state handling updates
- *    the control instantly. The tile group variant uses these.
- *
- * This is the first `src/lib/services.ts` — introduced per CLAUDE.md's rule that
- * a service call growing past ~2 arg kinds moves out of the component. Existing
- * cover/tilt calls stay inline for now (out of scope).
+ * - **Cover Group** (issue #185): the `group_*` integration services plus the
+ *   entity-driven `select`/`switch` helpers the group UI prefers for optimistic
+ *   state.
+ * - **Multi-axis covers** (#180): `setAxes` feature-detects the integration's
+ *   `set_axes` service and otherwise fans out to the legacy per-axis services.
  */
 
-// ── Integration service helpers (target = group entity_id) ──────────────────
+// ── Cover Group: integration service helpers (target = group entity_id) ──────
 
 /** `adaptive_cover_pro.group_activate_scene` — `auto` releases the active scene. */
 export function groupActivateScene(
@@ -103,7 +98,7 @@ export function groupSetAutomation(
   ) as unknown as Promise<void>;
 }
 
-// ── Entity-driven helpers (optimistic UI, preferred by the tile) ────────────
+// ── Cover Group: entity-driven helpers (optimistic UI, preferred by the tile) ─
 
 /** Drive the group scene `select` entity directly (`select.select_option`). */
 export function groupSelectScene(
@@ -136,4 +131,60 @@ export function groupSetSwitch(
       entity_id: switchEntityId,
     },
   ) as unknown as Promise<void>;
+}
+
+// ── Multi-axis covers (#180): set_axes with legacy fallback ──────────────────
+
+/** Values to move, keyed by axis id (matches the integration's `set_axes` keys
+ *  AND the legacy per-axis service param names). */
+export type AxisValues = Record<string, number>;
+
+export interface SetAxesOptions {
+  /** Engage manual override like a slider. Omit to take the service default
+   *  (false) — interactive drags must NOT force so today's override semantics
+   *  are preserved. */
+  force?: boolean;
+}
+
+/** Legacy per-axis services, keyed by axis id. Axis ids with no mapping here
+ *  are skipped in the legacy fan-out (the modern `set_axes` path handles any
+ *  axis the integration declares). */
+const LEGACY_AXIS_SERVICES: Record<string, string> = {
+  position: 'set_position',
+  tilt: 'set_tilt',
+};
+
+function hasSetAxes(hass: HomeAssistant): boolean {
+  const services = (hass as unknown as { services?: Record<string, Record<string, unknown>> })
+    .services;
+  return !!services?.[INTEGRATION_DOMAIN]?.set_axes;
+}
+
+/**
+ * Move one or more cover axes for `entityId`.
+ *
+ * Feature-detects the integration's `set_axes` service: when present, sends a
+ * single combined call `{ axes, [force] }`. When absent (older integration),
+ * fans out to the legacy per-axis services (`position` → `set_position`,
+ * `tilt` → `set_tilt`), skipping any axis id with no legacy mapping. On the
+ * currently-shipped integration this reproduces the card's original one-service
+ * calls byte-for-byte.
+ */
+export function setAxes(
+  hass: HomeAssistant,
+  entityId: string,
+  axes: AxisValues,
+  opts?: SetAxesOptions,
+): void {
+  if (hasSetAxes(hass)) {
+    const data: { axes: AxisValues; force?: boolean } = { axes };
+    if (opts?.force != null) data.force = opts.force;
+    hass.callService(INTEGRATION_DOMAIN, 'set_axes', data, { entity_id: entityId });
+    return;
+  }
+  for (const [axisId, value] of Object.entries(axes)) {
+    const service = LEGACY_AXIS_SERVICES[axisId];
+    if (!service) continue;
+    hass.callService(INTEGRATION_DOMAIN, service, { [axisId]: value }, { entity_id: entityId });
+  }
 }

@@ -240,6 +240,60 @@ describe('adaptive-cover-pro-tile-card render', () => {
     );
   });
 
+  it('fires set_axes for the tilt bar when the set_axes service is present', async () => {
+    const callService = vi.fn();
+    const h = tiltHass(callService);
+    (h as unknown as { services: unknown }).services = {
+      adaptive_cover_pro: { set_axes: {}, set_position: {}, set_tilt: {} },
+    };
+    const el = await mountTilt({ type: TYPE, entry_id: ENTRY }, h);
+    el.shadowRoot!.querySelector('acp-tilt-bar')!.dispatchEvent(
+      new CustomEvent('acp-tilt-set', { detail: 80, bubbles: true }),
+    );
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { tilt: 80 } },
+      { entity_id: 'cover.left' },
+    );
+  });
+
+  it('fires set_axes for the ↑ button when the set_axes service is present', async () => {
+    const callService = vi.fn();
+    const h = makeHass({ callService });
+    (h as unknown as { services: unknown }).services = {
+      adaptive_cover_pro: { set_axes: {}, set_position: {} },
+    };
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, h);
+    (el.shadowRoot!.querySelector('button.up') as HTMLElement).click();
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { position: 100 } },
+      { entity_id: 'cover.left' },
+    );
+  });
+
+  it('routes the tilt bar to legacy set_tilt (NOT set_axes) when the service is absent', async () => {
+    const callService = vi.fn();
+    const el = await mountTilt({ type: TYPE, entry_id: ENTRY }, tiltHass(callService));
+    el.shadowRoot!.querySelector('acp-tilt-bar')!.dispatchEvent(
+      new CustomEvent('acp-tilt-set', { detail: 80, bubbles: true }),
+    );
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_tilt',
+      { tilt: 80 },
+      { entity_id: 'cover.left' },
+    );
+    expect(callService).not.toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
   it('renders only the percentage when show_state is false (legacy behavior)', async () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY, show_state: false }, makeHass());
     expect(el.shadowRoot!.querySelector('.position')?.textContent?.trim()).toBe('42%');

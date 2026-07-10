@@ -394,6 +394,193 @@ describe('acp-cover-bar dual-axis tilt row', () => {
   });
 });
 
+describe('acp-cover-bar discovery-driven multi-axis + set_axes', () => {
+  const discovery = {
+    cover_type: 'cover_venetian',
+    cover_label: 'Venetian',
+    axes: [
+      {
+        id: 'position',
+        label: 'Position',
+        min: 0,
+        max: 100,
+        unit: '%',
+        state_attr: 'current_position',
+        supported: true,
+      },
+      {
+        id: 'tilt',
+        label: 'Tilt',
+        min: 0,
+        max: 100,
+        unit: '%',
+        state_attr: 'current_tilt_position',
+        supported: true,
+      },
+    ],
+  };
+
+  const discovered: DiscoveredEntities = {
+    ...baseDiscovered,
+    cover_type: 'cover_venetian',
+    entities: {
+      target_position_sensor: 'sensor.cover_position',
+      target_tilt_sensor: 'sensor.cover_tilt',
+    },
+    discovery,
+  };
+
+  function modernHass(callService = vi.fn()): HomeAssistant {
+    return {
+      services: { adaptive_cover_pro: { set_axes: {}, set_position: {}, set_tilt: {} } },
+      states: {
+        'sensor.cover_position': {
+          state: '60',
+          attributes: { actual_positions: { 'cover.a': 60 } },
+        },
+        'sensor.cover_tilt': { state: '70', attributes: {} },
+        'cover.a': {
+          state: 'open',
+          attributes: { friendly_name: 'Cover A', current_tilt_position: 35 },
+        },
+      },
+      callService,
+    } as unknown as HomeAssistant;
+  }
+
+  async function mount(hass: HomeAssistant): Promise<CoverBarLike> {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    document.body.appendChild(el);
+    el.hass = hass;
+    el.discovered = discovered;
+    await el.updateComplete;
+    return el;
+  }
+
+  it('renders both a position bar and a secondary (tilt) axis bar from discovery', async () => {
+    const el = await mount(modernHass());
+    expect(el.shadowRoot!.querySelector('.cover')).not.toBeNull();
+    const axisBar = el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
+      actual: number | null;
+      target: number | null;
+    };
+    expect(axisBar).not.toBeNull();
+    expect(axisBar.actual).toBe(35);
+    expect(axisBar.target).toBe(70);
+  });
+
+  it('fires set_axes for the tilt axis when the service is present', async () => {
+    const callService = vi.fn();
+    const el = await mount(modernHass(callService));
+    el.shadowRoot!.querySelector('acp-tilt-bar')!.dispatchEvent(
+      new CustomEvent('acp-tilt-set', { detail: 80, bubbles: true }),
+    );
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { tilt: 80 } },
+      { entity_id: 'cover.a' },
+    );
+  });
+
+  it('fires set_axes for a position track click when the service is present', async () => {
+    const callService = vi.fn();
+    const el = await mount(modernHass(callService));
+    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    Object.defineProperty(track, 'getBoundingClientRect', {
+      value: () => ({ left: 0, width: 100, top: 0, bottom: 10, right: 100, height: 10 }),
+      configurable: true,
+    });
+    track.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 50 }));
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { position: 50 } },
+      { entity_id: 'cover.a' },
+    );
+  });
+});
+
+describe('acp-cover-bar legacy fallback parity (no discovery, no set_axes)', () => {
+  function legacyHass(callService = vi.fn()): HomeAssistant {
+    return {
+      states: {
+        'sensor.cover_position': {
+          state: '60',
+          attributes: { actual_positions: { 'cover.a': 60 } },
+        },
+        'sensor.cover_tilt': { state: '70', attributes: {} },
+        'cover.a': {
+          state: 'open',
+          attributes: { friendly_name: 'Cover A', current_tilt_position: 35 },
+        },
+      },
+      callService,
+    } as unknown as HomeAssistant;
+  }
+
+  const legacyDiscovered: DiscoveredEntities = {
+    ...baseDiscovered,
+    cover_type: 'cover_venetian',
+    entities: {
+      target_position_sensor: 'sensor.cover_position',
+      target_tilt_sensor: 'sensor.cover_tilt',
+    },
+  };
+
+  async function mount(hass: HomeAssistant): Promise<CoverBarLike> {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    document.body.appendChild(el);
+    el.hass = hass;
+    el.discovered = legacyDiscovered;
+    await el.updateComplete;
+    return el;
+  }
+
+  it('routes a tilt drag to legacy set_tilt (NOT set_axes) when the service is absent', async () => {
+    const callService = vi.fn();
+    const el = await mount(legacyHass(callService));
+    el.shadowRoot!.querySelector('acp-tilt-bar')!.dispatchEvent(
+      new CustomEvent('acp-tilt-set', { detail: 80, bubbles: true }),
+    );
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_tilt',
+      { tilt: 80 },
+      { entity_id: 'cover.a' },
+    );
+    expect(callService).not.toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it('routes a position track click to legacy set_position (NOT set_axes)', async () => {
+    const callService = vi.fn();
+    const el = await mount(legacyHass(callService));
+    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    Object.defineProperty(track, 'getBoundingClientRect', {
+      value: () => ({ left: 0, width: 100, top: 0, bottom: 10, right: 100, height: 10 }),
+      configurable: true,
+    });
+    track.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 50 }));
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_position',
+      { position: 50 },
+      { entity_id: 'cover.a' },
+    );
+    expect(callService).not.toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+});
+
 describe('acp-cover-bar track-click → set_position', () => {
   it('calls adaptive_cover_pro.set_position when the track is clicked', async () => {
     const callService = vi.fn();

@@ -139,6 +139,11 @@ export class AcpHarnessControlPanel extends LitElement {
           <option value="de" ?selected=${this.config.language === 'de'}>Deutsch</option>
         </select>
       </label>
+      ${this._checkbox(
+        'Legacy integration (no discovery / set_axes)',
+        this.config.legacyIntegration,
+        (v) => this._emit({ ...this.config, legacyIntegration: v }),
+      )}
       <label class="row">
         <span>Tooltips</span>
         <select
@@ -394,7 +399,12 @@ export class AcpHarnessControlPanel extends LitElement {
         climate_strategy: 'intermediate',
         indoor_temp: 21,
         outdoor_temp: 18,
-        climate_inactive_reason: 'outside_time_window',
+        // adaptive-cover-pro-card#168: state-gen now threads this flag into the
+        // active-slug branch's inactive_reason (previously hardcoded 'active').
+        // Keep the base default 'active' so the default panel stays
+        // active-looking with the default 'intermediate' strategy; the
+        // climate-not-winner scenario overrides this to demonstrate #168.
+        climate_inactive_reason: 'active',
         climate_temp_low: 18,
         climate_temp_high: 25,
         climate_temp_summer_outside: 22,

@@ -172,8 +172,22 @@ export function buildMockHass(
     return Promise.resolve();
   };
 
+  // Integration service registry the card feature-detects (issue #180). Under
+  // the legacy flag `set_axes` is omitted so `setAxes` falls back to the
+  // per-axis legacy services.
+  const services = {
+    [INTEGRATION_DOMAIN]: {
+      set_position: {},
+      set_tilt: {},
+      stop: {},
+      set_custom_position: {},
+      ...(cfg.legacyIntegration ? {} : { set_axes: {} }),
+    },
+  };
+
   const hass = {
     states: generated.states,
+    services,
     config: {
       latitude: cfg.latitude,
       longitude: cfg.longitude,
