@@ -161,7 +161,7 @@ export class MoreInfoDialog extends LitElement {
         )
       : '';
     const target = this._target();
-    const showResume = this._shouldShowResume(winner);
+    const showResume = this._shouldShowResume();
     const integrationEnabled = this._switchOn('integration_enabled_switch');
     const automaticControl = this._switchOn('automatic_control_switch');
     const configureLabel = t('dialog.configure_integration', this.hass);
@@ -368,10 +368,9 @@ export class MoreInfoDialog extends LitElement {
     return this.hass.states[id]?.state !== 'off';
   }
 
-  private _shouldShowResume(winner: string): boolean {
+  private _shouldShowResume(): boolean {
     if (!this.discovered.entities.reset_override_button) return false;
-    if (this._manualOverrideOn()) return true;
-    return (normalizeHandler(winner) as HandlerName) === 'custom_position';
+    return this._manualOverrideOn();
   }
 
   private _renderSlots(
