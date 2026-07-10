@@ -230,6 +230,21 @@ describe('acp-tile-badge', () => {
     expect(kind(el)).toBe('group');
   });
 
+  // Issue #185: a member cover the group is driving wins with the group_scene
+  // or group_lock handler. Its who-won badge must read "Group" — not "Auto" —
+  // so the who-won display actually tells you the group is in control.
+  it('renders Group for a group_scene winner', async () => {
+    const el = await mountBadge({ winner: 'group_scene' });
+    expect(text(el)).toBe('Group');
+    expect(kind(el)).toBe('group');
+  });
+
+  it('renders Group for a group_lock winner', async () => {
+    const el = await mountBadge({ winner: 'group_lock' });
+    expect(text(el)).toBe('Group');
+    expect(kind(el)).toBe('group');
+  });
+
   it('renders a tappable button and emits acp-resume when resumable', async () => {
     const el = await mountBadge({ winner: 'manual', resumable: true });
     const button = el.shadowRoot!.querySelector('button.badge') as HTMLButtonElement;

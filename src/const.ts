@@ -163,6 +163,11 @@ export const BADGE_KINDS_BY_HANDLER: Partial<Record<HandlerName, BadgeKind>> = {
   custom_position: 'custom_position',
   solar: 'solar',
   motion: 'motion',
+  // A member cover the group drives wins with one of these handlers; surface
+  // it as the "Group" badge so the who-won display reads as group-controlled
+  // (issue #185) instead of falling through to the generic "Auto".
+  group_scene: 'group',
+  group_lock: 'group',
 };
 
 interface BadgeTokens {
