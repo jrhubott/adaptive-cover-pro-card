@@ -26,6 +26,15 @@ interface ClimateAttrs {
   inactive_reason?: string;
 }
 
+// A single indoor/outdoor temperature tile, shared by the active render and
+// the standby-via-inactive_reason render (adaptive-cover-pro-card#198).
+interface TempRow {
+  label: string;
+  value: number;
+  unit: string;
+  threshold: string | null;
+}
+
 // Reason slugs that should NOT render a dedicated standby sub-line:
 //   mode_off  → the existing "Climate mode off" label already conveys it.
 //   active    → the handler is active and should not reach the standby branch.
@@ -88,20 +97,7 @@ export class ClimatePanel extends LitElement {
       .formatEntityState;
     const strategyLabel = typeof fmt === 'function' ? (fmt(st) ?? strategy) : strategy;
 
-    // adaptive-cover-pro-card#168: the sensor STATE only records which strategy
-    // climate *computed* — inactive_reason is the authority on whether climate
-    // actually holds control. When it doesn't, show the same grayed standby
-    // treatment as the unknown/'' branch above (with the resolved strategy
-    // label instead of "Standby") rather than the full active view.
-    if (!climateInControl(attrs.inactive_reason)) {
-      return this._renderStandby(icon, strategyLabel, attrs.inactive_reason);
-    }
-
     const unit = attrs.temperature_unit ?? '°';
-    const activeValue =
-      attrs.active_temperature !== undefined
-        ? `${attrs.active_temperature.toFixed(1)}${unit}`
-        : '—';
 
     // Threshold pairing (adaptive-cover-pro#590). Season math:
     //   current = temp_switch ? outdoor : indoor
@@ -135,7 +131,11 @@ export class ClimatePanel extends LitElement {
         .filter((f): f is string => f !== null)
         .join(' ') || null;
 
-    const temps = [
+    // Temperature readings are sensor values independent of pipeline control —
+    // compute them before the inactive_reason guard below so both the active
+    // render and the standby-via-inactive_reason render can show them
+    // (adaptive-cover-pro-card#198).
+    const temps: TempRow[] = [
       attrs.indoor_temperature !== undefined
         ? {
             label: t('climate.indoor', this.hass),
@@ -152,10 +152,23 @@ export class ClimatePanel extends LitElement {
             threshold: outdoorThreshold,
           }
         : null,
-    ].filter(
-      (row): row is { label: string; value: number; unit: string; threshold: string | null } =>
-        row !== null,
-    );
+    ].filter((row): row is TempRow => row !== null);
+
+    // adaptive-cover-pro-card#168: the sensor STATE only records which strategy
+    // climate *computed* — inactive_reason is the authority on whether climate
+    // actually holds control. When it doesn't, show the same grayed standby
+    // treatment as the unknown/'' branch above (with the resolved strategy
+    // label instead of "Standby") rather than the full active view. The
+    // temperature readings above are still shown (#198) — only the
+    // active-strategy label/Active-line are suppressed.
+    if (!climateInControl(attrs.inactive_reason)) {
+      return this._renderStandby(icon, strategyLabel, attrs.inactive_reason, temps);
+    }
+
+    const activeValue =
+      attrs.active_temperature !== undefined
+        ? `${attrs.active_temperature.toFixed(1)}${unit}`
+        : '—';
 
     const conditions: Array<{ label: string; value: boolean | undefined; icon: string }> = [
       {
@@ -186,23 +199,7 @@ export class ClimatePanel extends LitElement {
           <ha-icon icon=${icon}></ha-icon>
           <span class="strategy-name">${strategyLabel}</span>
         </div>
-        ${temps.length
-          ? html`
-              <div class="temps">
-                ${temps.map(
-                  (row) => html`
-                    <div class="temp">
-                      <span class="temp-label dim">${row.label}</span>
-                      <span class="temp-value">${row.value.toFixed(1)}${row.unit}</span>
-                      ${row.threshold
-                        ? html`<span class="temp-threshold dim">${row.threshold}</span>`
-                        : nothing}
-                    </div>
-                  `,
-                )}
-              </div>
-            `
-          : nothing}
+        ${this._renderTemps(temps)}
         ${conditions.length
           ? html`
               <div class="conditions">
@@ -223,12 +220,14 @@ export class ClimatePanel extends LitElement {
 
   // Shared grayed standby treatment: dimmed strategy label + icon, plus an
   // optional localized reason line. Used both when the sensor state itself is
-  // unknown/'' (no strategy computed) and when a strategy slug is present but
-  // inactive_reason says climate isn't in control (#168).
+  // unknown/'' (no strategy computed, no temps to show) and when a strategy
+  // slug is present but inactive_reason says climate isn't in control (#168) —
+  // that second case still has temperature readings to show (#198).
   private _renderStandby(
     icon: string,
     label: string,
     reasonSlug: string | undefined,
+    temps: TempRow[] = [],
   ): TemplateResult {
     // Older integrations omit the slug → no reason line (backward-compat).
     // mode_off / active are suppressed (see SUPPRESSED_REASONS).
@@ -246,6 +245,28 @@ export class ClimatePanel extends LitElement {
           <span class="strategy-name dim">${label}</span>
         </div>
         ${reasonLine ? html`<div class="standby-reason dim">${reasonLine}</div>` : nothing}
+        ${this._renderTemps(temps)}
+      </div>
+    `;
+  }
+
+  // Indoor/outdoor temperature tiles, shared by the active render and the
+  // standby-via-inactive_reason render (adaptive-cover-pro-card#198).
+  private _renderTemps(temps: TempRow[]): TemplateResult | typeof nothing {
+    if (!temps.length) return nothing;
+    return html`
+      <div class="temps">
+        ${temps.map(
+          (row) => html`
+            <div class="temp">
+              <span class="temp-label dim">${row.label}</span>
+              <span class="temp-value">${row.value.toFixed(1)}${row.unit}</span>
+              ${row.threshold
+                ? html`<span class="temp-threshold dim">${row.threshold}</span>`
+                : nothing}
+            </div>
+          `,
+        )}
       </div>
     `;
   }

@@ -1147,7 +1147,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'climate-not-winner',
     label: 'Climate computed but not in control (#168)',
     description:
-      'Climate computes "intermediate" but its thresholds aren\'t met (inactive_reason: thresholds_not_met), so the pipeline winner is Default, not climate. The climate panel must NOT paint climate as in-control: the strategy icon/label gray out and a "Temperatures within the comfort band — no action needed" reason line appears, matching the standby treatment rather than the full active view (#168).',
+      'Climate computes "intermediate" but its thresholds aren\'t met (inactive_reason: thresholds_not_met), so the pipeline winner is Default, not climate. The climate panel must NOT paint climate as in-control: the strategy icon/label gray out and a "Temperatures within the comfort band — no action needed" reason line appears, matching the standby treatment rather than the full active view (#168). The indoor/outdoor temperature tiles still render in this grayed standby state — they are sensor readings independent of pipeline control and must persist through standby rather than disappearing alongside the suppressed active label (#198).',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'climate-not-winner';
@@ -1156,6 +1156,8 @@ export const SCENARIOS: Scenario[] = [
       const f = c.entries[0].flags;
       f.climate_strategy = 'intermediate';
       f.climate_inactive_reason = 'thresholds_not_met';
+      f.indoor_temp = 22;
+      f.outdoor_temp = 27;
       return c;
     },
   },
