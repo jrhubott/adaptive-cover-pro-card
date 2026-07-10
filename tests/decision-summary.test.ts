@@ -233,6 +233,39 @@ describe('buildDecisionSentence', () => {
   });
 });
 
+describe('group handlers in the decision sentence (issue #185)', () => {
+  it('normalizeHandler maps the group handler names to their snake keys', () => {
+    expect(normalizeHandler('GroupLockHandler')).toBe('group_lock');
+    expect(normalizeHandler('GroupSceneHandler')).toBe('group_scene');
+    // Snake forms (the integration's ControlMethod values) pass through unchanged.
+    expect(normalizeHandler('group_lock')).toBe('group_lock');
+    expect(normalizeHandler('group_scene')).toBe('group_scene');
+  });
+
+  it('registers the group handlers at their documented priority slots', () => {
+    expect(HANDLER_ORDER).toContain('group_scene');
+    expect(HANDLER_ORDER).toContain('group_lock');
+    // group_scene (priority 85) sits between weather (90) and manual (80).
+    const scene = HANDLER_ORDER.indexOf('group_scene');
+    expect(scene).toBeGreaterThan(HANDLER_ORDER.indexOf('weather'));
+    expect(scene).toBeLessThan(HANDLER_ORDER.indexOf('manual'));
+    // group_lock (priority 100) sits adjacent to custom_position (also 100).
+    const lockToCustom = Math.abs(
+      HANDLER_ORDER.indexOf('group_lock') - HANDLER_ORDER.indexOf('custom_position'),
+    );
+    expect(lockToCustom).toBe(1);
+  });
+
+  it('places a matched group_lock step in the sentence, reading last as the winner', () => {
+    const sentence = buildDecisionSentence(
+      [step('solar', true, 80), step('group_lock', true, 0)],
+      baseAttrs(),
+      'group_lock',
+    );
+    expect(sentence).toBe('Solar Tracking 80% → Group Lock 0%');
+  });
+});
+
 describe('resolveCustomPositionPct', () => {
   const slots = [
     {

@@ -6,12 +6,35 @@ import type {
   ClimateInactiveReason,
   ClimateStrategy,
   CoverType,
+  GroupFields,
   HarnessConfig,
   HarnessEntry,
   ManagedCoverCfg,
   MotionStatusValue,
   TooltipMode,
 } from './types';
+
+/** Default Cover Group state for the "Group entry" control-panel toggle. */
+function defaultGroupFields(): GroupFields {
+  return {
+    member_positions: {
+      'cover.living_left': 40,
+      'cover.living_right': 60,
+      'cover.hall_generic': 0,
+    },
+    member_winners: {
+      'cover.living_left': 'solar',
+      'cover.living_right': 'manual',
+    },
+    aggregate_position: 33,
+    state: 'mixed',
+    active_scene: 'none',
+    scene_option: 'auto',
+    locked: false,
+    automation: true,
+    climate_mode: 'summer_mode',
+  };
+}
 
 /**
  * Dispatched whenever any control changes. Always carries the full config.
@@ -116,6 +139,11 @@ export class AcpHarnessControlPanel extends LitElement {
           <option value="de" ?selected=${this.config.language === 'de'}>Deutsch</option>
         </select>
       </label>
+      ${this._checkbox(
+        'Legacy integration (no discovery / set_axes)',
+        this.config.legacyIntegration,
+        (v) => this._emit({ ...this.config, legacyIntegration: v }),
+      )}
       <label class="row">
         <span>Tooltips</span>
         <select
@@ -371,7 +399,12 @@ export class AcpHarnessControlPanel extends LitElement {
         climate_strategy: 'intermediate',
         indoor_temp: 21,
         outdoor_temp: 18,
-        climate_inactive_reason: 'outside_time_window',
+        // adaptive-cover-pro-card#168: state-gen now threads this flag into the
+        // active-slug branch's inactive_reason (previously hardcoded 'active').
+        // Keep the base default 'active' so the default panel stays
+        // active-looking with the default 'intermediate' strategy; the
+        // climate-not-winner scenario overrides this to demonstrate #168.
+        climate_inactive_reason: 'active',
         climate_temp_low: 18,
         climate_temp_high: 25,
         climate_temp_summer_outside: 22,
@@ -419,6 +452,12 @@ export class AcpHarnessControlPanel extends LitElement {
               this._patchEntry(idx, { title: (ev.target as HTMLInputElement).value })}
           />
         </label>
+        ${this._checkbox('Group entry (Cover Group)', !!e.is_group, (v) =>
+          this._patchEntry(
+            idx,
+            v ? { is_group: true, group: e.group ?? defaultGroupFields() } : { is_group: false },
+          ),
+        )}
         <label class="row">
           <span>Cover type</span>
           <select
@@ -1073,6 +1112,19 @@ export class AcpHarnessControlPanel extends LitElement {
           this._checkbox(k, this.config.decision[k], (v) =>
             this._emit({ ...this.config, decision: { ...this.config.decision, [k]: v } }),
           ),
+        )}
+      </fieldset>
+
+      <fieldset class="entry">
+        <legend>Solar chart card</legend>
+        ${this._checkbox('Enabled', this.config.solarChart.enabled, (v) =>
+          this._emit({ ...this.config, solarChart: { ...this.config.solarChart, enabled: v } }),
+        )}
+        ${this._textRow('Title', this.config.solarChart.title, (v) =>
+          this._emit({ ...this.config, solarChart: { ...this.config.solarChart, title: v } }),
+        )}
+        ${this._checkbox('compact', this.config.solarChart.compact, (v) =>
+          this._emit({ ...this.config, solarChart: { ...this.config.solarChart, compact: v } }),
         )}
       </fieldset>
     `;

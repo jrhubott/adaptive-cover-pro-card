@@ -7,24 +7,30 @@ import { t } from '../lib/i18n';
 import { tooltip } from '../lib/tooltip';
 
 /**
- * Reusable single-axis track row — the venetian tilt (slat-angle) axis.
+ * Reusable single-axis track row — generalizes the original venetian tilt
+ * (slat-angle) row into any secondary cover axis.
  *
  * Shared between the cover-bar (stacked under each Position bar) and the tile
  * card (compact mini bar). It is purely presentational: it renders the
  * click-to-set track plus the solar target marker and fires an `acp-tilt-set`
- * CustomEvent (`detail: number` 0–100) on click. The host wires that to the
- * integration's `set_tilt` service so service routing stays in one place.
+ * CustomEvent (`detail: number` in [min,max]) on click. The host wires that to
+ * `setAxes()` so service routing stays in one place.
  *
- * `layout="cover"` mirrors the cover-bar's `.cover` grid exactly so the tilt
- * track and its percentage line up with the Position row above it. `layout="tile"`
- * is a compact inline row (`TILT 35% [track]`) for the dense tile card.
+ * `label`/`min`/`max`/`unit` default to the original tilt values (Tilt title,
+ * 0–100, %), so an un-parameterized `acp-tilt-bar` renders exactly as before.
+ * Fill/marker geometry and click math derive from `min`/`max`, not literal
+ * 0/100, so a non-0–100 axis maps correctly.
+ *
+ * `layout="cover"` mirrors the cover-bar's `.cover` grid exactly so the axis
+ * track and its percentage line up with the Position row above it.
+ * `layout="tile"` is a compact inline row for the dense tile card.
  */
-@customElement('acp-tilt-bar')
-export class TiltBar extends LitElement {
+@customElement('acp-axis-bar')
+export class AxisBar extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
-  /** Live slat position (0–100) from the cover's `current_tilt_position`. */
+  /** Live axis value from the cover's per-axis state attribute. */
   @property({ attribute: false }) public actual: number | null = null;
-  /** Solar tilt target (0–100) from the `Cover_Tilt` sensor. */
+  /** Solar target from the axis's target sensor. */
   @property({ attribute: false }) public target: number | null = null;
   /** Cover colour, matching the position bar / compass wedge. */
   @property({ attribute: false }) public coverColor: string | null = null;
@@ -32,30 +38,49 @@ export class TiltBar extends LitElement {
   @property({ type: Boolean, reflect: true }) public compact = false;
   /** Grid variant: align under the cover-bar position row, or inline tile row. */
   @property({ reflect: true }) public layout: 'cover' | 'tile' = 'cover';
+  /** Display label. When null, falls back to the tilt title (original behavior). */
+  @property({ attribute: false }) public label: string | null = null;
+  /** Axis range lower bound (defaults to the original 0). */
+  @property({ type: Number }) public min = 0;
+  /** Axis range upper bound (defaults to the original 100). */
+  @property({ type: Number }) public max = 100;
+  /** Axis unit (defaults to the original '%'). Forward-looking; not yet
+   *  rendered in the compact label. */
+  @property() public unit = '%';
+
+  /** Map an axis value onto a 0–100 track fraction using min/max. */
+  private _frac(v: number | null): number {
+    const value = v ?? this.min;
+    const span = this.max - this.min;
+    if (span === 0) return 0;
+    const pct = ((value - this.min) / span) * 100;
+    return Math.max(0, Math.min(100, pct));
+  }
 
   protected render(): TemplateResult | typeof nothing {
     if (!this.hass) return nothing;
-    const actualPct = this.actual ?? 0;
-    const targetPct = this.target ?? 0;
+    const actualFrac = this._frac(this.actual);
+    const targetFrac = this._frac(this.target);
+    const label = this.label ?? t('covers.tilt_title', this.hass);
     return html`
       <div
         class="row ${this.layout}"
         style=${this.coverColor ? `--acp-cover-color:${this.coverColor}` : nothing}
       >
-        <span class="label">${t('covers.tilt_title', this.hass)}</span>
+        <span class="label">${label}</span>
         <span class="num">${formatPercent(this.actual)}</span>
         <div
           class="track"
           @click=${this._onClick}
           ${tooltip(t('covers.tilt_click_to_set', this.hass))}
         >
-          <div class="fill" style="width:${actualPct}%"></div>
-          <div class="fill-closed" style="width:${100 - actualPct}%"></div>
+          <div class="fill" style="width:${actualFrac}%"></div>
+          <div class="fill-closed" style="width:${100 - actualFrac}%"></div>
           ${this.target !== null
             ? html`<div
                 class="marker"
-                style="left:clamp(1px, ${targetPct}%, calc(100% - 1px))"
-                ${tooltip(t('covers.tilt_target_tooltip', this.hass, { pct: targetPct }))}
+                style="left:clamp(1px, ${targetFrac}%, calc(100% - 1px))"
+                ${tooltip(t('covers.tilt_target_tooltip', this.hass, { pct: targetFrac }))}
               ></div>`
             : nothing}
         </div>
@@ -66,8 +91,9 @@ export class TiltBar extends LitElement {
   private _onClick(e: MouseEvent): void {
     const track = e.currentTarget as HTMLElement;
     const rect = track.getBoundingClientRect();
-    const pct = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-    const clamped = Math.max(0, Math.min(100, pct));
+    const frac = (e.clientX - rect.left) / rect.width;
+    const raw = this.min + frac * (this.max - this.min);
+    const clamped = Math.max(this.min, Math.min(this.max, Math.round(raw)));
     this.dispatchEvent(
       new CustomEvent<number>('acp-tilt-set', { detail: clamped, bubbles: true, composed: true }),
     );
@@ -147,4 +173,13 @@ export class TiltBar extends LitElement {
       transition: left 0.3s ease;
     }
   `;
+}
+
+/**
+ * Back-compat alias. The original tag was `acp-tilt-bar`; keep it registered
+ * (as a no-op subclass) so existing hosts/tests that reference the tag continue
+ * to resolve to the generalized element.
+ */
+if (!customElements.get('acp-tilt-bar')) {
+  customElements.define('acp-tilt-bar', class extends AxisBar {});
 }

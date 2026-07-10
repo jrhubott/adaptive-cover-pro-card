@@ -10,7 +10,9 @@ export const fr: EnDict = {
   handler: {
     force: 'Dérogation forcée',
     weather: 'Sécurité météo',
+    group_scene: 'Scène de groupe',
     manual: 'Dérogation manuelle',
+    group_lock: 'Verrouillage de groupe',
     custom_position: 'Position personnalisée',
     motion: "Délai d'inactivité du mouvement",
     cloud: 'Désactivation par temps nuageux',
@@ -35,6 +37,26 @@ export const fr: EnDict = {
     off_schedule: 'Hors planning',
     floor_suffix: ' ↥',
     safety: 'Sécurité',
+    group: 'Groupe',
+  },
+  group: {
+    title: 'Groupe de couvertures',
+    scene: 'Scène',
+    scene_auto: 'Auto',
+    scene_all_open: 'Tout ouvrir',
+    scene_all_closed: 'Tout fermer',
+    scene_privacy: 'Intimité',
+    state_open: 'Ouvert',
+    state_closed: 'Fermé',
+    state_mixed: 'Mixte',
+    state_unknown: 'Inconnu',
+    lock: 'Verrouiller le groupe',
+    unlock: 'Déverrouiller le groupe',
+    automation: 'Automatisation',
+    clear_overrides: 'Effacer les dérogations',
+    who_won: '{count}/{total} pilotés par le groupe',
+    members: 'Membres',
+    member_placeholder: "Aucun membre signalé par l'intégration.",
   },
   forecast: {
     event: {
@@ -47,6 +69,8 @@ export const fr: EnDict = {
       "Survolez la courbe pour voir l'heure et la position prévue ; survolez une ligne colorée pour voir l'événement qu'elle indique.",
     solar_only_note:
       'Géométrie solaire uniquement — ne tient pas compte des dérogations manuelles, des positions personnalisées, de la désactivation par temps nuageux ni des conditions météo.',
+    legend_forecast: 'Prévision',
+    legend_actual: 'Réel',
   },
   dialog: {
     configure_integration: "Configurer l'intégration",
@@ -384,6 +408,17 @@ export const fr: EnDict = {
       show_decision_summary_label: 'Afficher le résumé de décision',
       show_decision_summary_desc:
         'Afficher une phrase explicite « Pourquoi cette position ? » au-dessus de la bande.',
+    },
+    solar_chart: {
+      instances: 'Instances Adaptive Cover Pro',
+      instances_hint:
+        'Sélectionnez une ou plusieurs instances. Chaque instance sélectionnée ajoute une superposition FOV au graphique.',
+      cover_colors: 'Couleurs des stores',
+      cover_colors_hint: 'Remplacer la couleur de palette par défaut pour chaque superposition.',
+      default_color: 'par défaut',
+      display: 'Affichage',
+      toggle_compact_label: 'Mode compact',
+      toggle_compact_desc: 'Graphique plus petit, espacement plus serré.',
     },
   },
 };

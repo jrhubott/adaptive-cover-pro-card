@@ -1,7 +1,7 @@
 import type { HomeAssistant } from 'custom-card-helpers';
 import { INTEGRATION_DOMAIN, UNIQUE_ID_ROLES } from '../const';
 import type { EntityRegistryEntry } from './entity-registry';
-import type { DiscoveredEntities, AdaptiveCoverProCardConfig } from '../types';
+import type { CoverDiscovery, DiscoveredEntities, AdaptiveCoverProCardConfig } from '../types';
 
 /**
  * Memoized discovery for the root card, which re-runs on every HA state tick (HA
@@ -55,7 +55,10 @@ export function createDiscoveryMemo(): (
     }
 
     const devices = (hass as HassWithDevices).devices;
-    const posId = base.entities.target_position_sensor;
+    // For a group entry the roster (managed_covers) is read from the
+    // group_position sensor's member_positions; track it so a member move
+    // invalidates the memo the same way the cover target sensor does.
+    const posId = base.entities.target_position_sensor ?? base.entities.group_position_sensor;
     const ctrlId = base.entities.control_status_sensor;
     const posState = posId ? hass.states[posId] : undefined;
     const ctrlState = ctrlId ? hass.states[ctrlId] : undefined;
@@ -214,20 +217,45 @@ function assembleDiscovered(
     }
   }
 
+  // The always-present group_active_scene sensor is the group-detection marker.
+  const isGroup = !!entities.group_active_scene_sensor;
+
   const managedCovers: string[] = [];
-  const positionSensorId = entities.target_position_sensor;
-  if (positionSensorId) {
-    const actualPositions = hass.states[positionSensorId]?.attributes?.actual_positions as
-      | Record<string, number | null>
-      | undefined;
-    if (actualPositions) managedCovers.push(...Object.keys(actualPositions));
+  if (isGroup) {
+    // Members are foreign cover entity_ids in other config entries — never
+    // discovered. Read the roster from the group_position sensor's
+    // member_positions keys (parallel to the cover actual_positions path).
+    const groupPosId = entities.group_position_sensor;
+    if (groupPosId) {
+      const memberPositions = hass.states[groupPosId]?.attributes?.member_positions as
+        | Record<string, number | null>
+        | undefined;
+      if (memberPositions) managedCovers.push(...Object.keys(memberPositions));
+    }
+  } else {
+    const positionSensorId = entities.target_position_sensor;
+    if (positionSensorId) {
+      const actualPositions = hass.states[positionSensorId]?.attributes?.actual_positions as
+        | Record<string, number | null>
+        | undefined;
+      if (actualPositions) managedCovers.push(...Object.keys(actualPositions));
+    }
   }
 
   let coverType: DiscoveredEntities['cover_type'] = 'cover_blind';
+  let discovery: CoverDiscovery | undefined;
   const controlStatus = entities.control_status_sensor;
   if (controlStatus) {
-    const attrs = hass.states[controlStatus]?.attributes as { cover_type?: string } | undefined;
+    const attrs = hass.states[controlStatus]?.attributes as
+      | { cover_type?: string; cover_discovery?: unknown }
+      | undefined;
     if (attrs?.cover_type) coverType = attrs.cover_type;
+    // Attach discovery only when it is an object carrying an array `axes` —
+    // tolerate a missing / malformed payload from an older or partial build.
+    const cd = attrs?.cover_discovery;
+    if (cd && typeof cd === 'object' && Array.isArray((cd as CoverDiscovery).axes)) {
+      discovery = cd as CoverDiscovery;
+    }
   }
 
   return {
@@ -237,6 +265,8 @@ function assembleDiscovered(
     entities,
     managed_covers: managedCovers,
     device_id: deviceId,
+    is_group: isGroup,
+    ...(discovery ? { discovery } : {}),
   };
 }
 

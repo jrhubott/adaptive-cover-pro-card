@@ -1,27 +1,44 @@
 import { describe, it, expect } from 'vitest';
 import '../src/components/forecast-strip';
-import type { ForecastSample, ForecastEvent } from '../src/types';
+import type { ForecastSample, ForecastEvent, PositionHistorySample } from '../src/types';
 import { startOfDay } from '../src/lib/sun-model';
 
 interface StripLike extends HTMLElement {
   updateComplete: Promise<boolean>;
   samples?: ForecastSample[];
   events?: ForecastEvent[];
+  history?: PositionHistorySample[];
   now?: number;
+  axisLabels?: Record<string, string>;
 }
 
 async function mount(
   samples: ForecastSample[],
   events: ForecastEvent[],
   nowMs?: number,
+  history?: PositionHistorySample[],
+  axisLabels?: Record<string, string>,
 ): Promise<StripLike> {
   const el = document.createElement('acp-forecast-strip') as StripLike;
   el.samples = samples;
   el.events = events;
+  if (history !== undefined) el.history = history;
   if (nowMs !== undefined) el.now = nowMs;
+  if (axisLabels !== undefined) el.axisLabels = axisLabels;
   document.body.appendChild(el);
   await el.updateComplete;
   return el;
+}
+
+async function hoverFirst(el: StripLike): Promise<Element | null> {
+  const svgEl = el.shadowRoot!.querySelector('svg')!;
+  Object.defineProperty(svgEl, 'getBoundingClientRect', {
+    value: () => ({ left: 0, top: 0, width: 600, height: 80, right: 600, bottom: 80 }),
+    configurable: true,
+  });
+  svgEl.dispatchEvent(new PointerEvent('pointermove', { clientX: 0, clientY: 5 }));
+  await el.updateComplete;
+  return el.shadowRoot!.querySelector('.hover-label');
 }
 
 // All fixtures are anchored to local midnight so tests are timezone-independent.
@@ -59,6 +76,49 @@ describe('acp-forecast-strip', () => {
     const svg = el.shadowRoot!.querySelector('svg');
     expect(svg).toBeTruthy();
     expect(svg!.querySelector('polyline.curve')).toBeTruthy();
+  });
+
+  function history(offsetMs: number, position: number): PositionHistorySample {
+    return { t: new Date(DAY_START + offsetMs).toISOString(), position };
+  }
+
+  it('does not render an actual-curve when history is empty', async () => {
+    const samples = [sample(0, 0), sample(6 * 3600_000, 60)];
+    const el = await mount(samples, [], NOW);
+    expect(el.shadowRoot!.querySelector('polyline.actual-curve')).toBeNull();
+    expect(el.shadowRoot!.querySelector('.legend')).toBeNull();
+  });
+
+  it('renders a second polyline + legend for the actual history series', async () => {
+    const samples = [sample(0, 0), sample(6 * 3600_000, 60), sample(12 * 3600_000, 100)];
+    const hist = [history(0, 10), history(3 * 3600_000, 40), history(6 * 3600_000, 55)];
+    const el = await mount(samples, [], NOW, hist);
+    const actual = el.shadowRoot!.querySelector('polyline.actual-curve');
+    expect(actual).toBeTruthy();
+    expect(actual!.getAttribute('points')!.trim().split(/\s+/).length).toBe(3);
+    // The forecast curve still renders alongside it.
+    expect(el.shadowRoot!.querySelector('polyline.curve')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('.legend')).toBeTruthy();
+  });
+
+  it('drops out-of-day history samples from the actual-curve', async () => {
+    const samples = [sample(6 * 3600_000, 50)];
+    const hist = [
+      history(6 * 3600_000, 50), // in day
+      history(-3600_000, 40), // before midnight — outside day
+      history(26 * 3600_000, 30), // next day — outside day
+    ];
+    const el = await mount(samples, [], NOW, hist);
+    const points =
+      el.shadowRoot!.querySelector('polyline.actual-curve')!.getAttribute('points') ?? '';
+    expect(points.trim().split(/\s+/).filter(Boolean).length).toBe(1);
+  });
+
+  it('renders the strip from history alone when there are no forecast samples', async () => {
+    const hist = [history(0, 10), history(6 * 3600_000, 50)];
+    const el = await mount([], [], NOW, hist);
+    expect(el.shadowRoot!.querySelector('svg')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('polyline.actual-curve')).toBeTruthy();
   });
 
   it('plots one event marker per event in the events array', async () => {
@@ -197,5 +257,85 @@ describe('acp-forecast-strip', () => {
     expect(group!.querySelector('line.now')).toBeTruthy();
     // The tooltip() directive mirrors its text onto data-tooltip.
     expect(group!.getAttribute('data-tooltip') ?? '').toMatch(/^\d{1,2}:\d{2}/);
+  });
+
+  it('renders no secondary-axis track when no sample carries an extra key', async () => {
+    const samples = [sample(0, 0), sample(6 * 3600_000, 50), sample(12 * 3600_000, 100)];
+    const el = await mount(samples, [], NOW);
+    expect(el.shadowRoot!.querySelectorAll('polyline.curve-secondary').length).toBe(0);
+  });
+
+  it('renders a secondary-axis polyline when samples carry an extra numeric key', async () => {
+    const samples = [
+      { ...sample(0, 50), tilt: 20 },
+      { ...sample(6 * 3600_000, 60), tilt: 40 },
+    ];
+    const el = await mount(samples, [], NOW);
+    const secondary = el.shadowRoot!.querySelectorAll('polyline.curve-secondary');
+    expect(secondary.length).toBe(1);
+    const points = secondary[0].getAttribute('points') ?? '';
+    const pairs = points.trim().split(/\s+/).filter(Boolean);
+    expect(pairs.length).toBe(2);
+  });
+
+  it('splits the secondary-axis track into separate segments across a gap', async () => {
+    const samples: ForecastSample[] = [
+      { ...sample(0, 30), tilt: 10 },
+      { ...sample(2 * 3600_000, 40), tilt: 20 },
+      sample(6 * 3600_000, 50, 'default'), // gap: no tilt key on this in-day sample
+      { ...sample(10 * 3600_000, 60), tilt: 30 },
+      { ...sample(12 * 3600_000, 70), tilt: 40 },
+    ];
+    const el = await mount(samples, [], NOW);
+    const secondary = el.shadowRoot!.querySelectorAll('polyline.curve-secondary');
+    expect(secondary.length).toBe(2);
+  });
+
+  it('type-checks a sample literal carrying an inline secondary-axis key', async () => {
+    const literalSample: ForecastSample = {
+      t: new Date(DAY_START).toISOString(),
+      position: 50,
+      handler: 'solar',
+      tilt: 20,
+    };
+    const el = await mount([literalSample], [], NOW);
+    expect(el.shadowRoot!.querySelector('polyline.curve-secondary')).toBeTruthy();
+  });
+
+  it('includes the secondary-axis value in the hover label when present', async () => {
+    const samples = [
+      { ...sample(0, 50), tilt: 20 },
+      { ...sample(6 * 3600_000, 60), tilt: 40 },
+    ];
+    const el = await mount(samples, [], NOW);
+    const label = await hoverFirst(el);
+    expect(label).toBeTruthy();
+    expect(label!.textContent ?? '').toContain('Tilt');
+    expect(label!.textContent ?? '').toContain('20%');
+  });
+
+  it('uses a discovery-supplied axisLabel for an unknown secondary axis key', async () => {
+    const samples = [
+      { ...sample(0, 50), elevation: 15 },
+      { ...sample(6 * 3600_000, 60), elevation: 25 },
+    ];
+    // Discovery label deliberately differs from the capitalized key ("Elevation")
+    // so this proves the axisLabels override is consulted, not the fallback.
+    const el = await mount(samples, [], NOW, undefined, { elevation: 'Sun height' });
+    const label = await hoverFirst(el);
+    expect(label).toBeTruthy();
+    expect(label!.textContent ?? '').toContain('Sun height');
+    expect(label!.textContent ?? '').toContain('15%');
+  });
+
+  it('still prefers the card i18n tilt label over an axisLabels override for tilt', async () => {
+    const samples = [
+      { ...sample(0, 50), tilt: 20 },
+      { ...sample(6 * 3600_000, 60), tilt: 40 },
+    ];
+    const el = await mount(samples, [], NOW, undefined, { tilt: 'ShouldNotWin' });
+    const label = await hoverFirst(el);
+    expect(label!.textContent ?? '').toContain('Tilt');
+    expect(label!.textContent ?? '').not.toContain('ShouldNotWin');
   });
 });

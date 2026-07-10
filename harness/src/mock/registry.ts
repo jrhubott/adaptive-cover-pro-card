@@ -14,6 +14,9 @@ const ROLE_SPECS: RoleSpec[] = Object.entries(UNIQUE_ID_ROLES).map(([key, role])
   return { role, platform, suffix: suffixParts.join(':') };
 });
 
+/** Group roles are all prefixed `group_` in the EntityRole union (issue #185). */
+const isGroupRole = (role: EntityRole): boolean => role.startsWith('group_');
+
 /** Slugify a platform+suffix into a valid HA entity_id object portion. */
 function entityObjectId(entryId: string, suffix: string): string {
   return `acp_${entryId}_${suffix}`
@@ -34,6 +37,15 @@ export function buildRegistry(entries: HarnessEntry[]): EntityRegistryEntry[] {
   const out: EntityRegistryEntry[] = [];
   for (const entry of entries) {
     for (const spec of ROLE_SPECS) {
+      const groupRole = isGroupRole(spec.role);
+      // A Cover Group entry exposes ONLY the group_* entities; an ordinary cover
+      // entry never exposes any of them (gating both ways is what keeps
+      // discovery's is_group marker — group_active_scene — off cover entries).
+      if (entry.is_group) {
+        if (!groupRole) continue;
+      } else if (groupRole) {
+        continue;
+      }
       // The Cover_Tilt sensor only exists for dual-axis venetian covers — its
       // presence is the card's dual-axis gate, so don't register it elsewhere.
       if (spec.role === 'target_tilt_sensor' && entry.cover_type !== 'cover_venetian') continue;

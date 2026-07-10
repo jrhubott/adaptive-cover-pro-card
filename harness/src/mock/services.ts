@@ -42,6 +42,16 @@ export function applyService(
     return { next: cfg, applied: false };
   }
 
+  // select.select_option — group scene select (issue #185)
+  if (key === 'select.select_option' && typeof entityId === 'string') {
+    const option = typeof data?.option === 'string' ? data.option : undefined;
+    if (option) {
+      const result = selectGroupScene(cfg, entityId, option);
+      if (result) return { next: result, applied: true };
+    }
+    return { next: cfg, applied: false };
+  }
+
   // button.press — reset manual override
   if (key === 'button.press' && typeof entityId === 'string') {
     const result = pressButton(cfg, entityId);
@@ -67,6 +77,26 @@ export function applyService(
       next: updateTiltForCover(cfg, target?.entity_id ?? (data?.entity_id as string), tilt),
       applied: true,
     };
+  }
+
+  // adaptive_cover_pro.set_axes — combined multi-axis move (issue #180). Applies
+  // each axis in `data.axes` via the same target/tilt updaters as the legacy
+  // per-axis services.
+  if (key === `${INTEGRATION_DOMAIN}.set_axes`) {
+    const axes = data?.axes as Record<string, unknown> | undefined;
+    if (!axes || typeof axes !== 'object') return { next: cfg, applied: false };
+    const cover = typeof data?.entity_id === 'string' ? data.entity_id : target?.entity_id;
+    let next = cfg;
+    let applied = false;
+    if (typeof axes.position === 'number') {
+      next = updateTargetForCover(next, cover, axes.position);
+      applied = true;
+    }
+    if (typeof axes.tilt === 'number') {
+      next = updateTiltForCover(next, cover, axes.tilt);
+      applied = true;
+    }
+    return { next, applied };
   }
 
   // adaptive_cover_pro.stop — leave the position alone but log it.
@@ -96,8 +126,20 @@ function toggleSwitchEntity(
   let found = false;
   const entries = cfg.entries.map((e) => {
     if (!entityId.includes(e.entry_id)) return e;
-    const next = { ...e, flags: { ...e.flags } };
     const set = (curr: boolean): boolean => (service === 'toggle' ? !curr : service === 'turn_on');
+    // Cover Group switches (issue #185) live on `e.group`, not `e.flags`.
+    if (e.is_group && e.group) {
+      if (/group_lock/i.test(entityId)) {
+        found = true;
+        return { ...e, group: { ...e.group, locked: set(e.group.locked) } };
+      }
+      if (/group_automation/i.test(entityId)) {
+        found = true;
+        return { ...e, group: { ...e.group, automation: set(e.group.automation) } };
+      }
+      return e;
+    }
+    const next = { ...e, flags: { ...e.flags } };
     if (/integration_enabled/i.test(entityId)) {
       next.flags.integration_enabled = set(e.flags.integration_enabled);
       found = true;
@@ -171,6 +213,30 @@ function updateTiltForCover(
       e.covers.some((c) => c.entity_id === coverEntityId) ? bump(e, coverEntityId) : e,
     ),
   };
+}
+
+/** Apply a group scene `select.select_option` to the matching group entry. */
+function selectGroupScene(
+  cfg: HarnessConfig,
+  entityId: string,
+  option: string,
+): HarnessConfig | null {
+  if (!/group_scene/i.test(entityId)) return null;
+  const scene = option as import('../types').GroupFields['scene_option'];
+  let found = false;
+  const entries = cfg.entries.map((e) => {
+    if (!e.is_group || !e.group || !entityId.includes(e.entry_id)) return e;
+    found = true;
+    return {
+      ...e,
+      group: {
+        ...e.group,
+        scene_option: scene,
+        active_scene: scene === 'auto' ? ('none' as const) : scene,
+      },
+    };
+  });
+  return found ? { ...cfg, entries } : null;
 }
 
 function updateSlotForCover(

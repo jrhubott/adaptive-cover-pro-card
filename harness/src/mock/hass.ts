@@ -5,9 +5,10 @@ import {
   INTEGRATION_DOMAIN,
   type HandlerName,
 } from '../../../src/const';
-import type { HarnessConfig } from '../types';
+import type { HarnessConfig, HarnessEntry, ManagedCoverCfg } from '../types';
 import { zoneForLongitude } from '../zone';
 import { buildRegistry } from './registry';
+import { buildActualHistory, type CompressedState } from './history';
 import { buildStates, type GeneratedStates } from './state-gen';
 
 export interface ServiceCallEvent {
@@ -42,6 +43,25 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'badge.off': 'Off',
   'badge.off_schedule': 'Off-schedule',
   'badge.safety': 'Safety',
+  'badge.group': 'Group',
+  // Cover Group tile (issue #185)
+  'group.title': 'Cover Group',
+  'group.scene': 'Scene',
+  'group.scene_auto': 'Auto',
+  'group.scene_all_open': 'All open',
+  'group.scene_all_closed': 'All closed',
+  'group.scene_privacy': 'Privacy',
+  'group.state_open': 'Open',
+  'group.state_closed': 'Closed',
+  'group.state_mixed': 'Mixed',
+  'group.state_unknown': 'Unknown',
+  'group.lock': 'Lock group',
+  'group.unlock': 'Unlock group',
+  'group.automation': 'Automation',
+  'group.clear_overrides': 'Clear overrides',
+  'group.who_won': '{count}/{total} group-driven',
+  'group.members': 'Members',
+  'group.member_placeholder': 'No members reported by the integration.',
   'decision.outside_schedule': 'Outside schedule — automatic control paused',
   'decision.outside_schedule_tooltip':
     'The configured schedule window is not active, so automatic positioning is paused.',
@@ -89,6 +109,9 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'dialog.floor': '↥',
   'dialog.floor_tooltip': 'Custom position floor is raising the calculated value.',
   'badge.floor_suffix': ' ↥',
+  // Forecast-strip legend (actual-vs-forecast overlay).
+  'forecast.legend_forecast': 'Forecast',
+  'forecast.legend_actual': 'Actual',
 };
 
 for (const h of Object.keys(HANDLER_LABELS)) {
@@ -117,10 +140,31 @@ export function buildMockHass(
     };
   }
 
-  // hass.callWS handles the entity-registry list and config-entries calls.
-  const callWS = async <T>(msg: { type: string }): Promise<T> => {
+  // Cover entity_id -> { entry, cover } for mocking recorder position history.
+  const coverLookup = new Map<string, { entry: HarnessEntry; cover: ManagedCoverCfg }>();
+  for (const e of cfg.entries) {
+    for (const c of e.covers) coverLookup.set(c.entity_id, { entry: e, cover: c });
+  }
+
+  // hass.callWS handles the entity-registry list, config-entries, and
+  // recorder-history calls.
+  const callWS = async <T>(msg: { type: string; entity_ids?: string[] }): Promise<T> => {
     if (msg.type === 'config/entity_registry/list') {
       return registry as unknown as T;
+    }
+    if (msg.type === 'history/history_during_period') {
+      const nowMs = generated.now.getTime();
+      const result: Record<string, CompressedState[]> = {};
+      for (const id of msg.entity_ids ?? []) {
+        const found = coverLookup.get(id);
+        if (!found) {
+          result[id] = [];
+          continue;
+        }
+        const samples = generated.samplesByEntry.get(found.entry.entry_id) ?? [];
+        result[id] = buildActualHistory(found.entry, found.cover, samples, nowMs);
+      }
+      return result as unknown as T;
     }
     if (msg.type === 'config_entries/get') {
       // Return the harness entries as simulated cover-profile config entries so
@@ -153,8 +197,22 @@ export function buildMockHass(
     return Promise.resolve();
   };
 
+  // Integration service registry the card feature-detects (issue #180). Under
+  // the legacy flag `set_axes` is omitted so `setAxes` falls back to the
+  // per-axis legacy services.
+  const services = {
+    [INTEGRATION_DOMAIN]: {
+      set_position: {},
+      set_tilt: {},
+      stop: {},
+      set_custom_position: {},
+      ...(cfg.legacyIntegration ? {} : { set_axes: {} }),
+    },
+  };
+
   const hass = {
     states: generated.states,
+    services,
     config: {
       latitude: cfg.latitude,
       longitude: cfg.longitude,

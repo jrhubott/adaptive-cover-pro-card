@@ -205,6 +205,36 @@ describe('floor_clamp handler registration', () => {
   });
 });
 
+describe('group handlers (issue #185)', () => {
+  it('returns group_lock as the sole visible winner row (hideInactive=true)', () => {
+    const steps = new Map([['group_lock', { matched: true }]]);
+    const result = selectVisibleHandlers(HANDLER_ORDER, steps, 'group_lock', true);
+    expect(result).toEqual(['group_lock']);
+  });
+
+  it('returns group_scene as the sole visible winner row (hideInactive=true)', () => {
+    const steps = new Map([['group_scene', { matched: true }]]);
+    const result = selectVisibleHandlers(HANDLER_ORDER, steps, 'group_scene', true);
+    expect(result).toEqual(['group_scene']);
+  });
+
+  it('shows both group handlers as skipped steps on a non-group cover (full pipeline)', () => {
+    const steps = new Map([
+      ['group_scene', { matched: false }],
+      ['group_lock', { matched: false }],
+      ['solar', { matched: true }],
+    ]);
+    const result = selectVisibleHandlers(HANDLER_ORDER, steps, 'solar', false);
+    expect(result).toContain('group_scene');
+    expect(result).toContain('group_lock');
+  });
+
+  it('registers both group handlers in HANDLER_ORDER', () => {
+    expect(HANDLER_ORDER).toContain('group_scene');
+    expect(HANDLER_ORDER).toContain('group_lock');
+  });
+});
+
 describe('config typing', () => {
   it('accepts hide_inactive_handlers on AdaptiveCoverProCardConfig', () => {
     // This is a compile-time test; if types.ts lacks the field, tsc will fail.

@@ -183,6 +183,146 @@ describe('main card show_decision_summary config (issue #173)', () => {
   });
 });
 
+const GROUP_ENTRY = 'group_xyz';
+
+const GROUP_REGISTRY: EntityRegistryEntry[] = [
+  {
+    entity_id: 'sensor.group_active_scene',
+    unique_id: `${GROUP_ENTRY}_group_active_scene`,
+    config_entry_id: GROUP_ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+  {
+    entity_id: 'sensor.group_position',
+    unique_id: `${GROUP_ENTRY}_group_position`,
+    config_entry_id: GROUP_ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+  {
+    entity_id: 'sensor.group_state',
+    unique_id: `${GROUP_ENTRY}_group_state`,
+    config_entry_id: GROUP_ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+  {
+    entity_id: 'sensor.group_who_won',
+    unique_id: `${GROUP_ENTRY}_group_who_won`,
+    config_entry_id: GROUP_ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+  {
+    entity_id: 'select.group_scene',
+    unique_id: `${GROUP_ENTRY}_group_scene_select`,
+    config_entry_id: GROUP_ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+  {
+    entity_id: 'switch.group_lock',
+    unique_id: `${GROUP_ENTRY}_group_lock`,
+    config_entry_id: GROUP_ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+  {
+    entity_id: 'switch.group_automation',
+    unique_id: `${GROUP_ENTRY}_group_automation`,
+    config_entry_id: GROUP_ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+  {
+    entity_id: 'button.group_clear_overrides',
+    unique_id: `${GROUP_ENTRY}_group_clear_overrides`,
+    config_entry_id: GROUP_ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+];
+
+function makeGroupHass(): HomeAssistant {
+  return {
+    config: { latitude: 52.0, longitude: 4.0, time_zone: 'UTC' },
+    states: {
+      'sensor.group_active_scene': { state: 'all_open', attributes: {} },
+      'sensor.group_position': {
+        state: '50',
+        attributes: { member_positions: { 'cover.a': 40, 'cover.b': 60 } },
+      },
+      'sensor.group_state': { state: 'mixed', attributes: {} },
+      'sensor.group_who_won': {
+        state: '1',
+        attributes: { member_winners: { 'cover.a': 'group_lock' } },
+      },
+      'select.group_scene': {
+        state: 'all_open',
+        attributes: {
+          options: ['auto', 'all_open', 'all_closed', 'privacy'],
+          current_option: 'all_open',
+        },
+      },
+      'switch.group_lock': { state: 'off', attributes: {} },
+      'switch.group_automation': { state: 'on', attributes: {} },
+      'button.group_clear_overrides': { state: 'unknown', attributes: {} },
+    },
+    callWS: async () => [],
+    connection: { subscribeEvents: async () => () => {} },
+  } as unknown as HomeAssistant;
+}
+
+async function mountGroup(config: AdaptiveCoverProCardConfig): Promise<CardLike> {
+  const el = document.createElement('adaptive-cover-pro-card') as CardLike;
+  el.hass = makeGroupHass();
+  el._registry = GROUP_REGISTRY;
+  el.setConfig(config);
+  document.body.appendChild(el);
+  await el.updateComplete;
+  return el;
+}
+
+describe('Cover Group routing (issue #185 Phase 3)', () => {
+  it('renders the group view and NOT the cover sections for a group entry', async () => {
+    const el = await mountGroup({
+      type: 'custom:adaptive-cover-pro-card',
+      entry_id: GROUP_ENTRY,
+    });
+    expect(el.shadowRoot!.querySelector('acp-group-view')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('acp-sky-compass')).toBeNull();
+    expect(el.shadowRoot!.querySelector('acp-cover-bar')).toBeNull();
+    expect(el.shadowRoot!.querySelector('acp-decision-strip')).toBeNull();
+    expect(el.shadowRoot!.querySelector('acp-overrides-panel')).toBeNull();
+  });
+
+  it('forwards hass + discovered to the group view', async () => {
+    const el = await mountGroup({
+      type: 'custom:adaptive-cover-pro-card',
+      entry_id: GROUP_ENTRY,
+    });
+    interface GroupViewEl extends HTMLElement {
+      discovered?: { is_group?: boolean };
+      hass?: HomeAssistant;
+    }
+    const view = el.shadowRoot!.querySelector('acp-group-view') as GroupViewEl;
+    expect(view.discovered?.is_group).toBe(true);
+    expect(view.hass).toBeTruthy();
+  });
+
+  it('still renders all cover sections for an ordinary cover entry (regression)', async () => {
+    const el = await mountWithRegistry({
+      type: 'custom:adaptive-cover-pro-card',
+      entry_id: ENTRY,
+    });
+    expect(el.shadowRoot!.querySelector('acp-group-view')).toBeNull();
+    expect(el.shadowRoot!.querySelector('acp-sky-compass')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('acp-cover-bar')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('acp-decision-strip')).toBeTruthy();
+  });
+});
+
 describe('header layout — long entry title', () => {
   it('renders the header with a title span', async () => {
     const el = await mountWithRegistry({
