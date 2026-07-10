@@ -4,6 +4,7 @@ import '../src/components/cover-bar';
 import '../src/components/overrides-panel';
 import '../src/components/header-pill';
 import '../src/components/climate-panel';
+import { climateInControl } from '../src/components/climate-panel';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities } from '../src/types';
 
@@ -577,5 +578,46 @@ describe('acp-climate-panel', () => {
     ).toBe('high 25.0°C');
     // outdoor: summer absent → whole sub-line omitted, no "—" clutter
     expect(temps[1].querySelector('.temp-threshold')).toBeNull();
+  });
+
+  // --- issue #168: climate_status STATE is not sole authority; inactive_reason gates control ---
+
+  describe('climateInControl', () => {
+    it('undefined (older integration) → true', () => {
+      expect(climateInControl(undefined)).toBe(true);
+    });
+
+    it('"active" → true', () => {
+      expect(climateInControl('active')).toBe(true);
+    });
+
+    it.each(['thresholds_not_met', 'other_mode_active', 'mode_off', 'outside_time_window'])(
+      '"%s" → false',
+      (slug) => {
+        expect(climateInControl(slug)).toBe(false);
+      },
+    );
+  });
+
+  it('active strategy + inactive_reason "thresholds_not_met" → standby treatment, no temps, no Active line', async () => {
+    const el = await mount<LitLike>('acp-climate-panel');
+    el.hass = makeHass('intermediate', {
+      active_temperature: 21,
+      temperature_unit: '°C',
+      indoor_temperature: 21,
+      outdoor_temperature: 18,
+      temp_low: 18,
+      temp_high: 25,
+      temp_summer_outside: 22,
+      inactive_reason: 'thresholds_not_met',
+    });
+    el.discovered = makeDiscovered(false);
+    await flush(el);
+    expect(el.shadowRoot!.querySelector('.strategy.standby')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('.standby-reason')?.textContent?.trim()).toBe(
+      'Temperatures within the comfort band — no action needed',
+    );
+    expect(el.shadowRoot!.querySelector('.temps')).toBeNull();
+    expect(el.shadowRoot!.querySelector('.head .dim')).toBeNull();
   });
 });
