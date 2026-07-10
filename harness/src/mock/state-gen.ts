@@ -293,7 +293,7 @@ function addEntryStates(
           temp_low: f.climate_temp_low,
           temp_high: f.climate_temp_high,
           temp_summer_outside: f.climate_temp_summer_outside,
-          inactive_reason: 'active',
+          inactive_reason: f.climate_inactive_reason,
           is_presence: true,
           is_sunny: sun.elevation > 0,
           lux_active: sun.elevation > 5,

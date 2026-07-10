@@ -31,6 +31,16 @@ interface ClimateAttrs {
 //   active    → the handler is active and should not reach the standby branch.
 const SUPPRESSED_REASONS = new Set(['mode_off', 'active']);
 
+// adaptive-cover-pro-card#168: the `climate_status` sensor STATE (summer_mode /
+// winter_mode / intermediate) only records which strategy climate *computed* —
+// it is not proof climate is the pipeline winner. `inactive_reason` is the
+// integration's authority on whether climate actually holds control.
+// undefined = older integration (no slug emitted) → treat as in-control for
+// backward compat; 'active' is the in-control slug itself.
+export function climateInControl(inactiveReason: string | undefined): boolean {
+  return inactiveReason == null || inactiveReason === 'active';
+}
+
 // Keyed by slug states emitted by the integration's `climate_status` sensor
 // (adaptive-cover-pro#453). The visible strategy label is sourced from
 // `hass.formatEntityState`, which goes through the integration's translations.
@@ -68,33 +78,26 @@ export class ClimatePanel extends LitElement {
       const label = modeOff ? t('climate.mode_off', this.hass) : t('climate.standby', this.hass);
       const icon = modeOff ? 'mdi:power-off' : 'mdi:thermostat';
       const reasonSlug = (st.attributes as unknown as ClimateAttrs)?.inactive_reason;
-      // Older integrations omit the slug → no reason line (backward-compat).
-      // mode_off / active are suppressed (see SUPPRESSED_REASONS).
-      const reasonLine =
-        reasonSlug && !SUPPRESSED_REASONS.has(reasonSlug)
-          ? t(`climate.reason.${reasonSlug}`, this.hass)
-          : undefined;
-      return html`
-        <div class="wrap">
-          <div class="head">
-            <span class="label">${t('climate.title', this.hass)}</span>
-          </div>
-          <div class="strategy standby">
-            <ha-icon icon=${icon}></ha-icon>
-            <span class="strategy-name dim">${label}</span>
-          </div>
-          ${reasonLine ? html`<div class="standby-reason dim">${reasonLine}</div>` : nothing}
-        </div>
-      `;
+      return this._renderStandby(icon, label, reasonSlug);
     }
 
     const strategy = st.state;
     const attrs = (st.attributes as unknown as ClimateAttrs) ?? {};
     const icon = STRATEGY_ICONS[strategy] ?? 'mdi:thermostat';
-    const unit = attrs.temperature_unit ?? '°';
     const fmt = (this.hass as unknown as { formatEntityState?: (s: unknown) => string })
       .formatEntityState;
     const strategyLabel = typeof fmt === 'function' ? (fmt(st) ?? strategy) : strategy;
+
+    // adaptive-cover-pro-card#168: the sensor STATE only records which strategy
+    // climate *computed* — inactive_reason is the authority on whether climate
+    // actually holds control. When it doesn't, show the same grayed standby
+    // treatment as the unknown/'' branch above (with the resolved strategy
+    // label instead of "Standby") rather than the full active view.
+    if (!climateInControl(attrs.inactive_reason)) {
+      return this._renderStandby(icon, strategyLabel, attrs.inactive_reason);
+    }
+
+    const unit = attrs.temperature_unit ?? '°';
     const activeValue =
       attrs.active_temperature !== undefined
         ? `${attrs.active_temperature.toFixed(1)}${unit}`
@@ -214,6 +217,35 @@ export class ClimatePanel extends LitElement {
               </div>
             `
           : nothing}
+      </div>
+    `;
+  }
+
+  // Shared grayed standby treatment: dimmed strategy label + icon, plus an
+  // optional localized reason line. Used both when the sensor state itself is
+  // unknown/'' (no strategy computed) and when a strategy slug is present but
+  // inactive_reason says climate isn't in control (#168).
+  private _renderStandby(
+    icon: string,
+    label: string,
+    reasonSlug: string | undefined,
+  ): TemplateResult {
+    // Older integrations omit the slug → no reason line (backward-compat).
+    // mode_off / active are suppressed (see SUPPRESSED_REASONS).
+    const reasonLine =
+      reasonSlug && !SUPPRESSED_REASONS.has(reasonSlug)
+        ? t(`climate.reason.${reasonSlug}`, this.hass)
+        : undefined;
+    return html`
+      <div class="wrap">
+        <div class="head">
+          <span class="label">${t('climate.title', this.hass)}</span>
+        </div>
+        <div class="strategy standby">
+          <ha-icon icon=${icon}></ha-icon>
+          <span class="strategy-name dim">${label}</span>
+        </div>
+        ${reasonLine ? html`<div class="standby-reason dim">${reasonLine}</div>` : nothing}
       </div>
     `;
   }

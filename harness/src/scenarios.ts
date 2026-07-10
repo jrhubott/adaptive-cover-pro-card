@@ -988,6 +988,22 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'climate-not-winner',
+    label: 'Climate computed but not in control (#168)',
+    description:
+      'Climate computes "intermediate" but its thresholds aren\'t met (inactive_reason: thresholds_not_met), so the pipeline winner is Default, not climate. The climate panel must NOT paint climate as in-control: the strategy icon/label gray out and a "Temperatures within the comfort band — no action needed" reason line appears, matching the standby treatment rather than the full active view (#168).',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'climate-not-winner';
+      c.decisionMode = 'scripted';
+      c.scriptedWinner = 'default';
+      const f = c.entries[0].flags;
+      f.climate_strategy = 'intermediate';
+      f.climate_inactive_reason = 'thresholds_not_met';
+      return c;
+    },
+  },
+  {
     id: 'compass-actual-vs-target',
     label: 'Compass — actual vs target divergence',
     description:
