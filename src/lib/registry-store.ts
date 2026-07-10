@@ -25,6 +25,48 @@ export function getCachedRegistry(): EntityRegistryEntry[] | null {
   return _cache;
 }
 
+/** HA sets `window.hassConnection` early in bootstrap, before custom-card
+ *  resources load. It's the only handle available at card-registration time,
+ *  when we have no `hass` yet. */
+type HassConnection = {
+  conn: { sendMessagePromise: <T>(msg: { type: string }) => Promise<T> };
+};
+function hassConnection(): Promise<HassConnection> | undefined {
+  return (globalThis as { hassConnection?: Promise<HassConnection> }).hassConnection;
+}
+
+/**
+ * Eagerly warm the shared cache at card-registration time via the global HA
+ * connection. HA's by-entity card picker computes suggestions (calling each
+ * card's synchronous `getEntitySuggestion`) *before* any ACP card has rendered,
+ * so nothing else has populated the cache yet — and the picker memoizes on the
+ * selected entity, so it will not recompute on a later `hass` tick. Warming at
+ * registration means the registry is usually resident by the time the user opens
+ * the picker. No-op when already warm/in-flight or when no connection exists
+ * (e.g. tests). Reuses `_inFlight` so a concurrent `loadEntityRegistry` dedupes.
+ */
+export function warmEntityRegistry(): void {
+  if (_cache || _inFlight) return;
+  const connPromise = hassConnection();
+  if (!connPromise) return;
+  _inFlight = connPromise
+    .then(({ conn }) =>
+      conn.sendMessagePromise<EntityRegistryEntry[]>({ type: 'config/entity_registry/list' }),
+    )
+    .then((entries) => {
+      _cache = entries;
+      _inFlight = null;
+      return entries;
+    })
+    .catch((err) => {
+      _inFlight = null;
+      throw err;
+    });
+  // Fire-and-forget: swallow rejection here so an unawaited warm can't surface as
+  // an unhandled rejection. Real `loadEntityRegistry` awaiters still see failures.
+  _inFlight.catch(() => {});
+}
+
 /**
  * Resolve the full entity registry, sharing one fetch across all callers.
  *
