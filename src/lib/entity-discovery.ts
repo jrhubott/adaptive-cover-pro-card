@@ -55,7 +55,10 @@ export function createDiscoveryMemo(): (
     }
 
     const devices = (hass as HassWithDevices).devices;
-    const posId = base.entities.target_position_sensor;
+    // For a group entry the roster (managed_covers) is read from the
+    // group_position sensor's member_positions; track it so a member move
+    // invalidates the memo the same way the cover target sensor does.
+    const posId = base.entities.target_position_sensor ?? base.entities.group_position_sensor;
     const ctrlId = base.entities.control_status_sensor;
     const posState = posId ? hass.states[posId] : undefined;
     const ctrlState = ctrlId ? hass.states[ctrlId] : undefined;
@@ -214,13 +217,29 @@ function assembleDiscovered(
     }
   }
 
+  // The always-present group_active_scene sensor is the group-detection marker.
+  const isGroup = !!entities.group_active_scene_sensor;
+
   const managedCovers: string[] = [];
-  const positionSensorId = entities.target_position_sensor;
-  if (positionSensorId) {
-    const actualPositions = hass.states[positionSensorId]?.attributes?.actual_positions as
-      | Record<string, number | null>
-      | undefined;
-    if (actualPositions) managedCovers.push(...Object.keys(actualPositions));
+  if (isGroup) {
+    // Members are foreign cover entity_ids in other config entries — never
+    // discovered. Read the roster from the group_position sensor's
+    // member_positions keys (parallel to the cover actual_positions path).
+    const groupPosId = entities.group_position_sensor;
+    if (groupPosId) {
+      const memberPositions = hass.states[groupPosId]?.attributes?.member_positions as
+        | Record<string, number | null>
+        | undefined;
+      if (memberPositions) managedCovers.push(...Object.keys(memberPositions));
+    }
+  } else {
+    const positionSensorId = entities.target_position_sensor;
+    if (positionSensorId) {
+      const actualPositions = hass.states[positionSensorId]?.attributes?.actual_positions as
+        | Record<string, number | null>
+        | undefined;
+      if (actualPositions) managedCovers.push(...Object.keys(actualPositions));
+    }
   }
 
   let coverType: DiscoveredEntities['cover_type'] = 'cover_blind';
@@ -246,6 +265,7 @@ function assembleDiscovered(
     entities,
     managed_covers: managedCovers,
     device_id: deviceId,
+    is_group: isGroup,
     ...(discovery ? { discovery } : {}),
   };
 }

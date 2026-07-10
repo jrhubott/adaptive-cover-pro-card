@@ -12,6 +12,9 @@ interface BadgeLike extends HTMLElement {
   integrationEnabled?: boolean;
   resumable?: boolean;
   safetyActive?: boolean;
+  kindOverride?: string;
+  groupCount?: number;
+  groupTotal?: number;
 }
 
 async function mountBadge(props: Partial<BadgeLike>): Promise<BadgeLike> {
@@ -211,6 +214,35 @@ describe('acp-tile-badge', () => {
     const el = await mountBadge({ winner: 'manual' });
     expect(el.shadowRoot!.querySelector('button.badge')).toBeFalsy();
     expect(el.shadowRoot!.querySelector('span.badge')).toBeTruthy();
+  });
+
+  it('renders the "N/M" who-won label with the group icon for kindOverride=group', async () => {
+    const el = await mountBadge({ kindOverride: 'group', groupCount: 3, groupTotal: 5 });
+    expect(text(el)).toBe('3/5');
+    expect(kind(el)).toBe('group');
+    const icon = el.shadowRoot!.querySelector('ha-icon');
+    expect(icon!.getAttribute('icon')).toBe('mdi:window-shutter-cog');
+  });
+
+  it('falls back to the base Group label when counts are absent', async () => {
+    const el = await mountBadge({ kindOverride: 'group' });
+    expect(text(el)).toBe('Group');
+    expect(kind(el)).toBe('group');
+  });
+
+  // Issue #185: a member cover the group is driving wins with the group_scene
+  // or group_lock handler. Its who-won badge must read "Group" — not "Auto" —
+  // so the who-won display actually tells you the group is in control.
+  it('renders Group for a group_scene winner', async () => {
+    const el = await mountBadge({ winner: 'group_scene' });
+    expect(text(el)).toBe('Group');
+    expect(kind(el)).toBe('group');
+  });
+
+  it('renders Group for a group_lock winner', async () => {
+    const el = await mountBadge({ winner: 'group_lock' });
+    expect(text(el)).toBe('Group');
+    expect(kind(el)).toBe('group');
   });
 
   it('renders a tappable button and emits acp-resume when resumable', async () => {

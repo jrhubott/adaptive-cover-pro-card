@@ -66,6 +66,13 @@ export function buildStates(cfg: HarnessConfig): GeneratedStates {
   const samplesByEntry = new Map<string, SunSample[]>();
 
   for (const entry of cfg.entries) {
+    // Cover Group entries (issue #185) carry no sun geometry, decision pipeline,
+    // or per-cover sensors — emit their group_* entities and move on.
+    if (entry.is_group) {
+      samplesByEntry.set(entry.entry_id, []);
+      addGroupStates(states, entry);
+      continue;
+    }
     const samples = sampleDay(cfg.latitude, cfg.longitude, dayStart);
     samplesByEntry.set(entry.entry_id, samples);
     const sun = nearestSample(samples, now);
@@ -470,6 +477,96 @@ function addCoverStates(states: Record<string, HassState>, entry: HarnessEntry):
       device_class: dualAxis ? 'blind' : 'shade',
     });
   }
+}
+
+/**
+ * Emit the `group_*` entity states for a Cover Group entry (issue #185). Reads
+ * the group state straight off `entry.group`; the aggregate position + roster
+ * come from `member_positions`, the who-won count from `member_winners`.
+ */
+function addGroupStates(states: Record<string, HassState>, entry: HarnessEntry): void {
+  const id = (role: Parameters<typeof entityIdFor>[1]) => entityIdFor(entry, role);
+  const g = entry.group;
+  if (!g) return;
+  const whoWon = Object.values(g.member_winners).filter((w) => w !== null).length;
+
+  states[id('group_position_sensor')] = mkState(
+    id('group_position_sensor'),
+    String(g.aggregate_position),
+    {
+      friendly_name: `${entry.title} Group Position`,
+      unit_of_measurement: '%',
+      member_positions: g.member_positions,
+    },
+  );
+  states[id('group_state_sensor')] = mkState(id('group_state_sensor'), g.state, {
+    friendly_name: `${entry.title} Group State`,
+  });
+  states[id('group_active_scene_sensor')] = mkState(
+    id('group_active_scene_sensor'),
+    g.active_scene === 'none' ? 'unknown' : g.active_scene,
+    { friendly_name: `${entry.title} Group Active Scene` },
+  );
+  states[id('group_climate_mode_sensor')] = mkState(
+    id('group_climate_mode_sensor'),
+    g.climate_mode,
+    { friendly_name: `${entry.title} Group Climate Mode`, member_climate_modes: {} },
+  );
+  states[id('group_who_won_sensor')] = mkState(id('group_who_won_sensor'), String(whoWon), {
+    friendly_name: `${entry.title} Group Who Won`,
+    member_winners: g.member_winners,
+  });
+  states[id('group_scene_select')] = mkState(id('group_scene_select'), g.scene_option, {
+    friendly_name: `${entry.title} Group Scene`,
+    options: ['auto', 'all_open', 'all_closed', 'privacy'],
+    current_option: g.scene_option,
+  });
+  states[id('group_automation_switch')] = mkState(
+    id('group_automation_switch'),
+    g.automation ? 'on' : 'off',
+    { friendly_name: `${entry.title} Group Automation` },
+  );
+  states[id('group_lock_switch')] = mkState(id('group_lock_switch'), g.locked ? 'on' : 'off', {
+    friendly_name: `${entry.title} Group Lock`,
+  });
+  for (const role of [
+    'group_scene_all_open_button',
+    'group_scene_all_closed_button',
+    'group_scene_privacy_button',
+    'group_clear_overrides_button',
+  ] as const) {
+    states[id(role)] = mkState(id(role), 'unknown', { friendly_name: `${entry.title} ${role}` });
+  }
+
+  // Member covers are foreign entity_ids in other config entries — the card
+  // never discovers them, but the group view reads each member's live
+  // friendly_name/position off `hass.states`. Emit a stub cover state per
+  // member (ACP-managed AND generic) so the harness main-card group view shows
+  // real names + open/closed states instead of bare entity_ids.
+  for (const [memberId, pos] of Object.entries(g.member_positions)) {
+    states[memberId] = mkState(memberId, coverPositionState(pos), {
+      friendly_name: memberFriendlyName(memberId),
+      current_position: pos ?? undefined,
+      device_class: 'shade',
+    });
+  }
+}
+
+/** open/closed/unknown text for a member cover from its 0..100 position. */
+function coverPositionState(pos: number | null): string {
+  if (pos === null) return 'unknown';
+  return pos <= 0 ? 'closed' : 'open';
+}
+
+/** Humanize a member cover entity_id into a friendly name
+ *  (`cover.living_left` → `Living Left`). */
+function memberFriendlyName(entityId: string): string {
+  return entityId
+    .split('.')
+    .pop()!
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
 }
 
 /**

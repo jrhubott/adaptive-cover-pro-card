@@ -176,6 +176,40 @@ function makeEntry(
   };
 }
 
+/**
+ * Build a Cover Group HarnessEntry (issue #185). Reuses {@link makeEntry} for the
+ * shared shape, then marks it a group and attaches the group state. Member covers
+ * are foreign entity_ids read from `member_positions`, so the entry owns no covers
+ * of its own.
+ */
+function makeGroupEntry(
+  overrides: Partial<HarnessEntry> & Pick<HarnessEntry, 'entry_id'>,
+): HarnessEntry {
+  const base = makeEntry({ ...overrides, covers: overrides.covers ?? [] });
+  return {
+    ...base,
+    is_group: true,
+    group: overrides.group ?? {
+      member_positions: {
+        'cover.living_left': 40,
+        'cover.living_right': 60,
+        'cover.hall_generic': 0,
+      },
+      member_winners: {
+        'cover.living_left': 'solar',
+        'cover.living_right': 'manual',
+      },
+      aggregate_position: 33,
+      state: 'mixed',
+      active_scene: 'none',
+      scene_option: 'auto',
+      locked: false,
+      automation: true,
+      climate_mode: 'summer_mode',
+    },
+  };
+}
+
 function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): HarnessConfig {
   return {
     latitude: lat,
@@ -715,6 +749,85 @@ export const SCENARIOS: Scenario[] = [
       ];
       c.entries[0].target_position = 30;
       c.entries[0].covers[0].position = 30;
+      return c;
+    },
+  },
+  {
+    id: 'group-driven-member',
+    label: 'Group-driven member — group lock wins (issue #185)',
+    description:
+      'A member cover of a Cover Group whose group is locked: the integration emits the priority-100 `group_lock` handler as the winner. The decision strip renders a "Group Lock" winner row (and a skipped "Group Scene" step), proving the two new group handlers wire into the fixed HANDLER_ORDER. Full group discovery / group UI arrives in later phases; this scenario exercises only the decision-strip wire slice.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 13 * 60);
+      c.scenario = 'group-driven-member';
+      c.decisionMode = 'scripted';
+      c.scriptedWinner = 'group_lock';
+      // Group lock holds the member fully closed.
+      c.entries[0].target_position = 0;
+      c.entries[0].covers[0].position = 0;
+      return c;
+    },
+  },
+  {
+    id: 'group-tile',
+    label: 'Cover Group — tile variant (issue #185)',
+    description:
+      'A Cover Group entry rendered as the new group tile. The tile shows the aggregate position + state (mixed), the scene select (auto/all open/all closed/privacy), the lock toggle, and the who-won "2/3" badge (2 of 3 members group-driven). Pick a scene → select.select_option fires; toggle the lock → switch.turn_on/off fires, both applied optimistically. Phase 2 wires only the group TILE — the root/decision/compass/solar cards are hidden here; the main-card group view arrives in Phase 3.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-tile';
+      c.entries = [makeGroupEntry({ entry_id: 'downstairs_group', title: 'Downstairs Group' })];
+      // Only the tile understands a group entry in Phase 2.
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      return c;
+    },
+  },
+  {
+    id: 'cover-group-full',
+    label: 'Cover Group — full main-card view (issue #185)',
+    description:
+      'A Cover Group entry rendered through the ROOT main card, which routes it to the new group view (no sun/window geometry). The view shows the aggregate position + state, the scene select, the lock / automation toggles, and a clear-overrides button, plus a member roster of 4 covers with mixed winners: solar, group_scene, and group_lock drive three ACP members, while a generic cover shows its position with no who-won badge. The group is locked. Pick a scene → select.select_option; toggle lock/automation → switch.turn_on/off; press clear-overrides → button.press — all applied optimistically.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'cover-group-full';
+      c.entries = [
+        makeGroupEntry({
+          entry_id: 'whole_house_group',
+          title: 'Whole House Group',
+          group: {
+            member_positions: {
+              'cover.living_left': 30,
+              'cover.living_right': 45,
+              'cover.bedroom': 0,
+              'cover.hall_generic': 80,
+            },
+            member_winners: {
+              'cover.living_left': 'solar',
+              'cover.living_right': 'group_scene',
+              'cover.bedroom': 'group_lock',
+            },
+            aggregate_position: 39,
+            state: 'mixed',
+            active_scene: 'all_closed',
+            scene_option: 'all_closed',
+            locked: true,
+            automation: true,
+            climate_mode: 'summer_mode',
+          },
+        }),
+      ];
+      // The main-card group view is the focus; the tile/decision/compass/solar
+      // cards are cover-oriented and hidden here. The root card routes to the
+      // group view automatically via `is_group`.
+      c.root.enabled = true;
+      c.tile.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
       return c;
     },
   },

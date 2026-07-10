@@ -639,6 +639,101 @@ describe('adaptive-cover-pro-tile-card render', () => {
   });
 });
 
+describe('adaptive-cover-pro-tile-card group entry (issue #185)', () => {
+  const GROUP_ENTRY = 'group_xyz';
+  const GROUP_REGISTRY: EntityRegistryEntry[] = [
+    {
+      entity_id: 'sensor.group_position',
+      unique_id: `${GROUP_ENTRY}_group_position`,
+      config_entry_id: GROUP_ENTRY,
+      platform: 'adaptive_cover_pro',
+      device_id: null,
+    },
+    {
+      entity_id: 'sensor.group_state',
+      unique_id: `${GROUP_ENTRY}_group_state`,
+      config_entry_id: GROUP_ENTRY,
+      platform: 'adaptive_cover_pro',
+      device_id: null,
+    },
+    {
+      entity_id: 'sensor.group_active_scene',
+      unique_id: `${GROUP_ENTRY}_group_active_scene`,
+      config_entry_id: GROUP_ENTRY,
+      platform: 'adaptive_cover_pro',
+      device_id: null,
+    },
+    {
+      entity_id: 'sensor.group_who_won',
+      unique_id: `${GROUP_ENTRY}_group_who_won`,
+      config_entry_id: GROUP_ENTRY,
+      platform: 'adaptive_cover_pro',
+      device_id: null,
+    },
+    {
+      entity_id: 'select.group_scene',
+      unique_id: `${GROUP_ENTRY}_group_scene_select`,
+      config_entry_id: GROUP_ENTRY,
+      platform: 'adaptive_cover_pro',
+      device_id: null,
+    },
+    {
+      entity_id: 'switch.group_lock',
+      unique_id: `${GROUP_ENTRY}_group_lock`,
+      config_entry_id: GROUP_ENTRY,
+      platform: 'adaptive_cover_pro',
+      device_id: null,
+    },
+  ];
+
+  function makeGroupHass(): HomeAssistant {
+    return {
+      states: {
+        'sensor.group_position': {
+          state: '50',
+          attributes: { member_positions: { 'cover.a': 40, 'cover.b': 60 } },
+        },
+        'sensor.group_state': { state: 'mixed', attributes: {} },
+        'sensor.group_active_scene': { state: 'all_open', attributes: {} },
+        'sensor.group_who_won': {
+          state: '2',
+          attributes: { member_winners: { 'cover.a': 'solar', 'cover.b': 'manual' } },
+        },
+        'select.group_scene': {
+          state: 'all_open',
+          attributes: {
+            options: ['auto', 'all_open', 'all_closed', 'privacy'],
+            current_option: 'all_open',
+          },
+        },
+        'switch.group_lock': { state: 'off', attributes: {} },
+      },
+      callService: vi.fn(),
+      callWS: vi.fn().mockResolvedValue(GROUP_REGISTRY),
+      connection: { subscribeEvents: vi.fn().mockResolvedValue(() => {}) },
+    } as unknown as HomeAssistant;
+  }
+
+  it('delegates to <acp-group-tile> and renders no cover controls for a group entry', async () => {
+    const el = makeCard();
+    el.setConfig({ type: TYPE, entry_id: GROUP_ENTRY });
+    el.hass = makeGroupHass();
+    document.body.appendChild(el);
+    el._registry = GROUP_REGISTRY;
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('acp-group-tile')).toBeTruthy();
+    // The cover ↑/↓ controls must NOT render for a group.
+    expect(el.shadowRoot!.querySelector('button.up')).toBeFalsy();
+    expect(el.shadowRoot!.querySelector('button.down')).toBeFalsy();
+  });
+
+  it('still renders the cover tile (with controls) for a non-group entry', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
+    expect(el.shadowRoot!.querySelector('acp-group-tile')).toBeFalsy();
+    expect(el.shadowRoot!.querySelector('button.up')).toBeTruthy();
+  });
+});
+
 describe('adaptive-cover-pro-tile-card service calls', () => {
   it('↑ calls adaptive_cover_pro.set_position(100) against the first managed cover', async () => {
     const callService = vi.fn();

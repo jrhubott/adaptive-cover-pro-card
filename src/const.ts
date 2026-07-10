@@ -32,11 +32,16 @@ export const MANUAL_OVERRIDE_PRIORITY = 80;
 export const CUSTOM_POSITION_SAFETY_PRIORITY = 100;
 
 /**
- * The 11 Adaptive Cover Pro pipeline handlers in priority order (highest first).
+ * The Adaptive Cover Pro pipeline handlers in priority order (highest first).
  * Must match `control_method` enum values emitted by the integration.
  * Keep the ordering in lock-step with `custom_components/adaptive_cover_pro/pipeline/registry.py`.
  * `floor_clamp` is a post-processing step that raises the output above the raw
  * calculation; it follows all handler decisions in priority.
+ *
+ * `group_lock` (priority 100) and `group_scene` (priority 85) are emitted only on
+ * member covers of a Cover Group entry. They sit next to the ordinary handlers of
+ * the same priority: `group_lock` beside `custom_position` (both 100) and
+ * `group_scene` between `weather` (90) and `manual` (80).
  */
 // NOTE: the `force` handler (and its HANDLER_LABELS/HANDLER_I18N_KEYS/
 // BADGE_KINDS_BY_HANDLER/BADGE_TOKENS/BADGE_ICONS/BADGE_I18N_KEYS entries plus
@@ -48,7 +53,9 @@ export const CUSTOM_POSITION_SAFETY_PRIORITY = 100;
 export const HANDLER_ORDER = [
   'force',
   'weather',
+  'group_scene',
   'manual',
+  'group_lock',
   'custom_position',
   'motion',
   'cloud',
@@ -64,7 +71,9 @@ export type HandlerName = (typeof HANDLER_ORDER)[number];
 export const HANDLER_LABELS: Record<HandlerName, string> = {
   force: 'Force Override',
   weather: 'Weather Safety',
+  group_scene: 'Group Scene',
   manual: 'Manual Override',
+  group_lock: 'Group Lock',
   custom_position: 'Custom Position',
   motion: 'Motion Timeout',
   cloud: 'Cloud Suppression',
@@ -83,7 +92,9 @@ export const HANDLER_LABELS: Record<HandlerName, string> = {
 export const HANDLER_I18N_KEYS: Record<HandlerName, string> = {
   force: 'handler.force',
   weather: 'handler.weather',
+  group_scene: 'handler.group_scene',
   manual: 'handler.manual',
+  group_lock: 'handler.group_lock',
   custom_position: 'handler.custom_position',
   motion: 'handler.motion',
   cloud: 'handler.cloud',
@@ -135,7 +146,8 @@ export type BadgeKind =
   | 'solar'
   | 'motion'
   | 'off'
-  | 'off_schedule';
+  | 'off_schedule'
+  | 'group';
 
 /**
  * Map a normalized winner-handler name to its badge kind. Anything not in this
@@ -151,6 +163,11 @@ export const BADGE_KINDS_BY_HANDLER: Partial<Record<HandlerName, BadgeKind>> = {
   custom_position: 'custom_position',
   solar: 'solar',
   motion: 'motion',
+  // A member cover the group drives wins with one of these handlers; surface
+  // it as the "Group" badge so the who-won display reads as group-controlled
+  // (issue #185) instead of falling through to the generic "Auto".
+  group_scene: 'group',
+  group_lock: 'group',
 };
 
 interface BadgeTokens {
@@ -177,6 +194,9 @@ export const BADGE_TOKENS: Record<BadgeKind, BadgeTokens> = {
   motion: { label: 'Motion', bg: 'rgba(255, 235, 59, 0.22)', fg: '#827717' },
   off: { label: 'Off', bg: 'rgba(97, 97, 97, 0.28)', fg: '#212121' },
   off_schedule: { label: 'Off-schedule', bg: 'rgba(96, 125, 139, 0.22)', fg: '#37474f' },
+  // Cover Group who-won count badge (issue #185). Neutral indigo, distinct from
+  // every handler kind; applied via `kindOverride`, never derived from a winner.
+  group: { label: 'Group', bg: 'rgba(63, 81, 181, 0.20)', fg: '#283593' },
 };
 
 /**
@@ -198,6 +218,7 @@ export const BADGE_I18N_KEYS: Record<BadgeKind, string> = {
   motion: 'badge.motion',
   off: 'badge.off',
   off_schedule: 'badge.off_schedule',
+  group: 'badge.group',
 };
 
 /**
@@ -216,6 +237,7 @@ export const BADGE_ICONS: Record<BadgeKind, string> = {
   motion: 'mdi:motion-sensor',
   off: 'mdi:power',
   off_schedule: 'mdi:clock-alert-outline',
+  group: 'mdi:window-shutter-cog',
 };
 
 /** Logical slots the card binds to. */
@@ -244,7 +266,23 @@ export type EntityRole =
   | 'manual_toggle_switch'
   | 'climate_mode_switch'
   | 'motion_control_switch'
-  | 'reset_override_button';
+  | 'reset_override_button'
+  // Cover Group roles (issue #185). Present only on a Cover Group config entry;
+  // an ordinary cover entry never exposes any of these. `group_active_scene_sensor`
+  // is the always-present detection marker (`is_group`).
+  | 'group_position_sensor'
+  | 'group_state_sensor'
+  | 'group_active_scene_sensor'
+  | 'group_climate_mode_sensor'
+  | 'group_who_won_sensor'
+  | 'group_scene_select'
+  | 'group_automation_switch'
+  | 'group_lock_switch'
+  | 'group_scene_all_open_button'
+  | 'group_scene_all_closed_button'
+  | 'group_scene_privacy_button'
+  | 'group_clear_overrides_button'
+  | 'group_cover';
 
 /**
  * Map (platform, unique_id suffix) → card role.
@@ -343,4 +381,21 @@ export const UNIQUE_ID_ROLES: Record<string, EntityRole> = {
 
   // button
   'button:Reset Manual Override': 'reset_override_button',
+
+  // Cover Group entities (issue #185). All snake_case translation-key suffixes on
+  // the `adaptive_cover_pro` platform. `sensor:group_active_scene` is created
+  // unconditionally for every group and is the card's group-detection marker.
+  'sensor:group_position': 'group_position_sensor',
+  'sensor:group_state': 'group_state_sensor',
+  'sensor:group_active_scene': 'group_active_scene_sensor',
+  'sensor:group_climate_mode': 'group_climate_mode_sensor',
+  'sensor:group_who_won': 'group_who_won_sensor',
+  'select:group_scene_select': 'group_scene_select',
+  'switch:group_automation': 'group_automation_switch',
+  'switch:group_lock': 'group_lock_switch',
+  'button:group_scene_all_open': 'group_scene_all_open_button',
+  'button:group_scene_all_closed': 'group_scene_all_closed_button',
+  'button:group_scene_privacy': 'group_scene_privacy_button',
+  'button:group_clear_overrides': 'group_clear_overrides_button',
+  'cover:group_cover': 'group_cover',
 };

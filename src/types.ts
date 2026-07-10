@@ -225,11 +225,43 @@ export interface DiscoveredEntities {
   /** HA device the integration's entities are attached to. Used to deep-link
    *  into `/config/devices/device/<id>` from the more-info dialog. */
   device_id?: string;
+  /** True when this entry is a Cover Group (issue #185). Set when the
+   *  always-present `group_active_scene` sensor is discovered. When true the
+   *  card routes to the group UI and `managed_covers` is the member roster read
+   *  from `group_position`'s `member_positions` keys. A cover entry never sets
+   *  this, so all existing code paths are unchanged. */
+  is_group?: boolean;
   /** Integration self-discovery axis descriptor, when the integration is new
    *  enough to publish `cover_discovery` on the control_status sensor. Absent on
    *  older integrations — the card falls back to synthesizing axes. */
   discovery?: CoverDiscovery;
 }
+
+/**
+ * Attributes on a Cover Group's `group_position` sensor (issue #185). The sensor
+ * state is the aggregate position; `member_positions` maps every member cover
+ * entity_id (ACP-managed AND generic `cover.*`) to its live position (null =
+ * unknown). Its key count is the full roster size (the who-won "N/M" denominator).
+ */
+export interface GroupPositionAttributes {
+  member_positions: Record<string, number | null>;
+}
+
+/**
+ * Attributes on a Cover Group's `group_who_won` sensor (issue #185). The sensor
+ * state is a bare integer count of ACP members currently driven by the group;
+ * `member_winners` maps each ACP member entity_id to its winning handler name
+ * (snake_case) or null. Generic covers are absent from this map.
+ */
+export interface GroupWhoWonAttributes {
+  member_winners: Record<string, string | null>;
+}
+
+/** Aggregate open/closed state emitted by a Cover Group's `group_state` sensor. */
+export type GroupAggregateState = 'open' | 'closed' | 'mixed' | 'unknown';
+
+/** Scene options the group scene `select` exposes / the services accept. */
+export type GroupScene = 'auto' | 'all_open' | 'all_closed' | 'privacy';
 
 export interface DecisionStep {
   handler: string;

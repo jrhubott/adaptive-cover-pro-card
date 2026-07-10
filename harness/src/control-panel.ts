@@ -6,12 +6,35 @@ import type {
   ClimateInactiveReason,
   ClimateStrategy,
   CoverType,
+  GroupFields,
   HarnessConfig,
   HarnessEntry,
   ManagedCoverCfg,
   MotionStatusValue,
   TooltipMode,
 } from './types';
+
+/** Default Cover Group state for the "Group entry" control-panel toggle. */
+function defaultGroupFields(): GroupFields {
+  return {
+    member_positions: {
+      'cover.living_left': 40,
+      'cover.living_right': 60,
+      'cover.hall_generic': 0,
+    },
+    member_winners: {
+      'cover.living_left': 'solar',
+      'cover.living_right': 'manual',
+    },
+    aggregate_position: 33,
+    state: 'mixed',
+    active_scene: 'none',
+    scene_option: 'auto',
+    locked: false,
+    automation: true,
+    climate_mode: 'summer_mode',
+  };
+}
 
 /**
  * Dispatched whenever any control changes. Always carries the full config.
@@ -429,6 +452,12 @@ export class AcpHarnessControlPanel extends LitElement {
               this._patchEntry(idx, { title: (ev.target as HTMLInputElement).value })}
           />
         </label>
+        ${this._checkbox('Group entry (Cover Group)', !!e.is_group, (v) =>
+          this._patchEntry(
+            idx,
+            v ? { is_group: true, group: e.group ?? defaultGroupFields() } : { is_group: false },
+          ),
+        )}
         <label class="row">
           <span>Cover type</span>
           <select
