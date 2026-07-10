@@ -247,6 +247,12 @@ export interface ForecastSample {
   t: string;
   position: number;
   handler: 'solar' | 'default' | string;
+  /** Optional secondary-axis value (e.g. `tilt` for venetian solar-tracking
+   *  samples), keyed by the integration's axis name (`CoverAxis.name`).
+   *  Additive: present only for cover types that project a secondary axis
+   *  and only on solar-handler samples. A card that reads only `position`
+   *  is unaffected. */
+  [axisKey: string]: string | number | undefined;
 }
 
 export interface ForecastEvent {

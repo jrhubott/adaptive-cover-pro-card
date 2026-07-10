@@ -303,6 +303,18 @@ export function dayFractionX(t: number, dayStart: number, width: number): number
   return Math.max(0, Math.min(width, frac * width));
 }
 
+/**
+ * Map a 0-100 percent value onto a y-coordinate in [top, top + height],
+ * inverted so 100% lands at `top` and 0% lands at `top + height` (SVG y grows
+ * downward). Mirrors `dayFractionX`'s style/placement for the y-axis.
+ *
+ * Out-of-range inputs clamp to [0, 100] first; NaN is treated as 0%.
+ */
+export function percentToY(value: number, top: number, height: number): number {
+  const pct = Number.isNaN(value) ? 0 : Math.max(0, Math.min(100, value));
+  return top + (1 - pct / 100) * height;
+}
+
 /** True when azimuth `x` lies on the CW arc from `start` to `end`. */
 function azimuthInArc(x: number, start: number, end: number): boolean {
   const sweep = (((end - start) % 360) + 360) % 360;

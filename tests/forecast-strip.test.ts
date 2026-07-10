@@ -198,4 +198,66 @@ describe('acp-forecast-strip', () => {
     // The tooltip() directive mirrors its text onto data-tooltip.
     expect(group!.getAttribute('data-tooltip') ?? '').toMatch(/^\d{1,2}:\d{2}/);
   });
+
+  it('renders no secondary-axis track when no sample carries an extra key', async () => {
+    const samples = [sample(0, 0), sample(6 * 3600_000, 50), sample(12 * 3600_000, 100)];
+    const el = await mount(samples, [], NOW);
+    expect(el.shadowRoot!.querySelectorAll('polyline.curve-secondary').length).toBe(0);
+  });
+
+  it('renders a secondary-axis polyline when samples carry an extra numeric key', async () => {
+    const samples = [
+      { ...sample(0, 50), tilt: 20 },
+      { ...sample(6 * 3600_000, 60), tilt: 40 },
+    ];
+    const el = await mount(samples, [], NOW);
+    const secondary = el.shadowRoot!.querySelectorAll('polyline.curve-secondary');
+    expect(secondary.length).toBe(1);
+    const points = secondary[0].getAttribute('points') ?? '';
+    const pairs = points.trim().split(/\s+/).filter(Boolean);
+    expect(pairs.length).toBe(2);
+  });
+
+  it('splits the secondary-axis track into separate segments across a gap', async () => {
+    const samples: ForecastSample[] = [
+      { ...sample(0, 30), tilt: 10 },
+      { ...sample(2 * 3600_000, 40), tilt: 20 },
+      sample(6 * 3600_000, 50, 'default'), // gap: no tilt key on this in-day sample
+      { ...sample(10 * 3600_000, 60), tilt: 30 },
+      { ...sample(12 * 3600_000, 70), tilt: 40 },
+    ];
+    const el = await mount(samples, [], NOW);
+    const secondary = el.shadowRoot!.querySelectorAll('polyline.curve-secondary');
+    expect(secondary.length).toBe(2);
+  });
+
+  it('type-checks a sample literal carrying an inline secondary-axis key', async () => {
+    const literalSample: ForecastSample = {
+      t: new Date(DAY_START).toISOString(),
+      position: 50,
+      handler: 'solar',
+      tilt: 20,
+    };
+    const el = await mount([literalSample], [], NOW);
+    expect(el.shadowRoot!.querySelector('polyline.curve-secondary')).toBeTruthy();
+  });
+
+  it('includes the secondary-axis value in the hover label when present', async () => {
+    const samples = [
+      { ...sample(0, 50), tilt: 20 },
+      { ...sample(6 * 3600_000, 60), tilt: 40 },
+    ];
+    const el = await mount(samples, [], NOW);
+    const svgEl = el.shadowRoot!.querySelector('svg')!;
+    Object.defineProperty(svgEl, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 600, height: 80, right: 600, bottom: 80 }),
+      configurable: true,
+    });
+    svgEl.dispatchEvent(new PointerEvent('pointermove', { clientX: 0, clientY: 5 }));
+    await el.updateComplete;
+    const label = el.shadowRoot!.querySelector('.hover-label');
+    expect(label).toBeTruthy();
+    expect(label!.textContent ?? '').toContain('Tilt');
+    expect(label!.textContent ?? '').toContain('20%');
+  });
 });
