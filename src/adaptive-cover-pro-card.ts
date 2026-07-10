@@ -14,6 +14,7 @@ import {
 import { t } from './lib/i18n';
 import { setTooltipDefaults } from './lib/tooltip';
 import { createDiscoveryMemo } from './lib/entity-discovery';
+import { makeEntitySuggestion } from './lib/entity-suggestion';
 import { fetchAcpConfigEntries } from './lib/config-entries';
 import { normalizeAzimuth } from './lib/geometry';
 import { subscribeEntityRegistry, type EntityRegistryEntry } from './lib/entity-registry';
@@ -495,6 +496,10 @@ declare global {
       description: string;
       preview?: boolean;
       documentationURL?: string;
+      getEntitySuggestion?: (
+        hass: HomeAssistant,
+        entityId: string,
+      ) => { label?: string; config: unknown } | null;
     }>;
   }
 }
@@ -507,6 +512,7 @@ window.customCards.push({
     'Visualize sun/window geometry, the pipeline decision trace, and live cover positions with inline controls.',
   preview: true,
   documentationURL: 'https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card',
+  getEntitySuggestion: makeEntitySuggestion(`custom:${CARD_NAME}`, 'entry_id'),
 });
 
 // eslint-disable-next-line no-console
