@@ -5,6 +5,7 @@ import {
   CARD_NAME,
   DECISION_CARD_NAME,
   SKY_COMPASS_CARD_NAME,
+  SOLAR_CHART_CARD_NAME,
   TILE_CARD_NAME,
 } from '../../src/const';
 import { _resetRegistryStore } from '../../src/lib/registry-store';
@@ -21,7 +22,12 @@ export class AcpHarnessCardStage extends LitElement {
   @property({ attribute: false }) config!: HarnessConfig;
   /** When set, render only this card; undefined renders all enabled cards
    *  (the contract the config tests and capture scripts rely on). */
-  @property({ attribute: false }) activeCard?: 'root' | 'compass' | 'tile' | 'decision';
+  @property({ attribute: false }) activeCard?:
+    | 'root'
+    | 'compass'
+    | 'tile'
+    | 'decision'
+    | 'solarChart';
   /** Device-preview mode (rendered inside a device-sized iframe): drop the
    *  harness chrome (headings, padding, max-width) and let the card fill the
    *  viewport full-bleed like a real phone, ignoring the tile-width control —
@@ -32,11 +38,12 @@ export class AcpHarnessCardStage extends LitElement {
   private _compassEl?: CardElement;
   private _tileEls: CardElement[] = [];
   private _decisionEl?: CardElement;
+  private _solarChartEl?: CardElement;
   private _entrySig?: string;
 
   /** True when `card` should render — either it's the active card, or no active
    *  card is set (render-all mode for the config tests and capture scripts). */
-  private _shows(card: 'root' | 'compass' | 'tile' | 'decision'): boolean {
+  private _shows(card: 'root' | 'compass' | 'tile' | 'decision' | 'solarChart'): boolean {
     return this.activeCard === undefined || this.activeCard === card;
   }
 
@@ -95,6 +102,18 @@ export class AcpHarnessCardStage extends LitElement {
               : html`<p class="disabled">Disabled — toggle in Per-card config.</p>`}
           `
         : ''}
+      ${this._shows('solarChart')
+        ? html`
+            ${this.embed
+              ? ''
+              : html`<h2 class="card-heading">
+                  Solar chart card · <code>custom:${SOLAR_CHART_CARD_NAME}</code>
+                </h2>`}
+            ${this.config.solarChart.enabled
+              ? html`<div class="card-host" id="solar-chart-host"></div>`
+              : html`<p class="disabled">Disabled — toggle in Per-card config.</p>`}
+          `
+        : ''}
     `;
   }
 
@@ -150,6 +169,8 @@ export class AcpHarnessCardStage extends LitElement {
       this._tileEls = [];
       this._decisionEl?.remove();
       this._decisionEl = undefined;
+      this._solarChartEl?.remove();
+      this._solarChartEl = undefined;
     }
     this._entrySig = entrySig;
 
@@ -220,6 +241,20 @@ export class AcpHarnessCardStage extends LitElement {
       this._decisionEl.remove();
       this._decisionEl = undefined;
     }
+
+    const solarChartHost = this.renderRoot.querySelector<HTMLElement>('#solar-chart-host');
+    if (this.config.solarChart.enabled && solarChartHost) {
+      if (!this._solarChartEl) {
+        this._solarChartEl = document.createElement(SOLAR_CHART_CARD_NAME) as CardElement;
+        solarChartHost.appendChild(this._solarChartEl);
+      } else if (this._solarChartEl.parentElement !== solarChartHost) {
+        solarChartHost.appendChild(this._solarChartEl);
+      }
+      this._solarChartEl.setConfig?.(this._solarChartConfig());
+    } else if (this._solarChartEl && !this.config.solarChart.enabled) {
+      this._solarChartEl.remove();
+      this._solarChartEl = undefined;
+    }
   }
 
   private _pushHass(): void {
@@ -227,6 +262,7 @@ export class AcpHarnessCardStage extends LitElement {
     if (this._compassEl) this._compassEl.hass = this.hass;
     for (const t of this._tileEls) t.hass = this.hass;
     if (this._decisionEl) this._decisionEl.hass = this.hass;
+    if (this._solarChartEl) this._solarChartEl.hass = this.hass;
   }
 
   private _rootConfig(): Record<string, unknown> {
@@ -317,6 +353,18 @@ export class AcpHarnessCardStage extends LitElement {
       compact: d.compact,
       hide_inactive_handlers: d.hide_inactive_handlers,
       show_decision_summary: d.show_decision_summary,
+      tooltips: this._tooltipsConfig(),
+    };
+  }
+
+  private _solarChartConfig(): Record<string, unknown> {
+    const s = this.config.solarChart;
+    return {
+      type: `custom:${SOLAR_CHART_CARD_NAME}`,
+      entry_ids: this.config.entries.map((e) => e.entry_id),
+      title: s.title,
+      compact: s.compact,
+      cover_colors: this.config.entries.map((e) => e.color),
       tooltips: this._tooltipsConfig(),
     };
   }

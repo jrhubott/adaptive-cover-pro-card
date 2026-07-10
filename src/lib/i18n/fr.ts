@@ -385,5 +385,16 @@ export const fr: EnDict = {
       show_decision_summary_desc:
         'Afficher une phrase explicite « Pourquoi cette position ? » au-dessus de la bande.',
     },
+    solar_chart: {
+      instances: 'Instances Adaptive Cover Pro',
+      instances_hint:
+        'Sélectionnez une ou plusieurs instances. Chaque instance sélectionnée ajoute une superposition FOV au graphique.',
+      cover_colors: 'Couleurs des stores',
+      cover_colors_hint: 'Remplacer la couleur de palette par défaut pour chaque superposition.',
+      default_color: 'par défaut',
+      display: 'Affichage',
+      toggle_compact_label: 'Mode compact',
+      toggle_compact_desc: 'Graphique plus petit, espacement plus serré.',
+    },
   },
 };

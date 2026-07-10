@@ -3,6 +3,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import { AdaptiveCoverProCard } from '../src/adaptive-cover-pro-card';
 import { AdaptiveCoverProTileCard } from '../src/adaptive-cover-pro-tile-card';
 import { AdaptiveCoverProSkyCompassCard } from '../src/adaptive-cover-pro-sky-compass-card';
+import { AdaptiveCoverProSolarChartCard } from '../src/adaptive-cover-pro-solar-chart-card';
 
 function makeHass(callWS: (msg: unknown) => Promise<unknown>): HomeAssistant {
   return { callWS } as unknown as HomeAssistant;
@@ -96,6 +97,29 @@ describe('getStubConfig — card-picker preview discovery', () => {
     it('falls back to an empty entry_ids array when the fetch rejects', async () => {
       const hass = makeHass(vi.fn().mockRejectedValue(new Error('boom')));
       const stub = await AdaptiveCoverProSkyCompassCard.getStubConfig(hass);
+      expect(stub.entry_ids).toEqual([]);
+    });
+  });
+
+  describe('solar chart card', () => {
+    it('wraps the first discovered entry_id in entry_ids', async () => {
+      const hass = makeHass(makeAcpCallWS());
+      const stub = await AdaptiveCoverProSolarChartCard.getStubConfig(hass);
+      expect(stub).toEqual({
+        type: 'custom:adaptive-cover-pro-solar-chart-card',
+        entry_ids: ['a1'],
+      });
+    });
+
+    it('falls back to an empty entry_ids array when no entries exist', async () => {
+      const hass = makeHass(vi.fn().mockResolvedValue([]));
+      const stub = await AdaptiveCoverProSolarChartCard.getStubConfig(hass);
+      expect(stub.entry_ids).toEqual([]);
+    });
+
+    it('falls back to an empty entry_ids array when the fetch rejects', async () => {
+      const hass = makeHass(vi.fn().mockRejectedValue(new Error('boom')));
+      const stub = await AdaptiveCoverProSolarChartCard.getStubConfig(hass);
       expect(stub.entry_ids).toEqual([]);
     });
   });

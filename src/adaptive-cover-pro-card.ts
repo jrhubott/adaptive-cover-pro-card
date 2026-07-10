@@ -34,6 +34,7 @@ import './components/solar-calc';
 import './adaptive-cover-pro-card-editor';
 import './adaptive-cover-pro-sky-compass-card';
 import './adaptive-cover-pro-decision-card';
+import './adaptive-cover-pro-solar-chart-card';
 
 const DEFAULT_SECTIONS: CardSection[] = [
   'sky',

@@ -68,6 +68,14 @@ function defaultDecision(): HarnessConfig['decision'] {
   };
 }
 
+function defaultSolarChart(): HarnessConfig['solarChart'] {
+  return {
+    enabled: true,
+    title: 'Solar chart',
+    compact: false,
+  };
+}
+
 function defaultTile(): HarnessConfig['tile'] {
   return {
     enabled: true,
@@ -185,6 +193,7 @@ function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): Harne
     compass: defaultCompass(),
     tile: defaultTile(),
     decision: defaultDecision(),
+    solarChart: defaultSolarChart(),
     tooltips: defaultTooltips(),
     stageHeight: 0,
   };
@@ -521,6 +530,47 @@ export const SCENARIOS: Scenario[] = [
       c.decisionMode = 'derived';
       c.decision.title = 'Why this position?';
       c.decision.hide_inactive_handlers = true;
+      return c;
+    },
+  },
+  {
+    id: 'solar-chart-standalone-card',
+    label: 'Solar chart card — standalone (issue #187)',
+    description:
+      'Exercises the standalone custom:adaptive-cover-pro-solar-chart-card (issue #187). Three overlapping-FOV entries (SE/S/SW) so the same multi-cover elevation chart the sky-compass card already renders (#120) shows its stacked color-keyed FOV bars here too, on its own card with no polar compass. Toggle compact in the Solar chart card fieldset to verify it reaches the chart.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 13 * 60 + 30);
+      c.scenario = 'solar-chart-standalone-card';
+      c.solarChart.title = 'Sun today — all windows';
+      c.entries = [
+        makeEntry({
+          entry_id: 'se_window',
+          title: 'Living Room',
+          window_azimuth: 135,
+          fov_left: 60,
+          fov_right: 60,
+          min_elevation: 10,
+          max_elevation: 70,
+          color: '#ff7043',
+        }),
+        makeEntry({
+          entry_id: 's_window',
+          title: 'Kitchen',
+          window_azimuth: 180,
+          fov_left: 60,
+          fov_right: 60,
+          color: '#26a69a',
+        }),
+        makeEntry({
+          entry_id: 'sw_window',
+          title: 'Office',
+          window_azimuth: 225,
+          fov_left: 60,
+          fov_right: 60,
+          min_elevation: 15,
+          color: '#7e57c2',
+        }),
+      ];
       return c;
     },
   },
@@ -1211,6 +1261,7 @@ export function normalizeConfig(cfg: HarnessConfig): HarnessConfig {
       tileWidth: cfg.tile?.tileWidth ?? 0,
     },
     decision: { ...defaultDecision(), ...(cfg.decision ?? {}) },
+    solarChart: { ...defaultSolarChart(), ...(cfg.solarChart ?? {}) },
     tooltips: { ...defaultTooltips(), ...(cfg.tooltips ?? {}) },
   };
 }
