@@ -16,6 +16,7 @@ import {
   moonPhaseShadowDx,
   normalizeAzimuth,
   overrideDivergenceTarget,
+  percentToY,
   ribbonLayout,
   scheduleZones,
   sunDotPosition,
@@ -502,6 +503,32 @@ describe('geometry — dayFractionX', () => {
 
   it('clamps above-day inputs to width', () => {
     expect(dayFractionX(dayStart + DAY_MS + 1, dayStart, WIDTH)).toBe(WIDTH);
+  });
+});
+
+describe('geometry — percentToY', () => {
+  it('100% maps to top', () => {
+    expect(percentToY(100, 0, 80)).toBe(0);
+  });
+
+  it('0% maps to top + height (bottom)', () => {
+    expect(percentToY(0, 0, 80)).toBe(80);
+  });
+
+  it('50% maps to the midpoint', () => {
+    expect(percentToY(50, 10, 60)).toBe(40);
+  });
+
+  it('clamps values above 100 to top', () => {
+    expect(percentToY(150, 0, 80)).toBe(0);
+  });
+
+  it('clamps values below 0 to top + height', () => {
+    expect(percentToY(-10, 0, 80)).toBe(80);
+  });
+
+  it('treats NaN as 0%, mapping to top + height', () => {
+    expect(percentToY(NaN, 0, 80)).toBe(80);
   });
 });
 

@@ -5,7 +5,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import type { ForecastEvent, ForecastSample, PositionHistorySample } from '../types';
 import { formatClock } from '../lib/formatters';
 import { t } from '../lib/i18n';
-import { dayFractionX } from '../lib/geometry';
+import { dayFractionX, percentToY } from '../lib/geometry';
 import { startOfDay } from '../lib/sun-model';
 import { tooltip } from '../lib/tooltip';
 
@@ -28,6 +28,14 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  *     position %, and handler (solar/default/...).
  *   - The "now" cursor mirrors the elevation chart: a wide invisible hit line
  *     plus a floating tooltip showing the current local time.
+ *
+ * Secondary axis (e.g. `tilt`): samples may additively carry one extra
+ * numeric key beyond `t`/`position`/`handler` (see `ForecastSample`'s index
+ * signature). When present, it's detected generically (no hardcoded axis
+ * name) and drawn as a second, dashed polyline distinct from the position
+ * curve, split into separate segments across any in-day sample that lacks
+ * the key (e.g. a non-solar stretch). Absent the key, this is a no-op and
+ * output matches a card that only knows about `position`.
  */
 @customElement('acp-forecast-strip')
 export class ForecastStrip extends LitElement {
@@ -37,6 +45,10 @@ export class ForecastStrip extends LitElement {
   /** Recorded actual position over today, from the HA recorder (may be empty). */
   @property({ attribute: false }) public history: PositionHistorySample[] = [];
   @property({ attribute: false }) public now = Date.now();
+  /** Axis id → display label, sourced from the integration's discovery. Used
+   *  for secondary-axis keys that have no card i18n key; known axes (e.g.
+   *  `tilt`) still prefer the card i18n string so de/fr localize. */
+  @property({ attribute: false }) public axisLabels?: Record<string, string>;
 
   @state() private _hoverIdx: number | null = null;
 
@@ -62,8 +74,7 @@ export class ForecastStrip extends LitElement {
     const dayStart = startOfDay(new Date(this.now)).getTime();
 
     const xAt = (t: number): number => dayFractionX(t, dayStart, VIEW_W);
-    const yAt = (position: number): number =>
-      TOP_PAD + (1 - clampPercent(position) / 100) * usableH;
+    const yAt = (position: number): number => percentToY(position, TOP_PAD, usableH);
 
     // Keep samplePts index-aligned with `this.samples` (hover indexing depends
     // on it), but flag samples that fall outside today's window so the curve and
@@ -92,6 +103,31 @@ export class ForecastStrip extends LitElement {
       .filter((p) => p.inDay)
       .map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`)
       .join(' ');
+
+    // Secondary-axis track (e.g. tilt): detected generically, drawn as
+    // separate dashed polyline runs so a gap (a stretch of in-day samples
+    // lacking the key) doesn't draw a spurious connecting line.
+    const secondaryKey = findSecondaryAxisKey(this.samples);
+    const secondaryRuns: string[] = [];
+    if (secondaryKey !== null) {
+      let current: string[] = [];
+      for (const p of samplePts) {
+        if (!p.inDay) continue;
+        const raw = p.sample[secondaryKey];
+        if (typeof raw === 'number') {
+          const y2 = percentToY(raw, TOP_PAD, usableH);
+          current.push(`${p.x.toFixed(1)},${y2.toFixed(1)}`);
+        } else if (current.length > 0) {
+          secondaryRuns.push(current.join(' '));
+          current = [];
+        }
+      }
+      if (current.length > 0) secondaryRuns.push(current.join(' '));
+    }
+    const secondaryCurves = secondaryRuns.map(
+      (runPoints) =>
+        svg`<polyline class="curve-secondary" points=${runPoints} fill="none"></polyline>`,
+    );
 
     const eventGroups = (this.events ?? [])
       .map((e) => {
@@ -143,7 +179,8 @@ export class ForecastStrip extends LitElement {
 
     const hoverLabel = hover
       ? html`<div class="hover-label" style=${`left: ${((hover.x / VIEW_W) * 100).toFixed(2)}%`}>
-          ${describeSample(hover.sample)}${hoverActual !== null
+          ${describeSample(hover.sample, secondaryKey, this.hass, this.axisLabels)}${hoverActual !==
+          null
             ? ` · ${t('forecast.legend_actual', this.hass)} ${Math.round(clampPercent(hoverActual))}%`
             : ''}
         </div>`
@@ -185,7 +222,7 @@ export class ForecastStrip extends LitElement {
           ${actualPoints
             ? svg`<polyline class="actual-curve" points=${actualPoints} fill="none"></polyline>`
             : nothing}
-          ${eventGroups} ${hoverGuide} ${nowCursor}
+          ${secondaryCurves} ${eventGroups} ${hoverGuide} ${nowCursor}
         </svg>
         ${hasHistory ? this._renderLegend() : nothing} ${hoverLabel}
       </div>
@@ -292,6 +329,12 @@ export class ForecastStrip extends LitElement {
     }
     .swatch-actual {
       color: var(--acp-actual-color, #e040fb);
+    }
+    .curve-secondary {
+      stroke: var(--accent-color, currentColor);
+      stroke-width: 1.5;
+      stroke-dasharray: 4 2;
+      vector-effect: non-scaling-stroke;
     }
     /* Floating-tooltip cursor lifecycle: a help cursor hints at the event
        marker on hover, flipping to default once OUR bubble appears. */
@@ -407,8 +450,56 @@ function describeEvent(e: ForecastEvent, hass: HomeAssistant | undefined): strin
   return time === '—' ? meaning : `${meaning} — ${time}`;
 }
 
-function describeSample(s: ForecastSample): string {
+// Sample keys that are never candidates for the secondary-axis track.
+const KNOWN_SAMPLE_KEYS = new Set(['t', 'position', 'handler']);
+
+/**
+ * Generically detect an optional secondary-axis key (e.g. `tilt`) on
+ * forecast samples: the first key across all samples that isn't one of the
+ * known `t`/`position`/`handler` fields and whose value is a number.
+ * Returns `null` when no sample carries such a key (older integrations,
+ * single-axis covers, or no solar samples) — the caller then renders no
+ * secondary track, matching today's output byte-for-byte.
+ */
+function findSecondaryAxisKey(samples: ForecastSample[]): string | null {
+  for (const s of samples) {
+    for (const k of Object.keys(s)) {
+      if (!KNOWN_SAMPLE_KEYS.has(k) && typeof s[k] === 'number') return k;
+    }
+  }
+  return null;
+}
+
+// Display labels for known secondary-axis keys, resolved via i18n. These WIN
+// over discovery-supplied labels so de/fr localize. A key with no card i18n key
+// falls to the discovery-supplied `axisLabels`, then a capitalized raw key name.
+const AXIS_LABELS: Record<string, string> = { tilt: 'covers.tilt_title' };
+
+function axisLabel(
+  key: string,
+  hass: HomeAssistant | undefined,
+  axisLabels: Record<string, string> | undefined,
+): string {
+  const i18nKey = AXIS_LABELS[key];
+  if (i18nKey) return t(i18nKey, hass);
+  const discovered = axisLabels?.[key];
+  if (discovered) return discovered;
+  return key.charAt(0).toUpperCase() + key.slice(1);
+}
+
+function describeSample(
+  s: ForecastSample,
+  secondaryKey: string | null,
+  hass: HomeAssistant | undefined,
+  axisLabels: Record<string, string> | undefined,
+): string {
   const time = formatClock(s.t);
   const pct = `${Math.round(clampPercent(s.position))}%`;
-  return s.handler ? `${time} · ${pct} · ${s.handler}` : `${time} · ${pct}`;
+  const base = s.handler ? `${time} · ${pct} · ${s.handler}` : `${time} · ${pct}`;
+  if (secondaryKey === null) return base;
+  const raw = s[secondaryKey];
+  if (typeof raw !== 'number') return base;
+  const label = axisLabel(secondaryKey, hass, axisLabels);
+  const secondaryPct = `${Math.round(clampPercent(raw))}%`;
+  return `${base} · ${label}: ${secondaryPct}`;
 }

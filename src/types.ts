@@ -148,6 +148,17 @@ export interface SkyCompassCardConfig extends LovelaceCardConfig {
   tooltips?: TooltipsConfig;
 }
 
+export interface SolarChartCardConfig extends LovelaceCardConfig {
+  type: string;
+  entry_ids: string[];
+  title?: string;
+  compact?: boolean;
+  cover_colors?: (string | null)[];
+  /** Card-owned floating tooltip behavior. Defaults: enabled, offset [12,16],
+   *  delay 400ms. Set `enabled: false` to use native browser tooltips. */
+  tooltips?: TooltipsConfig;
+}
+
 export interface AdaptiveCoverProDecisionCardConfig extends LovelaceCardConfig {
   type: string;
   entry_id: string;
@@ -165,6 +176,45 @@ export interface AdaptiveCoverProDecisionCardConfig extends LovelaceCardConfig {
   tooltips?: TooltipsConfig;
 }
 
+/**
+ * One axis of a discovered cover, mirroring the integration's serialized
+ * `AxisDescriptor` (`cover_types/base.py` → `asdict`). Every field is optional
+ * so the card can read a partial/older payload defensively — a missing field
+ * falls back to a card default. Venetian covers expose two axes: `position`
+ * (state_attr `current_position`) and `tilt` (state_attr `current_tilt_position`).
+ */
+export interface AxisDescriptor {
+  /** Axis id — also the `set_axes` key AND the legacy `set_position`/`set_tilt`
+   *  param name (`position` | `tilt`). */
+  id?: string;
+  /** English display label (`Position` / `Tilt`). Server-side is English-only
+   *  today, so the card prefers its own i18n for known axis ids. */
+  label?: string;
+  label_key?: string;
+  min?: number;
+  max?: number;
+  unit?: string;
+  capability_key?: string;
+  /** Attribute on the managed cover entity carrying this axis's live value. */
+  state_attr?: string;
+  service_attr?: string;
+  open_blocks_sun?: boolean;
+  /** Rolled up across managed covers (ANY member exposes it). Absent/true =
+   *  supported; only `=== false` filters the axis out. */
+  supported?: boolean;
+}
+
+/**
+ * The integration's self-discovery descriptor, published on the `control_status`
+ * sensor's `cover_discovery` attribute. Additive: older integrations omit it and
+ * the card synthesizes an equivalent axis list from today's signals.
+ */
+export interface CoverDiscovery {
+  cover_type?: string;
+  cover_label?: string;
+  axes?: AxisDescriptor[];
+}
+
 export interface DiscoveredEntities {
   entry_id: string;
   entry_title: string;
@@ -175,7 +225,43 @@ export interface DiscoveredEntities {
   /** HA device the integration's entities are attached to. Used to deep-link
    *  into `/config/devices/device/<id>` from the more-info dialog. */
   device_id?: string;
+  /** True when this entry is a Cover Group (issue #185). Set when the
+   *  always-present `group_active_scene` sensor is discovered. When true the
+   *  card routes to the group UI and `managed_covers` is the member roster read
+   *  from `group_position`'s `member_positions` keys. A cover entry never sets
+   *  this, so all existing code paths are unchanged. */
+  is_group?: boolean;
+  /** Integration self-discovery axis descriptor, when the integration is new
+   *  enough to publish `cover_discovery` on the control_status sensor. Absent on
+   *  older integrations — the card falls back to synthesizing axes. */
+  discovery?: CoverDiscovery;
 }
+
+/**
+ * Attributes on a Cover Group's `group_position` sensor (issue #185). The sensor
+ * state is the aggregate position; `member_positions` maps every member cover
+ * entity_id (ACP-managed AND generic `cover.*`) to its live position (null =
+ * unknown). Its key count is the full roster size (the who-won "N/M" denominator).
+ */
+export interface GroupPositionAttributes {
+  member_positions: Record<string, number | null>;
+}
+
+/**
+ * Attributes on a Cover Group's `group_who_won` sensor (issue #185). The sensor
+ * state is a bare integer count of ACP members currently driven by the group;
+ * `member_winners` maps each ACP member entity_id to its winning handler name
+ * (snake_case) or null. Generic covers are absent from this map.
+ */
+export interface GroupWhoWonAttributes {
+  member_winners: Record<string, string | null>;
+}
+
+/** Aggregate open/closed state emitted by a Cover Group's `group_state` sensor. */
+export type GroupAggregateState = 'open' | 'closed' | 'mixed' | 'unknown';
+
+/** Scene options the group scene `select` exposes / the services accept. */
+export type GroupScene = 'auto' | 'all_open' | 'all_closed' | 'privacy';
 
 export interface DecisionStep {
   handler: string;
@@ -236,6 +322,12 @@ export interface ForecastSample {
   t: string;
   position: number;
   handler: 'solar' | 'default' | string;
+  /** Optional secondary-axis value (e.g. `tilt` for venetian solar-tracking
+   *  samples), keyed by the integration's axis name (`CoverAxis.name`).
+   *  Additive: present only for cover types that project a secondary axis
+   *  and only on solar-handler samples. A card that reads only `position`
+   *  is unaffected. */
+  [axisKey: string]: string | number | undefined;
 }
 
 export interface ForecastEvent {
@@ -306,6 +398,7 @@ export interface StartEndSunAttributes {
  */
 export interface ControlStatusAttributes {
   cover_type?: string;
+  cover_discovery?: CoverDiscovery;
   schedule_start?: string | null;
   schedule_end?: string | null;
 }

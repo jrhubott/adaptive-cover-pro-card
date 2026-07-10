@@ -21,6 +21,7 @@ import type {
   HarnessConfig,
   RootCardOptions,
   SkyCompassCardOptions,
+  SolarChartCardOptions,
   TileCardOptions,
 } from './types';
 import type { ConfigChangeDetail } from './control-panel';
@@ -31,12 +32,13 @@ import './service-log';
 
 /** A shallow-by-section partial of {@link HarnessConfig} accepted by the capture bridge. */
 export type CapturePartial = Partial<
-  Omit<HarnessConfig, 'root' | 'compass' | 'tile' | 'decision'>
+  Omit<HarnessConfig, 'root' | 'compass' | 'tile' | 'decision' | 'solarChart'>
 > & {
   root?: Partial<RootCardOptions>;
   compass?: Partial<SkyCompassCardOptions>;
   tile?: Partial<TileCardOptions>;
   decision?: Partial<DecisionCardOptions>;
+  solarChart?: Partial<SolarChartCardOptions>;
 };
 
 /**
@@ -59,6 +61,7 @@ function mergeCaptureConfig(base: HarnessConfig, p: CapturePartial): HarnessConf
     compass: { ...base.compass, ...(p.compass ?? {}) },
     tile: { ...base.tile, ...(p.tile ?? {}) },
     decision: { ...base.decision, ...(p.decision ?? {}) },
+    solarChart: { ...base.solarChart, ...(p.solarChart ?? {}) },
   };
 }
 
@@ -76,10 +79,15 @@ const DEVICE_PRESETS: { label: string; w: number }[] = [
   { label: 'Tablet (768)', w: 768 },
 ];
 
-type StageTab = 'root' | 'compass' | 'tile' | 'decision' | 'badges';
+type StageTab = 'root' | 'compass' | 'tile' | 'decision' | 'solarChart' | 'badges';
 
 function parseEmbedTab(v: string | null): StageTab {
-  return v === 'root' || v === 'compass' || v === 'tile' || v === 'decision' || v === 'badges'
+  return v === 'root' ||
+    v === 'compass' ||
+    v === 'tile' ||
+    v === 'decision' ||
+    v === 'solarChart' ||
+    v === 'badges'
     ? v
     : 'tile';
 }
@@ -363,6 +371,7 @@ export class AcpHarnessApp extends LitElement {
         : html`<nav class="tabs">
             ${this._tabButton('root', 'Root')} ${this._tabButton('compass', 'Sky compass')}
             ${this._tabButton('tile', 'Tile')} ${this._tabButton('decision', 'Decision')}
+            ${this._tabButton('solarChart', 'Solar chart')}
             ${this._tabButton('badges', 'Badge gallery')} ${this._deviceSelect()}
           </nav>`}
       ${showDevice

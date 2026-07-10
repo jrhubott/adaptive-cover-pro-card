@@ -43,6 +43,25 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'badge.off': 'Off',
   'badge.off_schedule': 'Off-schedule',
   'badge.safety': 'Safety',
+  'badge.group': 'Group',
+  // Cover Group tile (issue #185)
+  'group.title': 'Cover Group',
+  'group.scene': 'Scene',
+  'group.scene_auto': 'Auto',
+  'group.scene_all_open': 'All open',
+  'group.scene_all_closed': 'All closed',
+  'group.scene_privacy': 'Privacy',
+  'group.state_open': 'Open',
+  'group.state_closed': 'Closed',
+  'group.state_mixed': 'Mixed',
+  'group.state_unknown': 'Unknown',
+  'group.lock': 'Lock group',
+  'group.unlock': 'Unlock group',
+  'group.automation': 'Automation',
+  'group.clear_overrides': 'Clear overrides',
+  'group.who_won': '{count}/{total} group-driven',
+  'group.members': 'Members',
+  'group.member_placeholder': 'No members reported by the integration.',
   'decision.outside_schedule': 'Outside schedule — automatic control paused',
   'decision.outside_schedule_tooltip':
     'The configured schedule window is not active, so automatic positioning is paused.',
@@ -178,8 +197,22 @@ export function buildMockHass(
     return Promise.resolve();
   };
 
+  // Integration service registry the card feature-detects (issue #180). Under
+  // the legacy flag `set_axes` is omitted so `setAxes` falls back to the
+  // per-axis legacy services.
+  const services = {
+    [INTEGRATION_DOMAIN]: {
+      set_position: {},
+      set_tilt: {},
+      stop: {},
+      set_custom_position: {},
+      ...(cfg.legacyIntegration ? {} : { set_axes: {} }),
+    },
+  };
+
   const hass = {
     states: generated.states,
+    services,
     config: {
       latitude: cfg.latitude,
       longitude: cfg.longitude,

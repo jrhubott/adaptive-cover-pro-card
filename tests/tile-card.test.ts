@@ -240,6 +240,60 @@ describe('adaptive-cover-pro-tile-card render', () => {
     );
   });
 
+  it('fires set_axes for the tilt bar when the set_axes service is present', async () => {
+    const callService = vi.fn();
+    const h = tiltHass(callService);
+    (h as unknown as { services: unknown }).services = {
+      adaptive_cover_pro: { set_axes: {}, set_position: {}, set_tilt: {} },
+    };
+    const el = await mountTilt({ type: TYPE, entry_id: ENTRY }, h);
+    el.shadowRoot!.querySelector('acp-tilt-bar')!.dispatchEvent(
+      new CustomEvent('acp-tilt-set', { detail: 80, bubbles: true }),
+    );
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { tilt: 80 } },
+      { entity_id: 'cover.left' },
+    );
+  });
+
+  it('fires set_axes for the ↑ button when the set_axes service is present', async () => {
+    const callService = vi.fn();
+    const h = makeHass({ callService });
+    (h as unknown as { services: unknown }).services = {
+      adaptive_cover_pro: { set_axes: {}, set_position: {} },
+    };
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, h);
+    (el.shadowRoot!.querySelector('button.up') as HTMLElement).click();
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { position: 100 } },
+      { entity_id: 'cover.left' },
+    );
+  });
+
+  it('routes the tilt bar to legacy set_tilt (NOT set_axes) when the service is absent', async () => {
+    const callService = vi.fn();
+    const el = await mountTilt({ type: TYPE, entry_id: ENTRY }, tiltHass(callService));
+    el.shadowRoot!.querySelector('acp-tilt-bar')!.dispatchEvent(
+      new CustomEvent('acp-tilt-set', { detail: 80, bubbles: true }),
+    );
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_tilt',
+      { tilt: 80 },
+      { entity_id: 'cover.left' },
+    );
+    expect(callService).not.toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
   it('renders only the percentage when show_state is false (legacy behavior)', async () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY, show_state: false }, makeHass());
     expect(el.shadowRoot!.querySelector('.position')?.textContent?.trim()).toBe('42%');
@@ -582,6 +636,101 @@ describe('adaptive-cover-pro-tile-card render', () => {
     expect(badge).toBeTruthy();
     const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
     expect(text).toMatch(/manual/i);
+  });
+});
+
+describe('adaptive-cover-pro-tile-card group entry (issue #185)', () => {
+  const GROUP_ENTRY = 'group_xyz';
+  const GROUP_REGISTRY: EntityRegistryEntry[] = [
+    {
+      entity_id: 'sensor.group_position',
+      unique_id: `${GROUP_ENTRY}_group_position`,
+      config_entry_id: GROUP_ENTRY,
+      platform: 'adaptive_cover_pro',
+      device_id: null,
+    },
+    {
+      entity_id: 'sensor.group_state',
+      unique_id: `${GROUP_ENTRY}_group_state`,
+      config_entry_id: GROUP_ENTRY,
+      platform: 'adaptive_cover_pro',
+      device_id: null,
+    },
+    {
+      entity_id: 'sensor.group_active_scene',
+      unique_id: `${GROUP_ENTRY}_group_active_scene`,
+      config_entry_id: GROUP_ENTRY,
+      platform: 'adaptive_cover_pro',
+      device_id: null,
+    },
+    {
+      entity_id: 'sensor.group_who_won',
+      unique_id: `${GROUP_ENTRY}_group_who_won`,
+      config_entry_id: GROUP_ENTRY,
+      platform: 'adaptive_cover_pro',
+      device_id: null,
+    },
+    {
+      entity_id: 'select.group_scene',
+      unique_id: `${GROUP_ENTRY}_group_scene_select`,
+      config_entry_id: GROUP_ENTRY,
+      platform: 'adaptive_cover_pro',
+      device_id: null,
+    },
+    {
+      entity_id: 'switch.group_lock',
+      unique_id: `${GROUP_ENTRY}_group_lock`,
+      config_entry_id: GROUP_ENTRY,
+      platform: 'adaptive_cover_pro',
+      device_id: null,
+    },
+  ];
+
+  function makeGroupHass(): HomeAssistant {
+    return {
+      states: {
+        'sensor.group_position': {
+          state: '50',
+          attributes: { member_positions: { 'cover.a': 40, 'cover.b': 60 } },
+        },
+        'sensor.group_state': { state: 'mixed', attributes: {} },
+        'sensor.group_active_scene': { state: 'all_open', attributes: {} },
+        'sensor.group_who_won': {
+          state: '2',
+          attributes: { member_winners: { 'cover.a': 'solar', 'cover.b': 'manual' } },
+        },
+        'select.group_scene': {
+          state: 'all_open',
+          attributes: {
+            options: ['auto', 'all_open', 'all_closed', 'privacy'],
+            current_option: 'all_open',
+          },
+        },
+        'switch.group_lock': { state: 'off', attributes: {} },
+      },
+      callService: vi.fn(),
+      callWS: vi.fn().mockResolvedValue(GROUP_REGISTRY),
+      connection: { subscribeEvents: vi.fn().mockResolvedValue(() => {}) },
+    } as unknown as HomeAssistant;
+  }
+
+  it('delegates to <acp-group-tile> and renders no cover controls for a group entry', async () => {
+    const el = makeCard();
+    el.setConfig({ type: TYPE, entry_id: GROUP_ENTRY });
+    el.hass = makeGroupHass();
+    document.body.appendChild(el);
+    el._registry = GROUP_REGISTRY;
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('acp-group-tile')).toBeTruthy();
+    // The cover ↑/↓ controls must NOT render for a group.
+    expect(el.shadowRoot!.querySelector('button.up')).toBeFalsy();
+    expect(el.shadowRoot!.querySelector('button.down')).toBeFalsy();
+  });
+
+  it('still renders the cover tile (with controls) for a non-group entry', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
+    expect(el.shadowRoot!.querySelector('acp-group-tile')).toBeFalsy();
+    expect(el.shadowRoot!.querySelector('button.up')).toBeTruthy();
   });
 });
 

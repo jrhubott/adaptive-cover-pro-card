@@ -68,6 +68,14 @@ function defaultDecision(): HarnessConfig['decision'] {
   };
 }
 
+function defaultSolarChart(): HarnessConfig['solarChart'] {
+  return {
+    enabled: true,
+    title: 'Solar chart',
+    compact: false,
+  };
+}
+
 function defaultTile(): HarnessConfig['tile'] {
   return {
     enabled: true,
@@ -168,6 +176,40 @@ function makeEntry(
   };
 }
 
+/**
+ * Build a Cover Group HarnessEntry (issue #185). Reuses {@link makeEntry} for the
+ * shared shape, then marks it a group and attaches the group state. Member covers
+ * are foreign entity_ids read from `member_positions`, so the entry owns no covers
+ * of its own.
+ */
+function makeGroupEntry(
+  overrides: Partial<HarnessEntry> & Pick<HarnessEntry, 'entry_id'>,
+): HarnessEntry {
+  const base = makeEntry({ ...overrides, covers: overrides.covers ?? [] });
+  return {
+    ...base,
+    is_group: true,
+    group: overrides.group ?? {
+      member_positions: {
+        'cover.living_left': 40,
+        'cover.living_right': 60,
+        'cover.hall_generic': 0,
+      },
+      member_winners: {
+        'cover.living_left': 'solar',
+        'cover.living_right': 'manual',
+      },
+      aggregate_position: 33,
+      state: 'mixed',
+      active_scene: 'none',
+      scene_option: 'auto',
+      locked: false,
+      automation: true,
+      climate_mode: 'summer_mode',
+    },
+  };
+}
+
 function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): HarnessConfig {
   return {
     latitude: lat,
@@ -178,6 +220,7 @@ function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): Harne
     scenario: 'summer-noon-south',
     theme: 'light',
     language: 'en',
+    legacyIntegration: false,
     entries: [makeEntry({ entry_id: 'south_window', title: 'Living Room', window_azimuth: 180 })],
     decisionMode: 'derived',
     scriptedWinner: 'solar',
@@ -185,6 +228,7 @@ function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): Harne
     compass: defaultCompass(),
     tile: defaultTile(),
     decision: defaultDecision(),
+    solarChart: defaultSolarChart(),
     tooltips: defaultTooltips(),
     stageHeight: 0,
   };
@@ -227,10 +271,41 @@ export const SCENARIOS: Scenario[] = [
     id: 'venetian-dual-axis',
     label: 'Venetian — dual-axis (position + tilt)',
     description:
-      'A venetian blind exposing the new tilt (slat) axis. The cover bar shows a second Tilt bar under Position, and the tile card shows the mini tilt bar. Actual tilt (35%) diverges from the solar tilt target (70%) so the marker is offset from the fill. Drag either tilt track → set_tilt fires; switch the cover type off venetian to confirm the tilt UI disappears.',
+      'A venetian blind exposing the tilt (slat) axis, now driven from the integration self-discovery surface (issue #180): the control_status sensor publishes a cover_discovery descriptor with position + tilt axes, and the card renders one bar per discovered axis. The cover bar shows a second Tilt bar under Position, and the tile card shows the mini tilt bar. Actual tilt (35%) diverges from the solar tilt target (70%) so the marker is offset from the fill. The more-info dialog forecast strip also plots a dashed secondary tilt track alongside the position curve. Drag either tilt track → the combined adaptive_cover_pro.set_axes service fires (watch the service log). Flip the "Legacy integration" control off/on, or use the Legacy Venetian scenario, to confirm graceful fallback to set_tilt/set_position.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'venetian-dual-axis';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Living Room',
+          cover_type: 'cover_venetian',
+          window_azimuth: 180,
+          color: '#26a69a',
+          target_position: 60,
+          target_tilt: 70,
+          covers: [
+            {
+              entity_id: 'cover.south_window_main',
+              friendly_name: 'Living Room venetian',
+              position: 60,
+              tilt: 35,
+            },
+          ],
+        }),
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'legacy-integration-venetian',
+    label: 'Legacy integration — venetian (no discovery / set_axes)',
+    description:
+      'The same venetian dual-axis cover, but simulating an OLD integration that predates issue #180: the control_status sensor omits cover_discovery and the mock hass omits the set_axes service. The card must degrade gracefully — it synthesizes the position + tilt axes from the Cover_Tilt sensor (byte-identical to the pre-discovery rendering) and routes drags to the legacy per-axis set_position / set_tilt services (watch the service log — no set_axes call). Proves the load-bearing fallback path that ships before the integration release.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'legacy-integration-venetian';
+      c.legacyIntegration = true;
       c.entries = [
         makeEntry({
           entry_id: 'south_window',
@@ -536,6 +611,47 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'solar-chart-standalone-card',
+    label: 'Solar chart card — standalone (issue #187)',
+    description:
+      'Exercises the standalone custom:adaptive-cover-pro-solar-chart-card (issue #187). Three overlapping-FOV entries (SE/S/SW) so the same multi-cover elevation chart the sky-compass card already renders (#120) shows its stacked color-keyed FOV bars here too, on its own card with no polar compass. Toggle compact in the Solar chart card fieldset to verify it reaches the chart.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 13 * 60 + 30);
+      c.scenario = 'solar-chart-standalone-card';
+      c.solarChart.title = 'Sun today — all windows';
+      c.entries = [
+        makeEntry({
+          entry_id: 'se_window',
+          title: 'Living Room',
+          window_azimuth: 135,
+          fov_left: 60,
+          fov_right: 60,
+          min_elevation: 10,
+          max_elevation: 70,
+          color: '#ff7043',
+        }),
+        makeEntry({
+          entry_id: 's_window',
+          title: 'Kitchen',
+          window_azimuth: 180,
+          fov_left: 60,
+          fov_right: 60,
+          color: '#26a69a',
+        }),
+        makeEntry({
+          entry_id: 'sw_window',
+          title: 'Office',
+          window_azimuth: 225,
+          fov_left: 60,
+          fov_right: 60,
+          min_elevation: 15,
+          color: '#7e57c2',
+        }),
+      ];
+      return c;
+    },
+  },
+  {
     id: 'solar-detailed-layout',
     label: 'Solar tracking — detailed layout',
     description:
@@ -644,6 +760,85 @@ export const SCENARIOS: Scenario[] = [
       ];
       c.entries[0].target_position = 30;
       c.entries[0].covers[0].position = 30;
+      return c;
+    },
+  },
+  {
+    id: 'group-driven-member',
+    label: 'Group-driven member — group lock wins (issue #185)',
+    description:
+      'A member cover of a Cover Group whose group is locked: the integration emits the priority-100 `group_lock` handler as the winner. The decision strip renders a "Group Lock" winner row (and a skipped "Group Scene" step), proving the two new group handlers wire into the fixed HANDLER_ORDER. Full group discovery / group UI arrives in later phases; this scenario exercises only the decision-strip wire slice.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 13 * 60);
+      c.scenario = 'group-driven-member';
+      c.decisionMode = 'scripted';
+      c.scriptedWinner = 'group_lock';
+      // Group lock holds the member fully closed.
+      c.entries[0].target_position = 0;
+      c.entries[0].covers[0].position = 0;
+      return c;
+    },
+  },
+  {
+    id: 'group-tile',
+    label: 'Cover Group — tile variant (issue #185)',
+    description:
+      'A Cover Group entry rendered as the new group tile. The tile shows the aggregate position + state (mixed), the scene select (auto/all open/all closed/privacy), the lock toggle, and the who-won "2/3" badge (2 of 3 members group-driven). Pick a scene → select.select_option fires; toggle the lock → switch.turn_on/off fires, both applied optimistically. Phase 2 wires only the group TILE — the root/decision/compass/solar cards are hidden here; the main-card group view arrives in Phase 3.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-tile';
+      c.entries = [makeGroupEntry({ entry_id: 'downstairs_group', title: 'Downstairs Group' })];
+      // Only the tile understands a group entry in Phase 2.
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      return c;
+    },
+  },
+  {
+    id: 'cover-group-full',
+    label: 'Cover Group — full main-card view (issue #185)',
+    description:
+      'A Cover Group entry rendered through the ROOT main card, which routes it to the new group view (no sun/window geometry). The view shows the aggregate position + state, the scene select, the lock / automation toggles, and a clear-overrides button, plus a member roster of 4 covers with mixed winners: solar, group_scene, and group_lock drive three ACP members, while a generic cover shows its position with no who-won badge. The group is locked. Pick a scene → select.select_option; toggle lock/automation → switch.turn_on/off; press clear-overrides → button.press — all applied optimistically.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'cover-group-full';
+      c.entries = [
+        makeGroupEntry({
+          entry_id: 'whole_house_group',
+          title: 'Whole House Group',
+          group: {
+            member_positions: {
+              'cover.living_left': 30,
+              'cover.living_right': 45,
+              'cover.bedroom': 0,
+              'cover.hall_generic': 80,
+            },
+            member_winners: {
+              'cover.living_left': 'solar',
+              'cover.living_right': 'group_scene',
+              'cover.bedroom': 'group_lock',
+            },
+            aggregate_position: 39,
+            state: 'mixed',
+            active_scene: 'all_closed',
+            scene_option: 'all_closed',
+            locked: true,
+            automation: true,
+            climate_mode: 'summer_mode',
+          },
+        }),
+      ];
+      // The main-card group view is the focus; the tile/decision/compass/solar
+      // cards are cover-oriented and hidden here. The root card routes to the
+      // group view automatically via `is_group`.
+      c.root.enabled = true;
+      c.tile.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
       return c;
     },
   },
@@ -949,6 +1144,22 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'climate-not-winner',
+    label: 'Climate computed but not in control (#168)',
+    description:
+      'Climate computes "intermediate" but its thresholds aren\'t met (inactive_reason: thresholds_not_met), so the pipeline winner is Default, not climate. The climate panel must NOT paint climate as in-control: the strategy icon/label gray out and a "Temperatures within the comfort band — no action needed" reason line appears, matching the standby treatment rather than the full active view (#168).',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'climate-not-winner';
+      c.decisionMode = 'scripted';
+      c.scriptedWinner = 'default';
+      const f = c.entries[0].flags;
+      f.climate_strategy = 'intermediate';
+      f.climate_inactive_reason = 'thresholds_not_met';
+      return c;
+    },
+  },
+  {
     id: 'compass-actual-vs-target',
     label: 'Compass — actual vs target divergence',
     description:
@@ -1216,12 +1427,14 @@ export function normalizeConfig(cfg: HarnessConfig): HarnessConfig {
   return {
     ...cfg,
     stageHeight: cfg.stageHeight ?? 0,
+    legacyIntegration: cfg.legacyIntegration ?? false,
     tile: {
       ...cfg.tile,
       badges: { ...defaultBadges(), ...(cfg.tile?.badges ?? {}) },
       tileWidth: cfg.tile?.tileWidth ?? 0,
     },
     decision: { ...defaultDecision(), ...(cfg.decision ?? {}) },
+    solarChart: { ...defaultSolarChart(), ...(cfg.solarChart ?? {}) },
     tooltips: { ...defaultTooltips(), ...(cfg.tooltips ?? {}) },
   };
 }

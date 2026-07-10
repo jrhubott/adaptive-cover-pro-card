@@ -208,6 +208,12 @@ function evalHandler(
       };
     case 'cloud':
       return { enabled: true, matches: false, position: null, reason: 'clear sky' };
+    case 'group_scene':
+      // Group handlers only ever win on a member cover of a Cover Group entry.
+      // The harness models standalone cover entries, so they never match here.
+      return { enabled: false, matches: false, position: null, reason: 'no group scene intent' };
+    case 'group_lock':
+      return { enabled: false, matches: false, position: null, reason: 'group not locked' };
     case 'climate':
       return {
         enabled: true,

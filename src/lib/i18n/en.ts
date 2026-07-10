@@ -2,7 +2,9 @@ export const en = {
   handler: {
     force: 'Force Override',
     weather: 'Weather Safety',
+    group_scene: 'Group Scene',
     manual: 'Manual Override',
+    group_lock: 'Group Lock',
     custom_position: 'Custom Position',
     motion: 'Motion Timeout',
     cloud: 'Cloud Suppression',
@@ -27,6 +29,26 @@ export const en = {
     off_schedule: 'Off-schedule',
     floor_suffix: ' ↥',
     safety: 'Safety',
+    group: 'Group',
+  },
+  group: {
+    title: 'Cover Group',
+    scene: 'Scene',
+    scene_auto: 'Auto',
+    scene_all_open: 'All open',
+    scene_all_closed: 'All closed',
+    scene_privacy: 'Privacy',
+    state_open: 'Open',
+    state_closed: 'Closed',
+    state_mixed: 'Mixed',
+    state_unknown: 'Unknown',
+    lock: 'Lock group',
+    unlock: 'Unlock group',
+    automation: 'Automation',
+    clear_overrides: 'Clear overrides',
+    who_won: '{count}/{total} group-driven',
+    members: 'Members',
+    member_placeholder: 'No members reported by the integration.',
   },
   forecast: {
     event: {
@@ -366,6 +388,16 @@ export const en = {
       show_decision_summary_label: 'Show decision summary',
       show_decision_summary_desc:
         'Render a plain-English "Why this position?" sentence above the strip.',
+    },
+    solar_chart: {
+      instances: 'Adaptive Cover Pro instances',
+      instances_hint: 'Pick one or more. Each selected entry adds a FOV overlay to the chart.',
+      cover_colors: 'Cover colors',
+      cover_colors_hint: 'Override the default palette color for each overlay.',
+      default_color: 'default',
+      display: 'Display',
+      toggle_compact_label: 'Compact mode',
+      toggle_compact_desc: 'Smaller chart, tighter spacing.',
     },
   },
 } as const;

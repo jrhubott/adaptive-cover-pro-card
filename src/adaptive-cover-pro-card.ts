@@ -28,12 +28,14 @@ import './components/elevation-chart';
 import './components/decision-strip';
 import './adaptive-cover-pro-tile-card';
 import './components/cover-bar';
+import './components/group-view';
 import './components/overrides-panel';
 import './components/climate-panel';
 import './components/solar-calc';
 import './adaptive-cover-pro-card-editor';
 import './adaptive-cover-pro-sky-compass-card';
 import './adaptive-cover-pro-decision-card';
+import './adaptive-cover-pro-solar-chart-card';
 
 const DEFAULT_SECTIONS: CardSection[] = [
   'sky',
@@ -339,6 +341,26 @@ export class AdaptiveCoverProCard extends LitElement {
     if (!discovered) return this._renderEmpty('no matching entities after unique_id lookup');
 
     const flags = resolveControlFlags(this._config);
+
+    // Cover Group entries (issue #185) have no sun/window geometry — route them
+    // to the dedicated group view in place of every cover section. Members'
+    // who-won badges cover "who's driving each member", so the per-cover
+    // decision strip does not belong here.
+    if (discovered.is_group) {
+      return html`
+        <ha-card>
+          ${this._renderHeader(discovered, flags)}
+          <div class="body ${this._config.compact ? 'compact' : ''}">
+            <acp-group-view
+              .hass=${this.hass}
+              .discovered=${discovered}
+              ?compact=${!!this._config.compact}
+            ></acp-group-view>
+          </div>
+        </ha-card>
+      `;
+    }
+
     const sections = this._sections;
     return html`
       <ha-card>
@@ -484,7 +506,7 @@ window.customCards.push({
   description:
     'Visualize sun/window geometry, the pipeline decision trace, and live cover positions with inline controls.',
   preview: true,
-  documentationURL: 'https://github.com/jrhubott/adaptive-cover-pro-card',
+  documentationURL: 'https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card',
 });
 
 // eslint-disable-next-line no-console

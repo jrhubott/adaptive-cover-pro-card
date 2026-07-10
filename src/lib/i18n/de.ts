@@ -10,7 +10,9 @@ export const de: EnDict = {
   handler: {
     force: 'Zwangsübersteuerung',
     weather: 'Wettersicherheit',
+    group_scene: 'Gruppenszene',
     manual: 'Manuelle Übersteuerung',
+    group_lock: 'Gruppensperre',
     custom_position: 'Benutzerdefinierte Position',
     motion: 'Bewegungs-Timeout',
     cloud: 'Wolkenunterdrückung',
@@ -35,6 +37,26 @@ export const de: EnDict = {
     off_schedule: 'Außerhalb des Zeitplans',
     floor_suffix: ' ↥',
     safety: 'Sicherheit',
+    group: 'Gruppe',
+  },
+  group: {
+    title: 'Abdeckungsgruppe',
+    scene: 'Szene',
+    scene_auto: 'Auto',
+    scene_all_open: 'Alle öffnen',
+    scene_all_closed: 'Alle schließen',
+    scene_privacy: 'Sichtschutz',
+    state_open: 'Offen',
+    state_closed: 'Geschlossen',
+    state_mixed: 'Gemischt',
+    state_unknown: 'Unbekannt',
+    lock: 'Gruppe sperren',
+    unlock: 'Gruppe entsperren',
+    automation: 'Automatisierung',
+    clear_overrides: 'Übersteuerungen löschen',
+    who_won: '{count}/{total} gruppengesteuert',
+    members: 'Mitglieder',
+    member_placeholder: 'Keine Mitglieder von der Integration gemeldet.',
   },
   forecast: {
     event: {
@@ -382,6 +404,17 @@ export const de: EnDict = {
       show_decision_summary_label: 'Entscheidungszusammenfassung anzeigen',
       show_decision_summary_desc:
         'Einen verständlichen Satz „Warum diese Position?" oberhalb der Leiste anzeigen.',
+    },
+    solar_chart: {
+      instances: 'Adaptive Cover Pro-Instanzen',
+      instances_hint:
+        'Eine oder mehrere auswählen. Jeder gewählte Eintrag fügt dem Diagramm eine Sichtfeld-Überlagerung hinzu.',
+      cover_colors: 'Beschattungsfarben',
+      cover_colors_hint: 'Standardpalettenfarbe für jede Überlagerung überschreiben.',
+      default_color: 'Standard',
+      display: 'Anzeige',
+      toggle_compact_label: 'Kompaktmodus',
+      toggle_compact_desc: 'Kleineres Diagramm, engerer Abstand.',
     },
   },
 };
