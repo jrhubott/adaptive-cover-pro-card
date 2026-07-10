@@ -485,6 +485,36 @@ function addGroupStates(states: Record<string, HassState>, entry: HarnessEntry):
   ] as const) {
     states[id(role)] = mkState(id(role), 'unknown', { friendly_name: `${entry.title} ${role}` });
   }
+
+  // Member covers are foreign entity_ids in other config entries — the card
+  // never discovers them, but the group view reads each member's live
+  // friendly_name/position off `hass.states`. Emit a stub cover state per
+  // member (ACP-managed AND generic) so the harness main-card group view shows
+  // real names + open/closed states instead of bare entity_ids.
+  for (const [memberId, pos] of Object.entries(g.member_positions)) {
+    states[memberId] = mkState(memberId, coverPositionState(pos), {
+      friendly_name: memberFriendlyName(memberId),
+      current_position: pos ?? undefined,
+      device_class: 'shade',
+    });
+  }
+}
+
+/** open/closed/unknown text for a member cover from its 0..100 position. */
+function coverPositionState(pos: number | null): string {
+  if (pos === null) return 'unknown';
+  return pos <= 0 ? 'closed' : 'open';
+}
+
+/** Humanize a member cover entity_id into a friendly name
+ *  (`cover.living_left` → `Living Left`). */
+function memberFriendlyName(entityId: string): string {
+  return entityId
+    .split('.')
+    .pop()!
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
 }
 
 /**

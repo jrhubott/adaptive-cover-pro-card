@@ -755,6 +755,51 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'cover-group-full',
+    label: 'Cover Group — full main-card view (issue #185)',
+    description:
+      'A Cover Group entry rendered through the ROOT main card, which routes it to the new group view (no sun/window geometry). The view shows the aggregate position + state, the scene select, the lock / automation toggles, and a clear-overrides button, plus a member roster of 4 covers with mixed winners: solar, group_scene, and group_lock drive three ACP members, while a generic cover shows its position with no who-won badge. The group is locked. Pick a scene → select.select_option; toggle lock/automation → switch.turn_on/off; press clear-overrides → button.press — all applied optimistically.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'cover-group-full';
+      c.entries = [
+        makeGroupEntry({
+          entry_id: 'whole_house_group',
+          title: 'Whole House Group',
+          group: {
+            member_positions: {
+              'cover.living_left': 30,
+              'cover.living_right': 45,
+              'cover.bedroom': 0,
+              'cover.hall_generic': 80,
+            },
+            member_winners: {
+              'cover.living_left': 'solar',
+              'cover.living_right': 'group_scene',
+              'cover.bedroom': 'group_lock',
+            },
+            aggregate_position: 39,
+            state: 'mixed',
+            active_scene: 'all_closed',
+            scene_option: 'all_closed',
+            locked: true,
+            automation: true,
+            climate_mode: 'summer_mode',
+          },
+        }),
+      ];
+      // The main-card group view is the focus; the tile/decision/compass/solar
+      // cards are cover-oriented and hidden here. The root card routes to the
+      // group view automatically via `is_group`.
+      c.root.enabled = true;
+      c.tile.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
     id: 'summer-north-highlat',
     label: 'Summer — north window (two FOV crossings)',
     description:
