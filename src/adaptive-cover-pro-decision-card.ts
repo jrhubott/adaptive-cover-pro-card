@@ -4,6 +4,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import { DECISION_CARD_EDITOR_NAME, DECISION_CARD_NAME } from './const';
 import { createDiscoveryMemo } from './lib/entity-discovery';
+import { makeEntitySuggestion } from './lib/entity-suggestion';
 import { entityStateChanged } from './lib/hass-change';
 import { fetchAcpConfigEntries } from './lib/config-entries';
 import { t } from './lib/i18n';
@@ -235,6 +236,10 @@ declare global {
       description: string;
       preview?: boolean;
       documentationURL?: string;
+      getEntitySuggestion?: (
+        hass: HomeAssistant,
+        entityId: string,
+      ) => { label?: string; config: unknown } | null;
     }>;
   }
 }
@@ -248,5 +253,6 @@ if (!window.customCards.some((c) => c.type === DECISION_CARD_NAME)) {
       'Standalone decision strip: all pipeline handlers for one Adaptive Cover Pro instance with the winning row highlighted.',
     preview: true,
     documentationURL: 'https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card',
+    getEntitySuggestion: makeEntitySuggestion(`custom:${DECISION_CARD_NAME}`, 'entry_id'),
   });
 }

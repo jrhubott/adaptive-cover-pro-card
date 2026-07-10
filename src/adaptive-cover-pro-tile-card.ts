@@ -14,6 +14,7 @@ import {
   TILE_CARD_EDITOR_NAME,
 } from './const';
 import { createDiscoveryMemo } from './lib/entity-discovery';
+import { makeEntitySuggestion } from './lib/entity-suggestion';
 import { resolveAxes, type ResolvedAxis } from './lib/axes';
 import { setAxes } from './lib/services';
 import { AXIS_LABEL_I18N_KEYS } from './const';
@@ -1144,6 +1145,10 @@ declare global {
       description: string;
       preview?: boolean;
       documentationURL?: string;
+      getEntitySuggestion?: (
+        hass: HomeAssistant,
+        entityId: string,
+      ) => { label?: string; config: unknown } | null;
     }>;
   }
 }
@@ -1157,5 +1162,6 @@ if (!window.customCards.some((c) => c.type === TILE_CARD_NAME)) {
       'Compact chip-style tile for one Adaptive Cover Pro instance: icon, name, position, ↑■↓, contextual badge.',
     preview: true,
     documentationURL: 'https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card',
+    getEntitySuggestion: makeEntitySuggestion(`custom:${TILE_CARD_NAME}`, 'entry_id'),
   });
 }
