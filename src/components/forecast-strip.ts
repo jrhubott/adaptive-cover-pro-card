@@ -2,7 +2,7 @@ import { LitElement, html, svg, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
-import type { ForecastEvent, ForecastSample } from '../types';
+import type { ForecastEvent, ForecastSample, PositionHistorySample } from '../types';
 import { formatClock } from '../lib/formatters';
 import { t } from '../lib/i18n';
 import { dayFractionX } from '../lib/geometry';
@@ -34,6 +34,8 @@ export class ForecastStrip extends LitElement {
   @property({ attribute: false }) public hass?: HomeAssistant;
   @property({ attribute: false }) public samples: ForecastSample[] = [];
   @property({ attribute: false }) public events: ForecastEvent[] = [];
+  /** Recorded actual position over today, from the HA recorder (may be empty). */
+  @property({ attribute: false }) public history: PositionHistorySample[] = [];
   @property({ attribute: false }) public now = Date.now();
 
   @state() private _hoverIdx: number | null = null;
@@ -49,7 +51,9 @@ export class ForecastStrip extends LitElement {
   private static readonly EVENT_HIT_W = 12;
 
   protected render(): TemplateResult | typeof nothing {
-    if (!this.samples || this.samples.length === 0) return nothing;
+    const hasSamples = this.samples && this.samples.length > 0;
+    const hasHistory = this.history && this.history.length > 0;
+    if (!hasSamples && !hasHistory) return nothing;
 
     const { VIEW_W, VIEW_H, TOP_PAD, EVENT_HIT_W } = ForecastStrip;
     const usableH = VIEW_H - TOP_PAD;
@@ -58,6 +62,8 @@ export class ForecastStrip extends LitElement {
     const dayStart = startOfDay(new Date(this.now)).getTime();
 
     const xAt = (t: number): number => dayFractionX(t, dayStart, VIEW_W);
+    const yAt = (position: number): number =>
+      TOP_PAD + (1 - clampPercent(position) / 100) * usableH;
 
     // Keep samplePts index-aligned with `this.samples` (hover indexing depends
     // on it), but flag samples that fall outside today's window so the curve and
@@ -66,11 +72,23 @@ export class ForecastStrip extends LitElement {
     const samplePts = this.samples.map((s) => {
       const ts = Date.parse(s.t);
       const x = xAt(ts);
-      const y = TOP_PAD + (1 - clampPercent(s.position) / 100) * usableH;
+      const y = yAt(s.position);
       const inDay = !Number.isNaN(ts) && ts >= dayStart && ts <= dayStart + DAY_MS;
       return { t: ts, x, y, sample: s, inDay };
     });
     const points = samplePts
+      .filter((p) => p.inDay)
+      .map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+      .join(' ');
+
+    // Recorded actual position (00:00 → now). Same axis/mapping as the forecast
+    // curve; out-of-day samples are dropped like the forecast's.
+    const historyPts = (this.history ?? []).map((s) => {
+      const ts = Date.parse(s.t);
+      const inDay = !Number.isNaN(ts) && ts >= dayStart && ts <= dayStart + DAY_MS;
+      return { t: ts, x: xAt(ts), y: yAt(s.position), position: s.position, inDay };
+    });
+    const actualPoints = historyPts
       .filter((p) => p.inDay)
       .map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`)
       .join(' ');
@@ -117,9 +135,17 @@ export class ForecastStrip extends LitElement {
         </g>`
       : nothing;
 
+    const inDayHistory = historyPts.filter((p) => p.inDay);
+    const hoverActual =
+      hover && inDayHistory.length > 0
+        ? (nearestByX(inDayHistory, hover.x)?.position ?? null)
+        : null;
+
     const hoverLabel = hover
       ? html`<div class="hover-label" style=${`left: ${((hover.x / VIEW_W) * 100).toFixed(2)}%`}>
-          ${describeSample(hover.sample)}
+          ${describeSample(hover.sample)}${hoverActual !== null
+            ? ` · ${t('forecast.legend_actual', this.hass)} ${Math.round(clampPercent(hoverActual))}%`
+            : ''}
         </div>`
       : nothing;
 
@@ -156,11 +182,28 @@ export class ForecastStrip extends LitElement {
           <text class="axis-label" x="4" y=${TOP_PAD + 8} text-anchor="start">100%</text>
           ${ticks}
           <polyline class="curve" points=${points} fill="none"></polyline>
+          ${actualPoints
+            ? svg`<polyline class="actual-curve" points=${actualPoints} fill="none"></polyline>`
+            : nothing}
           ${eventGroups} ${hoverGuide} ${nowCursor}
         </svg>
-        ${hoverLabel}
+        ${hasHistory ? this._renderLegend() : nothing} ${hoverLabel}
       </div>
     `;
+  }
+
+  private _renderLegend(): TemplateResult {
+    return html`<div class="legend">
+      <span class="legend-item"
+        ><span class="swatch swatch-forecast"></span>${t(
+          'forecast.legend_forecast',
+          this.hass,
+        )}</span
+      >
+      <span class="legend-item"
+        ><span class="swatch swatch-actual"></span>${t('forecast.legend_actual', this.hass)}</span
+      >
+    </div>`;
   }
 
   private _onPointerMove = (e: PointerEvent): void => {
@@ -216,6 +259,39 @@ export class ForecastStrip extends LitElement {
       stroke: var(--primary-color);
       stroke-width: 1.5;
       vector-effect: non-scaling-stroke;
+    }
+    /* Recorded actual position: a solid contrasting line over the forecast so
+       "predicted vs. reality" reads at a glance. Uses a distinct literal color
+       (not --info-color, which collides with the blue --primary-color forecast
+       in many themes); overridable via --acp-actual-color. */
+    .actual-curve {
+      stroke: var(--acp-actual-color, #e040fb);
+      stroke-width: 1.75;
+      vector-effect: non-scaling-stroke;
+    }
+    .legend {
+      display: flex;
+      gap: 12px;
+      margin-top: 2px;
+      font-size: 0.68rem;
+      color: var(--secondary-text-color, #888);
+    }
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .swatch {
+      display: inline-block;
+      width: 12px;
+      height: 0;
+      border-top: 2px solid currentColor;
+    }
+    .swatch-forecast {
+      color: var(--primary-color);
+    }
+    .swatch-actual {
+      color: var(--acp-actual-color, #e040fb);
     }
     /* Floating-tooltip cursor lifecycle: a help cursor hints at the event
        marker on hover, flipping to default once OUR bubble appears. */
@@ -298,6 +374,21 @@ export class ForecastStrip extends LitElement {
       stroke-width: 10;
     }
   `;
+}
+
+/** Nearest point (by x) from a non-empty list. Used to label the hovered time
+ *  with the actual position sampled closest to the forecast's hovered point. */
+function nearestByX<T extends { x: number }>(pts: T[], x: number): T | null {
+  let best: T | null = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const p of pts) {
+    const d = Math.abs(p.x - x);
+    if (d < bestDist) {
+      bestDist = d;
+      best = p;
+    }
+  }
+  return best;
 }
 
 function clampPercent(value: number): number {

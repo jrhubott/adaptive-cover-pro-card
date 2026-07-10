@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
 import {
@@ -29,8 +29,11 @@ import type {
   ForecastEvent,
   ForecastSample,
   PositionForecastAttributes,
+  PositionHistorySample,
 } from '../types';
 import { formatPercent } from '../lib/formatters';
+import { fetchPositionHistory } from '../lib/position-history';
+import { startOfDay } from '../lib/sun-model';
 import { t } from '../lib/i18n';
 import { tooltip } from '../lib/tooltip';
 
@@ -74,8 +77,36 @@ export class MoreInfoDialog extends LitElement {
   // the tile card, so gate on `open` rather than connection so a closed dialog isn't ticking.
   private _cancelMinuteTimer: (() => void) | null = null;
 
+  // Recorded actual position for the forecast strip. The integration exposes no
+  // history attribute, so we fetch it from the HA recorder when the dialog opens
+  // (see `_maybeFetchHistory`). Keyed so it fetches once per cover-set/day, not
+  // on every `hass` tick or minute-timer redraw.
+  @state() private _positionHistory: PositionHistorySample[] = [];
+  private _historyKey: string | null = null;
+
   protected updated(): void {
     this._syncMinuteTimer(this.open);
+    this._maybeFetchHistory();
+  }
+
+  private _maybeFetchHistory(): void {
+    if (!this.open || !this.hass || !this.discovered) return;
+    const covers = this.discovered.managed_covers ?? [];
+    if (covers.length === 0) {
+      this._historyKey = null;
+      if (this._positionHistory.length > 0) this._positionHistory = [];
+      return;
+    }
+    const now = Date.now();
+    const dayStartMs = startOfDay(new Date(now)).getTime();
+    const key = `${covers.join(',')}|${dayStartMs}`;
+    if (key === this._historyKey) return;
+    this._historyKey = key;
+    void fetchPositionHistory(this.hass, covers, dayStartMs, now).then((history) => {
+      // Drop a stale response if the cover-set/day changed while awaiting.
+      if (this._historyKey !== key) return;
+      this._positionHistory = history;
+    });
   }
 
   public disconnectedCallback(): void {
@@ -444,17 +475,20 @@ export class MoreInfoDialog extends LitElement {
 
   private _renderForecastStrip(): TemplateResult | typeof nothing {
     const id = this.discovered.entities.position_forecast_sensor;
-    if (!id) return nothing;
-    const attrs = this.hass.states[id]?.attributes as PositionForecastAttributes | undefined;
+    const attrs = id
+      ? (this.hass.states[id]?.attributes as PositionForecastAttributes | undefined)
+      : undefined;
     const samples: ForecastSample[] = attrs?.forecast ?? [];
     const events: ForecastEvent[] = attrs?.events ?? [];
-    if (samples.length === 0) return nothing;
+    const history = this._positionHistory;
+    if (samples.length === 0 && history.length === 0) return nothing;
     return html`<div class="forecast-block">
       <div class="forecast-label">${t('dialog.todays_forecast', this.hass)}</div>
       <acp-forecast-strip
         .hass=${this.hass}
         .samples=${samples}
         .events=${events}
+        .history=${history}
         .now=${Date.now()}
       ></acp-forecast-strip>
       <div class="forecast-note">${t('forecast.solar_only_note', this.hass)}</div>

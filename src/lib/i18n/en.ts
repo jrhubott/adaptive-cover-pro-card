@@ -39,6 +39,8 @@ export const en = {
       'Hover the curve for time + forecast position; hover a colored line for the event it marks.',
     solar_only_note:
       'Solar geometry only — does not reflect manual overrides, custom positions, cloud suppression, or weather.',
+    legend_forecast: 'Forecast',
+    legend_actual: 'Actual',
   },
   dialog: {
     configure_integration: 'Configure integration',

@@ -213,6 +213,17 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'forecast-actual-history',
+    label: 'Forecast strip — actual vs. predicted',
+    description:
+      "Open the more-info dialog (tap the tile) and look at Today's forecast strip. Two lines now overlay: the predicted position curve (primary color, full day) and the recorded ACTUAL position (blue, 00:00 → now) fetched from the recorder. The actual line moves in discrete ~5% steps and trails the forecast slightly, so predicted-vs-reality reads at a glance; the legend names both. Set mid-afternoon so there is a full morning of actual history. The manual-override-divergence scenarios show the other case — actual held flat while the forecast keeps moving.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 15 * 60);
+      c.scenario = 'forecast-actual-history';
+      return c;
+    },
+  },
+  {
     id: 'venetian-dual-axis',
     label: 'Venetian — dual-axis (position + tilt)',
     description:
