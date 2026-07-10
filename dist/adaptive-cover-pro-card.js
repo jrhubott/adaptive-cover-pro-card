@@ -1336,30 +1336,19 @@ function e(e,t,i,s){var o,n=arguments.length,r=n<3?t:null===s?s=Object.getOwnPro
     ha-icon {
       --mdc-icon-size: 18px;
     }
-  `,e([_e({attribute:!1})],qi.prototype,"hass",void 0),e([_e({attribute:!1})],qi.prototype,"discovered",void 0),e([_e({type:Boolean,reflect:!0})],qi.prototype,"compact",void 0),e([_e({type:Boolean,attribute:"reset-enabled"})],qi.prototype,"resetEnabled",void 0),qi=e([he("acp-overrides-panel")],qi);const Yi=new Set(["mode_off","active"]),Hi={summer_mode:"mdi:weather-sunny",winter_mode:"mdi:snowflake",intermediate:"mdi:weather-partly-cloudy"};let Qi=class extends ce{constructor(){super(...arguments),this.compact=!1}shouldUpdate(e){if(e.size>1||!e.has("hass"))return!0;const t=e.get("hass"),i=this.discovered?.entities;return me(t,this.hass,[i?.climate_status_sensor,i?.climate_mode_switch])}render(){if(!this.hass||!this.discovered)return q;const e=this.discovered.entities.climate_status_sensor;if(!e)return q;const t=this.hass.states[e];if(!t||"unavailable"===t.state)return q;if("unknown"===t.state||""===t.state){const e=this.discovered.entities.climate_mode_switch,i=!!e&&"off"===this.hass.states[e]?.state,s=Ue(i?"climate.mode_off":"climate.standby",this.hass),o=i?"mdi:power-off":"mdi:thermostat",n=t.attributes?.inactive_reason,r=n&&!Yi.has(n)?Ue(`climate.reason.${n}`,this.hass):void 0;return V`
-        <div class="wrap">
-          <div class="head">
-            <span class="label">${Ue("climate.title",this.hass)}</span>
-          </div>
-          <div class="strategy standby">
-            <ha-icon icon=${o}></ha-icon>
-            <span class="strategy-name dim">${s}</span>
-          </div>
-          ${r?V`<div class="standby-reason dim">${r}</div>`:q}
-        </div>
-      `}const i=t.state,s=t.attributes??{},o=Hi[i]??"mdi:thermostat",n=s.temperature_unit??"°",r=this.hass.formatEntityState,a="function"==typeof r?r(t)??i:i,l=void 0!==s.active_temperature?`${s.active_temperature.toFixed(1)}${n}`:"—",c=!0===s.temp_switch,d=(e,t)=>null==t||Number.isNaN(t)?null:`${Ue(e,this.hass)} ${t.toFixed(1)}${n}`,h=c?null:[d("climate.threshold_low",s.temp_low),d("climate.threshold_high",s.temp_high)].filter(e=>null!==e).join(" ")||null,u=[...c?[d("climate.threshold_low",s.temp_low),d("climate.threshold_high",s.temp_high)]:[],d("climate.threshold_summer_outside",s.temp_summer_outside)].filter(e=>null!==e).join(" ")||null,p=[void 0!==s.indoor_temperature?{label:Ue("climate.indoor",this.hass),value:s.indoor_temperature,unit:n,threshold:h}:null,void 0!==s.outdoor_temperature?{label:Ue("climate.outdoor",this.hass),value:s.outdoor_temperature,unit:n,threshold:u}:null].filter(e=>null!==e),_=[{label:Ue("climate.presence",this.hass),value:s.is_presence,icon:"mdi:account-check"},{label:Ue("climate.sunny",this.hass),value:s.is_sunny,icon:"mdi:white-balance-sunny"},{label:Ue("climate.lux",this.hass),value:s.lux_active,icon:"mdi:brightness-7"},{label:Ue("climate.irradiance",this.hass),value:s.irradiance_active,icon:"mdi:solar-power"}].filter(e=>void 0!==e.value);return V`
+  `,e([_e({attribute:!1})],qi.prototype,"hass",void 0),e([_e({attribute:!1})],qi.prototype,"discovered",void 0),e([_e({type:Boolean,reflect:!0})],qi.prototype,"compact",void 0),e([_e({type:Boolean,attribute:"reset-enabled"})],qi.prototype,"resetEnabled",void 0),qi=e([he("acp-overrides-panel")],qi);const Yi=new Set(["mode_off","active"]),Hi={summer_mode:"mdi:weather-sunny",winter_mode:"mdi:snowflake",intermediate:"mdi:weather-partly-cloudy"};let Qi=class extends ce{constructor(){super(...arguments),this.compact=!1}shouldUpdate(e){if(e.size>1||!e.has("hass"))return!0;const t=e.get("hass"),i=this.discovered?.entities;return me(t,this.hass,[i?.climate_status_sensor,i?.climate_mode_switch])}render(){if(!this.hass||!this.discovered)return q;const e=this.discovered.entities.climate_status_sensor;if(!e)return q;const t=this.hass.states[e];if(!t||"unavailable"===t.state)return q;if("unknown"===t.state||""===t.state){const e=this.discovered.entities.climate_mode_switch,i=!!e&&"off"===this.hass.states[e]?.state,s=Ue(i?"climate.mode_off":"climate.standby",this.hass),o=i?"mdi:power-off":"mdi:thermostat",n=t.attributes?.inactive_reason;return this._renderStandby(o,s,n)}const i=t.state,s=t.attributes??{},o=Hi[i]??"mdi:thermostat",n=this.hass.formatEntityState,r="function"==typeof n?n(t)??i:i;if(null!=(a=s.inactive_reason)&&"active"!==a)return this._renderStandby(o,r,s.inactive_reason);var a;const l=s.temperature_unit??"°",c=void 0!==s.active_temperature?`${s.active_temperature.toFixed(1)}${l}`:"—",d=!0===s.temp_switch,h=(e,t)=>null==t||Number.isNaN(t)?null:`${Ue(e,this.hass)} ${t.toFixed(1)}${l}`,u=d?null:[h("climate.threshold_low",s.temp_low),h("climate.threshold_high",s.temp_high)].filter(e=>null!==e).join(" ")||null,p=[...d?[h("climate.threshold_low",s.temp_low),h("climate.threshold_high",s.temp_high)]:[],h("climate.threshold_summer_outside",s.temp_summer_outside)].filter(e=>null!==e).join(" ")||null,_=[void 0!==s.indoor_temperature?{label:Ue("climate.indoor",this.hass),value:s.indoor_temperature,unit:l,threshold:u}:null,void 0!==s.outdoor_temperature?{label:Ue("climate.outdoor",this.hass),value:s.outdoor_temperature,unit:l,threshold:p}:null].filter(e=>null!==e),g=[{label:Ue("climate.presence",this.hass),value:s.is_presence,icon:"mdi:account-check"},{label:Ue("climate.sunny",this.hass),value:s.is_sunny,icon:"mdi:white-balance-sunny"},{label:Ue("climate.lux",this.hass),value:s.lux_active,icon:"mdi:brightness-7"},{label:Ue("climate.irradiance",this.hass),value:s.irradiance_active,icon:"mdi:solar-power"}].filter(e=>void 0!==e.value);return V`
       <div class="wrap">
         <div class="head">
           <span class="label">${Ue("climate.title",this.hass)}</span>
-          <span class="dim">${Ue("climate.active",this.hass,{strategy:l})}</span>
+          <span class="dim">${Ue("climate.active",this.hass,{strategy:c})}</span>
         </div>
         <div class="strategy">
           <ha-icon icon=${o}></ha-icon>
-          <span class="strategy-name">${a}</span>
+          <span class="strategy-name">${r}</span>
         </div>
-        ${p.length?V`
+        ${_.length?V`
               <div class="temps">
-                ${p.map(e=>V`
+                ${_.map(e=>V`
                     <div class="temp">
                       <span class="temp-label dim">${e.label}</span>
                       <span class="temp-value">${e.value.toFixed(1)}${e.unit}</span>
@@ -1368,9 +1357,9 @@ function e(e,t,i,s){var o,n=arguments.length,r=n<3?t:null===s?s=Object.getOwnPro
                   `)}
               </div>
             `:q}
-        ${_.length?V`
+        ${g.length?V`
               <div class="conditions">
-                ${_.map(e=>V`
+                ${g.map(e=>V`
                     <div class="chip ${e.value?"on":"off"}" ${xt(e.label)}>
                       <ha-icon icon=${e.icon}></ha-icon>
                       <span>${e.label}</span>
@@ -1378,6 +1367,17 @@ function e(e,t,i,s){var o,n=arguments.length,r=n<3?t:null===s?s=Object.getOwnPro
                   `)}
               </div>
             `:q}
+      </div>
+    `}_renderStandby(e,t,i){const s=i&&!Yi.has(i)?Ue(`climate.reason.${i}`,this.hass):void 0;return V`
+      <div class="wrap">
+        <div class="head">
+          <span class="label">${Ue("climate.title",this.hass)}</span>
+        </div>
+        <div class="strategy standby">
+          <ha-icon icon=${e}></ha-icon>
+          <span class="strategy-name dim">${t}</span>
+        </div>
+        ${s?V`<div class="standby-reason dim">${s}</div>`:q}
       </div>
     `}};Qi.styles=r`
     :host {
