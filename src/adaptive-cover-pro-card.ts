@@ -33,6 +33,7 @@ import './components/group-view';
 import './components/overrides-panel';
 import './components/climate-panel';
 import './components/solar-calc';
+import './components/more-info-dialog';
 import './adaptive-cover-pro-card-editor';
 import './adaptive-cover-pro-sky-compass-card';
 import './adaptive-cover-pro-decision-card';
@@ -55,6 +56,7 @@ export class AdaptiveCoverProCard extends LitElement {
   @state() private _registry: EntityRegistryEntry[] | null = null;
   @state() private _registryError: string | null = null;
   @state() private _discovered: DiscoveredEntities | null = null;
+  @state() private _dialogOpen = false;
 
   // Stable single-element wrapper list handed to the compass + elevation chart.
   // Rebuilt only when `_discovered`'s reference changes, so a root re-render for
@@ -260,8 +262,16 @@ export class AdaptiveCoverProCard extends LitElement {
     const autoOn = autoId ? this.hass.states[autoId]?.state === 'on' : true;
     return html`
       <div class="header">
-        <ha-icon .icon=${icon}></ha-icon>
-        <span class="title">${d.entry_title}</span>
+        <div
+          class="header-info"
+          role="button"
+          tabindex="0"
+          @click=${this._openDialog}
+          @keydown=${this._onHeaderInfoKeydown}
+        >
+          <ha-icon .icon=${icon}></ha-icon>
+          <span class="title">${d.entry_title}</span>
+        </div>
         <span class="spacer"></span>
         ${enabledId
           ? html`<acp-header-pill
@@ -289,6 +299,20 @@ export class AdaptiveCoverProCard extends LitElement {
     const domain = entityId.split('.')[0];
     this.hass.callService(domain, 'toggle', { entity_id: entityId });
   }
+
+  private _openDialog = (): void => {
+    this._dialogOpen = true;
+  };
+
+  private _closeDialog = (): void => {
+    this._dialogOpen = false;
+  };
+
+  private _onHeaderInfoKeydown = (ev: KeyboardEvent): void => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    ev.preventDefault();
+    this._openDialog();
+  };
 
   private _renderLoading(): TemplateResult {
     return html`
@@ -428,6 +452,12 @@ export class AdaptiveCoverProCard extends LitElement {
             : nothing}
         </div>
       </ha-card>
+      <acp-more-info-dialog
+        .hass=${this.hass}
+        .discovered=${discovered}
+        .open=${this._dialogOpen}
+        @acp-dialog-close=${this._closeDialog}
+      ></acp-more-info-dialog>
     `;
   }
 
@@ -451,6 +481,17 @@ export class AdaptiveCoverProCard extends LitElement {
     .header ha-icon {
       --mdc-icon-size: 22px;
       color: var(--primary-color);
+    }
+    .header-info {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      cursor: pointer;
+      border-radius: 6px;
+    }
+    .header-info:focus-visible {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 2px;
     }
     .title {
       font-size: 1.05rem;
