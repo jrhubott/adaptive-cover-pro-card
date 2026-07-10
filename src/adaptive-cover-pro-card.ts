@@ -484,7 +484,7 @@ window.customCards.push({
   description:
     'Visualize sun/window geometry, the pipeline decision trace, and live cover positions with inline controls.',
   preview: true,
-  documentationURL: 'https://github.com/jrhubott/adaptive-cover-pro-card',
+  documentationURL: 'https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card',
 });
 
 // eslint-disable-next-line no-console
