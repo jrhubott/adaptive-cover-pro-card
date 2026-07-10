@@ -45,6 +45,7 @@ import { tooltip, setTooltipDefaults } from './lib/tooltip';
 
 import './components/tile-badge';
 import './components/tilt-bar';
+import './components/group-tile';
 import './components/more-info-dialog';
 import './adaptive-cover-pro-tile-card-editor';
 
@@ -232,6 +233,14 @@ export class AdaptiveCoverProTileCard extends LitElement {
             })}
           </p>
         </div>
+      </ha-card>`;
+    }
+
+    // Cover Group entries (issue #185) route to the group tile variant instead
+    // of the cover tile controls + more-info dialog (both cover-specific).
+    if (discovered.is_group) {
+      return html`<ha-card>
+        <acp-group-tile .hass=${this.hass} .discovered=${discovered}></acp-group-tile>
       </ha-card>`;
     }
 

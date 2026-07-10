@@ -9,6 +9,9 @@ import {
   normalizeConfig,
 } from '../harness/src/scenarios';
 import type { HarnessConfig } from '../harness/src/types';
+import { buildStates } from '../harness/src/mock/state-gen';
+import { buildRegistry } from '../harness/src/mock/registry';
+import { discoverEntities } from '../src/lib/entity-discovery';
 
 interface CardStageLike extends HTMLElement {
   config: HarnessConfig;
@@ -295,6 +298,57 @@ describe('card-stage activeCard filter (one tab per card)', () => {
     } finally {
       el.remove();
     }
+  });
+});
+
+describe('group-tile scenario (issue #185)', () => {
+  it('exposes a "group-tile" scenario with a single group entry', () => {
+    const scenario = findScenario('group-tile');
+    expect(scenario).toBeTruthy();
+    const cfg = scenario!.build();
+    expect(cfg.entries).toHaveLength(1);
+    expect(cfg.entries[0].is_group).toBe(true);
+    expect(cfg.entries[0].group).toBeTruthy();
+    // Phase 2 wires only the tile — the other cards are hidden here.
+    expect(cfg.tile.enabled).toBe(true);
+    expect(cfg.root.enabled).toBe(false);
+  });
+
+  it('the mock registry + states let the card discover the entry as a group', () => {
+    const cfg = findScenario('group-tile')!.build();
+    const entry = cfg.entries[0];
+    const registry = buildRegistry(cfg.entries);
+    const { states } = buildStates(cfg);
+    const hass = { states, devices: {} } as unknown as import('custom-card-helpers').HomeAssistant;
+    const d = discoverEntities(
+      hass,
+      { type: 'custom:adaptive-cover-pro-tile-card', entry_id: entry.entry_id },
+      registry,
+    );
+    expect(d).not.toBeNull();
+    expect(d!.is_group).toBe(true);
+    expect(d!.entities.group_active_scene_sensor).toBeTruthy();
+    expect(d!.entities.group_scene_select).toBeTruthy();
+    expect(d!.entities.group_lock_switch).toBeTruthy();
+    // Group entries expose no cover-position sensor.
+    expect(d!.entities.target_position_sensor).toBeUndefined();
+    // Roster comes from member_positions.
+    expect(d!.managed_covers.length).toBeGreaterThan(0);
+  });
+
+  it('gates the group roles OFF an ordinary cover entry (no false is_group)', () => {
+    const cfg = defaultScenarioConfig();
+    const registry = buildRegistry(cfg.entries);
+    const { states } = buildStates(cfg);
+    const hass = { states, devices: {} } as unknown as import('custom-card-helpers').HomeAssistant;
+    const d = discoverEntities(
+      hass,
+      { type: 'custom:adaptive-cover-pro-card', entry_id: cfg.entries[0].entry_id },
+      registry,
+    );
+    expect(d!.is_group).toBeFalsy();
+    expect(d!.entities.group_active_scene_sensor).toBeUndefined();
+    expect(d!.entities.target_position_sensor).toBeTruthy();
   });
 });
 

@@ -61,6 +61,15 @@ export class TileBadge extends LitElement {
    *  winner; left undefined the kind is derived from `winner` as usual. */
   @property({ attribute: 'kind-override' }) public kindOverride?: BadgeKind;
 
+  /** Cover Group who-won count (issue #185): the number of group members the
+   *  group is currently driving. Rendered as "N/M" with {@link groupTotal} on
+   *  the `group` badge. */
+  @property({ type: Number, attribute: 'group-count' }) public groupCount?: number;
+
+  /** Cover Group roster size (issue #185): the "N/M" denominator — the total
+   *  member count (`member_positions` length). */
+  @property({ type: Number, attribute: 'group-total' }) public groupTotal?: number;
+
   /** When true, the badge becomes a tappable button that emits `acp-resume`
    *  (used to resume automatic control while a manual override is active). The
    *  badge stays presentational — it dispatches the event; the host runs the
@@ -151,6 +160,13 @@ export class TileBadge extends LitElement {
       const floorPart =
         this.minimumMode === true ? (this.hass ? t('badge.floor_suffix', this.hass) : ' ↥') : '';
       return `${slotPart}${pctPart}${floorPart}`;
+    }
+    if (kind === 'group') {
+      // The who-won badge renders "N/M": N group-driven members over the full
+      // roster. Fall back to the base label when counts aren't supplied (e.g.
+      // the badge gallery renders the bare kind).
+      if (this.groupCount === undefined || this.groupTotal === undefined) return base;
+      return `${this.groupCount}/${this.groupTotal}`;
     }
     return base;
   }

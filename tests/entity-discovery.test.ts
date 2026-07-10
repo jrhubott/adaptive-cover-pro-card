@@ -272,6 +272,113 @@ describe('discoverEntities (unique_id based)', () => {
   });
 });
 
+const GROUP_ENTRY = 'group1';
+
+function makeGroupRegistry(): EntityRegistryEntry[] {
+  const mk = (entity_id: string, suffix: string): EntityRegistryEntry => ({
+    entity_id,
+    unique_id: `${GROUP_ENTRY}_${suffix}`,
+    platform: 'adaptive_cover_pro',
+    config_entry_id: GROUP_ENTRY,
+    device_id: 'group_device',
+  });
+  return [
+    mk('sensor.living_group_position', 'group_position'),
+    mk('sensor.living_group_state', 'group_state'),
+    mk('sensor.living_group_active_scene', 'group_active_scene'),
+    mk('sensor.living_group_climate_mode', 'group_climate_mode'),
+    mk('sensor.living_group_who_won', 'group_who_won'),
+    mk('select.living_group_scene', 'group_scene_select'),
+    mk('switch.living_group_automation', 'group_automation'),
+    mk('switch.living_group_lock', 'group_lock'),
+    mk('button.living_group_scene_all_open', 'group_scene_all_open'),
+    mk('button.living_group_scene_all_closed', 'group_scene_all_closed'),
+    mk('button.living_group_scene_privacy', 'group_scene_privacy'),
+    mk('button.living_group_clear_overrides', 'group_clear_overrides'),
+  ];
+}
+
+function makeGroupHass(): HomeAssistant {
+  const h: unknown = {
+    devices: {
+      group_device: {
+        id: 'group_device',
+        name: 'Downstairs Group',
+        config_entries: [GROUP_ENTRY],
+      },
+    },
+    states: {
+      'sensor.living_group_position': {
+        state: '50',
+        attributes: {
+          member_positions: {
+            'cover.a': 40,
+            'cover.b': 60,
+            'cover.generic': 0,
+          },
+        },
+      },
+      'sensor.living_group_who_won': {
+        state: '2',
+        attributes: {
+          member_winners: { 'cover.a': 'solar', 'cover.b': 'manual' },
+        },
+      },
+      'sensor.living_group_active_scene': { state: 'all_open', attributes: {} },
+      'select.living_group_scene': {
+        state: 'auto',
+        attributes: {
+          options: ['auto', 'all_open', 'all_closed', 'privacy'],
+          current_option: 'auto',
+        },
+      },
+      'switch.living_group_lock': { state: 'off', attributes: {} },
+    },
+  };
+  return h as HomeAssistant;
+}
+
+describe('discoverEntities — Cover Group entries (issue #185)', () => {
+  it('detects a group entry via the group_active_scene sensor and populates group roles', () => {
+    const d = discoverEntities(
+      makeGroupHass(),
+      { type: 'custom:adaptive-cover-pro-tile-card', entry_id: GROUP_ENTRY },
+      makeGroupRegistry(),
+    );
+    expect(d).not.toBeNull();
+    expect(d!.is_group).toBe(true);
+    expect(d!.entities.group_position_sensor).toBe('sensor.living_group_position');
+    expect(d!.entities.group_state_sensor).toBe('sensor.living_group_state');
+    expect(d!.entities.group_active_scene_sensor).toBe('sensor.living_group_active_scene');
+    expect(d!.entities.group_who_won_sensor).toBe('sensor.living_group_who_won');
+    expect(d!.entities.group_scene_select).toBe('select.living_group_scene');
+    expect(d!.entities.group_automation_switch).toBe('switch.living_group_automation');
+    expect(d!.entities.group_lock_switch).toBe('switch.living_group_lock');
+    expect(d!.entities.group_clear_overrides_button).toBe('button.living_group_clear_overrides');
+  });
+
+  it('derives managed_covers from the group_position member_positions attribute', () => {
+    const d = discoverEntities(
+      makeGroupHass(),
+      { type: 'custom:adaptive-cover-pro-tile-card', entry_id: GROUP_ENTRY },
+      makeGroupRegistry(),
+    );
+    expect(d!.managed_covers).toEqual(['cover.a', 'cover.b', 'cover.generic']);
+  });
+
+  it('leaves is_group falsy for an ordinary cover entry (regression)', () => {
+    const d = discoverEntities(
+      makeHass(),
+      { type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY_ID },
+      makeRegistry(),
+    );
+    expect(d!.is_group).toBeFalsy();
+    // Cover roles remain fully populated.
+    expect(d!.entities.target_position_sensor).toBe('sensor.living_room_blinds_target_position');
+    expect(d!.entities.group_position_sensor).toBeUndefined();
+  });
+});
+
 describe('createDiscoveryMemo', () => {
   const CONFIG = { type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY_ID };
 

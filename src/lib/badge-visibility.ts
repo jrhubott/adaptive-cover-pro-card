@@ -31,7 +31,7 @@ export function isSolarActive(ctx: SolarActiveContext): boolean {
  *   not winning) AND `config.solar !== false`.
  * - the other configurable kinds (including `auto` and `cloud`) survive unless
  *   their flag is `=== false`.
- * - `off` is a state-fallback and is never filtered.
+ * - `off` and `group` are status indicators and are never filtered.
  */
 export function selectVisibleBadges(
   kinds: readonly BadgeKind[],
@@ -39,7 +39,7 @@ export function selectVisibleBadges(
   ctx: SolarActiveContext,
 ): BadgeKind[] {
   return kinds.filter((kind) => {
-    if (kind === 'off') return true;
+    if (kind === 'off' || kind === 'group') return true;
     if (kind === 'solar') return isSolarActive(ctx) && config?.solar !== false;
     return config?.[kind] !== false;
   });

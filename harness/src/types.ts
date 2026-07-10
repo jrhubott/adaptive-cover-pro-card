@@ -1,6 +1,35 @@
 import type { HandlerName } from '../../src/const';
+import type { GroupAggregateState, GroupScene } from '../../src/types';
 
 export type CoverType = 'cover_blind' | 'cover_awning' | 'cover_tilt' | 'cover_venetian';
+
+/**
+ * Cover Group state a group HarnessEntry carries (issue #185). Mirrors the
+ * attribute shapes the integration's group sensors emit. When `HarnessEntry.is_group`
+ * is set, the mock emits the `group_*` entities from these fields instead of the
+ * per-cover sensor block.
+ */
+export interface GroupFields {
+  /** entity_id → live position (null = unknown). Includes generic + ACP members;
+   *  its key count is the who-won "N/M" denominator. */
+  member_positions: Record<string, number | null>;
+  /** entity_id → winning handler name (snake_case) or null. ACP members only. */
+  member_winners: Record<string, string | null>;
+  /** Aggregate position 0..100 published as the group_position sensor state. */
+  aggregate_position: number;
+  /** Aggregate open/closed state (group_state sensor). */
+  state: GroupAggregateState;
+  /** Active scene (group_active_scene sensor); `none` → the sensor reads unknown. */
+  active_scene: GroupScene | 'none';
+  /** Current option of the group scene `select`. */
+  scene_option: GroupScene;
+  /** group_lock switch on/off. */
+  locked: boolean;
+  /** group_automation switch on/off. */
+  automation: boolean;
+  /** Aggregate climate mode string (group_climate_mode sensor). */
+  climate_mode: string;
+}
 
 export type MotionStatusValue = 'idle' | 'motion_detected' | 'timeout_pending';
 export type ClimateStrategy = 'summer_mode' | 'winter_mode' | 'intermediate' | 'unknown';
@@ -133,6 +162,12 @@ export interface HarnessEntry {
     /** Configured minimum interval between position changes, in minutes. */
     throttle_threshold_minutes: number;
   };
+  /** When true this entry is a Cover Group (issue #185): the mock emits the
+   *  `group_*` entities from {@link group} and skips the per-cover sensor block,
+   *  so the card discovers it as a group and renders the group tile variant. */
+  is_group?: boolean;
+  /** Group state, required when {@link is_group} is true. */
+  group?: GroupFields;
 }
 
 export interface RootCardOptions {

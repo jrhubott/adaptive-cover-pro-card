@@ -146,7 +146,8 @@ export type BadgeKind =
   | 'solar'
   | 'motion'
   | 'off'
-  | 'off_schedule';
+  | 'off_schedule'
+  | 'group';
 
 /**
  * Map a normalized winner-handler name to its badge kind. Anything not in this
@@ -188,6 +189,9 @@ export const BADGE_TOKENS: Record<BadgeKind, BadgeTokens> = {
   motion: { label: 'Motion', bg: 'rgba(255, 235, 59, 0.22)', fg: '#827717' },
   off: { label: 'Off', bg: 'rgba(97, 97, 97, 0.28)', fg: '#212121' },
   off_schedule: { label: 'Off-schedule', bg: 'rgba(96, 125, 139, 0.22)', fg: '#37474f' },
+  // Cover Group who-won count badge (issue #185). Neutral indigo, distinct from
+  // every handler kind; applied via `kindOverride`, never derived from a winner.
+  group: { label: 'Group', bg: 'rgba(63, 81, 181, 0.20)', fg: '#283593' },
 };
 
 /**
@@ -209,6 +213,7 @@ export const BADGE_I18N_KEYS: Record<BadgeKind, string> = {
   motion: 'badge.motion',
   off: 'badge.off',
   off_schedule: 'badge.off_schedule',
+  group: 'badge.group',
 };
 
 /**
@@ -227,6 +232,7 @@ export const BADGE_ICONS: Record<BadgeKind, string> = {
   motion: 'mdi:motion-sensor',
   off: 'mdi:power',
   off_schedule: 'mdi:clock-alert-outline',
+  group: 'mdi:window-shutter-cog',
 };
 
 /** Logical slots the card binds to. */
@@ -255,7 +261,23 @@ export type EntityRole =
   | 'manual_toggle_switch'
   | 'climate_mode_switch'
   | 'motion_control_switch'
-  | 'reset_override_button';
+  | 'reset_override_button'
+  // Cover Group roles (issue #185). Present only on a Cover Group config entry;
+  // an ordinary cover entry never exposes any of these. `group_active_scene_sensor`
+  // is the always-present detection marker (`is_group`).
+  | 'group_position_sensor'
+  | 'group_state_sensor'
+  | 'group_active_scene_sensor'
+  | 'group_climate_mode_sensor'
+  | 'group_who_won_sensor'
+  | 'group_scene_select'
+  | 'group_automation_switch'
+  | 'group_lock_switch'
+  | 'group_scene_all_open_button'
+  | 'group_scene_all_closed_button'
+  | 'group_scene_privacy_button'
+  | 'group_clear_overrides_button'
+  | 'group_cover';
 
 /**
  * Map (platform, unique_id suffix) → card role.
@@ -332,4 +354,21 @@ export const UNIQUE_ID_ROLES: Record<string, EntityRole> = {
 
   // button
   'button:Reset Manual Override': 'reset_override_button',
+
+  // Cover Group entities (issue #185). All snake_case translation-key suffixes on
+  // the `adaptive_cover_pro` platform. `sensor:group_active_scene` is created
+  // unconditionally for every group and is the card's group-detection marker.
+  'sensor:group_position': 'group_position_sensor',
+  'sensor:group_state': 'group_state_sensor',
+  'sensor:group_active_scene': 'group_active_scene_sensor',
+  'sensor:group_climate_mode': 'group_climate_mode_sensor',
+  'sensor:group_who_won': 'group_who_won_sensor',
+  'select:group_scene_select': 'group_scene_select',
+  'switch:group_automation': 'group_automation_switch',
+  'switch:group_lock': 'group_lock_switch',
+  'button:group_scene_all_open': 'group_scene_all_open_button',
+  'button:group_scene_all_closed': 'group_scene_all_closed_button',
+  'button:group_scene_privacy': 'group_scene_privacy_button',
+  'button:group_clear_overrides': 'group_clear_overrides_button',
+  'cover:group_cover': 'group_cover',
 };

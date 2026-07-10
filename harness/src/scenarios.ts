@@ -176,6 +176,40 @@ function makeEntry(
   };
 }
 
+/**
+ * Build a Cover Group HarnessEntry (issue #185). Reuses {@link makeEntry} for the
+ * shared shape, then marks it a group and attaches the group state. Member covers
+ * are foreign entity_ids read from `member_positions`, so the entry owns no covers
+ * of its own.
+ */
+function makeGroupEntry(
+  overrides: Partial<HarnessEntry> & Pick<HarnessEntry, 'entry_id'>,
+): HarnessEntry {
+  const base = makeEntry({ ...overrides, covers: overrides.covers ?? [] });
+  return {
+    ...base,
+    is_group: true,
+    group: overrides.group ?? {
+      member_positions: {
+        'cover.living_left': 40,
+        'cover.living_right': 60,
+        'cover.hall_generic': 0,
+      },
+      member_winners: {
+        'cover.living_left': 'solar',
+        'cover.living_right': 'manual',
+      },
+      aggregate_position: 33,
+      state: 'mixed',
+      active_scene: 'none',
+      scene_option: 'auto',
+      locked: false,
+      automation: true,
+      climate_mode: 'summer_mode',
+    },
+  };
+}
+
 function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): HarnessConfig {
   return {
     latitude: lat,
@@ -699,6 +733,24 @@ export const SCENARIOS: Scenario[] = [
       // Group lock holds the member fully closed.
       c.entries[0].target_position = 0;
       c.entries[0].covers[0].position = 0;
+      return c;
+    },
+  },
+  {
+    id: 'group-tile',
+    label: 'Cover Group — tile variant (issue #185)',
+    description:
+      'A Cover Group entry rendered as the new group tile. The tile shows the aggregate position + state (mixed), the scene select (auto/all open/all closed/privacy), the lock toggle, and the who-won "2/3" badge (2 of 3 members group-driven). Pick a scene → select.select_option fires; toggle the lock → switch.turn_on/off fires, both applied optimistically. Phase 2 wires only the group TILE — the root/decision/compass/solar cards are hidden here; the main-card group view arrives in Phase 3.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-tile';
+      c.entries = [makeGroupEntry({ entry_id: 'downstairs_group', title: 'Downstairs Group' })];
+      // Only the tile understands a group entry in Phase 2.
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
       return c;
     },
   },
