@@ -336,6 +336,17 @@ export interface ForecastEvent {
   label: string;
 }
 
+/**
+ * One point of recorded actual cover position over time. Sourced from Home
+ * Assistant's recorder (the card has no ready-made history attribute; see
+ * `src/lib/position-history.ts`), so `t` is an ISO-8601 datetime and `position`
+ * is the aggregate physical position (0–100) across the managed covers.
+ */
+export interface PositionHistorySample {
+  t: string;
+  position: number;
+}
+
 export interface PositionForecastAttributes {
   forecast: ForecastSample[];
   events: ForecastEvent[];

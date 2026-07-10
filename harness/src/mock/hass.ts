@@ -5,9 +5,10 @@ import {
   INTEGRATION_DOMAIN,
   type HandlerName,
 } from '../../../src/const';
-import type { HarnessConfig } from '../types';
+import type { HarnessConfig, HarnessEntry, ManagedCoverCfg } from '../types';
 import { zoneForLongitude } from '../zone';
 import { buildRegistry } from './registry';
+import { buildActualHistory, type CompressedState } from './history';
 import { buildStates, type GeneratedStates } from './state-gen';
 
 export interface ServiceCallEvent {
@@ -108,6 +109,9 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'dialog.floor': '↥',
   'dialog.floor_tooltip': 'Custom position floor is raising the calculated value.',
   'badge.floor_suffix': ' ↥',
+  // Forecast-strip legend (actual-vs-forecast overlay).
+  'forecast.legend_forecast': 'Forecast',
+  'forecast.legend_actual': 'Actual',
 };
 
 for (const h of Object.keys(HANDLER_LABELS)) {
@@ -136,10 +140,31 @@ export function buildMockHass(
     };
   }
 
-  // hass.callWS handles the entity-registry list and config-entries calls.
-  const callWS = async <T>(msg: { type: string }): Promise<T> => {
+  // Cover entity_id -> { entry, cover } for mocking recorder position history.
+  const coverLookup = new Map<string, { entry: HarnessEntry; cover: ManagedCoverCfg }>();
+  for (const e of cfg.entries) {
+    for (const c of e.covers) coverLookup.set(c.entity_id, { entry: e, cover: c });
+  }
+
+  // hass.callWS handles the entity-registry list, config-entries, and
+  // recorder-history calls.
+  const callWS = async <T>(msg: { type: string; entity_ids?: string[] }): Promise<T> => {
     if (msg.type === 'config/entity_registry/list') {
       return registry as unknown as T;
+    }
+    if (msg.type === 'history/history_during_period') {
+      const nowMs = generated.now.getTime();
+      const result: Record<string, CompressedState[]> = {};
+      for (const id of msg.entity_ids ?? []) {
+        const found = coverLookup.get(id);
+        if (!found) {
+          result[id] = [];
+          continue;
+        }
+        const samples = generated.samplesByEntry.get(found.entry.entry_id) ?? [];
+        result[id] = buildActualHistory(found.entry, found.cover, samples, nowMs);
+      }
+      return result as unknown as T;
     }
     if (msg.type === 'config_entries/get') {
       // Return the harness entries as simulated cover-profile config entries so

@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import '../src/components/forecast-strip';
-import type { ForecastSample, ForecastEvent } from '../src/types';
+import type { ForecastSample, ForecastEvent, PositionHistorySample } from '../src/types';
 import { startOfDay } from '../src/lib/sun-model';
 
 interface StripLike extends HTMLElement {
   updateComplete: Promise<boolean>;
   samples?: ForecastSample[];
   events?: ForecastEvent[];
+  history?: PositionHistorySample[];
   now?: number;
   axisLabels?: Record<string, string>;
 }
@@ -15,11 +16,13 @@ async function mount(
   samples: ForecastSample[],
   events: ForecastEvent[],
   nowMs?: number,
+  history?: PositionHistorySample[],
   axisLabels?: Record<string, string>,
 ): Promise<StripLike> {
   const el = document.createElement('acp-forecast-strip') as StripLike;
   el.samples = samples;
   el.events = events;
+  if (history !== undefined) el.history = history;
   if (nowMs !== undefined) el.now = nowMs;
   if (axisLabels !== undefined) el.axisLabels = axisLabels;
   document.body.appendChild(el);
@@ -73,6 +76,49 @@ describe('acp-forecast-strip', () => {
     const svg = el.shadowRoot!.querySelector('svg');
     expect(svg).toBeTruthy();
     expect(svg!.querySelector('polyline.curve')).toBeTruthy();
+  });
+
+  function history(offsetMs: number, position: number): PositionHistorySample {
+    return { t: new Date(DAY_START + offsetMs).toISOString(), position };
+  }
+
+  it('does not render an actual-curve when history is empty', async () => {
+    const samples = [sample(0, 0), sample(6 * 3600_000, 60)];
+    const el = await mount(samples, [], NOW);
+    expect(el.shadowRoot!.querySelector('polyline.actual-curve')).toBeNull();
+    expect(el.shadowRoot!.querySelector('.legend')).toBeNull();
+  });
+
+  it('renders a second polyline + legend for the actual history series', async () => {
+    const samples = [sample(0, 0), sample(6 * 3600_000, 60), sample(12 * 3600_000, 100)];
+    const hist = [history(0, 10), history(3 * 3600_000, 40), history(6 * 3600_000, 55)];
+    const el = await mount(samples, [], NOW, hist);
+    const actual = el.shadowRoot!.querySelector('polyline.actual-curve');
+    expect(actual).toBeTruthy();
+    expect(actual!.getAttribute('points')!.trim().split(/\s+/).length).toBe(3);
+    // The forecast curve still renders alongside it.
+    expect(el.shadowRoot!.querySelector('polyline.curve')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('.legend')).toBeTruthy();
+  });
+
+  it('drops out-of-day history samples from the actual-curve', async () => {
+    const samples = [sample(6 * 3600_000, 50)];
+    const hist = [
+      history(6 * 3600_000, 50), // in day
+      history(-3600_000, 40), // before midnight — outside day
+      history(26 * 3600_000, 30), // next day — outside day
+    ];
+    const el = await mount(samples, [], NOW, hist);
+    const points =
+      el.shadowRoot!.querySelector('polyline.actual-curve')!.getAttribute('points') ?? '';
+    expect(points.trim().split(/\s+/).filter(Boolean).length).toBe(1);
+  });
+
+  it('renders the strip from history alone when there are no forecast samples', async () => {
+    const hist = [history(0, 10), history(6 * 3600_000, 50)];
+    const el = await mount([], [], NOW, hist);
+    expect(el.shadowRoot!.querySelector('svg')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('polyline.actual-curve')).toBeTruthy();
   });
 
   it('plots one event marker per event in the events array', async () => {
@@ -275,7 +321,7 @@ describe('acp-forecast-strip', () => {
     ];
     // Discovery label deliberately differs from the capitalized key ("Elevation")
     // so this proves the axisLabels override is consulted, not the fallback.
-    const el = await mount(samples, [], NOW, { elevation: 'Sun height' });
+    const el = await mount(samples, [], NOW, undefined, { elevation: 'Sun height' });
     const label = await hoverFirst(el);
     expect(label).toBeTruthy();
     expect(label!.textContent ?? '').toContain('Sun height');
@@ -287,7 +333,7 @@ describe('acp-forecast-strip', () => {
       { ...sample(0, 50), tilt: 20 },
       { ...sample(6 * 3600_000, 60), tilt: 40 },
     ];
-    const el = await mount(samples, [], NOW, { tilt: 'ShouldNotWin' });
+    const el = await mount(samples, [], NOW, undefined, { tilt: 'ShouldNotWin' });
     const label = await hoverFirst(el);
     expect(label!.textContent ?? '').toContain('Tilt');
     expect(label!.textContent ?? '').not.toContain('ShouldNotWin');

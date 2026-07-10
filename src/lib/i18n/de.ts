@@ -69,6 +69,8 @@ export const de: EnDict = {
       'Kurve überfahren für Uhrzeit und prognostizierte Position; farbige Linie überfahren für das markierte Ereignis.',
     solar_only_note:
       'Nur Sonnengeometrie — berücksichtigt keine manuellen Übersteuerungen, benutzerdefinierten Positionen, Wolkenunterdrückung oder Wetter.',
+    legend_forecast: 'Prognose',
+    legend_actual: 'Ist',
   },
   dialog: {
     configure_integration: 'Integration konfigurieren',
