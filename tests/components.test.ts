@@ -33,7 +33,7 @@ const baseDiscovered: DiscoveredEntities = {
 };
 
 describe('acp-decision-strip', () => {
-  it('renders all 10 handler rows with the winning one highlighted', async () => {
+  it('renders all 13 handler rows with the winning one highlighted', async () => {
     const el = await mount<LitLike>('acp-decision-strip');
     el.hass = {
       states: {
@@ -88,7 +88,7 @@ describe('acp-decision-strip', () => {
     };
     await flush(el);
     const rows = el.shadowRoot!.querySelectorAll('.row');
-    expect(rows.length).toBe(11);
+    expect(rows.length).toBe(13);
     expect(el.shadowRoot!.querySelector('.row.winner')).toBeTruthy();
     expect(el.shadowRoot!.querySelector('.row.winner')!.textContent).toContain('Solar');
   });

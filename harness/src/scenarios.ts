@@ -687,6 +687,22 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'group-driven-member',
+    label: 'Group-driven member — group lock wins (issue #185)',
+    description:
+      'A member cover of a Cover Group whose group is locked: the integration emits the priority-100 `group_lock` handler as the winner. The decision strip renders a "Group Lock" winner row (and a skipped "Group Scene" step), proving the two new group handlers wire into the fixed HANDLER_ORDER. Full group discovery / group UI arrives in later phases; this scenario exercises only the decision-strip wire slice.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 13 * 60);
+      c.scenario = 'group-driven-member';
+      c.decisionMode = 'scripted';
+      c.scriptedWinner = 'group_lock';
+      // Group lock holds the member fully closed.
+      c.entries[0].target_position = 0;
+      c.entries[0].covers[0].position = 0;
+      return c;
+    },
+  },
+  {
     id: 'summer-north-highlat',
     label: 'Summer — north window (two FOV crossings)',
     description:

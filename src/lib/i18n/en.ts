@@ -2,7 +2,9 @@ export const en = {
   handler: {
     force: 'Force Override',
     weather: 'Weather Safety',
+    group_scene: 'Group Scene',
     manual: 'Manual Override',
+    group_lock: 'Group Lock',
     custom_position: 'Custom Position',
     motion: 'Motion Timeout',
     cloud: 'Cloud Suppression',

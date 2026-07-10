@@ -10,7 +10,9 @@ export const de: EnDict = {
   handler: {
     force: 'Zwangsübersteuerung',
     weather: 'Wettersicherheit',
+    group_scene: 'Gruppenszene',
     manual: 'Manuelle Übersteuerung',
+    group_lock: 'Gruppensperre',
     custom_position: 'Benutzerdefinierte Position',
     motion: 'Bewegungs-Timeout',
     cloud: 'Wolkenunterdrückung',

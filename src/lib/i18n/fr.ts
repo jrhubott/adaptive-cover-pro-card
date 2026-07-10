@@ -10,7 +10,9 @@ export const fr: EnDict = {
   handler: {
     force: 'Dérogation forcée',
     weather: 'Sécurité météo',
+    group_scene: 'Scène de groupe',
     manual: 'Dérogation manuelle',
+    group_lock: 'Verrouillage de groupe',
     custom_position: 'Position personnalisée',
     motion: "Délai d'inactivité du mouvement",
     cloud: 'Désactivation par temps nuageux',

@@ -32,11 +32,16 @@ export const MANUAL_OVERRIDE_PRIORITY = 80;
 export const CUSTOM_POSITION_SAFETY_PRIORITY = 100;
 
 /**
- * The 11 Adaptive Cover Pro pipeline handlers in priority order (highest first).
+ * The Adaptive Cover Pro pipeline handlers in priority order (highest first).
  * Must match `control_method` enum values emitted by the integration.
  * Keep the ordering in lock-step with `custom_components/adaptive_cover_pro/pipeline/registry.py`.
  * `floor_clamp` is a post-processing step that raises the output above the raw
  * calculation; it follows all handler decisions in priority.
+ *
+ * `group_lock` (priority 100) and `group_scene` (priority 85) are emitted only on
+ * member covers of a Cover Group entry. They sit next to the ordinary handlers of
+ * the same priority: `group_lock` beside `custom_position` (both 100) and
+ * `group_scene` between `weather` (90) and `manual` (80).
  */
 // NOTE: the `force` handler (and its HANDLER_LABELS/HANDLER_I18N_KEYS/
 // BADGE_KINDS_BY_HANDLER/BADGE_TOKENS/BADGE_ICONS/BADGE_I18N_KEYS entries plus
@@ -48,7 +53,9 @@ export const CUSTOM_POSITION_SAFETY_PRIORITY = 100;
 export const HANDLER_ORDER = [
   'force',
   'weather',
+  'group_scene',
   'manual',
+  'group_lock',
   'custom_position',
   'motion',
   'cloud',
@@ -64,7 +71,9 @@ export type HandlerName = (typeof HANDLER_ORDER)[number];
 export const HANDLER_LABELS: Record<HandlerName, string> = {
   force: 'Force Override',
   weather: 'Weather Safety',
+  group_scene: 'Group Scene',
   manual: 'Manual Override',
+  group_lock: 'Group Lock',
   custom_position: 'Custom Position',
   motion: 'Motion Timeout',
   cloud: 'Cloud Suppression',
@@ -83,7 +92,9 @@ export const HANDLER_LABELS: Record<HandlerName, string> = {
 export const HANDLER_I18N_KEYS: Record<HandlerName, string> = {
   force: 'handler.force',
   weather: 'handler.weather',
+  group_scene: 'handler.group_scene',
   manual: 'handler.manual',
+  group_lock: 'handler.group_lock',
   custom_position: 'handler.custom_position',
   motion: 'handler.motion',
   cloud: 'handler.cloud',
