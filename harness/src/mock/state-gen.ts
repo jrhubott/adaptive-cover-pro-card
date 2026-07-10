@@ -9,7 +9,7 @@ import {
 import { decide, scriptedDecision, type DecisionResult } from './decider';
 import { buildForecast } from './forecast';
 import { entityIdFor } from './registry';
-import type { HarnessConfig, HarnessEntry } from '../types';
+import type { CoverType, HarnessConfig, HarnessEntry } from '../types';
 import { zoneForLongitude, zonedNowMs } from '../zone';
 
 export interface HassState {
@@ -80,11 +80,59 @@ export function buildStates(cfg: HarnessConfig): GeneratedStates {
           });
     decisions.set(entry.entry_id, decision);
 
-    addEntryStates(states, entry, sun, decision, samples, now, dayStart, tz);
+    addEntryStates(states, entry, sun, decision, samples, now, dayStart, tz, cfg.legacyIntegration);
     addCoverStates(states, entry);
   }
 
   return { states, decisions, samplesByEntry, now };
+}
+
+/**
+ * Build the integration's `cover_discovery` descriptor (issue #180) for a mock
+ * cover type. Mirrors the serialized `CoverDescriptor`/`AxisDescriptor` shape:
+ * every cover exposes a `position` axis; venetian additionally exposes a `tilt`
+ * axis. Emitted on the control_status sensor unless the legacy flag is set.
+ */
+export function buildCoverDiscovery(coverType: CoverType): Record<string, unknown> {
+  const label = (
+    {
+      cover_blind: 'Vertical Blind',
+      cover_awning: 'Awning',
+      cover_tilt: 'Tilt',
+      cover_venetian: 'Venetian',
+    } as Record<CoverType, string>
+  )[coverType];
+  const axes: Record<string, unknown>[] = [
+    {
+      id: 'position',
+      label: 'Position',
+      label_key: 'axes.position',
+      min: 0,
+      max: 100,
+      unit: '%',
+      capability_key: 'has_set_position',
+      state_attr: 'current_position',
+      service_attr: 'position',
+      open_blocks_sun: coverType === 'cover_awning',
+      supported: true,
+    },
+  ];
+  if (coverType === 'cover_venetian') {
+    axes.push({
+      id: 'tilt',
+      label: 'Tilt',
+      label_key: 'axes.tilt',
+      min: 0,
+      max: 100,
+      unit: '%',
+      capability_key: 'has_set_tilt_position',
+      state_attr: 'current_tilt_position',
+      service_attr: 'tilt',
+      open_blocks_sun: false,
+      supported: true,
+    });
+  }
+  return { cover_type: coverType, cover_label: label, axes };
 }
 
 function addEntryStates(
@@ -96,6 +144,7 @@ function addEntryStates(
   now: Date,
   dayStart: Date,
   _tz: string,
+  legacyIntegration: boolean,
 ): void {
   const id = (role: Parameters<typeof entityIdFor>[1]) => entityIdFor(entry, role);
   const f = entry.flags;
@@ -216,6 +265,9 @@ function addEntryStates(
   states[id('control_status_sensor')] = mkState(id('control_status_sensor'), decision.winner, {
     friendly_name: `${entry.title} Control Status`,
     cover_type: entry.cover_type,
+    // Multi-axis self-discovery descriptor (issue #180). Omitted under the
+    // legacy flag so the card exercises its synthesized-axis fallback.
+    ...(legacyIntegration ? {} : { cover_discovery: buildCoverDiscovery(entry.cover_type) }),
     schedule_start: scheduleStart,
     schedule_end: scheduleEnd,
   });

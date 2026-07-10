@@ -186,6 +186,7 @@ function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): Harne
     scenario: 'summer-noon-south',
     theme: 'light',
     language: 'en',
+    legacyIntegration: false,
     entries: [makeEntry({ entry_id: 'south_window', title: 'Living Room', window_azimuth: 180 })],
     decisionMode: 'derived',
     scriptedWinner: 'solar',
@@ -225,10 +226,41 @@ export const SCENARIOS: Scenario[] = [
     id: 'venetian-dual-axis',
     label: 'Venetian — dual-axis (position + tilt)',
     description:
-      'A venetian blind exposing the new tilt (slat) axis. The cover bar shows a second Tilt bar under Position, and the tile card shows the mini tilt bar. Actual tilt (35%) diverges from the solar tilt target (70%) so the marker is offset from the fill. The more-info dialog forecast strip also plots a dashed secondary tilt track alongside the position curve, split into segments wherever the solar handler yields to another handler. Drag either tilt track → set_tilt fires; switch the cover type off venetian to confirm the tilt UI (and forecast track) disappears.',
+      'A venetian blind exposing the tilt (slat) axis, now driven from the integration self-discovery surface (issue #180): the control_status sensor publishes a cover_discovery descriptor with position + tilt axes, and the card renders one bar per discovered axis. The cover bar shows a second Tilt bar under Position, and the tile card shows the mini tilt bar. Actual tilt (35%) diverges from the solar tilt target (70%) so the marker is offset from the fill. The more-info dialog forecast strip also plots a dashed secondary tilt track alongside the position curve. Drag either tilt track → the combined adaptive_cover_pro.set_axes service fires (watch the service log). Flip the "Legacy integration" control off/on, or use the Legacy Venetian scenario, to confirm graceful fallback to set_tilt/set_position.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'venetian-dual-axis';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Living Room',
+          cover_type: 'cover_venetian',
+          window_azimuth: 180,
+          color: '#26a69a',
+          target_position: 60,
+          target_tilt: 70,
+          covers: [
+            {
+              entity_id: 'cover.south_window_main',
+              friendly_name: 'Living Room venetian',
+              position: 60,
+              tilt: 35,
+            },
+          ],
+        }),
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'legacy-integration-venetian',
+    label: 'Legacy integration — venetian (no discovery / set_axes)',
+    description:
+      'The same venetian dual-axis cover, but simulating an OLD integration that predates issue #180: the control_status sensor omits cover_discovery and the mock hass omits the set_axes service. The card must degrade gracefully — it synthesizes the position + tilt axes from the Cover_Tilt sensor (byte-identical to the pre-discovery rendering) and routes drags to the legacy per-axis set_position / set_tilt services (watch the service log — no set_axes call). Proves the load-bearing fallback path that ships before the integration release.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'legacy-integration-venetian';
+      c.legacyIntegration = true;
       c.entries = [
         makeEntry({
           entry_id: 'south_window',
@@ -1271,6 +1303,7 @@ export function normalizeConfig(cfg: HarnessConfig): HarnessConfig {
   return {
     ...cfg,
     stageHeight: cfg.stageHeight ?? 0,
+    legacyIntegration: cfg.legacyIntegration ?? false,
     tile: {
       ...cfg.tile,
       badges: { ...defaultBadges(), ...(cfg.tile?.badges ?? {}) },

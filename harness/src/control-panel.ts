@@ -116,6 +116,11 @@ export class AcpHarnessControlPanel extends LitElement {
           <option value="de" ?selected=${this.config.language === 'de'}>Deutsch</option>
         </select>
       </label>
+      ${this._checkbox(
+        'Legacy integration (no discovery / set_axes)',
+        this.config.legacyIntegration,
+        (v) => this._emit({ ...this.config, legacyIntegration: v }),
+      )}
       <label class="row">
         <span>Tooltips</span>
         <select

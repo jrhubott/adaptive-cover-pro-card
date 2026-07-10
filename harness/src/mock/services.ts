@@ -69,6 +69,26 @@ export function applyService(
     };
   }
 
+  // adaptive_cover_pro.set_axes — combined multi-axis move (issue #180). Applies
+  // each axis in `data.axes` via the same target/tilt updaters as the legacy
+  // per-axis services.
+  if (key === `${INTEGRATION_DOMAIN}.set_axes`) {
+    const axes = data?.axes as Record<string, unknown> | undefined;
+    if (!axes || typeof axes !== 'object') return { next: cfg, applied: false };
+    const cover = typeof data?.entity_id === 'string' ? data.entity_id : target?.entity_id;
+    let next = cfg;
+    let applied = false;
+    if (typeof axes.position === 'number') {
+      next = updateTargetForCover(next, cover, axes.position);
+      applied = true;
+    }
+    if (typeof axes.tilt === 'number') {
+      next = updateTiltForCover(next, cover, axes.tilt);
+      applied = true;
+    }
+    return { next, applied };
+  }
+
   // adaptive_cover_pro.stop — leave the position alone but log it.
   if (key === `${INTEGRATION_DOMAIN}.stop`) {
     return { next: cfg, applied: true };

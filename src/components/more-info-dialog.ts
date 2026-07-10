@@ -19,6 +19,7 @@ import {
   resolveCustomPositionPct,
 } from '../lib/decision-summary';
 import { buildSolarActiveContext, selectVisibleBadges } from '../lib/badge-visibility';
+import { resolveAxes } from '../lib/axes';
 import { startMinuteTimer } from '../lib/minute-timer';
 import type {
   AdaptiveCoverProTileCardConfig,
@@ -449,6 +450,10 @@ export class MoreInfoDialog extends LitElement {
     const samples: ForecastSample[] = attrs?.forecast ?? [];
     const events: ForecastEvent[] = attrs?.events ?? [];
     if (samples.length === 0) return nothing;
+    // Source secondary-axis labels from discovery so a non-tilt forecast axis
+    // reads its integration-supplied name; known axes still prefer card i18n.
+    const axisLabels: Record<string, string> = {};
+    for (const axis of resolveAxes(this.discovered)) axisLabels[axis.id] = axis.label;
     return html`<div class="forecast-block">
       <div class="forecast-label">${t('dialog.todays_forecast', this.hass)}</div>
       <acp-forecast-strip
@@ -456,6 +461,7 @@ export class MoreInfoDialog extends LitElement {
         .samples=${samples}
         .events=${events}
         .now=${Date.now()}
+        .axisLabels=${axisLabels}
       ></acp-forecast-strip>
       <div class="forecast-note">${t('forecast.solar_only_note', this.hass)}</div>
     </div>`;

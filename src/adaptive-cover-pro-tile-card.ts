@@ -14,6 +14,9 @@ import {
   TILE_CARD_EDITOR_NAME,
 } from './const';
 import { createDiscoveryMemo } from './lib/entity-discovery';
+import { resolveAxes, type ResolvedAxis } from './lib/axes';
+import { setAxes } from './lib/services';
+import { AXIS_LABEL_I18N_KEYS } from './const';
 import { entityStateChanged } from './lib/hass-change';
 import { fetchAcpConfigEntries } from './lib/config-entries';
 import { pickCoverIcon } from './lib/icons';
@@ -281,12 +284,15 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const calculatedPosition = this._currentPosition(discovered);
     const reportedPosition = this._liveCoverPosition(cover);
     const livePosition = reportedPosition ?? calculatedPosition;
-    // Dual-axis (venetian) entries expose the Cover_Tilt sensor. The detailed
-    // layout gets a mini tilt bar; one-line folds tilt into the readout.
-    const dualAxis = !!discovered.entities.target_tilt_sensor;
-    const showTilt = cfg.show_tilt !== false && dualAxis;
-    const liveTilt = this._liveTilt(cover);
-    const tiltTarget = this._tiltTarget(discovered);
+    // Data-driven axes: any non-position axis (venetian tilt) drives the mini
+    // bar. The detailed layout gets the bar; one-line folds it into the readout.
+    // `show_tilt` is reinterpreted as "show non-position axes". On an older
+    // integration `resolveAxes` synthesizes tilt from the Cover_Tilt sensor, so
+    // behavior is unchanged.
+    const secondaryAxis = resolveAxes(discovered).find((a) => a.id !== 'position');
+    const showTilt = cfg.show_tilt !== false && !!secondaryAxis;
+    const liveTilt = secondaryAxis ? this._liveAxis(cover, secondaryAxis) : null;
+    const tiltTarget = secondaryAxis ? this._axisTarget(discovered, secondaryAxis) : null;
     // When the cover reports its position, disable the control that can't do
     // anything: open (↑) at fully-open, close (↓) at fully-closed. Covers that
     // don't report a position leave both enabled (gate stays on `!cover`).
@@ -452,9 +458,14 @@ export class AdaptiveCoverProTileCard extends LitElement {
               <acp-tilt-bar
                 layout="tile"
                 .hass=${this.hass}
+                .label=${secondaryAxis ? this._axisLabel(secondaryAxis) : null}
+                .min=${secondaryAxis?.min ?? 0}
+                .max=${secondaryAxis?.max ?? 100}
+                .unit=${secondaryAxis?.unit ?? '%'}
                 .actual=${liveTilt}
                 .target=${tiltTarget}
-                @acp-tilt-set=${(e: CustomEvent<number>) => this._setTilt(cover, e.detail)}
+                @acp-tilt-set=${(e: CustomEvent<number>) =>
+                  secondaryAxis && this._setAxis(cover, secondaryAxis.id, e.detail)}
               ></acp-tilt-bar>
             </div>`
           : nothing}
@@ -557,7 +568,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
   private _setCoverPosition(cover: string | undefined, position: number): void {
     if (!cover) return;
-    this.hass.callService(INTEGRATION_DOMAIN, 'set_position', { position }, { entity_id: cover });
+    this._setAxis(cover, 'position', position);
   }
 
   private _stopCover(cover: string | undefined): void {
@@ -565,24 +576,36 @@ export class AdaptiveCoverProTileCard extends LitElement {
     this.hass.callService(INTEGRATION_DOMAIN, 'stop', {}, { entity_id: cover });
   }
 
-  private _setTilt(cover: string | undefined, tilt: number): void {
+  /** Move a single axis. Routes through {@link setAxes} (combined `set_axes`
+   *  when available, legacy per-axis service otherwise). Omits `force` so the
+   *  service default preserves today's override semantics. */
+  private _setAxis(cover: string | undefined, axisId: string, value: number): void {
     if (!cover) return;
-    this.hass.callService(INTEGRATION_DOMAIN, 'set_tilt', { tilt }, { entity_id: cover });
+    setAxes(this.hass, cover, { [axisId]: value });
   }
 
-  /** Solar tilt target (0–100) from the dual-axis `Cover_Tilt` sensor, else null. */
-  private _tiltTarget(discovered: DiscoveredEntities): number | null {
-    const id = discovered.entities.target_tilt_sensor;
+  /** Solar target for an axis from its target sensor's state, else null. */
+  private _axisTarget(discovered: DiscoveredEntities, axis: ResolvedAxis): number | null {
+    const role = axis.targetRole;
+    if (!role) return null;
+    const id = discovered.entities[role];
     if (!id) return null;
     const v = parseFloat(this.hass.states[id]?.state ?? '');
     return Number.isNaN(v) ? null : v;
   }
 
-  /** Live slat position for a cover from its `current_tilt_position` attribute. */
-  private _liveTilt(cover: string | undefined): number | null {
-    if (!cover) return null;
-    const v = this.hass.states[cover]?.attributes?.current_tilt_position;
+  /** Live value for a secondary axis from the cover's per-axis state attribute. */
+  private _liveAxis(cover: string | undefined, axis: ResolvedAxis): number | null {
+    if (!cover || !axis.stateAttr) return null;
+    const v = this.hass.states[cover]?.attributes?.[axis.stateAttr];
     return typeof v === 'number' && !Number.isNaN(v) ? v : null;
+  }
+
+  /** Display label for an axis: card i18n key wins for known ids, else the
+   *  discovery label. */
+  private _axisLabel(axis: ResolvedAxis): string {
+    const key = AXIS_LABEL_I18N_KEYS[axis.id];
+    return key ? t(key, this.hass) : axis.label;
   }
 
   private _resume(discovered: DiscoveredEntities): void {
