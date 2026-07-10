@@ -15,6 +15,7 @@ interface CardStageLike extends HTMLElement {
   _rootConfig(): Record<string, unknown>;
   _compassConfig(): Record<string, unknown>;
   _tileConfig(entryId: string): Record<string, unknown>;
+  _solarChartConfig(): Record<string, unknown>;
 }
 
 describe('normalizeConfig', () => {
@@ -338,5 +339,47 @@ describe('show_elevation_chart harness plumbing', () => {
     cfg.tile.show_elevation_chart = false;
     el.config = cfg;
     expect(el._tileConfig(cfg.entries[0].entry_id).show_elevation_chart).toBe(false);
+  });
+});
+
+describe('solar chart card harness plumbing (issue #187)', () => {
+  it('backfills solarChart when a persisted config predates the field', () => {
+    const legacy = defaultScenarioConfig();
+    delete (legacy as { solarChart?: unknown }).solarChart;
+
+    const normalized = normalizeConfig(legacy as HarnessConfig);
+
+    expect(normalized.solarChart).toEqual({
+      enabled: true,
+      title: 'Solar chart',
+      compact: false,
+    });
+  });
+
+  it('card-stage threads entry_ids, title, compact, and cover_colors into the solar chart card config', () => {
+    const el = document.createElement('acp-harness-card-stage') as unknown as CardStageLike;
+    const cfg = defaultScenarioConfig();
+    cfg.solarChart.title = 'Sun today';
+    cfg.solarChart.compact = true;
+    el.config = cfg;
+    const solarChartCfg = el._solarChartConfig();
+    expect(solarChartCfg.type).toBe('custom:adaptive-cover-pro-solar-chart-card');
+    expect(solarChartCfg.entry_ids).toEqual([cfg.entries[0].entry_id]);
+    expect(solarChartCfg.title).toBe('Sun today');
+    expect(solarChartCfg.compact).toBe(true);
+    expect(solarChartCfg.cover_colors).toEqual([cfg.entries[0].color]);
+  });
+
+  it('exposes a "solar-chart-standalone-card" scenario with 2+ entries exercising multi-cover FOV bars', () => {
+    const scenario = findScenario('solar-chart-standalone-card');
+    expect(scenario).toBeTruthy();
+    const cfg = scenario!.build();
+    expect(cfg.solarChart.enabled).toBe(true);
+    expect(cfg.entries.length).toBeGreaterThanOrEqual(2);
+
+    const el = document.createElement('acp-harness-card-stage') as unknown as CardStageLike;
+    el.config = cfg;
+    const solarChartCfg = el._solarChartConfig();
+    expect((solarChartCfg.entry_ids as string[]).length).toBe(cfg.entries.length);
   });
 });

@@ -365,6 +365,16 @@ export const en = {
       show_decision_summary_desc:
         'Render a plain-English "Why this position?" sentence above the strip.',
     },
+    solar_chart: {
+      instances: 'Adaptive Cover Pro instances',
+      instances_hint: 'Pick one or more. Each selected entry adds a FOV overlay to the chart.',
+      cover_colors: 'Cover colors',
+      cover_colors_hint: 'Override the default palette color for each overlay.',
+      default_color: 'default',
+      display: 'Display',
+      toggle_compact_label: 'Compact mode',
+      toggle_compact_desc: 'Smaller chart, tighter spacing.',
+    },
   },
 } as const;
 

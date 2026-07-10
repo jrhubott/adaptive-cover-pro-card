@@ -381,5 +381,16 @@ export const de: EnDict = {
       show_decision_summary_desc:
         'Einen verständlichen Satz „Warum diese Position?" oberhalb der Leiste anzeigen.',
     },
+    solar_chart: {
+      instances: 'Adaptive Cover Pro-Instanzen',
+      instances_hint:
+        'Eine oder mehrere auswählen. Jeder gewählte Eintrag fügt dem Diagramm eine Sichtfeld-Überlagerung hinzu.',
+      cover_colors: 'Beschattungsfarben',
+      cover_colors_hint: 'Standardpalettenfarbe für jede Überlagerung überschreiben.',
+      default_color: 'Standard',
+      display: 'Anzeige',
+      toggle_compact_label: 'Kompaktmodus',
+      toggle_compact_desc: 'Kleineres Diagramm, engerer Abstand.',
+    },
   },
 };

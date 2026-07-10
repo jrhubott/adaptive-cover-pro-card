@@ -1075,6 +1075,19 @@ export class AcpHarnessControlPanel extends LitElement {
           ),
         )}
       </fieldset>
+
+      <fieldset class="entry">
+        <legend>Solar chart card</legend>
+        ${this._checkbox('Enabled', this.config.solarChart.enabled, (v) =>
+          this._emit({ ...this.config, solarChart: { ...this.config.solarChart, enabled: v } }),
+        )}
+        ${this._textRow('Title', this.config.solarChart.title, (v) =>
+          this._emit({ ...this.config, solarChart: { ...this.config.solarChart, title: v } }),
+        )}
+        ${this._checkbox('compact', this.config.solarChart.compact, (v) =>
+          this._emit({ ...this.config, solarChart: { ...this.config.solarChart, compact: v } }),
+        )}
+      </fieldset>
     `;
   }
 

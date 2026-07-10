@@ -148,6 +148,17 @@ export interface SkyCompassCardConfig extends LovelaceCardConfig {
   tooltips?: TooltipsConfig;
 }
 
+export interface SolarChartCardConfig extends LovelaceCardConfig {
+  type: string;
+  entry_ids: string[];
+  title?: string;
+  compact?: boolean;
+  cover_colors?: (string | null)[];
+  /** Card-owned floating tooltip behavior. Defaults: enabled, offset [12,16],
+   *  delay 400ms. Set `enabled: false` to use native browser tooltips. */
+  tooltips?: TooltipsConfig;
+}
+
 export interface AdaptiveCoverProDecisionCardConfig extends LovelaceCardConfig {
   type: string;
   entry_id: string;
