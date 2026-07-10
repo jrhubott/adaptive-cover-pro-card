@@ -216,7 +216,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'venetian-dual-axis',
     label: 'Venetian — dual-axis (position + tilt)',
     description:
-      'A venetian blind exposing the new tilt (slat) axis. The cover bar shows a second Tilt bar under Position, and the tile card shows the mini tilt bar. Actual tilt (35%) diverges from the solar tilt target (70%) so the marker is offset from the fill. Drag either tilt track → set_tilt fires; switch the cover type off venetian to confirm the tilt UI disappears.',
+      'A venetian blind exposing the new tilt (slat) axis. The cover bar shows a second Tilt bar under Position, and the tile card shows the mini tilt bar. Actual tilt (35%) diverges from the solar tilt target (70%) so the marker is offset from the fill. The more-info dialog forecast strip also plots a dashed secondary tilt track alongside the position curve, split into segments wherever the solar handler yields to another handler. Drag either tilt track → set_tilt fires; switch the cover type off venetian to confirm the tilt UI (and forecast track) disappears.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'venetian-dual-axis';
