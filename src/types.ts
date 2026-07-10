@@ -176,6 +176,45 @@ export interface AdaptiveCoverProDecisionCardConfig extends LovelaceCardConfig {
   tooltips?: TooltipsConfig;
 }
 
+/**
+ * One axis of a discovered cover, mirroring the integration's serialized
+ * `AxisDescriptor` (`cover_types/base.py` → `asdict`). Every field is optional
+ * so the card can read a partial/older payload defensively — a missing field
+ * falls back to a card default. Venetian covers expose two axes: `position`
+ * (state_attr `current_position`) and `tilt` (state_attr `current_tilt_position`).
+ */
+export interface AxisDescriptor {
+  /** Axis id — also the `set_axes` key AND the legacy `set_position`/`set_tilt`
+   *  param name (`position` | `tilt`). */
+  id?: string;
+  /** English display label (`Position` / `Tilt`). Server-side is English-only
+   *  today, so the card prefers its own i18n for known axis ids. */
+  label?: string;
+  label_key?: string;
+  min?: number;
+  max?: number;
+  unit?: string;
+  capability_key?: string;
+  /** Attribute on the managed cover entity carrying this axis's live value. */
+  state_attr?: string;
+  service_attr?: string;
+  open_blocks_sun?: boolean;
+  /** Rolled up across managed covers (ANY member exposes it). Absent/true =
+   *  supported; only `=== false` filters the axis out. */
+  supported?: boolean;
+}
+
+/**
+ * The integration's self-discovery descriptor, published on the `control_status`
+ * sensor's `cover_discovery` attribute. Additive: older integrations omit it and
+ * the card synthesizes an equivalent axis list from today's signals.
+ */
+export interface CoverDiscovery {
+  cover_type?: string;
+  cover_label?: string;
+  axes?: AxisDescriptor[];
+}
+
 export interface DiscoveredEntities {
   entry_id: string;
   entry_title: string;
@@ -186,6 +225,10 @@ export interface DiscoveredEntities {
   /** HA device the integration's entities are attached to. Used to deep-link
    *  into `/config/devices/device/<id>` from the more-info dialog. */
   device_id?: string;
+  /** Integration self-discovery axis descriptor, when the integration is new
+   *  enough to publish `cover_discovery` on the control_status sensor. Absent on
+   *  older integrations — the card falls back to synthesizing axes. */
+  discovery?: CoverDiscovery;
 }
 
 export interface DecisionStep {
@@ -312,6 +355,7 @@ export interface StartEndSunAttributes {
  */
 export interface ControlStatusAttributes {
   cover_type?: string;
+  cover_discovery?: CoverDiscovery;
   schedule_start?: string | null;
   schedule_end?: string | null;
 }

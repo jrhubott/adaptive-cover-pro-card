@@ -194,6 +194,62 @@ describe('discoverEntities (unique_id based)', () => {
     expect(d!.entities.target_tilt_sensor).toBeUndefined();
   });
 
+  it('attaches a well-formed cover_discovery from the control_status sensor', () => {
+    const hass = makeHass();
+    const discovery = {
+      cover_type: 'cover_venetian',
+      cover_label: 'Venetian',
+      axes: [
+        { id: 'position', label: 'Position', min: 0, max: 100, unit: '%', supported: true },
+        { id: 'tilt', label: 'Tilt', min: 0, max: 100, unit: '%', supported: true },
+      ],
+    };
+    (
+      hass.states['sensor.living_room_blinds_control_status'].attributes as Record<string, unknown>
+    ).cover_discovery = discovery;
+    const d = discoverEntities(
+      hass,
+      { type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY_ID },
+      makeRegistry(),
+    );
+    expect(d!.discovery).toEqual(discovery);
+  });
+
+  it('leaves discovery undefined when the control_status sensor omits cover_discovery', () => {
+    const d = discoverEntities(
+      makeHass(),
+      { type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY_ID },
+      makeRegistry(),
+    );
+    expect(d!.discovery).toBeUndefined();
+  });
+
+  it('ignores a malformed cover_discovery (non-array axes)', () => {
+    const hass = makeHass();
+    (
+      hass.states['sensor.living_room_blinds_control_status'].attributes as Record<string, unknown>
+    ).cover_discovery = { cover_type: 'cover_venetian', axes: 'nope' };
+    const d = discoverEntities(
+      hass,
+      { type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY_ID },
+      makeRegistry(),
+    );
+    expect(d!.discovery).toBeUndefined();
+  });
+
+  it('ignores a cover_discovery that is not an object', () => {
+    const hass = makeHass();
+    (
+      hass.states['sensor.living_room_blinds_control_status'].attributes as Record<string, unknown>
+    ).cover_discovery = 'garbage';
+    const d = discoverEntities(
+      hass,
+      { type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY_ID },
+      makeRegistry(),
+    );
+    expect(d!.discovery).toBeUndefined();
+  });
+
   it('disambiguates manual_override binary vs Manual Override switch by platform', () => {
     const d = discoverEntities(
       makeHass(),

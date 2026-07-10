@@ -283,6 +283,28 @@ export function resolveControlFlags(
   return { ...DEFAULT_CONTROL_FLAGS, ...cfg?.controls };
 }
 
+/**
+ * Derived map (NOT a role rename): axis id → the card role of the sensor
+ * carrying that axis's solar target. The integration's `AxisDescriptor.id`
+ * values (`position`, `tilt`) map onto the existing target-sensor roles. A
+ * future third axis would need its own target-sensor role here once the
+ * integration ships one.
+ */
+export const AXIS_TARGET_SENSOR_ROLES: Record<string, EntityRole> = {
+  position: 'target_position_sensor',
+  tilt: 'target_tilt_sensor',
+};
+
+/**
+ * Card i18n dotted keys for known axis ids. These WIN over discovery-supplied
+ * `label`s because the integration currently emits English-only labels, so
+ * preferring the card i18n keeps de/fr localized. Axes with no card key fall
+ * back to the discovery label, then a capitalized raw id.
+ */
+export const AXIS_LABEL_I18N_KEYS: Record<string, string> = {
+  tilt: 'covers.tilt_title',
+};
+
 export const UNIQUE_ID_ROLES: Record<string, EntityRole> = {
   // sensor
   'sensor:Cover_Position': 'target_position_sensor',

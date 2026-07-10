@@ -1,7 +1,7 @@
 import type { HomeAssistant } from 'custom-card-helpers';
 import { INTEGRATION_DOMAIN, UNIQUE_ID_ROLES } from '../const';
 import type { EntityRegistryEntry } from './entity-registry';
-import type { DiscoveredEntities, AdaptiveCoverProCardConfig } from '../types';
+import type { CoverDiscovery, DiscoveredEntities, AdaptiveCoverProCardConfig } from '../types';
 
 /**
  * Memoized discovery for the root card, which re-runs on every HA state tick (HA
@@ -224,10 +224,19 @@ function assembleDiscovered(
   }
 
   let coverType: DiscoveredEntities['cover_type'] = 'cover_blind';
+  let discovery: CoverDiscovery | undefined;
   const controlStatus = entities.control_status_sensor;
   if (controlStatus) {
-    const attrs = hass.states[controlStatus]?.attributes as { cover_type?: string } | undefined;
+    const attrs = hass.states[controlStatus]?.attributes as
+      | { cover_type?: string; cover_discovery?: unknown }
+      | undefined;
     if (attrs?.cover_type) coverType = attrs.cover_type;
+    // Attach discovery only when it is an object carrying an array `axes` —
+    // tolerate a missing / malformed payload from an older or partial build.
+    const cd = attrs?.cover_discovery;
+    if (cd && typeof cd === 'object' && Array.isArray((cd as CoverDiscovery).axes)) {
+      discovery = cd as CoverDiscovery;
+    }
   }
 
   return {
@@ -237,6 +246,7 @@ function assembleDiscovered(
     entities,
     managed_covers: managedCovers,
     device_id: deviceId,
+    ...(discovery ? { discovery } : {}),
   };
 }
 

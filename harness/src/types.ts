@@ -238,6 +238,11 @@ export interface HarnessConfig {
   /** Language fed into the mock hass locale, so the card's i18n renders in
    *  the chosen locale. Mirrors the card's supported Locale set. */
   language: 'en' | 'fr' | 'de';
+  /** Simulate an OLD integration that predates the multi-axis self-discovery
+   *  surface: when true, the control_status sensor omits `cover_discovery` and
+   *  the mock hass omits the `set_axes` service, so the card exercises its
+   *  legacy fallback (synthesized axes + per-axis set_position/set_tilt). */
+  legacyIntegration: boolean;
   /** Entries to simulate (1..4). */
   entries: HarnessEntry[];
   /** Forces a specific handler winner instead of running the mock pipeline. */

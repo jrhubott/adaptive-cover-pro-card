@@ -43,6 +43,10 @@ export class ForecastStrip extends LitElement {
   @property({ attribute: false }) public samples: ForecastSample[] = [];
   @property({ attribute: false }) public events: ForecastEvent[] = [];
   @property({ attribute: false }) public now = Date.now();
+  /** Axis id → display label, sourced from the integration's discovery. Used
+   *  for secondary-axis keys that have no card i18n key; known axes (e.g.
+   *  `tilt`) still prefer the card i18n string so de/fr localize. */
+  @property({ attribute: false }) public axisLabels?: Record<string, string>;
 
   @state() private _hoverIdx: number | null = null;
 
@@ -152,7 +156,7 @@ export class ForecastStrip extends LitElement {
 
     const hoverLabel = hover
       ? html`<div class="hover-label" style=${`left: ${((hover.x / VIEW_W) * 100).toFixed(2)}%`}>
-          ${describeSample(hover.sample, secondaryKey, this.hass)}
+          ${describeSample(hover.sample, secondaryKey, this.hass, this.axisLabels)}
         </div>`
       : nothing;
 
@@ -375,14 +379,20 @@ function findSecondaryAxisKey(samples: ForecastSample[]): string | null {
   return null;
 }
 
-// Display labels for known secondary-axis keys, resolved via i18n. Any other
-// key falls back to a capitalized version of the raw key name so a future
-// axis still renders something sensible without a code change here.
+// Display labels for known secondary-axis keys, resolved via i18n. These WIN
+// over discovery-supplied labels so de/fr localize. A key with no card i18n key
+// falls to the discovery-supplied `axisLabels`, then a capitalized raw key name.
 const AXIS_LABELS: Record<string, string> = { tilt: 'covers.tilt_title' };
 
-function axisLabel(key: string, hass: HomeAssistant | undefined): string {
+function axisLabel(
+  key: string,
+  hass: HomeAssistant | undefined,
+  axisLabels: Record<string, string> | undefined,
+): string {
   const i18nKey = AXIS_LABELS[key];
   if (i18nKey) return t(i18nKey, hass);
+  const discovered = axisLabels?.[key];
+  if (discovered) return discovered;
   return key.charAt(0).toUpperCase() + key.slice(1);
 }
 
@@ -390,6 +400,7 @@ function describeSample(
   s: ForecastSample,
   secondaryKey: string | null,
   hass: HomeAssistant | undefined,
+  axisLabels: Record<string, string> | undefined,
 ): string {
   const time = formatClock(s.t);
   const pct = `${Math.round(clampPercent(s.position))}%`;
@@ -397,7 +408,7 @@ function describeSample(
   if (secondaryKey === null) return base;
   const raw = s[secondaryKey];
   if (typeof raw !== 'number') return base;
-  const label = axisLabel(secondaryKey, hass);
+  const label = axisLabel(secondaryKey, hass, axisLabels);
   const secondaryPct = `${Math.round(clampPercent(raw))}%`;
   return `${base} · ${label}: ${secondaryPct}`;
 }

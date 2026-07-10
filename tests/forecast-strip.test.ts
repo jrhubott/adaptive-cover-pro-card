@@ -8,20 +8,34 @@ interface StripLike extends HTMLElement {
   samples?: ForecastSample[];
   events?: ForecastEvent[];
   now?: number;
+  axisLabels?: Record<string, string>;
 }
 
 async function mount(
   samples: ForecastSample[],
   events: ForecastEvent[],
   nowMs?: number,
+  axisLabels?: Record<string, string>,
 ): Promise<StripLike> {
   const el = document.createElement('acp-forecast-strip') as StripLike;
   el.samples = samples;
   el.events = events;
   if (nowMs !== undefined) el.now = nowMs;
+  if (axisLabels !== undefined) el.axisLabels = axisLabels;
   document.body.appendChild(el);
   await el.updateComplete;
   return el;
+}
+
+async function hoverFirst(el: StripLike): Promise<Element | null> {
+  const svgEl = el.shadowRoot!.querySelector('svg')!;
+  Object.defineProperty(svgEl, 'getBoundingClientRect', {
+    value: () => ({ left: 0, top: 0, width: 600, height: 80, right: 600, bottom: 80 }),
+    configurable: true,
+  });
+  svgEl.dispatchEvent(new PointerEvent('pointermove', { clientX: 0, clientY: 5 }));
+  await el.updateComplete;
+  return el.shadowRoot!.querySelector('.hover-label');
 }
 
 // All fixtures are anchored to local midnight so tests are timezone-independent.
@@ -248,16 +262,34 @@ describe('acp-forecast-strip', () => {
       { ...sample(6 * 3600_000, 60), tilt: 40 },
     ];
     const el = await mount(samples, [], NOW);
-    const svgEl = el.shadowRoot!.querySelector('svg')!;
-    Object.defineProperty(svgEl, 'getBoundingClientRect', {
-      value: () => ({ left: 0, top: 0, width: 600, height: 80, right: 600, bottom: 80 }),
-      configurable: true,
-    });
-    svgEl.dispatchEvent(new PointerEvent('pointermove', { clientX: 0, clientY: 5 }));
-    await el.updateComplete;
-    const label = el.shadowRoot!.querySelector('.hover-label');
+    const label = await hoverFirst(el);
     expect(label).toBeTruthy();
     expect(label!.textContent ?? '').toContain('Tilt');
     expect(label!.textContent ?? '').toContain('20%');
+  });
+
+  it('uses a discovery-supplied axisLabel for an unknown secondary axis key', async () => {
+    const samples = [
+      { ...sample(0, 50), elevation: 15 },
+      { ...sample(6 * 3600_000, 60), elevation: 25 },
+    ];
+    // Discovery label deliberately differs from the capitalized key ("Elevation")
+    // so this proves the axisLabels override is consulted, not the fallback.
+    const el = await mount(samples, [], NOW, { elevation: 'Sun height' });
+    const label = await hoverFirst(el);
+    expect(label).toBeTruthy();
+    expect(label!.textContent ?? '').toContain('Sun height');
+    expect(label!.textContent ?? '').toContain('15%');
+  });
+
+  it('still prefers the card i18n tilt label over an axisLabels override for tilt', async () => {
+    const samples = [
+      { ...sample(0, 50), tilt: 20 },
+      { ...sample(6 * 3600_000, 60), tilt: 40 },
+    ];
+    const el = await mount(samples, [], NOW, { tilt: 'ShouldNotWin' });
+    const label = await hoverFirst(el);
+    expect(label!.textContent ?? '').toContain('Tilt');
+    expect(label!.textContent ?? '').not.toContain('ShouldNotWin');
   });
 });
