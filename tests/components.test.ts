@@ -599,7 +599,7 @@ describe('acp-climate-panel', () => {
     );
   });
 
-  it('active strategy + inactive_reason "thresholds_not_met" → standby treatment, no temps, no Active line', async () => {
+  it('active strategy + inactive_reason "thresholds_not_met" → standby treatment, temps still render, no Active line', async () => {
     const el = await mount<LitLike>('acp-climate-panel');
     el.hass = makeHass('intermediate', {
       active_temperature: 21,
@@ -617,7 +617,10 @@ describe('acp-climate-panel', () => {
     expect(el.shadowRoot!.querySelector('.standby-reason')?.textContent?.trim()).toBe(
       'Temperatures within the comfort band — no action needed',
     );
-    expect(el.shadowRoot!.querySelector('.temps')).toBeNull();
+    const temps = Array.from(el.shadowRoot!.querySelectorAll('.temp'));
+    expect(temps.length).toBe(2);
+    expect(temps[0].querySelector('.temp-value')?.textContent?.trim()).toBe('21.0°C');
+    expect(temps[1].querySelector('.temp-value')?.textContent?.trim()).toBe('18.0°C');
     expect(el.shadowRoot!.querySelector('.head .dim')).toBeNull();
   });
 });
