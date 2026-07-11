@@ -92,6 +92,23 @@ describe('formatters', () => {
       expect(formatCoverState(hass, 'cover.x')).toBe('Closed');
     });
 
+    it('localizes an override state instead of the entity state when given', () => {
+      // No-feedback covers report a final `open`/`closed` state while mid-move;
+      // the transit direction is passed as an override so the readout reads
+      // "Opening"/"Closing" the same way a real position cover does.
+      const hass = { states: { 'cover.x': { state: 'open' } } };
+      expect(formatCoverState(hass, 'cover.x', 'opening')).toBe('Opening');
+      expect(formatCoverState(hass, 'cover.x', 'closing')).toBe('Closing');
+    });
+
+    it('passes the override state through hass.formatEntityState', () => {
+      const hass = {
+        states: { 'cover.x': { state: 'closed', attributes: { device_class: 'shade' } } },
+        formatEntityState: (s: unknown): string => `FMT:${(s as { state: string }).state}`,
+      };
+      expect(formatCoverState(hass, 'cover.x', 'opening')).toBe('FMT:opening');
+    });
+
     it('returns null for missing entity, missing state, unknown or unavailable', () => {
       const hass = {
         states: {

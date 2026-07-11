@@ -17,25 +17,32 @@ interface HassLike {
  * the entity is missing or has no state. Prefers `hass.formatEntityState`
  * (modern HA frontend), falls back to `hass.localize` with the standard
  * cover state translation key, and finally to a capitalized raw state.
+ *
+ * `overrideState` substitutes the state to localize while keeping the entity's
+ * attributes/context — no-feedback covers report a final `open`/`closed` state
+ * mid-move, so the transit direction is passed here to render "Opening"/
+ * "Closing" the same way a real position cover does.
  */
 export function formatCoverState(
   hass: HassLike | undefined,
   entityId: string | undefined,
+  overrideState?: string,
 ): string | null {
   if (!hass || !entityId) return null;
   const stateObj = hass.states[entityId];
   if (!stateObj?.state || stateObj.state === 'unknown' || stateObj.state === 'unavailable') {
     return null;
   }
+  const effective = overrideState ? { ...stateObj, state: overrideState } : stateObj;
   if (typeof hass.formatEntityState === 'function') {
-    const formatted = hass.formatEntityState(stateObj);
+    const formatted = hass.formatEntityState(effective);
     if (formatted) return formatted;
   }
   if (typeof hass.localize === 'function') {
-    const localized = hass.localize(`component.cover.entity_component._.state.${stateObj.state}`);
+    const localized = hass.localize(`component.cover.entity_component._.state.${effective.state}`);
     if (localized) return localized;
   }
-  return stateObj.state.charAt(0).toUpperCase() + stateObj.state.slice(1);
+  return effective.state.charAt(0).toUpperCase() + effective.state.slice(1);
 }
 
 /** Format an angle in degrees with one decimal. */
