@@ -426,6 +426,7 @@ export class AdaptiveCoverProCard extends LitElement {
                 .discovered=${discovered}
                 ?compact=${!!this._config.compact}
                 .coverColor=${this._config.cover_colors?.[0] ?? null}
+                @acp-open-more-info=${this._openDialog}
               ></acp-cover-bar>`
             : nothing}
           ${sections.includes('overrides')

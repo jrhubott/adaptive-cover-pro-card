@@ -55,7 +55,10 @@ export class AcpHarnessCardStage extends LitElement {
               ? ''
               : html`<h2 class="card-heading">
                   Root card · <code>custom:${CARD_NAME}</code>
-                  <span class="hint">(tap the header icon/name to open more-info dialog)</span>
+                  <span class="hint"
+                    >(tap the header icon/name — or a cover name in COVERS — to open more-info
+                    dialog)</span
+                  >
                 </h2>`}
             ${this.config.root.enabled
               ? html`<div class="card-host" id="root-host"></div>`

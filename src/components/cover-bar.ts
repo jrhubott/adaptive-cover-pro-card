@@ -195,7 +195,16 @@ export class CoverBar extends LitElement {
     const targetPct = target ?? 0;
     return html`
       <div class="cover ${mismatch ? 'mismatch' : ''}">
-        <div class="name" ${tooltip(entityId)}>${friendly}</div>
+        <div
+          class="name"
+          role="button"
+          tabindex="0"
+          @click=${this._openMoreInfo}
+          @keydown=${this._onNameKeydown}
+          ${tooltip(entityId)}
+        >
+          ${friendly}
+        </div>
         <div class="num">${formatPercent(actual)}</div>
         <div
           class="track"
@@ -224,6 +233,20 @@ export class CoverBar extends LitElement {
       </div>
     `;
   }
+
+  /** Tapping a cover name opens the entry's more-info dialog. The bar is a
+   *  generic component, so it emits a semantic event the host card handles
+   *  (the Full card opens `<acp-more-info-dialog>`) rather than owning the
+   *  dialog itself. Bubbles + composed so it crosses the shadow boundary. */
+  private _openMoreInfo = (): void => {
+    this.dispatchEvent(new CustomEvent('acp-open-more-info', { bubbles: true, composed: true }));
+  };
+
+  private _onNameKeydown = (ev: KeyboardEvent): void => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    ev.preventDefault();
+    this._openMoreInfo();
+  };
 
   private _handleTrackClick(e: MouseEvent, entityId: string): void {
     const track = e.currentTarget as HTMLElement;
@@ -280,19 +303,19 @@ export class CoverBar extends LitElement {
       align-items: center;
       font-size: 0.82rem;
     }
+    /* The cover name is a tap target that opens the entry's more-info dialog,
+       so it carries a pointer cursor and a keyboard focus ring. It still hovers
+       an entity-id tooltip, but click/Enter/Space open the dialog. */
     .name {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      cursor: pointer;
+      border-radius: 4px;
     }
-    /* The cover name hints with a help cursor; the track is clickable and keeps
-       its pointer cursor (it is excluded from the help rule below). Both revert
-       to their natural cursor once OUR bubble is shown. */
-    .name[data-tooltip]:hover {
-      cursor: help;
-    }
-    .name[data-tooltip][acp-tt-shown] {
-      cursor: default;
+    .name:focus-visible {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 2px;
     }
     .track {
       position: relative;
