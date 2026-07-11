@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import '../src/adaptive-cover-pro-card';
 import { AdaptiveCoverProCard } from '../src/adaptive-cover-pro-card';
 import type { HomeAssistant } from 'custom-card-helpers';
@@ -341,5 +341,124 @@ describe('header layout — long entry title', () => {
     const styles = (AdaptiveCoverProCard as unknown as { styles: { cssText: string } }).styles
       .cssText;
     expect(styles).toMatch(/\.header\s*\{[^}]*align-items:\s*flex-start/);
+  });
+});
+
+// Registry + hass fixture that additionally exposes the two header-pill switches,
+// used only by the pill-guard test below (issue #200) so the base REGISTRY/makeHass
+// fixtures used elsewhere in this file stay untouched.
+const PILL_REGISTRY: EntityRegistryEntry[] = [
+  ...REGISTRY,
+  {
+    entity_id: 'switch.integration_enabled',
+    unique_id: `${ENTRY}_Integration Enabled`,
+    config_entry_id: ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+  {
+    entity_id: 'switch.automatic_control',
+    unique_id: `${ENTRY}_Automatic Control`,
+    config_entry_id: ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+];
+
+function makeHassWithPills(callService: (...args: unknown[]) => unknown): HomeAssistant {
+  const base = makeHass();
+  return {
+    ...base,
+    states: {
+      ...base.states,
+      'switch.integration_enabled': { state: 'on', attributes: {} },
+      'switch.automatic_control': { state: 'on', attributes: {} },
+    },
+    callService,
+  } as unknown as HomeAssistant;
+}
+
+async function mountWithPills(
+  config: AdaptiveCoverProCardConfig,
+  callService: (...args: unknown[]) => unknown,
+): Promise<CardLike> {
+  const el = document.createElement('adaptive-cover-pro-card') as CardLike;
+  el.hass = makeHassWithPills(callService);
+  el._registry = PILL_REGISTRY;
+  el.setConfig(config);
+  document.body.appendChild(el);
+  await el.updateComplete;
+  return el;
+}
+
+describe('Full card more-info dialog (issue #200)', () => {
+  it('opens the more-info dialog when the header identity is tapped', async () => {
+    const el = await mountWithRegistry({
+      type: 'custom:adaptive-cover-pro-card',
+      entry_id: ENTRY,
+    });
+    const headerInfo = el.shadowRoot!.querySelector('.header .header-info') as HTMLElement | null;
+    expect(headerInfo).toBeTruthy();
+    headerInfo!.click();
+    await el.updateComplete;
+    const dialog = el.shadowRoot!.querySelector('acp-more-info-dialog') as
+      | (HTMLElement & { open?: boolean })
+      | null;
+    expect(dialog).toBeTruthy();
+    expect(dialog!.open).toBe(true);
+  });
+
+  it('does not open the dialog when a header pill is toggled', async () => {
+    const callService = vi.fn();
+    const el = await mountWithPills(
+      { type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY },
+      callService,
+    );
+    const pill = el.shadowRoot!.querySelector('.header acp-header-pill') as HTMLElement | null;
+    expect(pill).toBeTruthy();
+    (pill!.shadowRoot!.querySelector('button') as HTMLElement).click();
+    await el.updateComplete;
+    // Regression guard: the pill's own toggle behavior must still fire.
+    expect(callService).toHaveBeenCalled();
+    const dialog = el.shadowRoot!.querySelector('acp-more-info-dialog') as
+      | (HTMLElement & { open?: boolean })
+      | null;
+    expect(dialog?.open).not.toBe(true);
+  });
+
+  it('does not open the dialog on a body/cover-section click', async () => {
+    const el = await mountWithRegistry({
+      type: 'custom:adaptive-cover-pro-card',
+      entry_id: ENTRY,
+    });
+    const body = el.shadowRoot!.querySelector('.body') as HTMLElement | null;
+    expect(body).toBeTruthy();
+    body!.click();
+    await el.updateComplete;
+    const dialog = el.shadowRoot!.querySelector('acp-more-info-dialog') as
+      | (HTMLElement & { open?: boolean })
+      | null;
+    expect(dialog?.open).not.toBe(true);
+  });
+
+  it('opens the more-info dialog when a cover name in the COVERS section is tapped', async () => {
+    const el = await mountWithRegistry({
+      type: 'custom:adaptive-cover-pro-card',
+      entry_id: ENTRY,
+    });
+    const coverBar = el.shadowRoot!.querySelector('acp-cover-bar') as
+      | (HTMLElement & { updateComplete: Promise<boolean> })
+      | null;
+    expect(coverBar).toBeTruthy();
+    await coverBar!.updateComplete;
+    const name = coverBar!.shadowRoot!.querySelector('.cover .name') as HTMLElement | null;
+    expect(name).toBeTruthy();
+    name!.click();
+    await el.updateComplete;
+    const dialog = el.shadowRoot!.querySelector('acp-more-info-dialog') as
+      | (HTMLElement & { open?: boolean })
+      | null;
+    expect(dialog).toBeTruthy();
+    expect(dialog!.open).toBe(true);
   });
 });

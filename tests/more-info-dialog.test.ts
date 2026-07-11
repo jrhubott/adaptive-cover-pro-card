@@ -631,13 +631,12 @@ describe('acp-more-info-dialog: solar calculation', () => {
 describe('acp-more-info-dialog: Resume Auto', () => {
   it('Resume button calls button.press on reset_override_button', async () => {
     const callService = vi.fn();
-    // Need a winner of custom_position OR manual override on for the button
-    // to render at all under the auto-hide logic.
-    const el = await mount({
-      hass: hass({ callService, winner: 'custom_position_1' }),
-      discovered: discovered(),
-      open: true,
-    });
+    const d = discovered({ manual_override_binary: 'binary_sensor.manual_override' });
+    const h = hass({ callService, winner: 'solar' });
+    (h.states as Record<string, { state: string; attributes: Record<string, unknown> }>)[
+      'binary_sensor.manual_override'
+    ] = { state: 'on', attributes: {} };
+    const el = await mount({ hass: h, discovered: d, open: true });
     (el.shadowRoot!.querySelector('button.resume') as HTMLElement).click();
     expect(callService).toHaveBeenCalledWith('button', 'press', { entity_id: 'button.reset' });
   });
@@ -660,6 +659,25 @@ describe('acp-more-info-dialog: Resume Auto', () => {
       open: true,
     });
     expect(el.shadowRoot!.querySelector('button.resume')).toBeNull();
+  });
+
+  it('Resume button is hidden when winner is custom_position and manual override is off', async () => {
+    const el = await mount({
+      hass: hass({ winner: 'custom_position_1' }),
+      discovered: discovered(),
+      open: true,
+    });
+    expect(el.shadowRoot!.querySelector('button.resume')).toBeNull();
+  });
+
+  it('Resume button is shown when manual override is active AND winner is custom_position', async () => {
+    const d = discovered({ manual_override_binary: 'binary_sensor.manual_override' });
+    const h = hass({ winner: 'custom_position_1' });
+    (h.states as Record<string, { state: string; attributes: Record<string, unknown> }>)[
+      'binary_sensor.manual_override'
+    ] = { state: 'on', attributes: {} };
+    const el = await mount({ hass: h, discovered: d, open: true });
+    expect(el.shadowRoot!.querySelector('button.resume')).toBeTruthy();
   });
 
   it('Resume button is shown when manual override is active', async () => {

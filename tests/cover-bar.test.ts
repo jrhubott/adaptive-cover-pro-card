@@ -626,3 +626,64 @@ describe('acp-cover-bar track-click → set_position', () => {
     );
   });
 });
+
+describe('acp-cover-bar cover name opens more-info', () => {
+  function mount(callService: (...args: unknown[]) => unknown): CoverBarLike {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    el.hass = {
+      states: {
+        'sensor.cover_position': {
+          state: '40',
+          attributes: { actual_positions: { 'cover.living': 40 } },
+        },
+        'cover.living': { state: 'open', attributes: { friendly_name: 'Living Room' } },
+      },
+      callService,
+    } as unknown as HomeAssistant;
+    el.discovered = {
+      ...baseDiscovered,
+      entities: { target_position_sensor: 'sensor.cover_position' },
+    };
+    document.body.appendChild(el);
+    return el;
+  }
+
+  it('dispatches acp-open-more-info when the cover name is clicked', async () => {
+    const el = mount(vi.fn());
+    await el.updateComplete;
+    const name = el.shadowRoot!.querySelector('.cover .name') as HTMLElement;
+    expect(name).toBeTruthy();
+    const spy = vi.fn();
+    el.addEventListener('acp-open-more-info', spy);
+    name.click();
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('dispatches acp-open-more-info on Enter/Space keydown on the cover name', async () => {
+    const el = mount(vi.fn());
+    await el.updateComplete;
+    const name = el.shadowRoot!.querySelector('.cover .name') as HTMLElement;
+    const spy = vi.fn();
+    el.addEventListener('acp-open-more-info', spy);
+    name.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    name.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not dispatch acp-open-more-info when the track is clicked (keeps set-position)', async () => {
+    const callService = vi.fn();
+    const el = mount(callService);
+    await el.updateComplete;
+    const track = el.shadowRoot!.querySelector('.cover .track') as HTMLElement;
+    const spy = vi.fn();
+    el.addEventListener('acp-open-more-info', spy);
+    Object.defineProperty(track, 'getBoundingClientRect', {
+      value: () => ({ left: 0, width: 100, top: 0, bottom: 10, right: 100, height: 10 }),
+      configurable: true,
+    });
+    track.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 50 }));
+    // Regression guard: the track still drives set-position and never opens the dialog.
+    expect(spy).not.toHaveBeenCalled();
+    expect(callService).toHaveBeenCalled();
+  });
+});
