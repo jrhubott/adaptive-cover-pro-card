@@ -75,7 +75,7 @@ export const HANDLER_LABELS: Record<HandlerName, string> = {
   manual: 'Manual Override',
   group_lock: 'Group Lock',
   custom_position: 'Custom Position',
-  motion: 'Motion Timeout',
+  motion: 'Occupancy Timeout',
   cloud: 'Cloud Suppression',
   climate: 'Climate',
   glare_zone: 'Glare Zone',
@@ -191,7 +191,7 @@ export const BADGE_TOKENS: Record<BadgeKind, BadgeTokens> = {
   cloud: { label: 'Cloudy', bg: 'rgba(33, 150, 243, 0.22)', fg: '#0d47a1' },
   custom_position: { label: 'Custom', bg: 'rgba(156, 39, 176, 0.22)', fg: '#6a1b9a' },
   solar: { label: 'Solar tracking', bg: 'rgba(76, 175, 80, 0.22)', fg: '#1b5e20' },
-  motion: { label: 'Motion', bg: 'rgba(255, 235, 59, 0.22)', fg: '#827717' },
+  motion: { label: 'Occupancy', bg: 'rgba(255, 235, 59, 0.22)', fg: '#827717' },
   off: { label: 'Off', bg: 'rgba(97, 97, 97, 0.28)', fg: '#212121' },
   off_schedule: { label: 'Off-schedule', bg: 'rgba(96, 125, 139, 0.22)', fg: '#37474f' },
   // Cover Group who-won count badge (issue #185). Neutral indigo, distinct from

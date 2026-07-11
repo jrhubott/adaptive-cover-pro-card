@@ -31,9 +31,9 @@ Same `custom:adaptive-cover-pro-tile-card` in four states. The badge changes wit
 | **Auto** | Automatic control is running and no specific handler has taken over. |
 | **Solar tracking** | The solar handler is positioning the cover against the sun, with the target shown inline. |
 | **Manual** | A manual override holds the cover. The badge shows the expiry time and a `↺` to resume automatic control. |
-| **Motion** | The motion handler is holding the cover open after movement. |
+| **Occupancy** | The occupancy handler holds the cover open while the room is occupied. |
 
-Force, weather, glare, climate, cloud, and custom-position slots get their own badges too. Every badge can be toggled off individually, and a small motion-sensor mark can sit on the icon when motion is active. Stack as many tiles as you have shades for a dense, glanceable dashboard.
+Force, weather, glare, climate, cloud, and custom-position slots get their own badges too. Every badge can be toggled off individually, and a small occupancy indicator can sit on the icon when occupancy is detected. Stack as many tiles as you have shades for a dense, glanceable dashboard.
 
 ## Full card
 

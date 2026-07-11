@@ -724,7 +724,7 @@ describe('acp-more-info-dialog: Controls row', () => {
     const labels = Array.from(chips).map(
       (c) => c.querySelector('.ctrl-label')?.textContent?.trim() ?? '',
     );
-    expect(labels).toEqual(['Automatic', 'Climate', 'Motion']);
+    expect(labels).toEqual(['Automatic', 'Climate', 'Occupancy']);
   });
 
   it('chip state reflects each switch (on/off)', async () => {

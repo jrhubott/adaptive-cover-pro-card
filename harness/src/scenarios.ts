@@ -537,8 +537,8 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: 'motion-timeout-pending',
-    label: 'Motion timeout pending',
-    description: 'Motion just cleared; covers reopen in 30s.',
+    label: 'Occupancy timeout pending',
+    description: 'Occupancy just cleared; covers reopen in 30s.',
     build: () => {
       const c = baseConfig('2026-06-21', 19 * 60);
       c.scenario = 'motion-timeout-pending';
@@ -569,9 +569,9 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: 'motion-idle-badge',
-    label: 'Motion idle badge',
+    label: 'Occupancy idle badge',
     description:
-      'Motion handler winning with the motion indicator icon turned off, so the "Motion idle" text badge shows. Turn the indicator back on, or disable the motion badge, to watch it fall back to Auto.',
+      'Occupancy handler winning with the occupancy indicator icon turned off, so the "Occupancy idle" text badge shows. Turn the indicator back on, or disable the occupancy badge, to watch it fall back to Auto.',
     build: () => {
       const c = baseConfig('2026-06-21', 19 * 60);
       c.scenario = 'motion-idle-badge';

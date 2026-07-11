@@ -977,7 +977,7 @@ describe('adaptive-cover-pro-tile-card new options', () => {
       },
     });
 
-  it('shows the Motion idle badge when the icon is off and its flag is on', async () => {
+  it('shows the Occupancy idle badge when the icon is off and its flag is on', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY, layout: 'one-line', show_motion_icon: false },
       motionWinnerHass(),
@@ -985,7 +985,7 @@ describe('adaptive-cover-pro-tile-card new options', () => {
     const badge = el.shadowRoot!.querySelector('acp-tile-badge');
     expect(badge).toBeTruthy();
     const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
-    expect(text).toBe('Motion idle');
+    expect(text).toBe('Occupancy idle');
   });
 
   it('falls back to Auto when motion wins but badges.motion is off', async () => {
@@ -1307,14 +1307,14 @@ describe('adaptive-cover-pro-tile-card motion indicator', () => {
     const el = await mountWithMotion({ type: TYPE, entry_id: ENTRY }, 'motion_detected');
     const overlay = el.shadowRoot!.querySelector('.motion-overlay');
     expect(overlay).toBeTruthy();
-    expect(overlay!.getAttribute('data-tooltip')).toBe('Motion detected');
+    expect(overlay!.getAttribute('data-tooltip')).toBe('Occupancy detected');
   });
 
   it('renders the overlay when motion_status is timeout_pending', async () => {
     const el = await mountWithMotion({ type: TYPE, entry_id: ENTRY }, 'timeout_pending');
     const overlay = el.shadowRoot!.querySelector('.motion-overlay');
     expect(overlay).toBeTruthy();
-    expect(overlay!.getAttribute('data-tooltip')).toBe('Motion timeout pending');
+    expect(overlay!.getAttribute('data-tooltip')).toBe('Occupancy timeout pending');
   });
 
   it('hides the overlay when motion_status is no_motion', async () => {

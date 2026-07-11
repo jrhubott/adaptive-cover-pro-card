@@ -109,9 +109,9 @@ describe('acp-tile-badge', () => {
     expect(kind(el)).toBe('solar');
   });
 
-  it('renders Motion for motion winner', async () => {
+  it('renders Occupancy for motion winner', async () => {
     const el = await mountBadge({ winner: 'motion' });
-    expect(text(el)).toBe('Motion');
+    expect(text(el)).toBe('Occupancy');
     expect(kind(el)).toBe('motion');
   });
 
