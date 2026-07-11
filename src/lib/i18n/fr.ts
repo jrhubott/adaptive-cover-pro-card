@@ -62,8 +62,8 @@ export const fr: EnDict = {
     event: {
       sunrise: 'Lever du soleil',
       sunset: 'Coucher du soleil',
-      fov_enter: 'Le soleil entre dans le champ de vision de la fenêtre',
-      fov_exit: 'Le soleil quitte le champ de vision de la fenêtre',
+      fov_enter: "Le soleil entre dans l'angle d'acceptation solaire de la fenêtre",
+      fov_exit: "Le soleil quitte l'angle d'acceptation solaire de la fenêtre",
     },
     hover_hint:
       "Survolez la courbe pour voir l'heure et la position prévue ; survolez une ligne colorée pour voir l'événement qu'elle indique.",
@@ -139,15 +139,16 @@ export const fr: EnDict = {
     sunset_tooltip: 'Coucher du soleil : {time}',
     moon_tooltip: 'Lune : {phase} ({pct}%)',
     sun_path_tooltip: "Trajectoire solaire (aujourd'hui)",
-    in_fov_check: '✓ dans le champ de vision',
-    in_fov: 'dans le champ de vision',
-    in_fov_tooltip: 'Le soleil est actuellement dans le champ de vision de cette fenêtre',
+    in_fov_check: '✓ dans le SAA',
+    in_fov: 'dans le SAA',
+    in_fov_tooltip:
+      "Le soleil est actuellement dans l'angle d'acceptation solaire de cette fenêtre",
     none: '—',
     sun: 'Soleil',
     moon: 'Lune',
     sun_up_not_hitting: 'Soleil (levé, ne frappe pas)',
     sun_below_horizon: 'Soleil (sous l’horizon)',
-    window_fov: 'Champ de vision',
+    window_fov: 'SAA de la fenêtre',
     sun_path: 'Trajectoire solaire',
     sunrise: 'Lever du soleil',
     sunset: 'Coucher du soleil',
@@ -159,7 +160,7 @@ export const fr: EnDict = {
     stat_elev: 'Élév : ',
     stat_window: 'Fenêtre : ',
     active_sun_arc: 'Arc solaire actif {from} – {to}{elev}',
-    fov_arc: 'Champ de vision {left} gauche / {right} droite{elev}',
+    fov_arc: 'SAA {left} gauche / {right} droite{elev}',
     window_normal_tooltip: 'Azimut de la fenêtre : {bearing}',
     cover_position_target: 'Cible : {pct}%',
     cover_position_target_awning: 'Cible (déployé) : {pct}%',
@@ -206,7 +207,7 @@ export const fr: EnDict = {
     no_target: 'Pas de cible solaire — {status}',
     status: {
       direct_sun: 'Soleil direct',
-      fov_exit: 'Par défaut · sortie du champ de vision',
+      fov_exit: 'Par défaut · sortie du SAA',
       elevation_limit: "Par défaut · limite d'élévation",
       sunset_offset: 'Par défaut · décalage coucher du soleil',
       blind_spot: 'Par défaut · angle mort',
@@ -250,10 +251,10 @@ export const fr: EnDict = {
   },
   elevation: {
     title: "Soleil aujourd'hui",
-    fov_window: 'Champ de vision : {from} → {to}',
-    fov_windows: 'Champ de vision : {windows}',
+    fov_window: 'SAA : {from} → {to}',
+    fov_windows: 'SAA : {windows}',
     fov_window_named: '{name} : {windows}',
-    no_fov_today: "Pas de soleil dans le champ de vision aujourd'hui",
+    no_fov_today: "Le soleil n'entre pas dans le SAA aujourd'hui",
     placeholder: "Graphique d'élévation solaire indisponible.",
     schedule: 'Programmation {from} – {to}',
     schedule_from: 'Programmation à partir de {from}',
@@ -293,9 +294,9 @@ export const fr: EnDict = {
       sections: 'Sections',
       sections_hint: 'Activer ou désactiver les parties de la carte affichées.',
       section_sky_label: 'Boussole céleste',
-      section_sky_desc: 'Soleil par rapport au champ de vision de la fenêtre, tracé polaire',
+      section_sky_desc: 'Soleil par rapport au SAA de la fenêtre, tracé polaire',
       section_elevation_label: "Soleil aujourd'hui",
-      section_elevation_desc: 'Graphique élévation/temps avec bande FOV et curseur temps réel',
+      section_elevation_desc: 'Graphique élévation/temps avec bande SAA et curseur temps réel',
       section_decision_label: 'Bande de décision',
       section_decision_desc:
         'Les 10 gestionnaires du pipeline avec la ligne gagnante mise en évidence',
@@ -396,7 +397,7 @@ export const fr: EnDict = {
       toggle_window_arrow_desc: "Ligne du centre vers l'azimut de chaque fenêtre.",
       toggle_elevation_chart_label: 'Graphique du soleil',
       toggle_elevation_chart_desc:
-        "Graphique élévation/temps sous la boussole, avec bande FOV et limites d'élévation.",
+        "Graphique élévation/temps sous la boussole, avec bande SAA et limites d'élévation.",
     },
     decision: {
       title: 'Titre (facultatif)',
@@ -412,7 +413,7 @@ export const fr: EnDict = {
     solar_chart: {
       instances: 'Instances Adaptive Cover Pro',
       instances_hint:
-        'Sélectionnez une ou plusieurs instances. Chaque instance sélectionnée ajoute une superposition FOV au graphique.',
+        'Sélectionnez une ou plusieurs instances. Chaque instance sélectionnée ajoute une superposition SAA au graphique.',
       cover_colors: 'Couleurs des stores',
       cover_colors_hint: 'Remplacer la couleur de palette par défaut pour chaque superposition.',
       default_color: 'par défaut',

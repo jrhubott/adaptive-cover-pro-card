@@ -72,13 +72,13 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'elevation.schedule_until': 'Schedule until {to}',
   'elevation.schedule_start_tooltip': 'Schedule start',
   'elevation.schedule_end_tooltip': 'Schedule end',
-  'compass.in_fov_tooltip': 'Sun is currently within this window’s field of view',
+  'compass.in_fov_tooltip': 'Sun is currently within this window’s sun acceptance angle',
   // Cover legend rows (#158): the solid wedge is the target, the dashed ring the
   // held position. Mirror the real en.ts strings so the harness legend renders
   // real text instead of the raw i18n keys.
   'compass.cover_target': 'Cover target',
   'compass.cover_held': 'Cover position (held)',
-  'compass.window_fov': 'Window FOV',
+  'compass.window_fov': 'Window SAA',
   'compass.window_normal': 'Window azimuth',
   'compass.sun': 'Sun',
   'compass.moon': 'Moon',

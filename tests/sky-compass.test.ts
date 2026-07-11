@@ -453,7 +453,7 @@ describe('acp-sky-compass (multi-entry overlay)', () => {
     ticks.forEach((tick) => {
       expect(tick.textContent?.trim()).toBe('✓');
       const title = tick.getAttribute('data-tooltip') ?? '';
-      expect(title).toContain('field of view');
+      expect(title).toContain('sun acceptance angle');
     });
   });
 });
@@ -1036,6 +1036,15 @@ describe('acp-sky-compass FOV elevation limits', () => {
     const titleText = fovGroup?.getAttribute('data-tooltip') ?? '';
     expect(titleText).not.toContain('elev');
   });
+
+  it('tooltip uses the SAA abbreviation, not the retired FOV wording (#206)', async () => {
+    const hass = makeHass([{ sensorId, windowAzimuth: 180 }]);
+    const el = await mountCompass([d()], hass);
+    const fovGroup = el.shadowRoot!.querySelector('path.fov')?.parentElement;
+    const titleText = fovGroup?.getAttribute('data-tooltip') ?? '';
+    expect(titleText).toContain('SAA');
+    expect(titleText).not.toContain('FOV');
+  });
 });
 
 describe('acp-sky-compass cover-fill polarity by cover_type', () => {
@@ -1489,6 +1498,15 @@ describe('acp-sky-compass legend completeness & theme tokens', () => {
     expect(text).toContain('Sun');
     expect(text).not.toContain('Sun (hitting window)');
     expect(text).not.toContain('Sun (below horizon)');
+  });
+
+  it('legend labels the FOV swatch "Window SAA", not "Window FOV" (#206)', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
+    const el = await mountCompass([d], hass);
+    const text = el.shadowRoot!.textContent ?? '';
+    expect(text).toContain('Window SAA');
+    expect(text).not.toContain('Window FOV');
   });
 
   it('FOV swatch shares its theme token with the FOV path', () => {

@@ -484,10 +484,10 @@ export class AcpHarnessControlPanel extends LitElement {
         ${this._numberSlider('Window azimuth', e.window_azimuth, 0, 360, 1, (v) =>
           this._patchEntry(idx, { window_azimuth: v }),
         )}
-        ${this._numberSlider('FOV left', e.fov_left, 0, 90, 1, (v) =>
+        ${this._numberSlider('SAA left', e.fov_left, 0, 90, 1, (v) =>
           this._patchEntry(idx, { fov_left: v }),
         )}
-        ${this._numberSlider('FOV right', e.fov_right, 0, 90, 1, (v) =>
+        ${this._numberSlider('SAA right', e.fov_right, 0, 90, 1, (v) =>
           this._patchEntry(idx, { fov_right: v }),
         )}
         ${this._optionalNumber('Min elevation', e.min_elevation, -10, 90, (v) =>

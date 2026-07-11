@@ -291,7 +291,7 @@ if (!window.customCards.some((c) => c.type === SKY_COMPASS_CARD_NAME)) {
     type: SKY_COMPASS_CARD_NAME,
     name: 'Adaptive Cover Pro — Sky Compass',
     description:
-      'Polar sun-vs-FOV plot; overlay one or more Adaptive Cover Pro entries on a single compass.',
+      'Polar sun-vs-SAA plot; overlay one or more Adaptive Cover Pro entries on a single compass.',
     preview: true,
     documentationURL: 'https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card',
     getEntitySuggestion: makeEntitySuggestion(`custom:${SKY_COMPASS_CARD_NAME}`, 'entry_ids'),
