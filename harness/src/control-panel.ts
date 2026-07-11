@@ -654,6 +654,27 @@ export class AcpHarnessControlPanel extends LitElement {
               this._patchFlags(idx, { safety_slot_active: v }),
             )}
             <label class="row">
+              <span>Transit (no-feedback)</span>
+              <select
+                @change=${(ev: Event) => {
+                  const v = (ev.target as HTMLSelectElement).value;
+                  this._patchFlags(idx, {
+                    transit_direction: v === 'none' ? null : (v as 'opening' | 'closing'),
+                  });
+                }}
+              >
+                ${(['none', 'opening', 'closing'] as const).map(
+                  (v) =>
+                    html`<option
+                      value=${v}
+                      ?selected=${(e.flags.transit_direction ?? 'none') === v}
+                    >
+                      ${v}
+                    </option>`,
+                )}
+              </select>
+            </label>
+            <label class="row">
               <span>Occupancy status</span>
               <select
                 @change=${(ev: Event) =>

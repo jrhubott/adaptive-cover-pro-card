@@ -161,6 +161,11 @@ export interface HarnessEntry {
     throttle_skipped_minutes_ago: number;
     /** Configured minimum interval between position changes, in minutes. */
     throttle_threshold_minutes: number;
+    /** In-transit direction for a no-feedback (open/close-only) cover. When set,
+     *  the Cover_Position sensor publishes a `transit_states` map for this
+     *  entry's covers so the tile shows the localized "Opening"/"Closing" state
+     *  text. null/undefined = at rest (no transit_states emitted). */
+    transit_direction?: 'opening' | 'closing' | null;
   };
   /** When true this entry is a Cover Group (issue #185): the mock emits the
    *  `group_*` entities from {@link group} and skips the per-cover sensor block,

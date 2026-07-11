@@ -1410,6 +1410,33 @@ export const SCENARIOS: Scenario[] = [
       return c;
     },
   },
+  {
+    id: 'transit-opening-closing',
+    label: 'No-feedback cover — Opening / Closing text',
+    description:
+      'Two open/close-only (Somfy-RTS-style) covers mid-move. The integration publishes a transit_states map, so the tile shows the localized "Opening"/"Closing" state text in the readout — the same way a real position cover does — instead of a static Open/Closed. Toggle direction live via the "Transit (no-feedback)" control.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'transit-opening-closing';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Opening now',
+          window_azimuth: 180,
+          color: '#66bb6a',
+        }),
+        makeEntry({
+          entry_id: 'west_window',
+          title: 'Closing now',
+          window_azimuth: 270,
+          color: '#ef5350',
+        }),
+      ];
+      c.entries[0].flags.transit_direction = 'opening';
+      c.entries[1].flags.transit_direction = 'closing';
+      return c;
+    },
+  },
 ];
 
 export function findScenario(id: string): Scenario | undefined {

@@ -174,7 +174,7 @@ function addEntryStates(
     (c) => c.position !== null && Math.abs(c.position - entry.target_position) <= 1,
   );
 
-  states[id('target_position_sensor')] = mkState(id('target_position_sensor'), String(coverState), {
+  const coverPositionAttrs: Record<string, unknown> = {
     friendly_name: `${entry.title} Cover Position`,
     unit_of_measurement: '%',
     actual_positions: actualPositions,
@@ -182,7 +182,19 @@ function addEntryStates(
     control_method: decision.winner,
     reason: decision.reason,
     raw_calculated_position: decision.position,
-  });
+  };
+  // No-feedback covers publish an in-transit direction while mid-move; mirror it
+  // so the tile renders the localized "Opening"/"Closing" state text.
+  if (f.transit_direction) {
+    coverPositionAttrs.transit_states = Object.fromEntries(
+      entry.covers.map((c) => [c.entity_id, f.transit_direction]),
+    );
+  }
+  states[id('target_position_sensor')] = mkState(
+    id('target_position_sensor'),
+    String(coverState),
+    coverPositionAttrs,
+  );
 
   // Dual-axis venetian: the Cover_Tilt sensor publishes the solar slat target
   // (0–100, no attributes). Its presence is the card's dual-axis gate, so only

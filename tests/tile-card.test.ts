@@ -640,7 +640,11 @@ describe('adaptive-cover-pro-tile-card render', () => {
 });
 
 describe('adaptive-cover-pro-tile-card transit motion indicator', () => {
-  it('renders the opening indicator when transit_states marks the cover opening', async () => {
+  // No-feedback covers surface their in-transit direction as the same localized
+  // "Opening"/"Closing" state text a real position cover shows — no custom glyph.
+  // The fixture cover.left reports state 'open' with no localizer mocked, so
+  // formatCoverState falls back to capitalizing the (overridden) state.
+  it('renders the readout as "Opening" when transit_states marks the cover opening', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({
@@ -650,12 +654,13 @@ describe('adaptive-cover-pro-tile-card transit motion indicator', () => {
         },
       }),
     );
-    const indicator = el.shadowRoot!.querySelector('.position .transit-opening');
-    expect(indicator).toBeTruthy();
-    expect(indicator!.getAttribute('data-tooltip')).toContain('Opening');
+    const position = el.shadowRoot!.querySelector('.position');
+    expect(position?.textContent).toContain('Opening');
+    // The custom arrow glyph is gone — the state text is the only indication.
+    expect(el.shadowRoot!.querySelector('.position ha-icon')).toBeFalsy();
   });
 
-  it('renders the closing indicator when transit_states marks the cover closing', async () => {
+  it('renders the readout as "Closing" when transit_states marks the cover closing', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({
@@ -665,17 +670,20 @@ describe('adaptive-cover-pro-tile-card transit motion indicator', () => {
         },
       }),
     );
-    const indicator = el.shadowRoot!.querySelector('.position .transit-closing');
-    expect(indicator).toBeTruthy();
-    expect(indicator!.getAttribute('data-tooltip')).toContain('Closing');
+    const position = el.shadowRoot!.querySelector('.position');
+    expect(position?.textContent).toContain('Closing');
+    expect(el.shadowRoot!.querySelector('.position ha-icon')).toBeFalsy();
   });
 
-  it('renders no transit indicator when transit_states is absent', async () => {
+  it('shows the resting state (not Opening/Closing) when transit_states is absent', async () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
-    expect(el.shadowRoot!.querySelector('.position .transit')).toBeFalsy();
+    const text = el.shadowRoot!.querySelector('.position')?.textContent ?? '';
+    expect(text).toContain('Open');
+    expect(text).not.toContain('Opening');
+    expect(text).not.toContain('Closing');
   });
 
-  it('renders no transit indicator for a cover not present in transit_states', async () => {
+  it('shows the resting state for a cover not present in transit_states', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({
@@ -685,7 +693,24 @@ describe('adaptive-cover-pro-tile-card transit motion indicator', () => {
         },
       }),
     );
-    expect(el.shadowRoot!.querySelector('.position .transit')).toBeFalsy();
+    const text = el.shadowRoot!.querySelector('.position')?.textContent ?? '';
+    expect(text).toContain('Open');
+    expect(text).not.toContain('Opening');
+    expect(text).not.toContain('Closing');
+  });
+
+  it('hides the transit indication when show_state is false (matches real covers)', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, show_state: false },
+      makeHass({
+        coverPositionSensorAttrs: {
+          actual_positions: { 'cover.left': 40, 'cover.right': 45 },
+          transit_states: { 'cover.left': 'opening' },
+        },
+      }),
+    );
+    const text = el.shadowRoot!.querySelector('.position')?.textContent ?? '';
+    expect(text).not.toContain('Opening');
   });
 });
 
