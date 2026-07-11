@@ -385,8 +385,18 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // automatic control — replacing the old standalone Resume pill.
     const resumable = manualActive && !!discovered.entities.reset_override_button;
 
+    const transitDir = this._transitState(discovered);
+    const transitTpl = transitDir
+      ? html`<ha-icon
+          class="transit transit-${transitDir}"
+          icon=${transitDir === 'opening' ? 'mdi:arrow-up-thin' : 'mdi:arrow-down-thin'}
+          ${tooltip(t('covers.' + transitDir, this.hass))}
+        ></ha-icon>`
+      : nothing;
     const positionTpl =
-      labelParts.length > 0 ? html`<div class="position">${labelParts.join(' · ')}</div>` : nothing;
+      labelParts.length > 0
+        ? html`<div class="position">${transitTpl}${labelParts.join(' · ')}</div>`
+        : nothing;
     const floorChipTpl = showFloorChip
       ? html`<span
           class=${`acp-floor-chip${activeFloor!.clamping ? '' : ' is-armed'}${
@@ -527,6 +537,20 @@ export class AdaptiveCoverProTileCard extends LitElement {
     if (!st) return null;
     const v = parseFloat(st.state);
     return Number.isNaN(v) ? null : v;
+  }
+
+  /** In-transit direction for this entry's resolved cover, read from the
+   *  target sensor's `transit_states` attribute (no-feedback covers publish it
+   *  while mid-move). Returns null when absent or for a different cover. */
+  private _transitState(discovered: DiscoveredEntities): 'opening' | 'closing' | null {
+    const id = discovered.entities.target_position_sensor;
+    if (!id) return null;
+    const cover = this._resolvedCover(discovered);
+    if (!cover) return null;
+    const transit = this.hass.states[id]?.attributes?.transit_states as
+      | Record<string, 'opening' | 'closing'>
+      | undefined;
+    return transit?.[cover] ?? null;
   }
 
   private _liveCoverPosition(cover: string | undefined): number | null {
@@ -809,6 +833,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     .detail-line .position {
       padding: 0;
       text-align: left;
+      justify-content: flex-start;
       /* Push the badge + floor chip to the right edge of the row so they sit
          flush against the controls column. */
       margin-right: auto;
@@ -857,6 +882,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     }
     .tile-body.detailed .position {
       text-align: left;
+      justify-content: flex-start;
       padding: 0;
     }
     .tile-body.detailed .controls {
@@ -937,6 +963,31 @@ export class AdaptiveCoverProTileCard extends LitElement {
          column edge — combined with the fixed-width position grid column, this
          keeps the ▲ ■ ▼ row aligned across stacked tiles. */
       text-align: right;
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 2px;
+    }
+    /* In-transit motion indicator for no-feedback covers: a small direction
+       arrow beside the position/state, sized to the readout text. */
+    .transit {
+      --mdc-icon-size: 1em;
+      color: var(--primary-color);
+      flex-shrink: 0;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .transit {
+        animation: acp-transit-pulse 1.1s ease-in-out infinite;
+      }
+    }
+    @keyframes acp-transit-pulse {
+      0%,
+      100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.35;
+      }
     }
     .controls {
       grid-area: controls;

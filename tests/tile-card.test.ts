@@ -639,6 +639,56 @@ describe('adaptive-cover-pro-tile-card render', () => {
   });
 });
 
+describe('adaptive-cover-pro-tile-card transit motion indicator', () => {
+  it('renders the opening indicator when transit_states marks the cover opening', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({
+        coverPositionSensorAttrs: {
+          actual_positions: { 'cover.left': 40, 'cover.right': 45 },
+          transit_states: { 'cover.left': 'opening' },
+        },
+      }),
+    );
+    const indicator = el.shadowRoot!.querySelector('.position .transit-opening');
+    expect(indicator).toBeTruthy();
+    expect(indicator!.getAttribute('data-tooltip')).toContain('Opening');
+  });
+
+  it('renders the closing indicator when transit_states marks the cover closing', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({
+        coverPositionSensorAttrs: {
+          actual_positions: { 'cover.left': 40, 'cover.right': 45 },
+          transit_states: { 'cover.left': 'closing' },
+        },
+      }),
+    );
+    const indicator = el.shadowRoot!.querySelector('.position .transit-closing');
+    expect(indicator).toBeTruthy();
+    expect(indicator!.getAttribute('data-tooltip')).toContain('Closing');
+  });
+
+  it('renders no transit indicator when transit_states is absent', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
+    expect(el.shadowRoot!.querySelector('.position .transit')).toBeFalsy();
+  });
+
+  it('renders no transit indicator for a cover not present in transit_states', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({
+        coverPositionSensorAttrs: {
+          actual_positions: { 'cover.left': 40, 'cover.right': 45 },
+          transit_states: { 'cover.other': 'closing' },
+        },
+      }),
+    );
+    expect(el.shadowRoot!.querySelector('.position .transit')).toBeFalsy();
+  });
+});
+
 describe('adaptive-cover-pro-tile-card group entry (issue #185)', () => {
   const GROUP_ENTRY = 'group_xyz';
   const GROUP_REGISTRY: EntityRegistryEntry[] = [

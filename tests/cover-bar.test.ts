@@ -581,6 +581,63 @@ describe('acp-cover-bar legacy fallback parity (no discovery, no set_axes)', () 
   });
 });
 
+describe('acp-cover-bar transit motion indicator', () => {
+  function transitHass(transit?: Record<string, 'opening' | 'closing'>): HomeAssistant {
+    return {
+      states: {
+        'sensor.cover_position': {
+          state: '50',
+          attributes: {
+            actual_positions: { 'cover.x': 50 },
+            ...(transit ? { transit_states: transit } : {}),
+          },
+        },
+        'cover.x': { state: 'open', attributes: { friendly_name: 'Cover X' } },
+      },
+      callService: vi.fn(),
+    } as unknown as HomeAssistant;
+  }
+
+  async function mount(hass: HomeAssistant): Promise<CoverBarLike> {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    document.body.appendChild(el);
+    el.hass = hass;
+    el.discovered = {
+      ...baseDiscovered,
+      entities: { target_position_sensor: 'sensor.cover_position' },
+    };
+    await el.updateComplete;
+    return el;
+  }
+
+  it('renders a closing indicator with a resolved label when the cover is mid-close', async () => {
+    const el = await mount(transitHass({ 'cover.x': 'closing' }));
+    const indicator = el.shadowRoot!.querySelector('.num .transit-closing');
+    expect(indicator).not.toBeNull();
+    // Label resolves via covers.closing i18n key.
+    expect(indicator!.getAttribute('data-tooltip')).toContain('Closing');
+    // The percent still renders alongside the motion indicator.
+    expect(el.shadowRoot!.querySelector('.num')!.textContent).toContain('50');
+  });
+
+  it('renders an opening indicator when the cover is mid-open', async () => {
+    const el = await mount(transitHass({ 'cover.x': 'opening' }));
+    const indicator = el.shadowRoot!.querySelector('.num .transit-opening');
+    expect(indicator).not.toBeNull();
+    expect(indicator!.getAttribute('data-tooltip')).toContain('Opening');
+  });
+
+  it('renders no transit indicator when transit_states is absent', async () => {
+    const el = await mount(transitHass());
+    expect(el.shadowRoot!.querySelector('.transit')).toBeNull();
+  });
+
+  it('renders no transit indicator for a cover not present in transit_states', async () => {
+    const el = await mount(transitHass({ 'cover.other': 'closing' }));
+    expect(el.shadowRoot!.querySelector('.transit')).toBeNull();
+  });
+});
+
 describe('acp-cover-bar track-click → set_position', () => {
   it('calls adaptive_cover_pro.set_position when the track is clicked', async () => {
     const callService = vi.fn();

@@ -417,6 +417,11 @@ export interface LastSkippedAttributes {
 
 export interface CoverPositionAttributes {
   actual_positions: Record<string, number | null>;
+  /** Per-cover in-transit direction for no-feedback (Somfy-RTS-style) covers,
+   *  keyed by cover entity_id. Present only while a cover is mid-move (~45s
+   *  window); absent/empty otherwise. Lets the card show motion the way a
+   *  position cover shows a changing %. */
+  transit_states?: Record<string, 'opening' | 'closing'>;
   all_at_target: boolean;
   control_method: HandlerName | string;
   reason: string;
