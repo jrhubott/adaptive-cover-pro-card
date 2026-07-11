@@ -654,7 +654,7 @@ export class AcpHarnessControlPanel extends LitElement {
               this._patchFlags(idx, { safety_slot_active: v }),
             )}
             <label class="row">
-              <span>Motion status</span>
+              <span>Occupancy status</span>
               <select
                 @change=${(ev: Event) =>
                   this._patchFlags(idx, {
