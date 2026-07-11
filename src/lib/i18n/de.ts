@@ -172,6 +172,8 @@ export const de: EnDict = {
     target: 'Ziel: {pct}',
     target_solar: 'Sonnenziel: {pct}',
     click_to_set: 'Klicken zum Festlegen der Position',
+    opening: 'Öffnet…',
+    closing: 'Schließt…',
     target_tooltip: 'Ziel {pct}%',
     target_tooltip_override:
       'Theoretisches Sonnenziel {pct}% — Beschattung wird durch manuelle Übersteuerung gehalten',

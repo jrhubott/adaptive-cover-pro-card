@@ -164,6 +164,8 @@ export const en = {
     target: 'Target: {pct}',
     target_solar: 'Solar target: {pct}',
     click_to_set: 'Click to set position',
+    opening: 'Opening…',
+    closing: 'Closing…',
     target_tooltip: 'Target {pct}%',
     target_tooltip_override: 'Would-be solar target {pct}% — cover is held by manual override',
     tilt_title: 'Tilt',
