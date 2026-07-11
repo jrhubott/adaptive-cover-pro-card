@@ -440,4 +440,25 @@ describe('Full card more-info dialog (issue #200)', () => {
       | null;
     expect(dialog?.open).not.toBe(true);
   });
+
+  it('opens the more-info dialog when a cover name in the COVERS section is tapped', async () => {
+    const el = await mountWithRegistry({
+      type: 'custom:adaptive-cover-pro-card',
+      entry_id: ENTRY,
+    });
+    const coverBar = el.shadowRoot!.querySelector('acp-cover-bar') as
+      | (HTMLElement & { updateComplete: Promise<boolean> })
+      | null;
+    expect(coverBar).toBeTruthy();
+    await coverBar!.updateComplete;
+    const name = coverBar!.shadowRoot!.querySelector('.cover .name') as HTMLElement | null;
+    expect(name).toBeTruthy();
+    name!.click();
+    await el.updateComplete;
+    const dialog = el.shadowRoot!.querySelector('acp-more-info-dialog') as
+      | (HTMLElement & { open?: boolean })
+      | null;
+    expect(dialog).toBeTruthy();
+    expect(dialog!.open).toBe(true);
+  });
 });
