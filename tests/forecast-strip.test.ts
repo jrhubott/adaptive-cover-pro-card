@@ -221,7 +221,7 @@ describe('acp-forecast-strip', () => {
 
     const tooltips = Array.from(groups).map((g) => g.getAttribute('data-tooltip') ?? '');
     expect(tooltips[0]).toMatch(/^Sunrise — \d{1,2}:\d{2}/);
-    expect(tooltips[1]).toMatch(/^Sun enters window field of view — \d{1,2}:\d{2}/);
+    expect(tooltips[1]).toMatch(/^Sun enters window sun acceptance angle — \d{1,2}:\d{2}/);
     // Unknown kind falls back to the integration-supplied label.
     expect(tooltips[2]).toMatch(/^Mystery — \d{1,2}:\d{2}/);
   });

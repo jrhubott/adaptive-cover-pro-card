@@ -32,4 +32,10 @@ describe('card documentationURL registration', () => {
       expect(entry?.documentationURL, `${type} documentationURL`).toBe(CANONICAL_DOCUMENTATION_URL);
     }
   });
+
+  it('sky-compass card-picker description uses SAA, not the retired FOV wording (#206)', () => {
+    const entry = (window.customCards ?? []).find((c) => c.type === SKY_COMPASS_CARD_NAME);
+    expect(entry?.description ?? '').toContain('SAA');
+    expect(entry?.description ?? '').not.toContain('FOV');
+  });
 });
