@@ -245,6 +245,7 @@ export const de: EnDict = {
     registry_failed: 'Registry-Abruf fehlgeschlagen: {error}',
     loading: 'Wird geladen…',
     entry_not_found: 'Adaptive Cover Pro-Eintrag {entry} nicht gefunden.',
+    unavailable: 'Nicht verfügbar',
   },
   formatters: {
     expired: 'abgelaufen',

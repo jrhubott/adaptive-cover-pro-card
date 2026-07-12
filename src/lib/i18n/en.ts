@@ -236,6 +236,7 @@ export const en = {
     registry_failed: 'Registry fetch failed: {error}',
     loading: 'Loading…',
     entry_not_found: 'Adaptive Cover Pro entry {entry} not found.',
+    unavailable: 'Unavailable',
   },
   formatters: {
     expired: 'expired',

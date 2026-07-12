@@ -13,6 +13,15 @@ interface HassLike {
 }
 
 /**
+ * True when a state string signals the entity has no usable data — HA's
+ * `unavailable`/`unknown` sentinels, or a missing state entirely (treated the
+ * same way, since a missing entity is functionally the same signal).
+ */
+export function isUnavailable(state: string | null | undefined): boolean {
+  return !state || state === 'unavailable' || state === 'unknown';
+}
+
+/**
  * Localized cover state ("Open", "Closed", "Opening", …). Returns null when
  * the entity is missing or has no state. Prefers `hass.formatEntityState`
  * (modern HA frontend), falls back to `hass.localize` with the standard
@@ -30,7 +39,7 @@ export function formatCoverState(
 ): string | null {
   if (!hass || !entityId) return null;
   const stateObj = hass.states[entityId];
-  if (!stateObj?.state || stateObj.state === 'unknown' || stateObj.state === 'unavailable') {
+  if (!stateObj || isUnavailable(stateObj.state)) {
     return null;
   }
   const effective = overrideState ? { ...stateObj, state: overrideState } : stateObj;

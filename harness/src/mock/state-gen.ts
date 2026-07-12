@@ -475,7 +475,7 @@ function addCoverStates(states: Record<string, HassState>, entry: HarnessEntry):
   const dualAxis = entry.cover_type === 'cover_venetian';
   for (const c of entry.covers) {
     const pos = c.position ?? entry.target_position;
-    const state = pos === 0 ? 'closed' : pos === 100 ? 'open' : 'open';
+    const state = c.state ?? (pos === 0 ? 'closed' : pos === 100 ? 'open' : 'open');
     // Venetian covers carry a live slat angle the card reads directly off the
     // cover entity (the integration does not aggregate tilts into a sensor).
     const tilt = dualAxis ? (c.tilt ?? entry.target_tilt ?? 50) : undefined;

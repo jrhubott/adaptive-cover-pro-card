@@ -7,6 +7,7 @@ import {
   countdownTo,
   formatCoverState,
   nextAllowedIso,
+  isUnavailable,
 } from '../src/lib/formatters';
 
 describe('formatters', () => {
@@ -121,6 +122,29 @@ describe('formatters', () => {
       expect(formatCoverState(hass, 'cover.missing')).toBeNull();
       expect(formatCoverState(hass, 'cover.unknown')).toBeNull();
       expect(formatCoverState(hass, 'cover.unavailable')).toBeNull();
+    });
+  });
+
+  describe('isUnavailable', () => {
+    it('is true for "unavailable"', () => {
+      expect(isUnavailable('unavailable')).toBe(true);
+    });
+
+    it('is true for "unknown"', () => {
+      expect(isUnavailable('unknown')).toBe(true);
+    });
+
+    it('is false for real cover states', () => {
+      expect(isUnavailable('open')).toBe(false);
+      expect(isUnavailable('closed')).toBe(false);
+      expect(isUnavailable('closing')).toBe(false);
+      expect(isUnavailable('some_arbitrary_state')).toBe(false);
+    });
+
+    it('treats a missing state as unavailable', () => {
+      expect(isUnavailable(undefined)).toBe(true);
+      expect(isUnavailable(null)).toBe(true);
+      expect(isUnavailable('')).toBe(true);
     });
   });
 

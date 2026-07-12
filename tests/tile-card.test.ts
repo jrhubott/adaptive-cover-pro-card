@@ -85,6 +85,7 @@ function makeHass(
     coverLeftCurrentPosition: number | undefined;
     coverLeftDeviceClass: string | undefined;
     coverLeftIcon: string | undefined;
+    coverLeftState: string;
   }> = {},
 ): HomeAssistant {
   return {
@@ -117,7 +118,7 @@ function makeHass(
         attributes: {},
       },
       'cover.left': {
-        state: 'open',
+        state: overrides.coverLeftState ?? 'open',
         attributes: {
           friendly_name: 'Left blind',
           ...(overrides.coverLeftCurrentPosition !== undefined
@@ -1893,5 +1894,112 @@ describe('AdaptiveCoverProTileCard.getGridOptions', () => {
     const card = makeCard() as GridTileLike;
     card.setConfig({ type: TYPE, entry_id: ENTRY, layout: 'one-line' });
     expect(card.getGridOptions().rows).toBe('auto');
+  });
+});
+
+describe('adaptive-cover-pro-tile-card unavailable cover (issue #212)', () => {
+  const upBtn = (el: CardLike) => el.shadowRoot!.querySelector('button.up') as HTMLButtonElement;
+  const stopBtn = (el: CardLike) =>
+    el.shadowRoot!.querySelector('button.stop') as HTMLButtonElement;
+  const downBtn = (el: CardLike) =>
+    el.shadowRoot!.querySelector('button.down') as HTMLButtonElement;
+
+  it('does not leak a stale position when the cover is unavailable, even though the diagnostic target sensor is still live', async () => {
+    // Mirrors the bug report: the physical cover goes offline (unavailable),
+    // but current_position is still numeric (stale attribute) and the
+    // diagnostic target-position sensor keeps reporting a live value. Neither
+    // should leak through as a displayed percentage.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unavailable', coverLeftCurrentPosition: 16 }),
+    );
+    // Simulate the diagnostic sensor staying live/stale at a divergent value.
+    (el.hass!.states['sensor.cover_position'] as { state: string }).state = '100';
+    el.hass = { ...el.hass! };
+    await el.updateComplete;
+
+    const positionCell = el.shadowRoot!.querySelector('.position');
+    expect(positionCell?.textContent ?? '').not.toMatch(/%/);
+  });
+
+  it('renders an "Unavailable" label when the cover is unavailable', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unavailable' }),
+    );
+    expect(el.shadowRoot!.textContent).toContain('Unavailable');
+  });
+
+  it('adds the unavailable class to .tile-body when the cover is unavailable', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unavailable' }),
+    );
+    expect(el.shadowRoot!.querySelector('.tile-body')?.classList.contains('unavailable')).toBe(
+      true,
+    );
+  });
+
+  it('disables all three controls when the cover is unavailable', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unavailable' }),
+    );
+    expect(upBtn(el).disabled).toBe(true);
+    expect(stopBtn(el).disabled).toBe(true);
+    expect(downBtn(el).disabled).toBe(true);
+  });
+
+  it('does not leak a stale position when the cover is unknown', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unknown', coverLeftCurrentPosition: 16 }),
+    );
+    const positionCell = el.shadowRoot!.querySelector('.position');
+    expect(positionCell?.textContent ?? '').not.toMatch(/%/);
+  });
+
+  it('renders an "Unavailable" label when the cover is unknown', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unknown' }),
+    );
+    expect(el.shadowRoot!.textContent).toContain('Unavailable');
+  });
+
+  it('adds the unavailable class to .tile-body when the cover is unknown', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unknown' }),
+    );
+    expect(el.shadowRoot!.querySelector('.tile-body')?.classList.contains('unavailable')).toBe(
+      true,
+    );
+  });
+
+  it('disables all three controls when the cover is unknown', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unknown' }),
+    );
+    expect(upBtn(el).disabled).toBe(true);
+    expect(stopBtn(el).disabled).toBe(true);
+    expect(downBtn(el).disabled).toBe(true);
+  });
+
+  it('regression (#73/#74): still shows the live cover position, not the calculated sensor value, when the cover IS available', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({
+        coverLeftState: 'open',
+        coverPositionSensorAttrs: { actual_positions: { 'cover.left': 16, 'cover.right': 45 } },
+        coverLeftCurrentPosition: 16,
+      }),
+    );
+    (el.hass!.states['sensor.cover_position'] as { state: string }).state = '100';
+    el.hass = { ...el.hass! };
+    await el.updateComplete;
+    const text = el.shadowRoot!.querySelector('.position')?.textContent?.trim();
+    expect(text).toBe('Open · 16%');
   });
 });

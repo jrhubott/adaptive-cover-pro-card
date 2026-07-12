@@ -501,6 +501,35 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'cover-unavailable',
+    label: 'Cover unavailable — tile shows offline',
+    description:
+      'The physical cover entity has gone unavailable (offline/unresponsive), but the ' +
+      "integration's diagnostics keep running — the decision trace and target-position " +
+      'sensor stay live. The tile must not leak a stale position: it shows an ' +
+      '"Unavailable" label, dims the whole tile, and disables all three ↑■▼ controls.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'cover-unavailable';
+      c.entries = [
+        makeEntry({
+          entry_id: 'offline_window',
+          title: 'Offline cover',
+          window_azimuth: 180,
+          covers: [
+            {
+              entity_id: 'cover.offline_window_main',
+              friendly_name: 'Offline cover',
+              position: null,
+              state: 'unavailable',
+            },
+          ],
+        }),
+      ];
+      return c;
+    },
+  },
+  {
     id: 'single-entry-cover-color',
     label: 'Single entry — custom cover color',
     description:

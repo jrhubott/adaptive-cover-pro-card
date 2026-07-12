@@ -88,6 +88,9 @@ export interface ManagedCoverCfg {
   /** Explicit `icon` attribute on the cover entity. When set, the card honors
    *  it over the device_class glyph (mirrors HA's explicit-icon precedence). */
   icon?: string;
+  /** HA state override, e.g. 'unavailable' — when set, wins over the
+   *  position-derived open/closed state. */
+  state?: string;
 }
 
 export interface HarnessEntry {

@@ -129,6 +129,9 @@ export const COVER_TYPE_ICONS_CLOSED: Record<string, string> = {
 export const COVER_ICON_FALLBACK = 'mdi:window-shutter';
 export const COVER_ICON_FALLBACK_OPEN = 'mdi:window-shutter-open';
 export const COVER_ICON_FALLBACK_CLOSED = 'mdi:window-shutter';
+/** Distinct glyph for a cover entity that is `unavailable`/`unknown` (issue
+ *  #212) — neutral/offline-looking, independent of position-derived variants. */
+export const COVER_ICON_FALLBACK_UNAVAILABLE = 'mdi:help-rhombus-outline';
 
 export const COVER_OPEN_THRESHOLD = 95;
 export const COVER_CLOSED_THRESHOLD = 5;

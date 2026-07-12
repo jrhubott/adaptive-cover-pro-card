@@ -12,6 +12,7 @@ import {
   INTEGRATION_DOMAIN,
   TILE_CARD_NAME,
   TILE_CARD_EDITOR_NAME,
+  COVER_ICON_FALLBACK_UNAVAILABLE,
 } from './const';
 import { createDiscoveryMemo } from './lib/entity-discovery';
 import { makeEntitySuggestion } from './lib/entity-suggestion';
@@ -43,7 +44,7 @@ import {
   resolveTileBadgeKind,
   selectVisibleBadges,
 } from './lib/badge-visibility';
-import { formatCoverState, formatPercent } from './lib/formatters';
+import { formatCoverState, formatPercent, isUnavailable } from './lib/formatters';
 import { t } from './lib/i18n';
 import { tooltip, setTooltipDefaults } from './lib/tooltip';
 
@@ -284,14 +285,22 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // device_class glyph → integration cover_type → generic fallback.
     const stateObj = cover ? this.hass.states[cover] : undefined;
     const coverDeviceClass = stateObj?.attributes?.device_class as string | undefined;
+    // An offline/unresponsive cover (issue #212): the underlying HA entity is
+    // `unavailable`/`unknown`. Every downstream derivation below (icon,
+    // position, label, controls) must gate on this rather than let the
+    // diagnostic target-position sensor or a stale `current_position`
+    // attribute leak through as if the cover were live.
+    const unavailable = isUnavailable(stateObj?.state);
     const icon =
       cfg.icon ??
-      coverStateIcon({
-        explicitIcon: stateObj?.attributes?.icon as string | undefined,
-        deviceClass: coverDeviceClass,
-        coverType: discovered.cover_type,
-        position: this._liveCoverPosition(cover),
-      });
+      (unavailable
+        ? COVER_ICON_FALLBACK_UNAVAILABLE
+        : coverStateIcon({
+            explicitIcon: stateObj?.attributes?.icon as string | undefined,
+            deviceClass: coverDeviceClass,
+            coverType: discovered.cover_type,
+            position: this._liveCoverPosition(cover),
+          }));
     const showPosition = cfg.show_position !== false;
     const showState = cfg.show_state !== false;
     const showControls = cfg.show_controls !== false;
@@ -305,7 +314,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const detailed = cfg.layout !== 'one-line';
     const calculatedPosition = this._currentPosition(discovered);
     const reportedPosition = this._liveCoverPosition(cover);
-    const livePosition = reportedPosition ?? calculatedPosition;
+    const livePosition = unavailable ? null : (reportedPosition ?? calculatedPosition);
     // Data-driven axes: any non-position axis (venetian tilt) drives the mini
     // bar. The detailed layout gets the bar; one-line folds it into the readout.
     // `show_tilt` is reinterpreted as "show non-position axes". On an older
@@ -377,9 +386,11 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // localized "Opening"/"Closing" state text a real position cover shows, by
     // overriding the entity's (final open/closed) state in the readout.
     const transitDir = this._transitState(discovered);
-    const stateText = showState
-      ? formatCoverState(this.hass, cover, transitDir ?? undefined)
-      : null;
+    const stateText = unavailable
+      ? t('tile.unavailable', this.hass)
+      : showState
+        ? formatCoverState(this.hass, cover, transitDir ?? undefined)
+        : null;
     const positionText = showPosition && livePosition !== null ? formatPercent(livePosition) : null;
     // One-line has no room for the bar, so fold tilt into the readout as ⟂30%.
     const tiltText =
@@ -444,7 +455,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
     return html`
       <div
-        class=${`tile-body${detailed ? ' detailed' : ''}${hasBottomSummary ? ' has-summary' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip ? ' has-floor-chip' : ''}${showTilt && detailed ? ' has-tilt' : ''}`}
+        class=${`tile-body${detailed ? ' detailed' : ''}${hasBottomSummary ? ' has-summary' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip ? ' has-floor-chip' : ''}${showTilt && detailed ? ' has-tilt' : ''}${unavailable ? ' unavailable' : ''}`}
         role=${inert ? 'group' : 'button'}
         tabindex=${inert ? -1 : 0}
         @pointerdown=${this._onPointerDown}
@@ -503,7 +514,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 class="up"
                 type="button"
                 aria-label=${t('tile.open', this.hass)}
-                ?disabled=${!cover || atOpen}
+                ?disabled=${!cover || unavailable || atOpen}
                 @click=${() => this._setCoverPosition(cover, 100)}
               >
                 <ha-icon icon=${coverOpenIcon(coverDeviceClass)}></ha-icon>
@@ -512,7 +523,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 class="stop"
                 type="button"
                 aria-label=${t('tile.stop', this.hass)}
-                ?disabled=${!cover}
+                ?disabled=${!cover || unavailable}
                 @click=${() => this._stopCover(cover)}
               >
                 <ha-icon icon="mdi:stop"></ha-icon>
@@ -521,7 +532,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 class="down"
                 type="button"
                 aria-label=${t('tile.close', this.hass)}
-                ?disabled=${!cover || atClosed}
+                ?disabled=${!cover || unavailable || atClosed}
                 @click=${() => this._setCoverPosition(cover, 0)}
               >
                 <ha-icon icon=${coverCloseIcon(coverDeviceClass)}></ha-icon>
@@ -914,6 +925,11 @@ export class AdaptiveCoverProTileCard extends LitElement {
     }
     .tile-body[role='group'] {
       cursor: default;
+    }
+    /* Offline/unresponsive cover (issue #212): dim the whole tile so it reads
+       as unavailable at a glance, matching HA's own unavailable-entity dimming. */
+    .tile-body.unavailable {
+      opacity: 0.5;
     }
     .cover-icon-wrap {
       grid-area: icon;
