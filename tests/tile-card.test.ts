@@ -168,8 +168,11 @@ const TILT_REGISTRY: EntityRegistryEntry[] = [
   },
 ];
 
-function tiltHass(callService?: (...args: unknown[]) => unknown): HomeAssistant {
-  const h = makeHass({ callService });
+function tiltHass(
+  callService?: (...args: unknown[]) => unknown,
+  overrides: Partial<{ coverLeftState: string }> = {},
+): HomeAssistant {
+  const h = makeHass({ callService, ...overrides });
   h.states['sensor.cover_tilt'] = { state: '70', attributes: {} } as never;
   (h.states['cover.left'].attributes as Record<string, unknown>).current_tilt_position = 35;
   (h as unknown as { callWS: unknown }).callWS = vi.fn().mockResolvedValue(TILT_REGISTRY);
@@ -2001,5 +2004,64 @@ describe('adaptive-cover-pro-tile-card unavailable cover (issue #212)', () => {
     await el.updateComplete;
     const text = el.shadowRoot!.querySelector('.position')?.textContent?.trim();
     expect(text).toBe('Open · 16%');
+  });
+});
+
+describe('adaptive-cover-pro-tile-card unavailable dual-axis cover (issue #212)', () => {
+  // Mirrors the primary-axis fixture: the physical cover goes `unavailable`,
+  // but `current_tilt_position` is a stale attribute left over from the last
+  // live update, and the diagnostic tilt-target sensor (sensor.cover_tilt)
+  // keeps reporting a live solar target. Neither should leak through.
+
+  it('nulls out the tilt bar actual/target when the cover is unavailable', async () => {
+    const el = await mountTilt(
+      { type: TYPE, entry_id: ENTRY },
+      tiltHass(undefined, { coverLeftState: 'unavailable' }),
+    );
+    const tilt = el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
+      actual: number | null;
+      target: number | null;
+    };
+    expect(tilt).not.toBeNull();
+    expect(tilt.actual).toBeNull();
+    expect(tilt.target).toBeNull();
+  });
+
+  it('marks the tilt bar disabled when the cover is unavailable', async () => {
+    const el = await mountTilt(
+      { type: TYPE, entry_id: ENTRY },
+      tiltHass(undefined, { coverLeftState: 'unavailable' }),
+    );
+    const tilt = el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
+      disabled: boolean;
+    };
+    expect(tilt.disabled).toBe(true);
+  });
+
+  it('does not fire a service call when the tilt bar track is clicked while unavailable', async () => {
+    const callService = vi.fn();
+    const el = await mountTilt(
+      { type: TYPE, entry_id: ENTRY },
+      tiltHass(callService, { coverLeftState: 'unavailable' }),
+    );
+    const tiltBar = el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
+      updateComplete: Promise<boolean>;
+    };
+    await tiltBar.updateComplete;
+    const track = tiltBar.shadowRoot!.querySelector('.track') as HTMLElement;
+    Object.defineProperty(track, 'getBoundingClientRect', {
+      value: () => ({ left: 0, width: 100, top: 0, bottom: 8, right: 100, height: 8 }),
+      configurable: true,
+    });
+    track.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 80 }));
+    expect(callService).not.toHaveBeenCalled();
+  });
+
+  it('does not leak a stale tilt readout ("⟂") when the cover is unavailable (one-line layout)', async () => {
+    const el = await mountTilt(
+      { type: TYPE, entry_id: ENTRY, layout: 'one-line' },
+      tiltHass(undefined, { coverLeftState: 'unavailable' }),
+    );
+    expect(el.shadowRoot!.textContent ?? '').not.toContain('⟂');
   });
 });

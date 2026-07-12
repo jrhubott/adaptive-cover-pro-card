@@ -507,7 +507,10 @@ export const SCENARIOS: Scenario[] = [
       'The physical cover entity has gone unavailable (offline/unresponsive), but the ' +
       "integration's diagnostics keep running — the decision trace and target-position " +
       'sensor stay live. The tile must not leak a stale position: it shows an ' +
-      '"Unavailable" label, dims the whole tile, and disables all three ↑■▼ controls.',
+      '"Unavailable" label, dims the whole tile, and disables all three ↑■▼ controls. A ' +
+      'second, dual-axis venetian entry proves the same gate covers the tilt axis (issue ' +
+      '#212 follow-up): its mini tilt bar shows no stale actual/target and ignores clicks, ' +
+      'even though sensor.cover_tilt keeps reporting a live solar target.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'cover-unavailable';
@@ -521,6 +524,23 @@ export const SCENARIOS: Scenario[] = [
               entity_id: 'cover.offline_window_main',
               friendly_name: 'Offline cover',
               position: null,
+              state: 'unavailable',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'offline_venetian_window',
+          title: 'Offline venetian',
+          cover_type: 'cover_venetian',
+          window_azimuth: 180,
+          color: '#26a69a',
+          target_tilt: 70,
+          covers: [
+            {
+              entity_id: 'cover.offline_venetian_window_main',
+              friendly_name: 'Offline venetian',
+              position: null,
+              tilt: 35,
               state: 'unavailable',
             },
           ],

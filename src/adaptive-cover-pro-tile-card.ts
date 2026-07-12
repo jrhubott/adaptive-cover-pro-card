@@ -322,8 +322,12 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // behavior is unchanged.
     const secondaryAxis = resolveAxes(discovered).find((a) => a.id !== 'position');
     const showTilt = cfg.show_tilt !== false && !!secondaryAxis;
-    const liveTilt = secondaryAxis ? this._liveAxis(cover, secondaryAxis) : null;
-    const tiltTarget = secondaryAxis ? this._axisTarget(discovered, secondaryAxis) : null;
+    // Same unavailable gate as `livePosition` above: an offline cover must not
+    // leak a stale `current_tilt_position` attribute or the always-live
+    // diagnostic tilt-target sensor (issue #212 follow-up).
+    const liveTilt = !unavailable && secondaryAxis ? this._liveAxis(cover, secondaryAxis) : null;
+    const tiltTarget =
+      !unavailable && secondaryAxis ? this._axisTarget(discovered, secondaryAxis) : null;
     // When the cover reports its position, disable the control that can't do
     // anything: open (↑) at fully-open, close (↓) at fully-closed. Covers that
     // don't report a position leave both enabled (gate stays on `!cover`).
@@ -503,6 +507,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 .unit=${secondaryAxis?.unit ?? '%'}
                 .actual=${liveTilt}
                 .target=${tiltTarget}
+                .disabled=${unavailable}
                 @acp-tilt-set=${(e: CustomEvent<number>) =>
                   secondaryAxis && this._setAxis(cover, secondaryAxis.id, e.detail)}
               ></acp-tilt-bar>
