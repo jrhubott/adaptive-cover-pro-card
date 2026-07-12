@@ -479,6 +479,12 @@ function addCoverStates(states: Record<string, HassState>, entry: HarnessEntry):
     // Venetian covers carry a live slat angle the card reads directly off the
     // cover entity (the integration does not aggregate tilts into a sensor).
     const tilt = dualAxis ? (c.tilt ?? entry.target_tilt ?? 50) : undefined;
+    // device_class drives the card's HA-native icon + control glyphs. Explicit
+    // per-cover config wins; `'none'` suppresses it (fallback-chain proof);
+    // otherwise default from the cover_type (venetian → blind, else shade),
+    // preserving the pre-existing mock behavior.
+    const deviceClass =
+      c.device_class === 'none' ? undefined : (c.device_class ?? (dualAxis ? 'blind' : 'shade'));
     states[c.entity_id] = mkState(c.entity_id, state, {
       friendly_name: c.friendly_name,
       current_position: c.position,
@@ -486,7 +492,8 @@ function addCoverStates(states: Record<string, HassState>, entry: HarnessEntry):
       // Bit 16 (SET_TILT_POSITION) added for venetian so the cover advertises
       // tilt support alongside the position features (15).
       supported_features: dualAxis ? 143 : 15,
-      device_class: dualAxis ? 'blind' : 'shade',
+      ...(deviceClass !== undefined ? { device_class: deviceClass } : {}),
+      ...(c.icon ? { icon: c.icon } : {}),
     });
   }
 }

@@ -80,6 +80,14 @@ export interface ManagedCoverCfg {
   /** Live slat tilt in 0..100 (venetian dual-axis only); null = unknown.
    *  Emitted as `current_tilt_position` on the cover state. */
   tilt?: number | null;
+  /** HA cover `device_class` (awning, blind, curtain, damper, door, garage,
+   *  gate, shade, shutter, window). Drives the card's HA-native icon + control
+   *  glyphs. When unset, the mock defaults it from the cover_type (see
+   *  `addCoverStates`). Pass `'none'` to emit NO device_class (fallback proof). */
+  device_class?: string;
+  /** Explicit `icon` attribute on the cover entity. When set, the card honors
+   *  it over the device_class glyph (mirrors HA's explicit-icon precedence). */
+  icon?: string;
 }
 
 export interface HarnessEntry {

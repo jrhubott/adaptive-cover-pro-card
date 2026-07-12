@@ -1,7 +1,11 @@
 import { LitElement, css, html, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HANDLER_ORDER, type HandlerName } from '../../src/const';
+import { COVER_DEVICE_CLASS_ICONS, HANDLER_ORDER, type HandlerName } from '../../src/const';
 import { SCENARIOS } from './scenarios';
+
+/** Per-cover device_class selector options: the card's known HA classes plus
+ *  `none` (emit NO device_class, exercising the cover_type fallback chain). */
+const COVER_DEVICE_CLASS_OPTIONS: string[] = [...Object.keys(COVER_DEVICE_CLASS_ICONS), 'none'];
 import type {
   ClimateInactiveReason,
   ClimateStrategy,
@@ -591,6 +595,22 @@ export class AcpHarnessControlPanel extends LitElement {
                   this._patchEntry(idx, { covers });
                 }}
               />
+              <select
+                title="device_class (icon + control glyphs)"
+                @change=${(ev: Event) => {
+                  const v = (ev.target as HTMLSelectElement).value;
+                  const covers = e.covers.map((cc, i) =>
+                    i === ci ? { ...cc, device_class: v === '' ? undefined : v } : cc,
+                  );
+                  this._patchEntry(idx, { covers });
+                }}
+              >
+                <option value="" ?selected=${c.device_class === undefined}>dc: default</option>
+                ${COVER_DEVICE_CLASS_OPTIONS.map(
+                  (dc) =>
+                    html`<option value=${dc} ?selected=${c.device_class === dc}>${dc}</option>`,
+                )}
+              </select>
               ${e.cover_type === 'cover_venetian'
                 ? html`<input
                     type="number"

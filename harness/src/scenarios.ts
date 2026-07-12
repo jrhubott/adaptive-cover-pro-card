@@ -330,6 +330,118 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'ha-device-class-icons',
+    label: 'HA device_class icons + control glyphs',
+    description:
+      "Issue #208: the tile/header/dialog icon and the up/down control glyphs are derived from each managed cover's HA device_class (and honor an explicit entity `icon`), matching HA's native tile card instead of the integration's coarse cover_type. Six tiles exercise the fallback chain: an AWNING (retracted → awning glyph, and horizontal expand/collapse >|< controls), a SHUTTER (partial → window-shutter), a CURTAIN (open → curtains, inset controls), a VENETIAN with device_class blind (closed → blinds-horizontal-closed), a cover with an explicit icon (mdi:star wins over its awning device_class), and a cover with NO device_class (device_class 'none' → falls back to the cover_type cover_blind glyph, plain ↑↓ controls). Compare each tile's icon + control buttons to what HA shows for the same cover.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'ha-device-class-icons';
+      c.entries = [
+        makeEntry({
+          entry_id: 'awning',
+          title: 'Awning',
+          cover_type: 'cover_awning',
+          window_azimuth: 180,
+          color: '#ff7043',
+          target_position: 0,
+          covers: [
+            {
+              entity_id: 'cover.awning_main',
+              friendly_name: 'Patio awning',
+              position: 0,
+              device_class: 'awning',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'shutter',
+          title: 'Shutter',
+          cover_type: 'cover_blind',
+          window_azimuth: 200,
+          color: '#8d6e63',
+          target_position: 50,
+          covers: [
+            {
+              entity_id: 'cover.shutter_main',
+              friendly_name: 'Bedroom shutter',
+              position: 50,
+              device_class: 'shutter',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'curtain',
+          title: 'Curtain',
+          cover_type: 'cover_blind',
+          window_azimuth: 160,
+          color: '#5c6bc0',
+          target_position: 100,
+          covers: [
+            {
+              entity_id: 'cover.curtain_main',
+              friendly_name: 'Living curtain',
+              position: 100,
+              device_class: 'curtain',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'venetian',
+          title: 'Venetian',
+          cover_type: 'cover_venetian',
+          window_azimuth: 140,
+          color: '#26a69a',
+          target_position: 0,
+          target_tilt: 70,
+          covers: [
+            {
+              entity_id: 'cover.venetian_main',
+              friendly_name: 'Office venetian',
+              position: 0,
+              tilt: 35,
+              device_class: 'blind',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'explicit_icon',
+          title: 'Explicit icon',
+          cover_type: 'cover_awning',
+          window_azimuth: 120,
+          color: '#ec407a',
+          target_position: 60,
+          covers: [
+            {
+              entity_id: 'cover.explicit_icon_main',
+              friendly_name: 'Starred cover',
+              position: 60,
+              device_class: 'awning',
+              icon: 'mdi:star',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'no_device_class',
+          title: 'No device_class',
+          cover_type: 'cover_blind',
+          window_azimuth: 220,
+          color: '#78909c',
+          target_position: 40,
+          covers: [
+            {
+              entity_id: 'cover.no_device_class_main',
+              friendly_name: 'Generic cover',
+              position: 40,
+              device_class: 'none',
+            },
+          ],
+        }),
+      ];
+      return c;
+    },
+  },
+  {
     id: 'winter-morning-east',
     label: 'Winter morning — east window',
     description: 'Low elevation sun rising, narrow east FOV.',

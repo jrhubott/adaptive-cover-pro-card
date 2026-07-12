@@ -4,7 +4,6 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import {
   BADGE_KINDS_BY_HANDLER,
-  COVER_TYPE_ICONS,
   HANDLER_I18N_KEYS,
   HANDLER_ORDER,
   INTEGRATION_DOMAIN,
@@ -19,6 +18,7 @@ import {
   resolveCustomPositionPct,
 } from '../lib/decision-summary';
 import { buildSolarActiveContext, selectVisibleBadges } from '../lib/badge-visibility';
+import { coverStateIcon } from '../lib/icons';
 import { resolveAxes } from '../lib/axes';
 import { startMinuteTimer } from '../lib/minute-timer';
 import type {
@@ -145,6 +145,24 @@ export class MoreInfoDialog extends LitElement {
     return labels;
   }
 
+  /**
+   * Header glyph, derived from the managed cover entity (HA-native icon) with
+   * the same fallback chain the tile uses: explicit entity icon → device_class
+   * glyph → integration cover_type → generic fallback. Position-aware via the
+   * cover's `current_position`.
+   */
+  private _headerIcon(): string {
+    const coverId = this.discovered.managed_covers?.[0];
+    const stateObj = coverId ? this.hass.states[coverId] : undefined;
+    const pos = stateObj?.attributes?.current_position;
+    return coverStateIcon({
+      explicitIcon: stateObj?.attributes?.icon as string | undefined,
+      deviceClass: stateObj?.attributes?.device_class as string | undefined,
+      coverType: this.discovered.cover_type,
+      position: typeof pos === 'number' && !Number.isNaN(pos) ? pos : null,
+    });
+  }
+
   protected render(): TemplateResult | typeof nothing {
     if (!this.open || !this.hass || !this.discovered) return nothing;
     const winner = this._winner();
@@ -172,10 +190,7 @@ export class MoreInfoDialog extends LitElement {
       <div class="backdrop" data-open @click=${this._onBackdrop}>
         <div class="dialog" @click=${this._stop} role="dialog" aria-modal="true">
           <div class="header">
-            <ha-icon
-              class="cover-icon"
-              icon=${COVER_TYPE_ICONS[this.discovered.cover_type] ?? 'mdi:window-shutter'}
-            ></ha-icon>
+            <ha-icon class="cover-icon" icon=${this._headerIcon()}></ha-icon>
             <div class="title">${this.discovered.entry_title}</div>
             <div class="badges">
               ${!integrationEnabled
