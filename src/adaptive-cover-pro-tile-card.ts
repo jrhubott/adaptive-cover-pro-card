@@ -20,7 +20,7 @@ import { setAxes } from './lib/services';
 import { AXIS_LABEL_I18N_KEYS } from './const';
 import { entityStateChanged } from './lib/hass-change';
 import { fetchAcpConfigEntries } from './lib/config-entries';
-import { pickCoverIcon } from './lib/icons';
+import { coverStateIcon, coverOpenIcon, coverCloseIcon } from './lib/icons';
 import { subscribeEntityRegistry, type EntityRegistryEntry } from './lib/entity-registry';
 import { loadEntityRegistry, getCachedRegistry } from './lib/registry-store';
 import { registryCache } from './lib/registry-cache';
@@ -279,7 +279,19 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const cfg = this._config!;
     const title = cfg.name ?? discovered.entry_title;
     const cover = this._resolvedCover(discovered);
-    const icon = cfg.icon ?? pickCoverIcon(discovered.cover_type, this._liveCoverPosition(cover));
+    // Resolve the icon from the underlying HA cover entity so it matches HA's
+    // native tile/more-info glyph: cfg.icon override → explicit entity icon →
+    // device_class glyph → integration cover_type → generic fallback.
+    const stateObj = cover ? this.hass.states[cover] : undefined;
+    const coverDeviceClass = stateObj?.attributes?.device_class as string | undefined;
+    const icon =
+      cfg.icon ??
+      coverStateIcon({
+        explicitIcon: stateObj?.attributes?.icon as string | undefined,
+        deviceClass: coverDeviceClass,
+        coverType: discovered.cover_type,
+        position: this._liveCoverPosition(cover),
+      });
     const showPosition = cfg.show_position !== false;
     const showState = cfg.show_state !== false;
     const showControls = cfg.show_controls !== false;
@@ -494,7 +506,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 ?disabled=${!cover || atOpen}
                 @click=${() => this._setCoverPosition(cover, 100)}
               >
-                <ha-icon icon="mdi:arrow-up"></ha-icon>
+                <ha-icon icon=${coverOpenIcon(coverDeviceClass)}></ha-icon>
               </button>
               <button
                 class="stop"
@@ -512,7 +524,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 ?disabled=${!cover || atClosed}
                 @click=${() => this._setCoverPosition(cover, 0)}
               >
-                <ha-icon icon="mdi:arrow-down"></ha-icon>
+                <ha-icon icon=${coverCloseIcon(coverDeviceClass)}></ha-icon>
               </button>
             </div>`
           : nothing}

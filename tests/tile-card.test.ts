@@ -83,6 +83,8 @@ function makeHass(
     automaticControl: boolean;
     callService: (...args: unknown[]) => unknown;
     coverLeftCurrentPosition: number | undefined;
+    coverLeftDeviceClass: string | undefined;
+    coverLeftIcon: string | undefined;
   }> = {},
 ): HomeAssistant {
   return {
@@ -121,6 +123,10 @@ function makeHass(
           ...(overrides.coverLeftCurrentPosition !== undefined
             ? { current_position: overrides.coverLeftCurrentPosition }
             : {}),
+          ...(overrides.coverLeftDeviceClass !== undefined
+            ? { device_class: overrides.coverLeftDeviceClass }
+            : {}),
+          ...(overrides.coverLeftIcon !== undefined ? { icon: overrides.coverLeftIcon } : {}),
         },
       },
       'cover.right': { state: 'open', attributes: { friendly_name: 'Right blind' } },
@@ -1101,6 +1107,88 @@ describe('adaptive-cover-pro-tile-card new options', () => {
       icon?: string;
     };
     expect(icon.getAttribute('icon')).toBe('mdi:test-icon');
+  });
+
+  it("derives the tile icon from the cover's device_class", async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftDeviceClass: 'awning' }),
+    );
+    expect(el.shadowRoot!.querySelector('ha-icon.cover-icon')?.getAttribute('icon')).toBe(
+      'mdi:awning-outline',
+    );
+  });
+
+  it('device_class icon is position-aware (window closed at 0)', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftDeviceClass: 'window', coverLeftCurrentPosition: 0 }),
+    );
+    expect(el.shadowRoot!.querySelector('ha-icon.cover-icon')?.getAttribute('icon')).toBe(
+      'mdi:window-closed',
+    );
+  });
+
+  it("an explicit entity icon wins over the cover's device_class", async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftDeviceClass: 'awning', coverLeftIcon: 'mdi:star' }),
+    );
+    expect(el.shadowRoot!.querySelector('ha-icon.cover-icon')?.getAttribute('icon')).toBe(
+      'mdi:star',
+    );
+  });
+
+  it('cfg.icon still wins over the device_class icon', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, icon: 'mdi:test-icon' },
+      makeHass({ coverLeftDeviceClass: 'awning' }),
+    );
+    expect(el.shadowRoot!.querySelector('ha-icon.cover-icon')?.getAttribute('icon')).toBe(
+      'mdi:test-icon',
+    );
+  });
+
+  it('uses horizontal expand/collapse control glyphs for an awning', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftDeviceClass: 'awning' }),
+    );
+    expect(el.shadowRoot!.querySelector('.controls .up ha-icon')?.getAttribute('icon')).toBe(
+      'mdi:arrow-expand-horizontal',
+    );
+    expect(el.shadowRoot!.querySelector('.controls .down ha-icon')?.getAttribute('icon')).toBe(
+      'mdi:arrow-collapse-horizontal',
+    );
+    expect(el.shadowRoot!.querySelector('.controls .stop ha-icon')?.getAttribute('icon')).toBe(
+      'mdi:stop',
+    );
+  });
+
+  it('uses vertical arrow control glyphs when the cover has no device_class', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
+    expect(el.shadowRoot!.querySelector('.controls .up ha-icon')?.getAttribute('icon')).toBe(
+      'mdi:arrow-up',
+    );
+    expect(el.shadowRoot!.querySelector('.controls .down ha-icon')?.getAttribute('icon')).toBe(
+      'mdi:arrow-down',
+    );
+  });
+
+  it('still fires the position service when an awning control is clicked', async () => {
+    const callService = vi.fn();
+    const h = makeHass({ callService, coverLeftDeviceClass: 'awning' });
+    (h as unknown as { services: unknown }).services = {
+      adaptive_cover_pro: { set_axes: {}, set_position: {} },
+    };
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, h);
+    (el.shadowRoot!.querySelector('button.up') as HTMLElement).click();
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { position: 100 } },
+      { entity_id: 'cover.left' },
+    );
   });
 
   it('show_decision_summary renders the summary line under the title', async () => {

@@ -109,18 +109,21 @@ export const COVER_TYPE_ICONS: Record<string, string> = {
   cover_blind: 'mdi:blinds-horizontal',
   cover_awning: 'mdi:awning-outline',
   cover_tilt: 'mdi:blinds',
+  cover_venetian: 'mdi:blinds',
 };
 
 export const COVER_TYPE_ICONS_OPEN: Record<string, string> = {
   cover_blind: 'mdi:blinds-open',
   cover_awning: 'mdi:awning-outline',
   cover_tilt: 'mdi:blinds-open',
+  cover_venetian: 'mdi:blinds-open',
 };
 
 export const COVER_TYPE_ICONS_CLOSED: Record<string, string> = {
   cover_blind: 'mdi:blinds-horizontal-closed',
   cover_awning: 'mdi:window-closed-variant',
   cover_tilt: 'mdi:blinds',
+  cover_venetian: 'mdi:blinds',
 };
 
 export const COVER_ICON_FALLBACK = 'mdi:window-shutter';
@@ -129,6 +132,66 @@ export const COVER_ICON_FALLBACK_CLOSED = 'mdi:window-shutter';
 
 export const COVER_OPEN_THRESHOLD = 95;
 export const COVER_CLOSED_THRESHOLD = 5;
+
+/**
+ * Position-aware open/partial/closed glyphs keyed by the underlying HA cover
+ * `device_class`. Mirrors HA's own native tile / more-info cover icons so a
+ * cover renders the same glyph the user already sees elsewhere in HA, instead
+ * of the integration's coarse `cover_type` mapping.
+ *
+ * Values are runtime `mdi:*` strings resolved by HA's icon set (same as every
+ * `<ha-icon icon="mdi:…">`), so this costs a small object literal — no
+ * `@mdi/js` import, bundle-neutral. `partial` is used for any non-open,
+ * non-closed position (and for a null/unknown position), matching HA's
+ * "not closed ⇒ open"-leaning behavior.
+ */
+export interface CoverIconVariants {
+  open: string;
+  partial: string;
+  closed: string;
+}
+
+export const COVER_DEVICE_CLASS_ICONS: Record<string, CoverIconVariants> = {
+  awning: {
+    open: 'mdi:awning-outline',
+    partial: 'mdi:awning-outline',
+    closed: 'mdi:awning-outline',
+  },
+  blind: {
+    open: 'mdi:blinds-open',
+    partial: 'mdi:blinds-horizontal',
+    closed: 'mdi:blinds-horizontal-closed',
+  },
+  curtain: { open: 'mdi:curtains', partial: 'mdi:curtains', closed: 'mdi:curtains-closed' },
+  damper: { open: 'mdi:circle', partial: 'mdi:circle-slice-8', closed: 'mdi:circle-slice-8' },
+  door: { open: 'mdi:door-open', partial: 'mdi:door-open', closed: 'mdi:door-closed' },
+  garage: { open: 'mdi:garage-open', partial: 'mdi:garage-open', closed: 'mdi:garage' },
+  gate: { open: 'mdi:gate-open', partial: 'mdi:gate-open', closed: 'mdi:gate' },
+  shade: {
+    open: 'mdi:roller-shade',
+    partial: 'mdi:roller-shade',
+    closed: 'mdi:roller-shade-closed',
+  },
+  shutter: {
+    open: 'mdi:window-shutter-open',
+    partial: 'mdi:window-shutter',
+    closed: 'mdi:window-shutter',
+  },
+  window: { open: 'mdi:window-open', partial: 'mdi:window-open', closed: 'mdi:window-closed' },
+};
+
+/**
+ * device_class values whose open/close controls use HA's horizontal
+ * expand/collapse affordance (`<|>` / `>|<`) instead of the default up/down
+ * arrows — awnings, curtains, doors, and gates. Everything else keeps the
+ * vertical arrows.
+ */
+export const COVER_BUTTON_INSET_CLASSES = new Set<string>(['awning', 'curtain', 'door', 'gate']);
+
+export const COVER_OPEN_ICON = 'mdi:arrow-up';
+export const COVER_CLOSE_ICON = 'mdi:arrow-down';
+export const COVER_OPEN_ICON_INSET = 'mdi:arrow-expand-horizontal';
+export const COVER_CLOSE_ICON_INSET = 'mdi:arrow-collapse-horizontal';
 
 /**
  * Badge kinds rendered on the tile card. Each ACP pipeline handler maps to one

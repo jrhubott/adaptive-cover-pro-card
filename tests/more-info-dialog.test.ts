@@ -188,6 +188,25 @@ describe('acp-more-info-dialog: header content', () => {
     expect(el.shadowRoot!.querySelector('.header .title')?.textContent?.trim()).toBe('Living room');
   });
 
+  it("derives the header icon from the managed cover's device_class", async () => {
+    const h = hass();
+    (h.states['cover.left'].attributes as Record<string, unknown>).device_class = 'awning';
+    const el = await mount({ hass: h, discovered: discovered(), open: true });
+    expect(el.shadowRoot!.querySelector('.header ha-icon.cover-icon')?.getAttribute('icon')).toBe(
+      'mdi:awning-outline',
+    );
+  });
+
+  it("honors the managed cover's explicit icon in the header", async () => {
+    const h = hass();
+    (h.states['cover.left'].attributes as Record<string, unknown>).device_class = 'awning';
+    (h.states['cover.left'].attributes as Record<string, unknown>).icon = 'mdi:star';
+    const el = await mount({ hass: h, discovered: discovered(), open: true });
+    expect(el.shadowRoot!.querySelector('.header ha-icon.cover-icon')?.getAttribute('icon')).toBe(
+      'mdi:star',
+    );
+  });
+
   it('renders one badge per matched handler', async () => {
     const el = await mount({
       hass: hass({
