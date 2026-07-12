@@ -85,6 +85,7 @@ function makeHass(
     coverLeftCurrentPosition: number | undefined;
     coverLeftDeviceClass: string | undefined;
     coverLeftIcon: string | undefined;
+    coverLeftState: string;
   }> = {},
 ): HomeAssistant {
   return {
@@ -117,7 +118,7 @@ function makeHass(
         attributes: {},
       },
       'cover.left': {
-        state: 'open',
+        state: overrides.coverLeftState ?? 'open',
         attributes: {
           friendly_name: 'Left blind',
           ...(overrides.coverLeftCurrentPosition !== undefined
@@ -167,8 +168,11 @@ const TILT_REGISTRY: EntityRegistryEntry[] = [
   },
 ];
 
-function tiltHass(callService?: (...args: unknown[]) => unknown): HomeAssistant {
-  const h = makeHass({ callService });
+function tiltHass(
+  callService?: (...args: unknown[]) => unknown,
+  overrides: Partial<{ coverLeftState: string }> = {},
+): HomeAssistant {
+  const h = makeHass({ callService, ...overrides });
   h.states['sensor.cover_tilt'] = { state: '70', attributes: {} } as never;
   (h.states['cover.left'].attributes as Record<string, unknown>).current_tilt_position = 35;
   (h as unknown as { callWS: unknown }).callWS = vi.fn().mockResolvedValue(TILT_REGISTRY);
@@ -1893,5 +1897,171 @@ describe('AdaptiveCoverProTileCard.getGridOptions', () => {
     const card = makeCard() as GridTileLike;
     card.setConfig({ type: TYPE, entry_id: ENTRY, layout: 'one-line' });
     expect(card.getGridOptions().rows).toBe('auto');
+  });
+});
+
+describe('adaptive-cover-pro-tile-card unavailable cover (issue #212)', () => {
+  const upBtn = (el: CardLike) => el.shadowRoot!.querySelector('button.up') as HTMLButtonElement;
+  const stopBtn = (el: CardLike) =>
+    el.shadowRoot!.querySelector('button.stop') as HTMLButtonElement;
+  const downBtn = (el: CardLike) =>
+    el.shadowRoot!.querySelector('button.down') as HTMLButtonElement;
+
+  it('does not leak a stale position when the cover is unavailable, even though the diagnostic target sensor is still live', async () => {
+    // Mirrors the bug report: the physical cover goes offline (unavailable),
+    // but current_position is still numeric (stale attribute) and the
+    // diagnostic target-position sensor keeps reporting a live value. Neither
+    // should leak through as a displayed percentage.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unavailable', coverLeftCurrentPosition: 16 }),
+    );
+    // Simulate the diagnostic sensor staying live/stale at a divergent value.
+    (el.hass!.states['sensor.cover_position'] as { state: string }).state = '100';
+    el.hass = { ...el.hass! };
+    await el.updateComplete;
+
+    const positionCell = el.shadowRoot!.querySelector('.position');
+    expect(positionCell?.textContent ?? '').not.toMatch(/%/);
+  });
+
+  it('renders an "Unavailable" label when the cover is unavailable', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unavailable' }),
+    );
+    expect(el.shadowRoot!.textContent).toContain('Unavailable');
+  });
+
+  it('adds the unavailable class to .tile-body when the cover is unavailable', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unavailable' }),
+    );
+    expect(el.shadowRoot!.querySelector('.tile-body')?.classList.contains('unavailable')).toBe(
+      true,
+    );
+  });
+
+  it('disables all three controls when the cover is unavailable', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unavailable' }),
+    );
+    expect(upBtn(el).disabled).toBe(true);
+    expect(stopBtn(el).disabled).toBe(true);
+    expect(downBtn(el).disabled).toBe(true);
+  });
+
+  it('does not leak a stale position when the cover is unknown', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unknown', coverLeftCurrentPosition: 16 }),
+    );
+    const positionCell = el.shadowRoot!.querySelector('.position');
+    expect(positionCell?.textContent ?? '').not.toMatch(/%/);
+  });
+
+  it('renders an "Unavailable" label when the cover is unknown', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unknown' }),
+    );
+    expect(el.shadowRoot!.textContent).toContain('Unavailable');
+  });
+
+  it('adds the unavailable class to .tile-body when the cover is unknown', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unknown' }),
+    );
+    expect(el.shadowRoot!.querySelector('.tile-body')?.classList.contains('unavailable')).toBe(
+      true,
+    );
+  });
+
+  it('disables all three controls when the cover is unknown', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unknown' }),
+    );
+    expect(upBtn(el).disabled).toBe(true);
+    expect(stopBtn(el).disabled).toBe(true);
+    expect(downBtn(el).disabled).toBe(true);
+  });
+
+  it('regression (#73/#74): still shows the live cover position, not the calculated sensor value, when the cover IS available', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({
+        coverLeftState: 'open',
+        coverPositionSensorAttrs: { actual_positions: { 'cover.left': 16, 'cover.right': 45 } },
+        coverLeftCurrentPosition: 16,
+      }),
+    );
+    (el.hass!.states['sensor.cover_position'] as { state: string }).state = '100';
+    el.hass = { ...el.hass! };
+    await el.updateComplete;
+    const text = el.shadowRoot!.querySelector('.position')?.textContent?.trim();
+    expect(text).toBe('Open · 16%');
+  });
+});
+
+describe('adaptive-cover-pro-tile-card unavailable dual-axis cover (issue #212)', () => {
+  // Mirrors the primary-axis fixture: the physical cover goes `unavailable`,
+  // but `current_tilt_position` is a stale attribute left over from the last
+  // live update, and the diagnostic tilt-target sensor (sensor.cover_tilt)
+  // keeps reporting a live solar target. Neither should leak through.
+
+  it('nulls out the tilt bar actual/target when the cover is unavailable', async () => {
+    const el = await mountTilt(
+      { type: TYPE, entry_id: ENTRY },
+      tiltHass(undefined, { coverLeftState: 'unavailable' }),
+    );
+    const tilt = el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
+      actual: number | null;
+      target: number | null;
+    };
+    expect(tilt).not.toBeNull();
+    expect(tilt.actual).toBeNull();
+    expect(tilt.target).toBeNull();
+  });
+
+  it('marks the tilt bar disabled when the cover is unavailable', async () => {
+    const el = await mountTilt(
+      { type: TYPE, entry_id: ENTRY },
+      tiltHass(undefined, { coverLeftState: 'unavailable' }),
+    );
+    const tilt = el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
+      disabled: boolean;
+    };
+    expect(tilt.disabled).toBe(true);
+  });
+
+  it('does not fire a service call when the tilt bar track is clicked while unavailable', async () => {
+    const callService = vi.fn();
+    const el = await mountTilt(
+      { type: TYPE, entry_id: ENTRY },
+      tiltHass(callService, { coverLeftState: 'unavailable' }),
+    );
+    const tiltBar = el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
+      updateComplete: Promise<boolean>;
+    };
+    await tiltBar.updateComplete;
+    const track = tiltBar.shadowRoot!.querySelector('.track') as HTMLElement;
+    Object.defineProperty(track, 'getBoundingClientRect', {
+      value: () => ({ left: 0, width: 100, top: 0, bottom: 8, right: 100, height: 8 }),
+      configurable: true,
+    });
+    track.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 80 }));
+    expect(callService).not.toHaveBeenCalled();
+  });
+
+  it('does not leak a stale tilt readout ("⟂") when the cover is unavailable (one-line layout)', async () => {
+    const el = await mountTilt(
+      { type: TYPE, entry_id: ENTRY, layout: 'one-line' },
+      tiltHass(undefined, { coverLeftState: 'unavailable' }),
+    );
+    expect(el.shadowRoot!.textContent ?? '').not.toContain('⟂');
   });
 });

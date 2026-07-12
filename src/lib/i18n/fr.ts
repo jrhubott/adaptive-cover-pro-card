@@ -247,6 +247,7 @@ export const fr: EnDict = {
     registry_failed: 'Échec de la récupération du registre : {error}',
     loading: 'Chargement…',
     entry_not_found: 'Instance Adaptive Cover Pro {entry} introuvable.',
+    unavailable: 'Indisponible',
   },
   formatters: {
     expired: 'expiré',
