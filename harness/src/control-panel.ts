@@ -1078,6 +1078,7 @@ export class AcpHarnessControlPanel extends LitElement {
             'show_decision_summary',
             'show_controls',
             'show_badge',
+            'show_position_bar',
             'show_tilt',
             'show_compass',
             'show_elevation_chart',

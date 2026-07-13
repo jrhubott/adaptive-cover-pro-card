@@ -331,6 +331,7 @@ export const en = {
       show_decision_summary: 'Show decision summary',
       show_controls: 'Show ↑ ■ ↓ controls',
       show_badge: 'Show contextual badge',
+      show_position_bar: 'Show position bar',
       badge_section: 'Badges',
       badge_auto: 'Auto',
       badge_solar: 'Solar tracking',

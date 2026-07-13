@@ -349,6 +349,7 @@ export const fr: EnDict = {
       show_decision_summary: 'Afficher le résumé de décision',
       show_controls: 'Afficher les commandes ↑ ■ ↓',
       show_badge: 'Afficher le badge contextuel',
+      show_position_bar: 'Afficher la barre de position',
       badge_section: 'Badges',
       badge_auto: 'Auto',
       badge_solar: 'Suivi solaire',

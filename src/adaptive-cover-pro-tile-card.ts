@@ -407,6 +407,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const activeFloor = resolveActiveMinModeFloor(traceAttrs, this.hass.states, calculatedPosition);
     const winnerNormalized = normalizeHandler(winner);
     const showFloorChip =
+      showBadge &&
       !!activeFloor &&
       !(
         winnerNormalized === 'custom_position' && traceAttrs?.custom_position_minimum_mode === true
@@ -463,12 +464,11 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const stateLineTpl =
       labelParts.length > 0 ? html`<div class="state">${labelParts.join(' · ')}</div>` : nothing;
     // Right-aligned target-vs-actual mini bar under the ↑■↓ controls (fills the
-    // otherwise-empty right half of the badge row). Live position is the fill;
+    // otherwise-empty right half of the chrome row). Live position is the fill;
     // the auto/solar target is a marker tick. Purely informational — the ↑■↓
-    // buttons remain the control surface. Detailed layout only, and gated on
-    // `show_badge` so disabling the card's chrome (show_badge: false) still
-    // yields a compact single-row tile rather than a row holding just the bar.
-    const showPositionBar = detailed && showBadge && livePosition !== null;
+    // buttons remain the control surface. Detailed layout only, with its own
+    // `show_position_bar` toggle independent of the badge master switch.
+    const showPositionBar = detailed && cfg.show_position_bar !== false && livePosition !== null;
     const posBarTooltip = showPositionBar
       ? calculatedPosition !== null
         ? `${formatPercent(livePosition)} · ${t('dialog.target', this.hass)} ${formatPercent(calculatedPosition)}`
@@ -488,17 +488,21 @@ export class AdaptiveCoverProTileCard extends LitElement {
             : nothing}
         </div>`
       : nothing;
-    // ACP's own chrome (Auto badge, winner/Manual badge, floor chip) no longer
-    // rides on the name/state rows — it collects on a dedicated full-width row 3
-    // so the top two rows read exactly like a native HA tile. The row exists
-    // when any chrome is present — a badge, the floor chip, or the position bar.
+    // ACP's own chrome (Auto badge, winner/Manual badge, floor chip) and the
+    // position bar share one row beneath the name/state: badges left, bar
+    // right-aligned. The icon spans both rows so it stays vertically centered in
+    // the tile (issue #208).
     const showWinnerBadge = renderBadge && inlineWinnerBadge;
-    const hasBadgeRow =
+    const detailBadges =
+      detailed && (showAutoBadge || showWinnerBadge || showFloorChip)
+        ? html`${autoBadgeTpl}${showWinnerBadge ? badgeTpl : nothing}${floorChipTpl}`
+        : nothing;
+    const hasChromeRow =
       detailed && (showAutoBadge || showWinnerBadge || showFloorChip || showPositionBar);
 
     return html`
       <div
-        class=${`tile-body${detailed ? ' detailed' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip && !detailed ? ' has-floor-chip' : ''}${showTilt && detailed ? ' has-tilt' : ''}${hasBadgeRow ? ' has-badge-row' : ''}${unavailable ? ' unavailable' : ''}`}
+        class=${`tile-body${detailed ? ' detailed' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip && !detailed ? ' has-floor-chip' : ''}${showTilt && detailed ? ' has-tilt' : ''}${hasChromeRow ? ' has-chrome-row' : ''}${unavailable ? ' unavailable' : ''}`}
         role=${inert ? 'group' : 'button'}
         tabindex=${inert ? -1 : 0}
         @pointerdown=${this._onPointerDown}
@@ -530,10 +534,8 @@ export class AdaptiveCoverProTileCard extends LitElement {
             : nothing}
         </div>
         ${detailed ? nothing : html`${positionTpl}${floorChipTpl}`}
-        ${hasBadgeRow
-          ? html`<div class="badge-line">
-              ${autoBadgeTpl}${showWinnerBadge ? badgeTpl : nothing}${floorChipTpl}${posBarTpl}
-            </div>`
+        ${hasChromeRow
+          ? html`<div class="chrome-line">${detailBadges}${posBarTpl}</div>`
           : nothing}
         ${showTilt && detailed
           ? html`<div
@@ -866,38 +868,44 @@ export class AdaptiveCoverProTileCard extends LitElement {
     }
     /* Detailed layout matches HA's native tile card: a tinted icon shape, a
        name-over-state label column, and inline control buttons on the right —
-       all on one row. ACP's own chrome (Auto / winner / floor badges) drops to
-       a dedicated full-width row (.badge-line) that only exists when a badge is
-       present, so the top row reads exactly like a native HA tile. */
+       all on one row. ACP's own chrome (Auto / winner / floor badges) and the
+       position bar share a second row (.chrome-line): badges left, bar right.
+       The icon spans both rows so it stays vertically centered (issue #208). */
     .tile-body.detailed {
       grid-template-columns: 36px minmax(0, 1fr) auto;
       grid-template-rows: auto;
       grid-template-areas: 'icon label controls';
       align-items: center;
       column-gap: 12px;
-      row-gap: 8px;
+      /* Tight row gap pulls the chrome row (badges + position bar) up snug under
+         the name/state so the tile stays as short as possible when badges are
+         present (issue #208). */
+      row-gap: 2px;
     }
-    /* Row 2 = ACP badges, indented to the label column (the icon column stays
-       empty) so the name, state, and badges all share one left edge. */
-    .tile-body.detailed.has-badge-row {
+    /* Row 2 = the chrome row: Auto/winner/floor badges on the left, position bar
+       right-aligned. The icon spans both rows (grid-area repeated) so it stays
+       vertically centered in the tile rather than pinned to the name row
+       (issue #208). */
+    .tile-body.detailed.has-chrome-row {
       grid-template-rows: auto auto;
       grid-template-areas:
         'icon label  controls'
-        '.    badges badges';
+        'icon chrome chrome';
     }
-    /* Row 2 (or 3) = the venetian tilt slider, likewise indented under label. */
+    /* Row 2 (or 3) = the venetian tilt slider, indented under label; icon still
+       spans every row so it stays centered. */
     .tile-body.detailed.has-tilt {
       grid-template-rows: auto auto;
       grid-template-areas:
         'icon label controls'
-        '.    tilt  tilt';
+        'icon tilt  tilt';
     }
-    .tile-body.detailed.has-badge-row.has-tilt {
+    .tile-body.detailed.has-chrome-row.has-tilt {
       grid-template-rows: auto auto auto;
       grid-template-areas:
         'icon label  controls'
-        '.    badges badges'
-        '.    tilt   tilt';
+        'icon chrome chrome'
+        'icon tilt   tilt';
     }
     /* Name over state, vertically centered against the icon (HA ha-tile-info). */
     .tile-body.detailed .label {
@@ -926,21 +934,29 @@ export class AdaptiveCoverProTileCard extends LitElement {
       text-overflow: ellipsis;
       min-width: 0;
     }
-    .badge-line {
-      grid-area: badges;
+    /* Chrome row: Auto/winner/floor badges (left) and the position bar (right)
+       share one row under the name/state. flex-wrap lets a long badge set spill
+       rather than clip. */
+    .chrome-line {
+      grid-area: chrome;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       gap: 6px;
       min-width: 0;
+      /* Reserve the badge pill's height even when no badge is present, so a
+         bar-only tile is the same height as one with badges — the position bar
+         just centers in the reserved space (issue #208). Matches the tile-badge
+         height (0.75rem × 1.4 line + 2px×2 padding ≈ 22px). */
+      min-height: 22px;
     }
-    .badge-line acp-tile-badge {
+    .chrome-line acp-tile-badge {
       overflow: visible;
     }
-    /* Target-vs-actual mini bar: right-aligned in the badge row so it fills the
+    /* Target-vs-actual mini bar: right-aligned (margin-left:auto) so it fills the
        otherwise-empty space beneath the ↑■↓ buttons. Fill = live openness in the
        state color; the tick marks the auto/solar target. */
-    .badge-line .pos-bar {
+    .chrome-line .pos-bar {
       margin-left: auto;
       align-self: center;
       position: relative;
@@ -951,7 +967,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
       overflow: hidden;
     }
-    .badge-line .pos-fill {
+    .chrome-line .pos-fill {
       position: absolute;
       inset: 0 auto 0 0;
       background: var(--primary-color);
@@ -959,7 +975,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       border-radius: 6px;
       transition: width 0.3s ease;
     }
-    .badge-line .pos-marker {
+    .chrome-line .pos-marker {
       position: absolute;
       top: 0;
       width: 2px;
@@ -1194,23 +1210,23 @@ export class AdaptiveCoverProTileCard extends LitElement {
             'icon label'
             'controls controls';
         }
-        .tile-body.detailed.has-badge-row {
+        .tile-body.detailed.has-chrome-row {
           grid-template-areas:
             'icon label'
-            '.    badges'
+            'icon chrome'
             'controls controls';
         }
         .tile-body.detailed.has-tilt {
           grid-template-areas:
             'icon label'
-            '.    tilt'
+            'icon tilt'
             'controls controls';
         }
-        .tile-body.detailed.has-badge-row.has-tilt {
+        .tile-body.detailed.has-chrome-row.has-tilt {
           grid-template-areas:
             'icon label'
-            '.    badges'
-            '.    tilt'
+            'icon chrome'
+            'icon tilt'
             'controls controls';
         }
         .tile-body.detailed .controls {
@@ -1232,22 +1248,22 @@ export class AdaptiveCoverProTileCard extends LitElement {
           'icon label'
           'controls controls';
       }
-      .tile-body.detailed.has-badge-row {
+      .tile-body.detailed.has-chrome-row {
         grid-template-areas:
           'icon label'
-          'badges badges'
+          'icon chrome'
           'controls controls';
       }
       .tile-body.detailed.has-tilt {
         grid-template-areas:
           'icon label'
-          'tilt tilt'
+          'icon tilt'
           'controls controls';
       }
-      .tile-body.detailed.has-badge-row.has-tilt {
+      .tile-body.detailed.has-chrome-row.has-tilt {
         grid-template-areas:
           'icon label'
-          'badges badges'
+          'icon chrome'
           'tilt tilt'
           'controls controls';
       }

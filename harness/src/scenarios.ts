@@ -85,6 +85,7 @@ function defaultTile(): HarnessConfig['tile'] {
     show_decision_summary: false,
     show_controls: true,
     show_badge: true,
+    show_position_bar: true,
     show_tilt: true,
     badges: defaultBadges(),
     show_compass: true,
