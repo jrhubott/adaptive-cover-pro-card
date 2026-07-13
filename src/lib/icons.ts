@@ -15,6 +15,7 @@ import {
   COVER_CLOSE_ICON_INSET,
   type CoverIconVariants,
 } from '../const';
+import { isUnavailable } from './formatters';
 
 /**
  * Resolve an open/partial/closed variant set against a live position, using the
@@ -98,4 +99,30 @@ export function coverCloseIcon(deviceClass?: string): string {
   return deviceClass && COVER_BUTTON_INSET_CLASSES.has(deviceClass)
     ? COVER_CLOSE_ICON_INSET
     : COVER_CLOSE_ICON;
+}
+
+/**
+ * HA-style state color for a cover icon, replicating home-assistant-frontend's
+ * `stateColorCss` cascade for the `cover` domain so the glyph picks up the
+ * user's theme instead of a fixed color. Every state honors, in order:
+ *   1. its own per-state var (`--state-cover-<state>-color`)
+ *   2. the domain active/inactive tier (`--state-cover-active-color` /
+ *      `--state-cover-inactive-color`)
+ *   3. the domain-generic var (`--state-cover-color`)
+ *   4. the generic active/inactive var (`--state-active-color` /
+ *      `--state-inactive-color`)
+ * `closed` is the only "inactive" state; unavailable/unknown/missing short-
+ * circuits to `--state-unavailable-color` instead of running the cascade.
+ */
+export function coverStateColor(state: string | null | undefined): string {
+  if (isUnavailable(state) || !state) return 'var(--state-unavailable-color)';
+  const key = state.toLowerCase();
+  const active = key !== 'closed';
+  const tier = active ? 'active' : 'inactive';
+  return (
+    `var(--state-cover-${key}-color, ` +
+    `var(--state-cover-${tier}-color, ` +
+    `var(--state-cover-color, ` +
+    `var(--state-${tier}-color))))`
+  );
 }

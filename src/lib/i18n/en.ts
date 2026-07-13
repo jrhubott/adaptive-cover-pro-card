@@ -318,6 +318,8 @@ export const en = {
       show_moon_desc: 'Moon position and phase overlay on the sky compass.',
       hide_inactive_label: 'Hide inactive handlers',
       hide_inactive_desc: 'Show only the winner and actively matched pipeline handlers.',
+      state_color_label: 'Color icon by state',
+      state_color_desc: 'Header cover icon takes on the theme’s open/closed/active color.',
     },
     tile: {
       name: 'Title override',
@@ -344,6 +346,7 @@ export const en = {
       show_elevation_chart: 'Show sun-today chart in dialog',
       show_solar_calc: 'Show solar calculation in dialog',
       show_motion_icon: 'Show occupancy indicator',
+      state_color: 'Color icon by state',
       tap_action: 'Tap action',
       hold_action: 'Hold action',
       double_tap_action: 'Double-tap action',

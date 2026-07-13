@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { pickCoverIcon, coverStateIcon, coverOpenIcon, coverCloseIcon } from '../src/lib/icons';
+import {
+  pickCoverIcon,
+  coverStateIcon,
+  coverOpenIcon,
+  coverCloseIcon,
+  coverStateColor,
+} from '../src/lib/icons';
 
 describe('pickCoverIcon', () => {
   describe('cover_blind', () => {
@@ -170,5 +176,43 @@ describe('coverOpenIcon / coverCloseIcon', () => {
   });
   it('undefined device_class close uses the down arrow', () => {
     expect(coverCloseIcon(undefined)).toBe('mdi:arrow-down');
+  });
+});
+
+describe('coverStateColor', () => {
+  it('open resolves to the cover-open var with active fallback chain', () => {
+    expect(coverStateColor('open')).toBe(
+      'var(--state-cover-open-color, var(--state-cover-active-color, var(--state-cover-color, var(--state-active-color))))',
+    );
+  });
+  it('opening resolves to the cover-opening var with active fallback chain', () => {
+    expect(coverStateColor('opening')).toBe(
+      'var(--state-cover-opening-color, var(--state-cover-active-color, var(--state-cover-color, var(--state-active-color))))',
+    );
+  });
+  it('closing resolves to the cover-closing var with active fallback chain', () => {
+    expect(coverStateColor('closing')).toBe(
+      'var(--state-cover-closing-color, var(--state-cover-active-color, var(--state-cover-color, var(--state-active-color))))',
+    );
+  });
+  it('closed resolves to the cover-closed var with inactive fallback chain', () => {
+    expect(coverStateColor('closed')).toBe(
+      'var(--state-cover-closed-color, var(--state-cover-inactive-color, var(--state-cover-color, var(--state-inactive-color))))',
+    );
+  });
+  it('unavailable resolves to the unavailable var', () => {
+    expect(coverStateColor('unavailable')).toBe('var(--state-unavailable-color)');
+  });
+  it('unknown resolves to the unavailable var', () => {
+    expect(coverStateColor('unknown')).toBe('var(--state-unavailable-color)');
+  });
+  it('undefined resolves to the unavailable var', () => {
+    expect(coverStateColor(undefined)).toBe('var(--state-unavailable-color)');
+  });
+  it('null resolves to the unavailable var', () => {
+    expect(coverStateColor(null)).toBe('var(--state-unavailable-color)');
+  });
+  it('empty string resolves to the unavailable var', () => {
+    expect(coverStateColor('')).toBe('var(--state-unavailable-color)');
   });
 });

@@ -387,6 +387,89 @@ describe('adaptive-cover-pro-tile-card editor — show_elevation_chart', () => {
   });
 });
 
+describe('adaptive-cover-pro-tile-card editor — state_color', () => {
+  it('includes a state_color boolean field in the schema', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement & {
+      schema?: Array<{ name: string; selector?: Record<string, unknown> }>;
+    };
+    const field = (haForm.schema ?? []).find((s) => s.name === 'state_color');
+    expect(field).toBeTruthy();
+    expect(field!.selector).toEqual({ boolean: {} });
+  });
+
+  it('defaults state_color to true in the form data', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement & {
+      data?: Record<string, unknown>;
+    };
+    expect(haForm.data!.state_color).toBe(true);
+  });
+
+  it('prunes state_color:true from the emitted config (equals default)', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    let emitted: AdaptiveCoverProTileCardConfig | null = null;
+    el.addEventListener('config-changed', (e: Event) => {
+      emitted = (e as CustomEvent).detail.config;
+    });
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement;
+    haForm.dispatchEvent(
+      new CustomEvent('value-changed', {
+        bubbles: true,
+        composed: true,
+        detail: { value: { type: TYPE, entry_id: ENTRY, state_color: true } },
+      }),
+    );
+
+    expect(emitted).not.toBeNull();
+    expect((emitted as unknown as Record<string, unknown>).state_color).toBeUndefined();
+  });
+
+  it('keeps state_color:false in the emitted config', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    let emitted: AdaptiveCoverProTileCardConfig | null = null;
+    el.addEventListener('config-changed', (e: Event) => {
+      emitted = (e as CustomEvent).detail.config;
+    });
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement;
+    haForm.dispatchEvent(
+      new CustomEvent('value-changed', {
+        bubbles: true,
+        composed: true,
+        detail: { value: { type: TYPE, entry_id: ENTRY, state_color: false } },
+      }),
+    );
+
+    expect(emitted!.state_color).toBe(false);
+  });
+});
+
 describe('adaptive-cover-pro-tile-card editor — cover pre-fill', () => {
   // Build a registry + hass that makes discoverEntities return exactly one managed cover.
   function makeEditorSingleCover(): EditorLike {
@@ -494,6 +577,7 @@ describe('adaptive-cover-pro-tile-card editor — schema', () => {
       'show_badge',
       '', // expandable "Badges" group
       'show_motion_icon',
+      'state_color',
       'show_compass',
       'show_elevation_chart',
       'show_solar_calc',

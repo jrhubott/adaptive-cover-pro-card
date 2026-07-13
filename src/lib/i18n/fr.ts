@@ -336,6 +336,8 @@ export const fr: EnDict = {
       hide_inactive_label: 'Masquer les gestionnaires inactifs',
       hide_inactive_desc:
         'Afficher uniquement le gestionnaire sélectionné et les gestionnaires du pipeline actifs.',
+      state_color_label: "Colorer l'icône selon l'état",
+      state_color_desc: "L'icône d'en-tête prend la couleur ouvert/fermé/actif du thème.",
     },
     tile: {
       name: 'Titre personnalisé',
@@ -362,6 +364,7 @@ export const fr: EnDict = {
       show_elevation_chart: 'Afficher le graphique du soleil dans le dialogue',
       show_solar_calc: 'Afficher le calcul solaire dans le dialogue',
       show_motion_icon: "Afficher l'indicateur d'occupation",
+      state_color: "Colorer l'icône selon l'état",
       tap_action: 'Action au toucher',
       hold_action: 'Action au maintien',
       double_tap_action: 'Action au double toucher',

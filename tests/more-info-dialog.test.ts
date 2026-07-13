@@ -11,6 +11,7 @@ interface DialogLike extends HTMLElement {
   showCompass?: boolean;
   showElevationChart?: boolean;
   showSolarCalc?: boolean;
+  stateColor?: boolean;
   badges?: Record<string, boolean>;
 }
 
@@ -205,6 +206,38 @@ describe('acp-more-info-dialog: header content', () => {
     expect(el.shadowRoot!.querySelector('.header ha-icon.cover-icon')?.getAttribute('icon')).toBe(
       'mdi:star',
     );
+  });
+
+  it('colors the header cover icon by state (open) by default', async () => {
+    const el = await mount({ hass: hass(), discovered: discovered(), open: true });
+    expect(
+      el.shadowRoot!.querySelector('.header ha-icon.cover-icon')?.getAttribute('style'),
+    ).toContain(
+      'var(--state-cover-open-color, var(--state-cover-active-color, var(--state-cover-color, var(--state-active-color))))',
+    );
+  });
+
+  it('colors the header cover icon by state (closed) by default', async () => {
+    const h = hass();
+    h.states['cover.left'].state = 'closed';
+    const el = await mount({ hass: h, discovered: discovered(), open: true });
+    expect(
+      el.shadowRoot!.querySelector('.header ha-icon.cover-icon')?.getAttribute('style'),
+    ).toContain(
+      'var(--state-cover-closed-color, var(--state-cover-inactive-color, var(--state-cover-color, var(--state-inactive-color))))',
+    );
+  });
+
+  it('omits the inline header icon state color when stateColor is false', async () => {
+    const el = await mount({
+      hass: hass(),
+      discovered: discovered(),
+      open: true,
+      stateColor: false,
+    });
+    expect(
+      el.shadowRoot!.querySelector('.header ha-icon.cover-icon')?.getAttribute('style') ?? '',
+    ).not.toContain('--state-cover');
   });
 
   it('renders one badge per matched handler', async () => {

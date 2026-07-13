@@ -153,6 +153,10 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
     });
   }
 
+  private _onStateColorToggle(enabled: boolean): void {
+    this._emit({ ...(this._config ?? { type: '', entry_id: '' }), state_color: enabled });
+  }
+
   _onNorthOffsetChange(e: Event): void {
     const raw = parseFloat((e.target as HTMLInputElement).value);
     const value = Number.isFinite(raw) ? raw : 0;
@@ -362,6 +366,18 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
             <span class="toggle-text">
               <span class="toggle-label">${t('editor.main.hide_inactive_label', this.hass)}</span>
               <span class="toggle-desc">${t('editor.main.hide_inactive_desc', this.hass)}</span>
+            </span>
+          </label>
+          <label class="toggle-row">
+            <input
+              type="checkbox"
+              .checked=${this._config.state_color !== false}
+              @change=${(e: Event) =>
+                this._onStateColorToggle((e.target as HTMLInputElement).checked)}
+            />
+            <span class="toggle-text">
+              <span class="toggle-label">${t('editor.main.state_color_label', this.hass)}</span>
+              <span class="toggle-desc">${t('editor.main.state_color_desc', this.hass)}</span>
             </span>
           </label>
         </div>
