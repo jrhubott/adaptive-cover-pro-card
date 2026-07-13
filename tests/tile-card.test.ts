@@ -2109,13 +2109,14 @@ describe('adaptive-cover-pro-tile-card unavailable dual-axis cover (issue #212)'
 });
 
 describe('adaptive-cover-pro-tile-card HA tile layout (detailed)', () => {
-  it('detailed: wraps the icon in a state-tinted shape (--acp-icon-tint set on the wrap)', async () => {
+  it('detailed: leaves the icon bare (no tint shape / no --acp-icon-tint)', async () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
     const wrap = el.shadowRoot!.querySelector(
       '.tile-body.detailed .cover-icon-wrap',
     ) as HTMLElement;
     expect(wrap).toBeTruthy();
-    expect(wrap.getAttribute('style') ?? '').toContain('--acp-icon-tint');
+    expect(wrap.getAttribute('style') ?? '').not.toContain('--acp-icon-tint');
+    expect(wrap.querySelector('.cover-icon')).toBeTruthy();
   });
 
   it('one-line: leaves the icon bare (no tint shape)', async () => {
@@ -2153,9 +2154,35 @@ describe('adaptive-cover-pro-tile-card HA tile layout (detailed)', () => {
     expect(body.querySelector('.badge-line')).toBeTruthy();
   });
 
-  it('applies HA control-button metrics (40px tall, 12px radius) to detailed controls', () => {
+  it('links detailed controls to HA ha-control-button CSS tokens', () => {
     const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
-    expect(css).toContain('height: 40px');
-    expect(css).toContain('border-radius: 12px');
+    expect(css).toContain('height: var(--control-button-group-thickness, 40px)');
+    expect(css).toContain('border-radius: var(--control-button-border-radius, 12px)');
+  });
+
+  it('detailed: renders the target-vs-actual position bar (fill = live, marker = target)', async () => {
+    // current_position 60 → live fill; sensor.cover_position 42 → target marker.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    );
+    const bar = el.shadowRoot!.querySelector(
+      '.tile-body.detailed .badge-line .pos-bar',
+    ) as HTMLElement;
+    expect(bar).toBeTruthy();
+    const fill = bar.querySelector('.pos-fill') as HTMLElement;
+    const marker = bar.querySelector('.pos-marker') as HTMLElement;
+    expect(fill.getAttribute('style') ?? '').toContain('width:60%');
+    expect(marker.getAttribute('style') ?? '').toContain('42%');
+  });
+
+  it('detailed: hides the position bar (and badge row) when show_badge is false', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, show_badge: false },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    expect(body.querySelector('.pos-bar')).toBeFalsy();
+    expect(body.classList.contains('has-badge-row')).toBe(false);
   });
 });

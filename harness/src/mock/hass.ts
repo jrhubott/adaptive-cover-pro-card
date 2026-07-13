@@ -250,7 +250,13 @@ export function buildMockHass(
       }
       return localize(key, args);
     }) as unknown as HomeAssistant['localize'],
-    formatEntityState: (stateObj: { state: string }): string => stateObj.state,
+    // HA's formatEntityState returns the localized, title-cased state
+    // ("Open", "Closed", "Opening", …); mirror that so the harness matches the
+    // real card instead of showing the raw lowercase state.
+    formatEntityState: (stateObj: { state: string }): string =>
+      stateObj.state
+        ? stateObj.state.charAt(0).toUpperCase() + stateObj.state.slice(1)
+        : stateObj.state,
   } as unknown as HomeAssistant;
 
   return { hass, generated };
