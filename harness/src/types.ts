@@ -133,6 +133,11 @@ export interface HarnessEntry {
      *  solar would-be target (`target_position`). null = no divergence (held
      *  tracks the solar target, the pre-#132 collapse behavior). */
     held_position: number | null;
+    /** Pre-interpolation logical position the Cover_Position sensor's
+     *  `linear_position` attribute carries (issue #219). null = attribute
+     *  absent — simulates an older integration or interpolation not configured
+     *  for this axis; the card falls back to `state` (today's behavior). */
+    linear_position: number | null;
     /** When true, the priority-100 safety slot (slot 5) is armed and wins as a
      *  custom_position with bypass_auto_control. Replaces the pre-2.28
      *  standalone Force Override trigger count. */

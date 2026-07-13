@@ -496,6 +496,7 @@ export class AcpHarnessControlPanel extends LitElement {
         manual_override: false,
         manual_override_minutes_from_now: 60,
         held_position: null,
+        linear_position: null,
         safety_slot_active: false,
         motion_status: 'idle',
         motion_timeout_minutes_from_now: 1,

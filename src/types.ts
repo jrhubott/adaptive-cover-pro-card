@@ -442,6 +442,12 @@ export interface CoverPositionAttributes {
   control_method: HandlerName | string;
   reason: string;
   raw_calculated_position?: number;
+  /** Pre-interpolation logical position — the value the user configured,
+   *  before the integration's calibration curve maps it to a motor command
+   *  (issue #219). Additive/optional: absent on integrations that don't yet
+   *  expose it, or when interpolation isn't configured for this axis — the
+   *  card falls back to `state` either way. */
+  linear_position?: number;
   edge_case_detected?: boolean;
   safety_margin?: number;
   effective_distance?: number;

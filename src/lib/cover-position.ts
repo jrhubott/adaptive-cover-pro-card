@@ -12,12 +12,47 @@ import { aggregateActualPosition, overrideDivergenceTarget } from './geometry';
  * override-divergence decision (issue #158).
  */
 
-/** Held position — the `Cover_Position` sensor state. Null when missing/NaN. */
-export function coverHeldPosition(hass: HomeAssistant, d: DiscoveredEntities): number | null {
+/** Raw `Cover_Position` sensor STATE — the interpolated/motor value actually
+ *  commanded. Exported so components can surface it as a secondary "motor:"
+ *  detail when it diverges from the linear-preferred {@link coverHeldPosition}. */
+export function coverMotorPosition(hass: HomeAssistant, d: DiscoveredEntities): number | null {
   const id = d.entities.target_position_sensor;
   if (!id) return null;
   const val = parseFloat(hass.states[id]?.state ?? '');
   return Number.isNaN(val) ? null : val;
+}
+
+/** Pre-interpolation logical position — the sensor's `linear_position`
+ *  attribute (issue #219). Null when absent or non-numeric: older
+ *  integrations, or interpolation not configured for this axis. */
+export function coverLinearPosition(hass: HomeAssistant, d: DiscoveredEntities): number | null {
+  const id = d.entities.target_position_sensor;
+  if (!id) return null;
+  const attrs = hass.states[id]?.attributes as { linear_position?: unknown } | undefined;
+  const val = attrs?.linear_position;
+  return typeof val === 'number' && Number.isFinite(val) ? val : null;
+}
+
+/** Held position — the value to display as the cover's held/target position.
+ *  Prefers the pre-interpolation `linear_position` attribute (issue #219)
+ *  when present; falls back to the `Cover_Position` sensor STATE (today's
+ *  behavior — and the value the two coincide at when interpolation is off,
+ *  or on any integration that doesn't yet expose `linear_position`). Null
+ *  when missing/NaN. */
+export function coverHeldPosition(hass: HomeAssistant, d: DiscoveredEntities): number | null {
+  return coverLinearPosition(hass, d) ?? coverMotorPosition(hass, d);
+}
+
+/** The motor value to show as a secondary "motor: X%" detail, or null when
+ *  there's nothing to disclose — `linear_position` absent/invalid (older
+ *  integration, or interpolation off) or equal to the motor value (issue
+ *  #219). Only ever non-null when interpolation is actively bending the
+ *  configured value away from the raw command. */
+export function coverMotorDivergence(hass: HomeAssistant, d: DiscoveredEntities): number | null {
+  const linear = coverLinearPosition(hass, d);
+  const motor = coverMotorPosition(hass, d);
+  if (linear === null || motor === null || linear === motor) return null;
+  return motor;
 }
 
 /** Solar would-be target — the sensor's `raw_calculated_position` attribute.

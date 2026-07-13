@@ -261,6 +261,90 @@ describe('acp-cover-bar manual-override divergence — issue #158', () => {
   });
 });
 
+describe('acp-cover-bar linear position (motor tooltip) — issue #219', () => {
+  function linearHass(opts: { linear?: number; state?: string }): HomeAssistant {
+    return {
+      states: {
+        'sensor.cover_position': {
+          state: opts.state ?? '31',
+          attributes: {
+            actual_positions: { 'cover.a': 31 },
+            ...(opts.linear !== undefined ? { linear_position: opts.linear } : {}),
+          },
+        },
+        'cover.a': { state: 'open', attributes: { friendly_name: 'Cover A' } },
+      },
+      callService: vi.fn(),
+    } as unknown as HomeAssistant;
+  }
+
+  const linearDiscovered: DiscoveredEntities = {
+    ...baseDiscovered,
+    entities: { target_position_sensor: 'sensor.cover_position' },
+  };
+
+  async function mount(hass: HomeAssistant): Promise<CoverBarLike> {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    document.body.appendChild(el);
+    el.hass = hass;
+    el.discovered = linearDiscovered;
+    await el.updateComplete;
+    return el;
+  }
+
+  it('shows the linear_position (10%) as the Target chip text, not the raw state (31%)', async () => {
+    const el = await mount(linearHass({ state: '31', linear: 10 }));
+    const target = el.shadowRoot!.querySelector('.head .target')!.textContent!;
+    expect(target).toContain('10');
+    expect(target).not.toContain('31');
+  });
+
+  it('attaches a motor tooltip to the Target chip when linear_position differs from state', async () => {
+    const el = await mount(linearHass({ state: '31', linear: 10 }));
+    const target = el.shadowRoot!.querySelector('.head .target') as HTMLElement;
+    const tip = target.getAttribute('data-tooltip') ?? '';
+    // Regression guard: formatPercent() already appends "%", so passing its
+    // output through the `{pct}%` tooltip template double-percents the value
+    // (e.g. "31%%"). The tooltip must render a single "%".
+    expect(tip).not.toContain('%%');
+    expect(tip).toContain('Motor: 31%');
+  });
+
+  it('attaches no motor tooltip when linear_position is absent', async () => {
+    const el = await mount(linearHass({ state: '31' }));
+    const target = el.shadowRoot!.querySelector('.head .target') as HTMLElement;
+    expect(target.getAttribute('data-tooltip')).toBeNull();
+  });
+
+  it('attaches no motor tooltip when linear_position equals state (nothing to disclose)', async () => {
+    const el = await mount(linearHass({ state: '31', linear: 31 }));
+    const target = el.shadowRoot!.querySelector('.head .target') as HTMLElement;
+    expect(target.getAttribute('data-tooltip')).toBeNull();
+  });
+
+  it('clears the stale motor tooltip attributes when a live update removes the divergence', async () => {
+    // The Target chip is a persistent element: the tooltip directive attaches
+    // and detaches on it across re-renders (motorDivergence null <-> non-null)
+    // without the element itself ever being torn down. On detach, the
+    // directive must strip the attributes it applied — otherwise a screen
+    // reader keeps announcing a stale aria-describedby pointing at the shared
+    // tooltip bubble, and data-tooltip lingers with no directive to update it.
+    const el = await mount(linearHass({ state: '31', linear: 10 }));
+    const target = el.shadowRoot!.querySelector('.head .target') as HTMLElement;
+    expect(target.getAttribute('data-tooltip')).toContain('Motor: 31%');
+    expect(target.hasAttribute('aria-describedby')).toBe(true);
+
+    // Live hass update: linear_position now equals state, so the divergence
+    // clears and the tooltip directive detaches from this same element.
+    el.hass = linearHass({ state: '31', linear: 31 });
+    await el.updateComplete;
+
+    expect(target.hasAttribute('data-tooltip')).toBe(false);
+    expect(target.hasAttribute('aria-describedby')).toBe(false);
+    expect(target.hasAttribute('acp-tt-shown')).toBe(false);
+  });
+});
+
 describe('acp-cover-bar target marker clamp at extremes — issue #158 (trailing)', () => {
   const baseDiscoveredLocal: DiscoveredEntities = {
     ...baseDiscovered,
