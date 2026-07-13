@@ -532,6 +532,85 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'ha-tile-badge-row',
+    label: 'HA tile layout — badges on the dedicated row',
+    description:
+      "HA-tile layout match (#208 follow-up): the detailed Tile card now mirrors HA's native tile — a state-tinted 36px icon shape, a name-over-state label column, and HA-metric control buttons — with ACP's own chrome (Auto / Manual / floor badges) dropped onto a dedicated full-width row that starts at the label's left edge. This scenario arms a manual override AND an enabled min-mode floor slot, so the badge row shows the Manual badge alongside the ↥ floor chip; the top two rows read exactly like a native HA tile. Regression guard: the floor chip must ride this badge row, not collapse the detailed grid back to the one-line layout.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'ha-tile-badge-row';
+      c.entries = [
+        makeEntry({
+          entry_id: 'living_room',
+          title: 'Living Room',
+          window_azimuth: 180,
+          color: '#7e57c2',
+          target_position: 60,
+          covers: [
+            {
+              entity_id: 'cover.living_room_main',
+              friendly_name: 'Living Room shade',
+              position: 60,
+              device_class: 'shade',
+            },
+          ],
+          // Enable the priority-90 min-mode floor slot (slot 4) so its sensor
+          // arms — with manual override winning (manual precedes custom_position
+          // in HANDLER_ORDER), the floor stays a constraint and its ↥ chip shows.
+          slots: [
+            {
+              slot: 1,
+              enabled: false,
+              position: 75,
+              name: 'Movie time',
+              min_mode: false,
+              priority: 60,
+            },
+            {
+              slot: 2,
+              enabled: false,
+              position: 20,
+              name: 'Privacy',
+              min_mode: false,
+              priority: 70,
+            },
+            {
+              slot: 3,
+              enabled: false,
+              position: 100,
+              name: 'Welcome home',
+              min_mode: false,
+              priority: 50,
+            },
+            {
+              slot: 4,
+              enabled: true,
+              position: 40,
+              name: 'Aeration floor',
+              min_mode: true,
+              priority: 90,
+            },
+            {
+              slot: 5,
+              enabled: true,
+              position: 0,
+              name: 'Safety',
+              min_mode: false,
+              priority: 100,
+              sensors: ['binary_sensor.living_room_wind', 'binary_sensor.living_room_frost'],
+              template: true,
+              template_mode: 'or',
+            },
+          ],
+        }),
+      ];
+      // Arm the manual override on the built entry (makeEntry's `flags` override
+      // wants the full flag set; mutating the returned full object is simpler).
+      c.entries[0].flags.manual_override = true;
+      return c;
+    },
+  },
+  {
     id: 'winter-morning-east',
     label: 'Winter morning — east window',
     description: 'Low elevation sun rising, narrow east FOV.',

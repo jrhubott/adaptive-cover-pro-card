@@ -303,6 +303,12 @@ export class AdaptiveCoverProTileCard extends LitElement {
             position: this._liveCoverPosition(cover),
           }));
     const iconColor = cfg.state_color !== false ? coverStateColor(stateObj?.state) : null;
+    // HA-tile icon "shape": a rounded background tinted with the same state
+    // color as the glyph (~20% opacity), matching home-assistant-frontend's
+    // ha-tile-icon. Falls back to a neutral tint when state coloring is off.
+    const iconTint = iconColor
+      ? `color-mix(in srgb, ${iconColor} 20%, transparent)`
+      : 'var(--secondary-background-color, rgba(127, 127, 127, 0.15))';
     const showPosition = cfg.show_position !== false;
     const showState = cfg.show_state !== false;
     const showControls = cfg.show_controls !== false;
@@ -459,9 +465,19 @@ export class AdaptiveCoverProTileCard extends LitElement {
         ></acp-tile-badge>`
       : nothing;
 
+    // HA-tile secondary line: the "Open · 25%" readout stacked under the name.
+    const stateLineTpl =
+      labelParts.length > 0 ? html`<div class="state">${labelParts.join(' · ')}</div>` : nothing;
+    // ACP's own chrome (Auto badge, winner/Manual badge, floor chip) no longer
+    // rides on the name/state rows — it collects on a dedicated full-width row 3
+    // so the top two rows read exactly like a native HA tile. The row only
+    // exists when at least one badge is present.
+    const showWinnerBadge = renderBadge && inlineWinnerBadge;
+    const hasBadgeRow = detailed && (showAutoBadge || showWinnerBadge || showFloorChip);
+
     return html`
       <div
-        class=${`tile-body${detailed ? ' detailed' : ''}${hasBottomSummary ? ' has-summary' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip ? ' has-floor-chip' : ''}${showTilt && detailed ? ' has-tilt' : ''}${unavailable ? ' unavailable' : ''}`}
+        class=${`tile-body${detailed ? ' detailed' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip && !detailed ? ' has-floor-chip' : ''}${showTilt && detailed ? ' has-tilt' : ''}${hasBadgeRow ? ' has-badge-row' : ''}${unavailable ? ' unavailable' : ''}`}
         role=${inert ? 'group' : 'button'}
         tabindex=${inert ? -1 : 0}
         @pointerdown=${this._onPointerDown}
@@ -470,7 +486,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
         @pointerleave=${this._onPointerCancel}
         @click=${this._onClick}
       >
-        <div class="cover-icon-wrap">
+        <div class="cover-icon-wrap" style=${detailed ? `--acp-icon-tint: ${iconTint}` : ''}>
           <ha-icon
             class="cover-icon"
             icon=${icon}
@@ -486,17 +502,18 @@ export class AdaptiveCoverProTileCard extends LitElement {
         </div>
         <div class="label">
           <div class="title">${title}</div>
+          ${detailed ? stateLineTpl : nothing}
           ${summary && !detailed ? html`<div class="summary">${summary}</div>` : nothing}
           ${hasBottomSummary
-            ? html`<div class="summary inline-summary" ${tooltip(summary)}>${summary}</div>`
+            ? html`<div class="summary" ${tooltip(summary)}>${summary}</div>`
             : nothing}
         </div>
-        ${detailed && showAutoBadge ? html`<div class="auto-line">${autoBadgeTpl}</div>` : nothing}
-        ${detailed
-          ? html`<div class="detail-line">
-              ${positionTpl}${floorChipTpl}${inlineWinnerBadge ? badgeTpl : nothing}
+        ${detailed ? nothing : html`${positionTpl}${floorChipTpl}`}
+        ${hasBadgeRow
+          ? html`<div class="badge-line">
+              ${autoBadgeTpl}${showWinnerBadge ? badgeTpl : nothing}${floorChipTpl}
             </div>`
-          : html`${positionTpl}${floorChipTpl}`}
+          : nothing}
         ${showTilt && detailed
           ? html`<div
               class="tilt-line"
@@ -826,100 +843,85 @@ export class AdaptiveCoverProTileCard extends LitElement {
     .tile-body.has-state-label {
       grid-template-columns: 24px minmax(0, 1fr) auto auto auto;
     }
-    /* Detailed layout: title row, then a state row that inlines the position
-       text + contextual badge + floor chip (.detail-line). Icon spans both
-       rows so it's vertically centered; controls float to the right of rows
-       1-2 (HA tile-card style). Always two rows — the Resume action is folded
-       into the Manual badge rather than getting its own row. */
+    /* Detailed layout matches HA's native tile card: a tinted icon shape, a
+       name-over-state label column, and inline control buttons on the right —
+       all on one row. ACP's own chrome (Auto / winner / floor badges) drops to
+       a dedicated full-width row (.badge-line) that only exists when a badge is
+       present, so the top row reads exactly like a native HA tile. */
     .tile-body.detailed {
-      grid-template-columns: 24px minmax(0, 1fr) auto auto;
+      grid-template-columns: 36px minmax(0, 1fr) auto;
+      grid-template-rows: auto;
+      grid-template-areas: 'icon label controls';
+      align-items: center;
+      column-gap: 12px;
+      row-gap: 8px;
+    }
+    /* Row 2 = ACP badges, indented to the label column (the icon column stays
+       empty) so the name, state, and badges all share one left edge. */
+    .tile-body.detailed.has-badge-row {
       grid-template-rows: auto auto;
       grid-template-areas:
-        'icon label       auto-line   controls'
-        'icon detail-line detail-line controls';
-      row-gap: 2px;
+        'icon label  controls'
+        '.    badges badges';
     }
-    /* The standalone Auto indicator (issue #110) rides right-aligned on the
-       title row — same line as the cover name, above the state line — so the
-       tile stays two text lines tall. When absent the cell collapses to 0px. */
-    .auto-line {
-      grid-area: auto-line;
+    /* Row 2 (or 3) = the venetian tilt slider, likewise indented under label. */
+    .tile-body.detailed.has-tilt {
+      grid-template-rows: auto auto;
+      grid-template-areas:
+        'icon label controls'
+        '.    tilt  tilt';
+    }
+    .tile-body.detailed.has-badge-row.has-tilt {
+      grid-template-rows: auto auto auto;
+      grid-template-areas:
+        'icon label  controls'
+        '.    tilt   tilt'
+        '.    badges badges';
+    }
+    /* Name over state, vertically centered against the icon (HA ha-tile-info). */
+    .tile-body.detailed .label {
       display: flex;
-      justify-content: flex-end;
-      align-items: center;
+      flex-direction: column;
+      justify-content: center;
+      gap: 2px;
+    }
+    .tile-body.detailed .state {
+      font-size: 0.78rem;
+      color: var(--secondary-text-color);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
       min-width: 0;
     }
-    .auto-line acp-tile-badge {
-      overflow: visible;
-    }
-    .detail-line {
-      grid-area: detail-line;
+    .badge-line {
+      grid-area: badges;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       gap: 6px;
       min-width: 0;
     }
-    .detail-line .position {
-      padding: 0;
-      text-align: left;
-      /* Push the badge + floor chip to the right edge of the row so they sit
-         flush against the controls column. */
-      margin-right: auto;
-    }
-    .detail-line acp-tile-badge {
+    .badge-line acp-tile-badge {
       overflow: visible;
     }
-    .tile-body.detailed.has-state-label {
-      grid-template-columns: 24px minmax(0, 1fr) auto auto;
-      grid-template-rows: auto auto;
-      grid-template-areas:
-        'icon label       auto-line   controls'
-        'icon detail-line detail-line controls';
-    }
-    /* Dual-axis venetian: add a third full-width row for the mini tilt bar,
-       beneath the detail line and spanning under the controls column. */
-    .tile-body.detailed.has-tilt,
-    .tile-body.detailed.has-tilt.has-state-label {
-      grid-template-rows: auto auto auto;
-      /* The tilt row skips the icon column so "TILT" aligns with the state text
-         ("open · 60%") rather than the icon. */
-      grid-template-areas:
-        'icon label       auto-line   controls'
-        'icon detail-line detail-line controls'
-        '.    tilt-line   tilt-line   tilt-line';
-    }
     .tilt-line {
-      grid-area: tilt-line;
+      grid-area: tilt;
       min-width: 0;
       margin-top: 2px;
       cursor: default;
     }
-    .tile-body.detailed.has-summary .label {
-      display: flex;
-      align-items: baseline;
-      gap: 8px;
-      min-width: 0;
+    /* Optional decision summary stacks as a dim third line under the state. */
+    .tile-body.detailed .label .summary {
+      font-size: 0.72rem;
     }
-    .tile-body.detailed.has-summary .label .title {
-      flex: 1 1 auto;
-      min-width: 0;
-    }
-    .tile-body.detailed.has-summary .label .inline-summary {
-      flex: 0 1 auto;
-      text-align: right;
-    }
-    .tile-body.detailed .position {
-      text-align: left;
-      padding: 0;
-    }
+    /* HA ha-control-button metrics: ~40px tall, 12px radius, tinted-grey fill. */
     .tile-body.detailed .controls {
       align-self: center;
-      gap: 6px;
+      gap: 8px;
     }
     .tile-body.detailed .controls button {
-      width: 56px;
-      height: 44px;
+      width: 46px;
+      height: 40px;
       border-radius: 12px;
       border: none;
       background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
@@ -931,8 +933,20 @@ export class AdaptiveCoverProTileCard extends LitElement {
     .tile-body.detailed .controls button:hover {
       background: var(--divider-color, rgba(127, 127, 127, 0.25));
     }
+    /* HA ha-tile-icon shape: 36px rounded shape, state-tinted background,
+       24px glyph in the full state color. */
     .tile-body.detailed .cover-icon-wrap {
       place-self: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(
+        --acp-icon-tint,
+        var(--secondary-background-color, rgba(127, 127, 127, 0.15))
+      );
+    }
+    .tile-body.detailed .cover-icon {
+      --mdc-icon-size: 24px;
     }
     .tile-body[role='group'] {
       cursor: default;
@@ -1081,30 +1095,12 @@ export class AdaptiveCoverProTileCard extends LitElement {
         'icon label     position  controls badge resume'
         'icon label     floor-chip .        .     .';
     }
-    /* Detailed layout: the floor chip rides inline on the state line
-       (.detail-line), so these just re-assert the detailed grid — the
-       one-line .has-floor-chip rules have equal specificity and would
-       otherwise win by source order. */
-    .tile-body.detailed.has-floor-chip {
-      grid-template-columns: 24px minmax(0, 1fr) auto auto;
-      grid-template-rows: auto auto;
-      grid-template-areas:
-        'icon label       auto-line   controls'
-        'icon detail-line detail-line controls';
-    }
-    .tile-body.detailed.has-row3.has-floor-chip {
-      grid-template-columns: 24px minmax(0, 1fr) auto auto;
-      grid-template-rows: auto auto auto;
-      grid-template-areas:
-        'icon label       auto-line   controls'
-        'icon detail-line detail-line controls'
-        'icon resume      resume      resume';
-    }
     /* Reflow (issues #136, #154): drop the ↑■▼ controls onto their own
-       full-width row beneath the name so the cover name gets the whole column.
-       The same reflow fires from two independent triggers, because "the tile is
-       narrow" alone can't tell a phone from a medium tile in a multi-column
-       desktop dashboard — both can be ~400px wide:
+       full-width row beneath the name so the cover name gets the whole column,
+       with the badge and tilt rows stacked between. The same reflow fires from
+       two independent triggers, because "the tile is narrow" alone can't tell a
+       phone from a medium tile in a multi-column desktop dashboard — both can be
+       ~400px wide:
 
          1. #154 — a phone: the whole viewport is narrow (≤500px) AND the tile is
             near full-width (≤480px). Gated on the *viewport*, not the container
@@ -1121,28 +1117,34 @@ export class AdaptiveCoverProTileCard extends LitElement {
        order, not just specificity). */
     @media (max-width: 500px) {
       @container (max-width: 480px) {
-        .tile-body.detailed,
-        .tile-body.detailed.has-state-label,
-        .tile-body.detailed.has-floor-chip {
-          grid-template-columns: 24px minmax(0, 1fr) auto;
-          grid-template-rows: auto auto auto;
+        .tile-body.detailed {
+          grid-template-columns: 36px minmax(0, 1fr);
           grid-template-areas:
-            'icon label       auto-line'
-            'icon detail-line detail-line'
-            'controls controls controls';
+            'icon label'
+            'controls controls';
         }
-        .tile-body.detailed.has-row3.has-floor-chip {
-          grid-template-columns: 24px minmax(0, 1fr) auto;
-          grid-template-rows: auto auto auto auto;
+        .tile-body.detailed.has-badge-row {
           grid-template-areas:
-            'icon label       auto-line'
-            'icon detail-line detail-line'
-            'icon resume      resume'
-            'controls controls controls';
+            'icon label'
+            '.    badges'
+            'controls controls';
+        }
+        .tile-body.detailed.has-tilt {
+          grid-template-areas:
+            'icon label'
+            '.    tilt'
+            'controls controls';
+        }
+        .tile-body.detailed.has-badge-row.has-tilt {
+          grid-template-areas:
+            'icon label'
+            '.    tilt'
+            '.    badges'
+            'controls controls';
         }
         .tile-body.detailed .controls {
           margin-top: 4px;
-          gap: 6px;
+          gap: 8px;
           justify-content: space-between;
         }
         .tile-body.detailed .controls button {
@@ -1153,30 +1155,34 @@ export class AdaptiveCoverProTileCard extends LitElement {
       }
     }
     @container (max-width: 340px) {
-      .tile-body.detailed,
-      .tile-body.detailed.has-state-label,
-      .tile-body.detailed.has-floor-chip {
-        grid-template-columns: 24px minmax(0, 1fr) auto;
-        grid-template-rows: auto auto auto;
+      .tile-body.detailed {
+        grid-template-columns: 36px minmax(0, 1fr);
         grid-template-areas:
-          'icon label       auto-line'
-          'icon detail-line detail-line'
-          'controls controls controls';
+          'icon label'
+          'controls controls';
       }
-      .tile-body.detailed.has-row3.has-floor-chip {
-        grid-template-columns: 24px minmax(0, 1fr) auto;
-        grid-template-rows: auto auto auto auto;
+      .tile-body.detailed.has-badge-row {
         grid-template-areas:
-          'icon label       auto-line'
-          'icon detail-line detail-line'
-          'icon resume      resume'
-          'controls controls controls';
+          'icon label'
+          'badges badges'
+          'controls controls';
       }
-      /* Controls now own a full-width row — spread the three buttons across it
-         and trim their fixed 56px width so they share the space evenly. */
+      .tile-body.detailed.has-tilt {
+        grid-template-areas:
+          'icon label'
+          'tilt tilt'
+          'controls controls';
+      }
+      .tile-body.detailed.has-badge-row.has-tilt {
+        grid-template-areas:
+          'icon label'
+          'badges badges'
+          'tilt tilt'
+          'controls controls';
+      }
       .tile-body.detailed .controls {
         margin-top: 4px;
-        gap: 6px;
+        gap: 8px;
         justify-content: space-between;
       }
       .tile-body.detailed .controls button {

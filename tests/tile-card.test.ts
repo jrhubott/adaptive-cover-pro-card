@@ -217,7 +217,7 @@ describe('adaptive-cover-pro-tile-card render', () => {
     const root = el.shadowRoot!;
     // cover.left has state 'open' in the fixture; no localizer is mocked so
     // formatCoverState falls back to capitalizing the raw state.
-    expect(root.querySelector('.position')?.textContent?.trim()).toBe('Open · 42%');
+    expect(root.querySelector('.state')?.textContent?.trim()).toBe('Open · 42%');
   });
 
   it('renders the mini tilt bar for a dual-axis venetian cover', async () => {
@@ -306,12 +306,12 @@ describe('adaptive-cover-pro-tile-card render', () => {
 
   it('renders only the percentage when show_state is false (legacy behavior)', async () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY, show_state: false }, makeHass());
-    expect(el.shadowRoot!.querySelector('.position')?.textContent?.trim()).toBe('42%');
+    expect(el.shadowRoot!.querySelector('.state')?.textContent?.trim()).toBe('42%');
   });
 
   it('renders only the state when show_position is false', async () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY, show_position: false }, makeHass());
-    expect(el.shadowRoot!.querySelector('.position')?.textContent?.trim()).toBe('Open');
+    expect(el.shadowRoot!.querySelector('.state')?.textContent?.trim()).toBe('Open');
   });
 
   it('hides the position cell entirely when both toggles are off', async () => {
@@ -319,7 +319,7 @@ describe('adaptive-cover-pro-tile-card render', () => {
       { type: TYPE, entry_id: ENTRY, show_position: false, show_state: false },
       makeHass(),
     );
-    expect(el.shadowRoot!.querySelector('.position')).toBeFalsy();
+    expect(el.shadowRoot!.querySelector('.state')).toBeFalsy();
   });
 
   it('renders the winner badge by default and it is not resumable (solar tracking active)', async () => {
@@ -509,7 +509,7 @@ describe('adaptive-cover-pro-tile-card render', () => {
     (el.hass!.states['sensor.cover_position'] as { state: string }).state = '100';
     el.hass = { ...el.hass! };
     await el.updateComplete;
-    const text = el.shadowRoot!.querySelector('.position')?.textContent?.trim();
+    const text = el.shadowRoot!.querySelector('.state')?.textContent?.trim();
     expect(text).toBe('Open · 16%');
   });
 
@@ -664,10 +664,10 @@ describe('adaptive-cover-pro-tile-card transit motion indicator', () => {
         },
       }),
     );
-    const position = el.shadowRoot!.querySelector('.position');
+    const position = el.shadowRoot!.querySelector('.state');
     expect(position?.textContent).toContain('Opening');
     // The custom arrow glyph is gone — the state text is the only indication.
-    expect(el.shadowRoot!.querySelector('.position ha-icon')).toBeFalsy();
+    expect(el.shadowRoot!.querySelector('.state ha-icon')).toBeFalsy();
   });
 
   it('renders the readout as "Closing" when transit_states marks the cover closing', async () => {
@@ -680,14 +680,14 @@ describe('adaptive-cover-pro-tile-card transit motion indicator', () => {
         },
       }),
     );
-    const position = el.shadowRoot!.querySelector('.position');
+    const position = el.shadowRoot!.querySelector('.state');
     expect(position?.textContent).toContain('Closing');
-    expect(el.shadowRoot!.querySelector('.position ha-icon')).toBeFalsy();
+    expect(el.shadowRoot!.querySelector('.state ha-icon')).toBeFalsy();
   });
 
   it('shows the resting state (not Opening/Closing) when transit_states is absent', async () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
-    const text = el.shadowRoot!.querySelector('.position')?.textContent ?? '';
+    const text = el.shadowRoot!.querySelector('.state')?.textContent ?? '';
     expect(text).toContain('Open');
     expect(text).not.toContain('Opening');
     expect(text).not.toContain('Closing');
@@ -703,7 +703,7 @@ describe('adaptive-cover-pro-tile-card transit motion indicator', () => {
         },
       }),
     );
-    const text = el.shadowRoot!.querySelector('.position')?.textContent ?? '';
+    const text = el.shadowRoot!.querySelector('.state')?.textContent ?? '';
     expect(text).toContain('Open');
     expect(text).not.toContain('Opening');
     expect(text).not.toContain('Closing');
@@ -1267,7 +1267,7 @@ describe('adaptive-cover-pro-tile-card new options', () => {
     expect(el.shadowRoot!.querySelector('.tile-body.has-summary')).toBeFalsy();
   });
 
-  it('detailed layout shows the summary inline with the title, right-justified', async () => {
+  it('detailed layout stacks the summary under the state within the label', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY, show_decision_summary: true, layout: 'detailed' },
       makeHass({
@@ -1280,12 +1280,12 @@ describe('adaptive-cover-pro-tile-card new options', () => {
     );
     const summary = el.shadowRoot!.querySelector('.summary');
     expect(summary).toBeTruthy();
-    expect(summary!.classList.contains('inline-summary')).toBe(true);
+    // The summary is a dim line stacked inside the flex-column label (HA-tile
+    // structure), no longer a right-justified inline chip on the title row.
     expect(summary!.parentElement?.classList.contains('label')).toBe(true);
-    expect(el.shadowRoot!.querySelector('.tile-body.detailed.has-summary')).toBeTruthy();
   });
 
-  it('detailed layout renders the badge inline on the state line', async () => {
+  it('detailed layout renders the winner badge on the badge row', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY, layout: 'detailed' },
       makeHass({
@@ -1298,10 +1298,9 @@ describe('adaptive-cover-pro-tile-card new options', () => {
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed');
     expect(body).toBeTruthy();
-    // Badge no longer claims its own row; with no resume button there is no
-    // third row, and the badge sits inline within .detail-line.
-    expect(el.shadowRoot!.querySelector('.tile-body.detailed.has-row3')).toBeNull();
-    const badge = el.shadowRoot!.querySelector('.detail-line acp-tile-badge');
+    // ACP badges collect on the dedicated .badge-line row, not on the name/state
+    // rows. The winner (Solar) badge lives there.
+    const badge = el.shadowRoot!.querySelector('.badge-line acp-tile-badge');
     expect(badge).toBeTruthy();
   });
 
@@ -1319,6 +1318,9 @@ describe('adaptive-cover-pro-tile-card new options', () => {
 });
 
 describe('adaptive-cover-pro-tile-card Auto indicator (issue #110)', () => {
+  // Text of a badge element from its shadow root, whitespace-collapsed.
+  const badgeText = (b: Element): string => b.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+
   it('detailed: cloud wins under automatic control → BOTH the Cloudy winner badge and a separate Auto badge', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY, layout: 'detailed' },
@@ -1330,23 +1332,15 @@ describe('adaptive-cover-pro-tile-card Auto indicator (issue #110)', () => {
       }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    // Two distinct badges render: the Cloudy winner inline on .detail-line and
-    // the Auto indicator on its own .auto-line above it.
-    const badges = body.querySelectorAll('acp-tile-badge');
+    // Both badges live on the dedicated .badge-line row: Auto first, then the
+    // Cloudy winner.
+    const badges = body.querySelectorAll('.badge-line acp-tile-badge');
     expect(badges.length).toBe(2);
-
-    const detailLineBadge = body.querySelector('.detail-line acp-tile-badge');
-    expect(detailLineBadge).toBeTruthy();
-    expect(detailLineBadge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim()).toBe('Cloudy');
-
-    const autoLine = body.querySelector('.auto-line');
-    expect(autoLine).toBeTruthy();
-    const autoBadge = autoLine!.querySelector('acp-tile-badge');
-    expect(autoBadge).toBeTruthy();
-    expect(autoBadge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim()).toBe('Auto');
+    expect(badgeText(badges[0])).toBe('Auto');
+    expect(badgeText(badges[1])).toBe('Cloudy');
   });
 
-  it('detailed: .auto-line appears in DOM order BEFORE .detail-line within .tile-body.detailed', async () => {
+  it('detailed: the Auto badge appears before the winner badge within .badge-line', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY, layout: 'detailed' },
       makeHass({
@@ -1357,15 +1351,15 @@ describe('adaptive-cover-pro-tile-card Auto indicator (issue #110)', () => {
       }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    const rows = Array.from(body.children);
-    const autoIdx = rows.findIndex((n) => (n as Element).classList.contains('auto-line'));
-    const detailIdx = rows.findIndex((n) => (n as Element).classList.contains('detail-line'));
+    const badges = Array.from(body.querySelectorAll('.badge-line acp-tile-badge'));
+    const autoIdx = badges.findIndex((b) => badgeText(b) === 'Auto');
+    const winnerIdx = badges.findIndex((b) => badgeText(b) === 'Cloudy');
     expect(autoIdx).toBeGreaterThanOrEqual(0);
-    expect(detailIdx).toBeGreaterThanOrEqual(0);
-    expect(autoIdx).toBeLessThan(detailIdx);
+    expect(winnerIdx).toBeGreaterThanOrEqual(0);
+    expect(autoIdx).toBeLessThan(winnerIdx);
   });
 
-  it('detailed: default winner (auto) renders the Auto line only — no duplicate inline Auto badge', async () => {
+  it('detailed: default winner (auto) renders the Auto badge only — no duplicate', async () => {
     // Dedupe: when the winner badge kind is itself `auto`, the inline winner
     // badge is suppressed so Auto never shows twice.
     const el = await mount(
@@ -1378,11 +1372,9 @@ describe('adaptive-cover-pro-tile-card Auto indicator (issue #110)', () => {
       }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    const badges = body.querySelectorAll('acp-tile-badge');
+    const badges = body.querySelectorAll('.badge-line acp-tile-badge');
     expect(badges.length).toBe(1);
-    // The single badge lives on .auto-line, not inline on .detail-line.
-    expect(body.querySelector('.auto-line acp-tile-badge')).toBeTruthy();
-    expect(body.querySelector('.detail-line acp-tile-badge')).toBeFalsy();
+    expect(badgeText(badges[0])).toBe('Auto');
   });
 
   it('detailed: manual override active → no Auto badge', async () => {
@@ -1391,7 +1383,8 @@ describe('adaptive-cover-pro-tile-card Auto indicator (issue #110)', () => {
       makeHass({ manualOverrideOn: true, decisionState: 'manual' }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    expect(body.querySelector('.auto-line')).toBeFalsy();
+    const badges = Array.from(body.querySelectorAll('.badge-line acp-tile-badge'));
+    expect(badges.some((b) => badgeText(b) === 'Auto')).toBe(false);
   });
 
   it('detailed: force winner → no Auto badge', async () => {
@@ -1405,7 +1398,8 @@ describe('adaptive-cover-pro-tile-card Auto indicator (issue #110)', () => {
       }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    expect(body.querySelector('.auto-line')).toBeFalsy();
+    const badges = Array.from(body.querySelectorAll('.badge-line acp-tile-badge'));
+    expect(badges.some((b) => badgeText(b) === 'Auto')).toBe(false);
   });
 
   it('detailed: custom_position with bypass_auto_control true → no Auto badge', async () => {
@@ -1420,7 +1414,8 @@ describe('adaptive-cover-pro-tile-card Auto indicator (issue #110)', () => {
       }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    expect(body.querySelector('.auto-line')).toBeFalsy();
+    const badges = Array.from(body.querySelectorAll('.badge-line acp-tile-badge'));
+    expect(badges.some((b) => badgeText(b) === 'Auto')).toBe(false);
   });
 
   it('detailed: custom_position with bypass_auto_control false → Auto badge present', async () => {
@@ -1435,7 +1430,8 @@ describe('adaptive-cover-pro-tile-card Auto indicator (issue #110)', () => {
       }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    expect(body.querySelector('.auto-line acp-tile-badge')).toBeTruthy();
+    const badges = Array.from(body.querySelectorAll('.badge-line acp-tile-badge'));
+    expect(badges.some((b) => badgeText(b) === 'Auto')).toBe(true);
   });
 
   it('detailed: badges.auto false hides the Auto badge but keeps the winner badge', async () => {
@@ -1449,8 +1445,9 @@ describe('adaptive-cover-pro-tile-card Auto indicator (issue #110)', () => {
       }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    expect(body.querySelector('.auto-line')).toBeFalsy();
-    expect(body.querySelector('.detail-line acp-tile-badge')).toBeTruthy();
+    const badges = Array.from(body.querySelectorAll('.badge-line acp-tile-badge'));
+    expect(badges.some((b) => badgeText(b) === 'Auto')).toBe(false);
+    expect(badges.some((b) => badgeText(b) === 'Cloudy')).toBe(true);
   });
 
   it('one-line: Auto-active cloud winner → no .auto-line, exactly one badge', async () => {
@@ -1730,6 +1727,17 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
     expect(chip!.textContent?.trim()).toMatch(/↥\s*25%/);
   });
 
+  it('detailed: floor chip rides the dedicated badge row, not the one-line grid (#208 follow-up)', async () => {
+    // Regression: an active min-mode floor must trigger the detailed badge row
+    // (.badge-line) and must NOT re-add the one-line `has-floor-chip` grid,
+    // which would clobber the detailed grid areas and orphan .badge-line/.tilt.
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeFloorHass());
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    expect(body.classList.contains('has-badge-row')).toBe(true);
+    expect(body.classList.contains('has-floor-chip')).toBe(false);
+    expect(body.querySelector('.badge-line .acp-floor-chip')).toBeTruthy();
+  });
+
   it('floor chip has is-armed class when floor position <= target (not clamping)', async () => {
     // target = 42, floor = 25 → target >= floor → armed but not clamping
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeFloorHass({ targetPosition: 42 }));
@@ -1872,9 +1880,9 @@ describe('adaptive-cover-pro-tile-card narrow-column responsiveness (#136)', () 
   it('reflows the detailed controls onto their own full-width row at a narrow breakpoint', () => {
     const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
     expect(css).toContain('@container');
-    // The narrow detailed grid moves controls to a row of their own — this
-    // 'controls'-spanning template area exists only in the narrow reflow.
-    expect(css).toContain('controls controls controls');
+    // The narrow detailed grid (2 columns) moves controls to a row of their own
+    // — this 'controls'-spanning template area exists only in the narrow reflow.
+    expect(css).toContain('controls controls');
   });
 
   it('reflows phone tiles via a viewport gate, not tile width alone (#154)', () => {
@@ -2036,7 +2044,7 @@ describe('adaptive-cover-pro-tile-card unavailable cover (issue #212)', () => {
     (el.hass!.states['sensor.cover_position'] as { state: string }).state = '100';
     el.hass = { ...el.hass! };
     await el.updateComplete;
-    const text = el.shadowRoot!.querySelector('.position')?.textContent?.trim();
+    const text = el.shadowRoot!.querySelector('.state')?.textContent?.trim();
     expect(text).toBe('Open · 16%');
   });
 });
@@ -2097,5 +2105,57 @@ describe('adaptive-cover-pro-tile-card unavailable dual-axis cover (issue #212)'
       tiltHass(undefined, { coverLeftState: 'unavailable' }),
     );
     expect(el.shadowRoot!.textContent ?? '').not.toContain('⟂');
+  });
+});
+
+describe('adaptive-cover-pro-tile-card HA tile layout (detailed)', () => {
+  it('detailed: wraps the icon in a state-tinted shape (--acp-icon-tint set on the wrap)', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
+    const wrap = el.shadowRoot!.querySelector(
+      '.tile-body.detailed .cover-icon-wrap',
+    ) as HTMLElement;
+    expect(wrap).toBeTruthy();
+    expect(wrap.getAttribute('style') ?? '').toContain('--acp-icon-tint');
+  });
+
+  it('one-line: leaves the icon bare (no tint shape)', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY, layout: 'one-line' }, makeHass());
+    const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap') as HTMLElement;
+    expect(wrap.getAttribute('style') ?? '').not.toContain('--acp-icon-tint');
+  });
+
+  it('detailed: renders the state readout as a .state line stacked in the label', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
+    const stateLine = el.shadowRoot!.querySelector('.tile-body.detailed .label .state');
+    expect(stateLine).toBeTruthy();
+    expect(stateLine!.textContent?.trim()).toBe('Open · 42%');
+  });
+
+  it('detailed: no badge row when no badge is present (show_badge false)', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY, show_badge: false }, makeHass());
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    expect(body.classList.contains('has-badge-row')).toBe(false);
+    expect(body.querySelector('.badge-line')).toBeFalsy();
+  });
+
+  it('detailed: adds the badge row when the Auto badge shows', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({
+        decisionState: 'default',
+        decisionAttrs: {
+          trace: [{ handler: 'default', matched: true, reason: '', position: 60 }],
+        },
+      }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    expect(body.classList.contains('has-badge-row')).toBe(true);
+    expect(body.querySelector('.badge-line')).toBeTruthy();
+  });
+
+  it('applies HA control-button metrics (40px tall, 12px radius) to detailed controls', () => {
+    const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
+    expect(css).toContain('height: 40px');
+    expect(css).toContain('border-radius: 12px');
   });
 });
