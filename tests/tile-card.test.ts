@@ -1157,7 +1157,7 @@ describe('adaptive-cover-pro-tile-card new options', () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass({ coverLeftState: 'open' }));
     const icon = el.shadowRoot!.querySelector('ha-icon.cover-icon');
     expect(icon?.getAttribute('style')).toContain(
-      'var(--state-cover-open-color, var(--state-cover-active-color, var(--state-active-color)))',
+      'var(--state-cover-open-color, var(--state-cover-active-color, var(--state-cover-color, var(--state-active-color))))',
     );
   });
 
@@ -1165,7 +1165,7 @@ describe('adaptive-cover-pro-tile-card new options', () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass({ coverLeftState: 'closed' }));
     const icon = el.shadowRoot!.querySelector('ha-icon.cover-icon');
     expect(icon?.getAttribute('style')).toContain(
-      'var(--state-cover-inactive-color, var(--state-inactive-color))',
+      'var(--state-cover-closed-color, var(--state-cover-inactive-color, var(--state-cover-color, var(--state-inactive-color))))',
     );
   });
 

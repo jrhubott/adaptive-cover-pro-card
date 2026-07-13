@@ -367,7 +367,7 @@ describe('header layout — long entry title', () => {
     await el.updateComplete;
     const icon = el.shadowRoot!.querySelector('.header-info ha-icon');
     expect(icon?.getAttribute('style')).toContain(
-      'var(--state-cover-open-color, var(--state-cover-active-color, var(--state-active-color)))',
+      'var(--state-cover-open-color, var(--state-cover-active-color, var(--state-cover-color, var(--state-active-color))))',
     );
   });
 
@@ -385,7 +385,7 @@ describe('header layout — long entry title', () => {
     await el.updateComplete;
     const icon = el.shadowRoot!.querySelector('.header-info ha-icon');
     expect(icon?.getAttribute('style')).toContain(
-      'var(--state-cover-inactive-color, var(--state-inactive-color))',
+      'var(--state-cover-closed-color, var(--state-cover-inactive-color, var(--state-cover-color, var(--state-inactive-color))))',
     );
   });
 
@@ -403,6 +403,42 @@ describe('header layout — long entry title', () => {
     await el.updateComplete;
     const icon = el.shadowRoot!.querySelector('.header-info ha-icon');
     expect(icon?.getAttribute('style') ?? '').not.toContain('--state-cover');
+  });
+
+  it('passes stateColor=true to the more-info dialog by default', async () => {
+    const el = document.createElement('adaptive-cover-pro-card') as CardLike;
+    const h = makeHass();
+    (h.states as Record<string, unknown>)['cover.living'] = {
+      state: 'open',
+      attributes: { friendly_name: 'Living' },
+    };
+    el.hass = h;
+    el._registry = REGISTRY;
+    el.setConfig({ type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY });
+    document.body.appendChild(el);
+    await el.updateComplete;
+    const dialog = el.shadowRoot!.querySelector('acp-more-info-dialog') as
+      | (HTMLElement & { stateColor?: boolean })
+      | null;
+    expect(dialog?.stateColor).toBe(true);
+  });
+
+  it('passes stateColor=false to the more-info dialog when state_color is false', async () => {
+    const el = document.createElement('adaptive-cover-pro-card') as CardLike;
+    const h = makeHass();
+    (h.states as Record<string, unknown>)['cover.living'] = {
+      state: 'open',
+      attributes: { friendly_name: 'Living' },
+    };
+    el.hass = h;
+    el._registry = REGISTRY;
+    el.setConfig({ type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY, state_color: false });
+    document.body.appendChild(el);
+    await el.updateComplete;
+    const dialog = el.shadowRoot!.querySelector('acp-more-info-dialog') as
+      | (HTMLElement & { stateColor?: boolean })
+      | null;
+    expect(dialog?.stateColor).toBe(false);
   });
 
   it('header does not use align-items: center (which clips wrapped titles)', () => {

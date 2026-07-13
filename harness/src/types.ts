@@ -203,6 +203,8 @@ export interface RootCardOptions {
   show_moon: boolean;
   hide_inactive_handlers: boolean;
   show_decision_summary: boolean;
+  /** Color the header cover icon by state, HA-style (default true). */
+  state_color: boolean;
   north_offset: number;
 }
 

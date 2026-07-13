@@ -213,7 +213,7 @@ describe('acp-more-info-dialog: header content', () => {
     expect(
       el.shadowRoot!.querySelector('.header ha-icon.cover-icon')?.getAttribute('style'),
     ).toContain(
-      'var(--state-cover-open-color, var(--state-cover-active-color, var(--state-active-color)))',
+      'var(--state-cover-open-color, var(--state-cover-active-color, var(--state-cover-color, var(--state-active-color))))',
     );
   });
 
@@ -223,7 +223,9 @@ describe('acp-more-info-dialog: header content', () => {
     const el = await mount({ hass: h, discovered: discovered(), open: true });
     expect(
       el.shadowRoot!.querySelector('.header ha-icon.cover-icon')?.getAttribute('style'),
-    ).toContain('var(--state-cover-inactive-color, var(--state-inactive-color))');
+    ).toContain(
+      'var(--state-cover-closed-color, var(--state-cover-inactive-color, var(--state-cover-color, var(--state-inactive-color))))',
+    );
   });
 
   it('omits the inline header icon state color when stateColor is false', async () => {

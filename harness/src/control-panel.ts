@@ -998,6 +998,9 @@ export class AcpHarnessControlPanel extends LitElement {
             root: { ...this.config.root, show_decision_summary: v },
           }),
         )}
+        ${this._checkbox('Color icon by state', this.config.root.state_color, (v) =>
+          this._emit({ ...this.config, root: { ...this.config.root, state_color: v } }),
+        )}
         ${this._numberSlider('North offset °', this.config.root.north_offset, -180, 180, 1, (v) =>
           this._emit({ ...this.config, root: { ...this.config.root, north_offset: v } }),
         )}

@@ -465,6 +465,7 @@ export class AdaptiveCoverProCard extends LitElement {
         .hass=${this.hass}
         .discovered=${discovered}
         .open=${this._dialogOpen}
+        .stateColor=${this._config!.state_color !== false}
         @acp-dialog-close=${this._closeDialog}
       ></acp-more-info-dialog>
     `;

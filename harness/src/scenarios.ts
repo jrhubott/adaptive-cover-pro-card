@@ -19,6 +19,7 @@ function defaultRoot(): HarnessConfig['root'] {
     show_moon: false,
     hide_inactive_handlers: false,
     show_decision_summary: true,
+    state_color: true,
     north_offset: 0,
   };
 }

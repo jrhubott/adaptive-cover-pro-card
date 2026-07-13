@@ -103,17 +103,26 @@ export function coverCloseIcon(deviceClass?: string): string {
 
 /**
  * HA-style state color for a cover icon, replicating home-assistant-frontend's
- * `domainStateColorProperties('cover', stateObj, state)` cascade so the glyph
- * picks up the user's theme (e.g. a custom `--state-cover-open-color`) instead
- * of a fixed color. `closed` gets the "inactive" tier; unavailable/unknown/
- * missing gets its own var; everything else (open/opening/closing/any other
- * active-shaped state) gets the "active" tier.
+ * `stateColorCss` cascade for the `cover` domain so the glyph picks up the
+ * user's theme instead of a fixed color. Every state honors, in order:
+ *   1. its own per-state var (`--state-cover-<state>-color`)
+ *   2. the domain active/inactive tier (`--state-cover-active-color` /
+ *      `--state-cover-inactive-color`)
+ *   3. the domain-generic var (`--state-cover-color`)
+ *   4. the generic active/inactive var (`--state-active-color` /
+ *      `--state-inactive-color`)
+ * `closed` is the only "inactive" state; unavailable/unknown/missing short-
+ * circuits to `--state-unavailable-color` instead of running the cascade.
  */
 export function coverStateColor(state: string | null | undefined): string {
   if (isUnavailable(state) || !state) return 'var(--state-unavailable-color)';
   const key = state.toLowerCase();
-  if (key === 'closed') {
-    return 'var(--state-cover-inactive-color, var(--state-inactive-color))';
-  }
-  return `var(--state-cover-${key}-color, var(--state-cover-active-color, var(--state-active-color)))`;
+  const active = key !== 'closed';
+  const tier = active ? 'active' : 'inactive';
+  return (
+    `var(--state-cover-${key}-color, ` +
+    `var(--state-cover-${tier}-color, ` +
+    `var(--state-cover-color, ` +
+    `var(--state-${tier}-color))))`
+  );
 }
