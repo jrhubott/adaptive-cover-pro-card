@@ -303,12 +303,6 @@ export class AdaptiveCoverProTileCard extends LitElement {
             position: this._liveCoverPosition(cover),
           }));
     const iconColor = cfg.state_color !== false ? coverStateColor(stateObj?.state) : null;
-    // HA-tile icon "shape": a rounded background tinted with the same state
-    // color as the glyph (~20% opacity), matching home-assistant-frontend's
-    // ha-tile-icon. Falls back to a neutral tint when state coloring is off.
-    const iconTint = iconColor
-      ? `color-mix(in srgb, ${iconColor} 20%, transparent)`
-      : 'var(--secondary-background-color, rgba(127, 127, 127, 0.15))';
     const showPosition = cfg.show_position !== false;
     const showState = cfg.show_state !== false;
     const showControls = cfg.show_controls !== false;
@@ -468,12 +462,39 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // HA-tile secondary line: the "Open · 25%" readout stacked under the name.
     const stateLineTpl =
       labelParts.length > 0 ? html`<div class="state">${labelParts.join(' · ')}</div>` : nothing;
+    // Right-aligned target-vs-actual mini bar under the ↑■↓ controls (fills the
+    // otherwise-empty right half of the badge row). Live position is the fill;
+    // the auto/solar target is a marker tick. Purely informational — the ↑■↓
+    // buttons remain the control surface. Detailed layout only, and gated on
+    // `show_badge` so disabling the card's chrome (show_badge: false) still
+    // yields a compact single-row tile rather than a row holding just the bar.
+    const showPositionBar = detailed && showBadge && livePosition !== null;
+    const posBarTooltip = showPositionBar
+      ? calculatedPosition !== null
+        ? `${formatPercent(livePosition)} · ${t('dialog.target', this.hass)} ${formatPercent(calculatedPosition)}`
+        : formatPercent(livePosition)
+      : '';
+    const posBarTpl = showPositionBar
+      ? html`<div class="pos-bar" ${tooltip(posBarTooltip)}>
+          <div
+            class="pos-fill"
+            style=${`width:${livePosition}%${iconColor ? `;background:${iconColor}` : ''}`}
+          ></div>
+          ${calculatedPosition !== null
+            ? html`<div
+                class="pos-marker"
+                style=${`left:clamp(1px, ${calculatedPosition}%, calc(100% - 1px))`}
+              ></div>`
+            : nothing}
+        </div>`
+      : nothing;
     // ACP's own chrome (Auto badge, winner/Manual badge, floor chip) no longer
     // rides on the name/state rows — it collects on a dedicated full-width row 3
-    // so the top two rows read exactly like a native HA tile. The row only
-    // exists when at least one badge is present.
+    // so the top two rows read exactly like a native HA tile. The row exists
+    // when any chrome is present — a badge, the floor chip, or the position bar.
     const showWinnerBadge = renderBadge && inlineWinnerBadge;
-    const hasBadgeRow = detailed && (showAutoBadge || showWinnerBadge || showFloorChip);
+    const hasBadgeRow =
+      detailed && (showAutoBadge || showWinnerBadge || showFloorChip || showPositionBar);
 
     return html`
       <div
@@ -486,7 +507,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
         @pointerleave=${this._onPointerCancel}
         @click=${this._onClick}
       >
-        <div class="cover-icon-wrap" style=${detailed ? `--acp-icon-tint: ${iconTint}` : ''}>
+        <div class="cover-icon-wrap">
           <ha-icon
             class="cover-icon"
             icon=${icon}
@@ -511,7 +532,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
         ${detailed ? nothing : html`${positionTpl}${floorChipTpl}`}
         ${hasBadgeRow
           ? html`<div class="badge-line">
-              ${autoBadgeTpl}${showWinnerBadge ? badgeTpl : nothing}${floorChipTpl}
+              ${autoBadgeTpl}${showWinnerBadge ? badgeTpl : nothing}${floorChipTpl}${posBarTpl}
             </div>`
           : nothing}
         ${showTilt && detailed
@@ -875,8 +896,8 @@ export class AdaptiveCoverProTileCard extends LitElement {
       grid-template-rows: auto auto auto;
       grid-template-areas:
         'icon label  controls'
-        '.    tilt   tilt'
-        '.    badges badges';
+        '.    badges badges'
+        '.    tilt   tilt';
     }
     /* Name over state, vertically centered against the icon (HA ha-tile-info). */
     .tile-body.detailed .label {
@@ -885,8 +906,20 @@ export class AdaptiveCoverProTileCard extends LitElement {
       justify-content: center;
       gap: 2px;
     }
+    /* Match HA's ha-tile-info text through the same theme tokens the native
+       tile card uses, so ACP inherits any theme font-scaling/recoloring
+       instead of drifting with hardcoded values. Fallbacks are HA's own
+       defaults (name 14px/500, state 12px/400). */
+    .tile-body.detailed .title {
+      font-size: var(--ha-font-size-m, 0.875rem);
+      font-weight: var(--ha-font-weight-medium, 500);
+      line-height: var(--ha-line-height-condensed, 1.375);
+      color: var(--primary-text-color);
+    }
     .tile-body.detailed .state {
-      font-size: 0.78rem;
+      font-size: var(--ha-font-size-s, 0.75rem);
+      font-weight: var(--ha-font-weight-normal, 400);
+      line-height: var(--ha-line-height-condensed, 1.375);
       color: var(--secondary-text-color);
       white-space: nowrap;
       overflow: hidden;
@@ -904,6 +937,37 @@ export class AdaptiveCoverProTileCard extends LitElement {
     .badge-line acp-tile-badge {
       overflow: visible;
     }
+    /* Target-vs-actual mini bar: right-aligned in the badge row so it fills the
+       otherwise-empty space beneath the ↑■↓ buttons. Fill = live openness in the
+       state color; the tick marks the auto/solar target. */
+    .badge-line .pos-bar {
+      margin-left: auto;
+      align-self: center;
+      position: relative;
+      flex: 0 1 170px;
+      max-width: 55%;
+      height: 6px;
+      border-radius: 6px;
+      background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
+      overflow: hidden;
+    }
+    .badge-line .pos-fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      background: var(--primary-color);
+      opacity: 0.55;
+      border-radius: 6px;
+      transition: width 0.3s ease;
+    }
+    .badge-line .pos-marker {
+      position: absolute;
+      top: 0;
+      width: 2px;
+      height: 100%;
+      background: var(--accent-color, #ff9800);
+      transform: translateX(-50%);
+      transition: left 0.3s ease;
+    }
     .tilt-line {
       grid-area: tilt;
       min-width: 0;
@@ -914,36 +978,43 @@ export class AdaptiveCoverProTileCard extends LitElement {
     .tile-body.detailed .label .summary {
       font-size: 0.72rem;
     }
-    /* HA ha-control-button metrics: ~40px tall, 12px radius, tinted-grey fill. */
+    /* Link to HA's own ha-control-button tokens so height/radius/fill follow the
+       native cover tile (and the theme) instead of hardcoded values. Fallbacks
+       are HA defaults: 40px thickness, 12px radius, disabled-color @ 20% fill,
+       24px glyph. Width is fixed (~56) since this inline row doesn't flex-fill
+       like HA's full-width control-button-group. */
     .tile-body.detailed .controls {
       align-self: center;
-      gap: 8px;
+      gap: 12px;
     }
     .tile-body.detailed .controls button {
-      width: 46px;
-      height: 40px;
-      border-radius: 12px;
+      width: 56px;
+      height: var(--control-button-group-thickness, 40px);
+      border-radius: var(--control-button-border-radius, 12px);
       border: none;
-      background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
+      background: color-mix(
+        in srgb,
+        var(--control-button-background-color, var(--disabled-color, #7f7f7f)) 20%,
+        transparent
+      );
     }
     .tile-body.detailed .controls button ha-icon {
-      --mdc-icon-size: 22px;
+      --mdc-icon-size: 24px;
       color: var(--primary-text-color);
     }
     .tile-body.detailed .controls button:hover {
-      background: var(--divider-color, rgba(127, 127, 127, 0.25));
+      background: color-mix(
+        in srgb,
+        var(--control-button-background-color, var(--disabled-color, #7f7f7f)) 32%,
+        transparent
+      );
     }
-    /* HA ha-tile-icon shape: 36px rounded shape, state-tinted background,
-       24px glyph in the full state color. */
+    /* Bare 36px glyph, no background shape — the state color carries the
+       cover's status without a tinted square behind it. */
     .tile-body.detailed .cover-icon-wrap {
       place-self: center;
       width: 36px;
       height: 36px;
-      border-radius: 50%;
-      background: var(
-        --acp-icon-tint,
-        var(--secondary-background-color, rgba(127, 127, 127, 0.15))
-      );
     }
     .tile-body.detailed .cover-icon {
       --mdc-icon-size: 24px;
@@ -1138,8 +1209,8 @@ export class AdaptiveCoverProTileCard extends LitElement {
         .tile-body.detailed.has-badge-row.has-tilt {
           grid-template-areas:
             'icon label'
-            '.    tilt'
             '.    badges'
+            '.    tilt'
             'controls controls';
         }
         .tile-body.detailed .controls {
