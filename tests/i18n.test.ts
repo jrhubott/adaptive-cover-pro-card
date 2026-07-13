@@ -224,6 +224,20 @@ describe('cover position i18n (issue #132)', () => {
   });
 });
 
+describe('linear position motor tooltip i18n (issue #219)', () => {
+  const keys = ['covers.target_tooltip_motor'];
+  for (const key of keys) {
+    it(`${key} resolves to a non-key string in EN and FR`, () => {
+      const enVal = t(key, { locale: { language: 'en' } });
+      const frVal = t(key, { locale: { language: 'fr' } });
+      expect(enVal).not.toBe(key);
+      expect(frVal).not.toBe(key);
+      expect(enVal.length).toBeGreaterThan(0);
+      expect(frVal.length).toBeGreaterThan(0);
+    });
+  }
+});
+
 describe('decision card editor i18n', () => {
   const keys = [
     'editor.decision.title',

@@ -38,6 +38,7 @@ import {
   resolveCustomPositionPct,
   resolveActiveMinModeFloor,
 } from './lib/decision-summary';
+import { coverHeldPosition } from './lib/cover-position';
 import {
   buildSolarActiveContext,
   isAutoControlActive,
@@ -598,13 +599,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
     return discovered.managed_covers[0];
   }
 
+  /** Prefers the pre-interpolation `linear_position` attribute (issue #219)
+   *  over the raw motor state when present. See {@link coverHeldPosition}. */
   private _currentPosition(discovered: DiscoveredEntities): number | null {
-    const id = discovered.entities.target_position_sensor;
-    if (!id) return null;
-    const st = this.hass.states[id];
-    if (!st) return null;
-    const v = parseFloat(st.state);
-    return Number.isNaN(v) ? null : v;
+    return coverHeldPosition(this.hass, discovered);
   }
 
   /** In-transit direction for this entry's resolved cover, read from the

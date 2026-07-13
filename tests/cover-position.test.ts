@@ -8,6 +8,9 @@ import {
   manualOverrideActive,
   isOverrideDivergence,
   displayTarget,
+  coverMotorPosition,
+  coverLinearPosition,
+  coverMotorDivergence,
 } from '../src/lib/cover-position';
 
 const baseDiscovered: DiscoveredEntities = {
@@ -26,6 +29,7 @@ interface Opts {
   rawCalc?: number;
   actual?: Record<string, number | null>;
   override?: boolean;
+  linear?: number | string;
 }
 
 function makeHass(o: Opts): HomeAssistant {
@@ -36,6 +40,7 @@ function makeHass(o: Opts): HomeAssistant {
         attributes: {
           ...(o.rawCalc !== undefined ? { raw_calculated_position: o.rawCalc } : {}),
           ...(o.actual !== undefined ? { actual_positions: o.actual } : {}),
+          ...(o.linear !== undefined ? { linear_position: o.linear } : {}),
         },
       },
       'binary_sensor.manual_override': {
@@ -91,5 +96,58 @@ describe('cover-position helpers — issue #158', () => {
       expect(displayTarget(hass, baseDiscovered)).toBe(60);
       expect(isOverrideDivergence(hass, baseDiscovered)).toBe(false);
     });
+  });
+});
+
+describe('linear position preference — issue #219', () => {
+  it('coverLinearPosition reads a valid numeric linear_position attribute', () => {
+    const hass = makeHass({ state: '31', linear: 10 });
+    expect(coverLinearPosition(hass, baseDiscovered)).toBe(10);
+  });
+
+  it('coverLinearPosition returns null when the attribute is absent', () => {
+    const hass = makeHass({ state: '31' });
+    expect(coverLinearPosition(hass, baseDiscovered)).toBeNull();
+  });
+
+  it('coverLinearPosition returns null when the attribute is non-numeric', () => {
+    const hass = makeHass({ state: '31', linear: 'ten' });
+    expect(coverLinearPosition(hass, baseDiscovered)).toBeNull();
+  });
+
+  it('coverMotorPosition reads state regardless of linear_position', () => {
+    const hass = makeHass({ state: '31', linear: 10 });
+    expect(coverMotorPosition(hass, baseDiscovered)).toBe(31);
+  });
+
+  it('coverHeldPosition prefers linear_position over state when both present', () => {
+    const hass = makeHass({ state: '31', linear: 10 });
+    expect(coverHeldPosition(hass, baseDiscovered)).toBe(10);
+  });
+
+  it('coverHeldPosition falls back to state when linear_position is absent', () => {
+    const hass = makeHass({ state: '44' });
+    expect(coverHeldPosition(hass, baseDiscovered)).toBe(44);
+  });
+
+  it('coverMotorDivergence returns the motor value when linear_position differs from state', () => {
+    const hass = makeHass({ state: '31', linear: 10 });
+    expect(coverMotorDivergence(hass, baseDiscovered)).toBe(31);
+  });
+
+  it('coverMotorDivergence returns null when linear_position equals state', () => {
+    const hass = makeHass({ state: '31', linear: 31 });
+    expect(coverMotorDivergence(hass, baseDiscovered)).toBeNull();
+  });
+
+  it('coverMotorDivergence returns null when linear_position is absent', () => {
+    const hass = makeHass({ state: '31' });
+    expect(coverMotorDivergence(hass, baseDiscovered)).toBeNull();
+  });
+
+  it('displayTarget uses the linear-preferred held value as its no-divergence fallback', () => {
+    const hass = makeHass({ state: '31', linear: 10 });
+    expect(displayTarget(hass, baseDiscovered)).toBe(10);
+    expect(isOverrideDivergence(hass, baseDiscovered)).toBe(false);
   });
 });

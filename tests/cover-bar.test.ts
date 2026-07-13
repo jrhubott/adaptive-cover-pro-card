@@ -261,6 +261,63 @@ describe('acp-cover-bar manual-override divergence — issue #158', () => {
   });
 });
 
+describe('acp-cover-bar linear position (motor tooltip) — issue #219', () => {
+  function linearHass(opts: { linear?: number; state?: string }): HomeAssistant {
+    return {
+      states: {
+        'sensor.cover_position': {
+          state: opts.state ?? '31',
+          attributes: {
+            actual_positions: { 'cover.a': 31 },
+            ...(opts.linear !== undefined ? { linear_position: opts.linear } : {}),
+          },
+        },
+        'cover.a': { state: 'open', attributes: { friendly_name: 'Cover A' } },
+      },
+      callService: vi.fn(),
+    } as unknown as HomeAssistant;
+  }
+
+  const linearDiscovered: DiscoveredEntities = {
+    ...baseDiscovered,
+    entities: { target_position_sensor: 'sensor.cover_position' },
+  };
+
+  async function mount(hass: HomeAssistant): Promise<CoverBarLike> {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    document.body.appendChild(el);
+    el.hass = hass;
+    el.discovered = linearDiscovered;
+    await el.updateComplete;
+    return el;
+  }
+
+  it('shows the linear_position (10%) as the Target chip text, not the raw state (31%)', async () => {
+    const el = await mount(linearHass({ state: '31', linear: 10 }));
+    const target = el.shadowRoot!.querySelector('.head .target')!.textContent!;
+    expect(target).toContain('10');
+    expect(target).not.toContain('31');
+  });
+
+  it('attaches a motor tooltip to the Target chip when linear_position differs from state', async () => {
+    const el = await mount(linearHass({ state: '31', linear: 10 }));
+    const target = el.shadowRoot!.querySelector('.head .target') as HTMLElement;
+    expect(target.getAttribute('data-tooltip')).toContain('31');
+  });
+
+  it('attaches no motor tooltip when linear_position is absent', async () => {
+    const el = await mount(linearHass({ state: '31' }));
+    const target = el.shadowRoot!.querySelector('.head .target') as HTMLElement;
+    expect(target.getAttribute('data-tooltip')).toBeNull();
+  });
+
+  it('attaches no motor tooltip when linear_position equals state (nothing to disclose)', async () => {
+    const el = await mount(linearHass({ state: '31', linear: 31 }));
+    const target = el.shadowRoot!.querySelector('.head .target') as HTMLElement;
+    expect(target.getAttribute('data-tooltip')).toBeNull();
+  });
+});
+
 describe('acp-cover-bar target marker clamp at extremes — issue #158 (trailing)', () => {
   const baseDiscoveredLocal: DiscoveredEntities = {
     ...baseDiscovered,
