@@ -3235,6 +3235,16 @@ function e(e,t,s,i){var o,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
             'icon tilt'
             'controls controls';
         }
+        /* The wide bar-only grid is :not(.has-tilt) at (0,4,0), which out-weighs
+           the (0,3,0) has-chrome-row reflow above — so re-assert the reflowed
+           (controls on their own row) grid at matching specificity here, or a
+           bar-only tile would keep its inline layout on phones. */
+        .tile-body.detailed.bar-only:not(.has-tilt) {
+          grid-template-areas:
+            'icon label'
+            'icon chrome'
+            'controls controls';
+        }
         /* Narrow reflow stacks the controls on their own row, so the bar-only
            label span from the wide layout would overlap them — pin it back to
            the name row. */
@@ -3277,6 +3287,15 @@ function e(e,t,s,i){var o,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
           'icon label'
           'icon chrome'
           'tilt tilt'
+          'controls controls';
+      }
+      /* Re-assert the reflowed grid for bar-only (see the 480px block): the wide
+         bar-only rule out-specifies the has-chrome-row reflow, so without this a
+         bar-only tile in a narrow Sections column keeps its inline controls. */
+      .tile-body.detailed.bar-only:not(.has-tilt) {
+        grid-template-areas:
+          'icon label'
+          'icon chrome'
           'controls controls';
       }
       /* Narrow reflow stacks the controls on their own row, so the bar-only

@@ -1873,6 +1873,56 @@ export const SCENARIOS: Scenario[] = [
       return c;
     },
   },
+  {
+    id: 'bar-only-tile',
+    label: 'Bar-only tile — no badges, centered name/state (#208)',
+    added: '2026-07-13',
+    issue: 208,
+    description:
+      "The bar-only detailed tile (commit that centers name/state, #208): integration enabled but AUTOMATIC control OFF, no manual override and no floor slot, so NO chrome badges render — only the position bar. The name/state must sit VERTICALLY CENTERED across the tile height (not pinned to the top), with the bar hugging the bottom and reserving the badge-height so this tile is the same height as a badged one. Two entries: one at ~65% open, one fully open. Verify the responsive fix: drag the tile-width control DOWN below ~340px — the ↑■↓ controls must drop to their own full-width row (they previously stayed inline for bar-only tiles because the wide grid out-specified the reflow). Toggle 'show_position_bar' off in Per-card config to confirm the chrome row collapses entirely (single-row tile).",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'bar-only-tile';
+      c.tile.layout = 'detailed';
+      c.entries = [
+        makeEntry({
+          entry_id: 'living_room',
+          title: 'Living Room',
+          window_azimuth: 180,
+          color: '#7e57c2',
+          target_position: 65,
+          covers: [
+            {
+              entity_id: 'cover.living_room_main',
+              friendly_name: 'Living Room shade',
+              position: 65,
+              device_class: 'shade',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'kitchen',
+          title: 'Kitchen Window',
+          window_azimuth: 90,
+          color: '#26a69a',
+          target_position: 100,
+          covers: [
+            {
+              entity_id: 'cover.kitchen_main',
+              friendly_name: 'Kitchen shade',
+              position: 100,
+              device_class: 'shade',
+            },
+          ],
+        }),
+      ];
+      // Automatic control OFF (integration still enabled) is the realistic path
+      // to a no-badge tile: the winner badge is suppressed and the Auto badge is
+      // inactive, leaving only the position bar → bar-only.
+      for (const e of c.entries) e.flags.automatic_control = false;
+      return c;
+    },
+  },
 ];
 
 export function findScenario(id: string): Scenario | undefined {
