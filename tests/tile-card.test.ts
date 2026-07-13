@@ -1153,6 +1153,40 @@ describe('adaptive-cover-pro-tile-card new options', () => {
     );
   });
 
+  it('colors the cover icon by state (open) by default', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass({ coverLeftState: 'open' }));
+    const icon = el.shadowRoot!.querySelector('ha-icon.cover-icon');
+    expect(icon?.getAttribute('style')).toContain(
+      'var(--state-cover-open-color, var(--state-cover-active-color, var(--state-active-color)))',
+    );
+  });
+
+  it('colors the cover icon by state (closed) by default', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass({ coverLeftState: 'closed' }));
+    const icon = el.shadowRoot!.querySelector('ha-icon.cover-icon');
+    expect(icon?.getAttribute('style')).toContain(
+      'var(--state-cover-inactive-color, var(--state-inactive-color))',
+    );
+  });
+
+  it('colors the cover icon with the unavailable var when the cover is unavailable', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unavailable' }),
+    );
+    const icon = el.shadowRoot!.querySelector('ha-icon.cover-icon');
+    expect(icon?.getAttribute('style')).toContain('var(--state-unavailable-color)');
+  });
+
+  it('omits the inline state color when state_color is false', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, state_color: false },
+      makeHass({ coverLeftState: 'open' }),
+    );
+    const icon = el.shadowRoot!.querySelector('ha-icon.cover-icon');
+    expect(icon?.getAttribute('style') ?? '').not.toContain('--state-cover');
+  });
+
   it('uses horizontal expand/collapse control glyphs for an awning', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },

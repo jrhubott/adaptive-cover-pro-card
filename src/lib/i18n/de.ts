@@ -330,6 +330,8 @@ export const de: EnDict = {
       show_moon_desc: 'Mondposition und Mondphase als Überlagerung auf dem Himmelskompass.',
       hide_inactive_label: 'Inaktive Handler ausblenden',
       hide_inactive_desc: 'Nur den Gewinner und aktiv übereinstimmende Pipeline-Handler anzeigen.',
+      state_color_label: 'Symbol nach Status einfärben',
+      state_color_desc: 'Kopfzeilen-Symbol nimmt die Offen/Geschlossen/Aktiv-Farbe des Themes an.',
     },
     tile: {
       name: 'Titel überschreiben',
@@ -356,6 +358,7 @@ export const de: EnDict = {
       show_elevation_chart: 'Sonne-heute-Diagramm im Dialog anzeigen',
       show_solar_calc: 'Sonnenberechnung im Dialog anzeigen',
       show_motion_icon: 'Anwesenheitsanzeige einblenden',
+      state_color: 'Symbol nach Status einfärben',
       tap_action: 'Tipp-Aktion',
       hold_action: 'Gedrückthalten-Aktion',
       double_tap_action: 'Doppeltippen-Aktion',

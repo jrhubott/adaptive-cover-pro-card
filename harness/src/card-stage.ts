@@ -345,6 +345,7 @@ export class AcpHarnessCardStage extends LitElement {
       show_elevation_chart: t.show_elevation_chart,
       show_solar_calc: t.show_solar_calc,
       show_motion_icon: t.show_motion_icon,
+      state_color: t.state_color,
       layout: t.layout,
       tooltips: this._tooltipsConfig(),
     };

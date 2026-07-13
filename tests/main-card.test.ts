@@ -353,6 +353,58 @@ describe('header layout — long entry title', () => {
     expect(icon.icon).toBe('mdi:awning-outline');
   });
 
+  it('colors the header cover icon by state (open) by default', async () => {
+    const el = document.createElement('adaptive-cover-pro-card') as CardLike;
+    const h = makeHass();
+    (h.states as Record<string, unknown>)['cover.living'] = {
+      state: 'open',
+      attributes: { friendly_name: 'Living' },
+    };
+    el.hass = h;
+    el._registry = REGISTRY;
+    el.setConfig({ type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY });
+    document.body.appendChild(el);
+    await el.updateComplete;
+    const icon = el.shadowRoot!.querySelector('.header-info ha-icon');
+    expect(icon?.getAttribute('style')).toContain(
+      'var(--state-cover-open-color, var(--state-cover-active-color, var(--state-active-color)))',
+    );
+  });
+
+  it('colors the header cover icon by state (closed) by default', async () => {
+    const el = document.createElement('adaptive-cover-pro-card') as CardLike;
+    const h = makeHass();
+    (h.states as Record<string, unknown>)['cover.living'] = {
+      state: 'closed',
+      attributes: { friendly_name: 'Living' },
+    };
+    el.hass = h;
+    el._registry = REGISTRY;
+    el.setConfig({ type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY });
+    document.body.appendChild(el);
+    await el.updateComplete;
+    const icon = el.shadowRoot!.querySelector('.header-info ha-icon');
+    expect(icon?.getAttribute('style')).toContain(
+      'var(--state-cover-inactive-color, var(--state-inactive-color))',
+    );
+  });
+
+  it('omits the inline header icon state color when state_color is false', async () => {
+    const el = document.createElement('adaptive-cover-pro-card') as CardLike;
+    const h = makeHass();
+    (h.states as Record<string, unknown>)['cover.living'] = {
+      state: 'open',
+      attributes: { friendly_name: 'Living' },
+    };
+    el.hass = h;
+    el._registry = REGISTRY;
+    el.setConfig({ type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY, state_color: false });
+    document.body.appendChild(el);
+    await el.updateComplete;
+    const icon = el.shadowRoot!.querySelector('.header-info ha-icon');
+    expect(icon?.getAttribute('style') ?? '').not.toContain('--state-cover');
+  });
+
   it('header does not use align-items: center (which clips wrapped titles)', () => {
     // CSS layout overflow is not catchable by happy-dom, but we can assert that
     // the LitElement.styles CSSResult does not contain the clipping combination.

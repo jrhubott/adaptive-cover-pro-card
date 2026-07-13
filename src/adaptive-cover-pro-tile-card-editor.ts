@@ -60,6 +60,7 @@ const FORM_DEFAULTS = {
   show_elevation_chart: true,
   show_solar_calc: true,
   show_motion_icon: true,
+  state_color: true,
   layout: 'detailed',
   // All badges default on; only `=== false` hides.
   badge_auto: true,
@@ -100,6 +101,7 @@ const LABEL_KEYS: Record<string, string> = {
   show_elevation_chart: 'editor.tile.show_elevation_chart',
   show_solar_calc: 'editor.tile.show_solar_calc',
   show_motion_icon: 'editor.tile.show_motion_icon',
+  state_color: 'editor.tile.state_color',
   tap_action: 'editor.tile.tap_action',
   hold_action: 'editor.tile.hold_action',
   double_tap_action: 'editor.tile.double_tap_action',
@@ -385,6 +387,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
         ],
       },
       { name: 'show_motion_icon', selector: { boolean: {} } },
+      { name: 'state_color', selector: { boolean: {} } },
       { name: 'show_compass', selector: { boolean: {} } },
       { name: 'show_elevation_chart', selector: { boolean: {} } },
       { name: 'show_solar_calc', selector: { boolean: {} } },

@@ -5,7 +5,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import { entityStateChanged } from './lib/hass-change';
 
 import { CARD_EDITOR_NAME, CARD_NAME, CARD_VERSION, resolveControlFlags } from './const';
-import { coverStateIcon } from './lib/icons';
+import { coverStateIcon, coverStateColor } from './lib/icons';
 import { t } from './lib/i18n';
 import { setTooltipDefaults } from './lib/tooltip';
 import { createDiscoveryMemo } from './lib/entity-discovery';
@@ -262,6 +262,8 @@ export class AdaptiveCoverProCard extends LitElement {
       coverType: d.cover_type,
       position: typeof coverPos === 'number' && !Number.isNaN(coverPos) ? coverPos : null,
     });
+    const iconColor =
+      this._config!.state_color !== false ? coverStateColor(coverState?.state) : null;
     const enabledId = d.entities.integration_enabled_switch;
     const autoId = d.entities.automatic_control_switch;
     const enabledOn = enabledId ? this.hass.states[enabledId]?.state === 'on' : true;
@@ -275,7 +277,7 @@ export class AdaptiveCoverProCard extends LitElement {
           @click=${this._openDialog}
           @keydown=${this._onHeaderInfoKeydown}
         >
-          <ha-icon .icon=${icon}></ha-icon>
+          <ha-icon .icon=${icon} style=${iconColor ? `color: ${iconColor}` : ''}></ha-icon>
           <span class="title">${d.entry_title}</span>
         </div>
         <span class="spacer"></span>

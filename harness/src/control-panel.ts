@@ -1080,6 +1080,7 @@ export class AcpHarnessControlPanel extends LitElement {
             'show_elevation_chart',
             'show_solar_calc',
             'show_motion_icon',
+            'state_color',
           ] as const
         ).map((k) =>
           this._checkbox(k, this.config.tile[k], (v) =>

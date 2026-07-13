@@ -18,7 +18,7 @@ import {
   resolveCustomPositionPct,
 } from '../lib/decision-summary';
 import { buildSolarActiveContext, selectVisibleBadges } from '../lib/badge-visibility';
-import { coverStateIcon } from '../lib/icons';
+import { coverStateIcon, coverStateColor } from '../lib/icons';
 import { resolveAxes } from '../lib/axes';
 import { startMinuteTimer } from '../lib/minute-timer';
 import type {
@@ -69,6 +69,7 @@ export class MoreInfoDialog extends LitElement {
   @property({ type: Boolean }) public showCompass = true;
   @property({ type: Boolean }) public showElevationChart = true;
   @property({ type: Boolean }) public showSolarCalc = true;
+  @property({ type: Boolean }) public stateColor = true;
 
   /** Per-kind badge opt-in, threaded down from the tile-card config. */
   @property({ attribute: false }) public badges?: AdaptiveCoverProTileCardConfig['badges'];
@@ -163,6 +164,14 @@ export class MoreInfoDialog extends LitElement {
     });
   }
 
+  /** Header icon color, following the same state resolution as {@link _headerIcon}. */
+  private _headerColor(): string | null {
+    if (!this.stateColor) return null;
+    const coverId = this.discovered.managed_covers?.[0];
+    const stateObj = coverId ? this.hass.states[coverId] : undefined;
+    return coverStateColor(stateObj?.state);
+  }
+
   protected render(): TemplateResult | typeof nothing {
     if (!this.open || !this.hass || !this.discovered) return nothing;
     const winner = this._winner();
@@ -185,12 +194,17 @@ export class MoreInfoDialog extends LitElement {
     const configureLabel = t('dialog.configure_integration', this.hass);
     const deviceLabel = t('dialog.open_device_page', this.hass);
     const closeLabel = t('dialog.close', this.hass);
+    const headerColor = this._headerColor();
 
     return html`
       <div class="backdrop" data-open @click=${this._onBackdrop}>
         <div class="dialog" @click=${this._stop} role="dialog" aria-modal="true">
           <div class="header">
-            <ha-icon class="cover-icon" icon=${this._headerIcon()}></ha-icon>
+            <ha-icon
+              class="cover-icon"
+              icon=${this._headerIcon()}
+              style=${headerColor ? `color: ${headerColor}` : ''}
+            ></ha-icon>
             <div class="title">${this.discovered.entry_title}</div>
             <div class="badges">
               ${!integrationEnabled

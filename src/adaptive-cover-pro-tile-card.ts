@@ -21,7 +21,7 @@ import { setAxes } from './lib/services';
 import { AXIS_LABEL_I18N_KEYS } from './const';
 import { entityStateChanged } from './lib/hass-change';
 import { fetchAcpConfigEntries } from './lib/config-entries';
-import { coverStateIcon, coverOpenIcon, coverCloseIcon } from './lib/icons';
+import { coverStateIcon, coverStateColor, coverOpenIcon, coverCloseIcon } from './lib/icons';
 import { subscribeEntityRegistry, type EntityRegistryEntry } from './lib/entity-registry';
 import { loadEntityRegistry, getCachedRegistry } from './lib/registry-store';
 import { registryCache } from './lib/registry-cache';
@@ -258,6 +258,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
         .showCompass=${this._config.show_compass !== false}
         .showElevationChart=${this._config.show_elevation_chart !== false}
         .showSolarCalc=${this._config.show_solar_calc !== false}
+        .stateColor=${this._config.state_color !== false}
         .badges=${this._config.badges}
         @acp-dialog-close=${this._closeDialog}
       ></acp-more-info-dialog>
@@ -301,6 +302,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
             coverType: discovered.cover_type,
             position: this._liveCoverPosition(cover),
           }));
+    const iconColor = cfg.state_color !== false ? coverStateColor(stateObj?.state) : null;
     const showPosition = cfg.show_position !== false;
     const showState = cfg.show_state !== false;
     const showControls = cfg.show_controls !== false;
@@ -469,7 +471,11 @@ export class AdaptiveCoverProTileCard extends LitElement {
         @click=${this._onClick}
       >
         <div class="cover-icon-wrap">
-          <ha-icon class="cover-icon" icon=${icon}></ha-icon>
+          <ha-icon
+            class="cover-icon"
+            icon=${icon}
+            style=${iconColor ? `color: ${iconColor}` : ''}
+          ></ha-icon>
           ${motionState
             ? html`<ha-icon
                 class="motion-overlay ${motionState}"

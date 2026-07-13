@@ -90,6 +90,7 @@ function defaultTile(): HarnessConfig['tile'] {
     show_elevation_chart: true,
     show_solar_calc: true,
     show_motion_icon: true,
+    state_color: true,
     layout: 'detailed',
     tileWidth: 0,
   };
@@ -434,6 +435,94 @@ export const SCENARIOS: Scenario[] = [
               friendly_name: 'Generic cover',
               position: 40,
               device_class: 'none',
+            },
+          ],
+        }),
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'state-color-by-status',
+    label: 'Cover icon color follows state (#208)',
+    description:
+      "Issue #208: the tile/header/dialog cover icon COLOR now follows the underlying HA cover state, matching HA's own theme-aware --state-cover-* cascade instead of a single fixed color. Five tiles, same cover_type, side by side: OPEN and OPENING/CLOSING (in-transit) resolve to the active tier (orange --state-active-color by default), CLOSED resolves to the inactive tier (grey --state-inactive-color), and UNAVAILABLE resolves to its own --state-unavailable-color (lighter grey). Toggle each tile's `state_color` config off in the control panel to confirm the icon falls back to the old fixed color when the feature is disabled.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'state-color-by-status';
+      c.entries = [
+        makeEntry({
+          entry_id: 'state_open',
+          title: 'Open',
+          window_azimuth: 180,
+          color: '#ffa726',
+          target_position: 100,
+          covers: [
+            {
+              entity_id: 'cover.state_open_main',
+              friendly_name: 'Open cover',
+              position: 100,
+              state: 'open',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'state_opening',
+          title: 'Opening',
+          window_azimuth: 180,
+          color: '#ffa726',
+          target_position: 60,
+          covers: [
+            {
+              entity_id: 'cover.state_opening_main',
+              friendly_name: 'Opening cover',
+              position: 40,
+              state: 'opening',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'state_closing',
+          title: 'Closing',
+          window_azimuth: 180,
+          color: '#ffa726',
+          target_position: 20,
+          covers: [
+            {
+              entity_id: 'cover.state_closing_main',
+              friendly_name: 'Closing cover',
+              position: 60,
+              state: 'closing',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'state_closed',
+          title: 'Closed',
+          window_azimuth: 180,
+          color: '#8a8a8a',
+          target_position: 0,
+          covers: [
+            {
+              entity_id: 'cover.state_closed_main',
+              friendly_name: 'Closed cover',
+              position: 0,
+              state: 'closed',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'state_unavailable',
+          title: 'Unavailable',
+          window_azimuth: 180,
+          color: '#bdbdbd',
+          target_position: 40,
+          covers: [
+            {
+              entity_id: 'cover.state_unavailable_main',
+              friendly_name: 'Unavailable cover',
+              position: null,
+              state: 'unavailable',
             },
           ],
         }),

@@ -249,6 +249,9 @@ export interface TileCardOptions {
   show_elevation_chart: boolean;
   show_solar_calc: boolean;
   show_motion_icon: boolean;
+  /** Color the cover state icon by state (open/opening/closing = active tier,
+   *  closed = inactive tier, unavailable = unavailable tier). Default true. */
+  state_color: boolean;
   layout: 'one-line' | 'detailed';
   /** Simulated tile width in px, mimicking a narrow HA "Sections" column.
    *  0 = auto (the stage grid sizes tiles normally, ≥360px wide). A positive
