@@ -2722,9 +2722,9 @@ function e(e,t,s,i){var o,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
                 class="pos-marker"
                 style=${`left:clamp(1px, ${m}%, calc(100% - 1px))`}
               ></div>`:q}
-        </div>`:q,re=j&&K,ae=_&&(B||re||Q)?U`${te}${re?ee:q}${J}`:q,le=_&&(B||re||Q||ie);return U`
+        </div>`:q,re=j&&K,ae=_&&(B||re||Q),le=ae?U`${te}${re?ee:q}${J}`:q,ce=_&&(ae||ie);return U`
       <div
-        class=${`tile-body${_?" detailed":""}${V?" has-state-label":""}${Q&&!_?" has-floor-chip":""}${y&&_?" has-tilt":""}${le?" has-chrome-row":""}${r?" unavailable":""}`}
+        class=${`tile-body${_?" detailed":""}${V?" has-state-label":""}${Q&&!_?" has-floor-chip":""}${y&&_?" has-tilt":""}${ce?" has-chrome-row":""}${ce&&!ae?" bar-only":""}${r?" unavailable":""}`}
         role=${E?"group":"button"}
         tabindex=${E?-1:0}
         @pointerdown=${this._onPointerDown}
@@ -2752,7 +2752,7 @@ function e(e,t,s,i){var o,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
           ${I?U`<div class="summary" ${Tt(O)}>${O}</div>`:q}
         </div>
         ${_?q:U`${X}${J}`}
-        ${le?U`<div class="chrome-line">${ae}${ne}</div>`:q}
+        ${ce?U`<div class="chrome-line">${le}${ne}</div>`:q}
         ${y&&_?U`<div
               class="tilt-line"
               @click=${this._stop}
@@ -2780,7 +2780,7 @@ function e(e,t,s,i){var o,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
                 ?disabled=${!i||r||$}
                 @click=${()=>this._setCoverPosition(i,100)}
               >
-                <ha-icon icon=${ce=n,ce&&Pe.has(ce)?"mdi:arrow-expand-horizontal":"mdi:arrow-up"}></ha-icon>
+                <ha-icon icon=${de=n,de&&Pe.has(de)?"mdi:arrow-expand-horizontal":"mdi:arrow-up"}></ha-icon>
               </button>
               <button
                 class="stop"
@@ -2803,7 +2803,7 @@ function e(e,t,s,i){var o,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
             </div>`:q}
         ${_?q:ee}
       </div>
-    `;var ce}_resolvedCover(e){return this._config?.cover?this._config.cover:e.managed_covers[0]}_currentPosition(e){const t=e.entities.target_position_sensor;if(!t)return null;const s=this.hass.states[t];if(!s)return null;const i=parseFloat(s.state);return Number.isNaN(i)?null:i}_transitState(e){const t=e.entities.target_position_sensor;if(!t)return null;const s=this._resolvedCover(e);if(!s)return null;const i=this.hass.states[t]?.attributes?.transit_states;return i?.[s]??null}_liveCoverPosition(e){if(!e)return null;const t=this.hass.states[e]?.attributes?.current_position;return"number"!=typeof t||Number.isNaN(t)?null:t}_winner(e){const t=e.entities.decision_trace_sensor;return t?this.hass.states[t]?.state??"default":"default"}_traceAttrs(e){const t=e.entities.decision_trace_sensor;if(t)return this.hass.states[t]?.attributes}_motionActiveState(e){const t=e.entities.motion_status_sensor;if(!t)return null;const s=this.hass.states[t]?.state;return"motion_detected"===s||"timeout_pending"===s?s:null}_manualOverrideOn(e){const t=e.entities.manual_override_binary;return!!t&&"on"===this.hass.states[t]?.state}_switchOn(e,t){const s=e.entities[t];return!s||"off"!==this.hass.states[s]?.state}_manualEndIso(e){if(!this._manualOverrideOn(e))return;const t=e.entities.manual_override_end_sensor;return t?this.hass.states[t]?.state:void 0}_setCoverPosition(e,t){e&&this._setAxis(e,"position",t)}_stopCover(e){e&&this.hass.callService(Ee,"stop",{},{entity_id:e})}_setAxis(e,t,s){e&&Zs(this.hass,e,{[t]:s})}_axisTarget(e,t){const s=t.targetRole;if(!s)return null;const i=e.entities[s];if(!i)return null;const o=parseFloat(this.hass.states[i]?.state??"");return Number.isNaN(o)?null:o}_liveAxis(e,t){if(!e||!t.stateAttr)return null;const s=this.hass.states[e]?.attributes?.[t.stateAttr];return"number"!=typeof s||Number.isNaN(s)?null:s}_axisLabel(e){const t=Le[e.id];return t?He(t,this.hass):e.label}_resume(e){const t=e.entities.reset_override_button;t&&this.hass.callService("button","press",{entity_id:t})}_tapActionConfig(){const e=this._config?.tap_action;if("string"!=typeof e)return e}_isFullyInert(e){return!!(e=>!!e&&"none"===e.action)(this._tapActionConfig())&&!Ws(e.hold_action)&&!Ws(e.double_tap_action)}_fireAction(e){if(!this._config||!this.hass)return;const t=this._tapActionConfig();if("tap"===e&&void 0===t)return this._dialogOpen=!0,void this.dispatchEvent(new CustomEvent("acp-tile-tap",{bubbles:!0,composed:!0}));const s=this._resolvedCoverFromState();((e,t,s,i)=>{let o;"double_tap"===i&&s.double_tap_action?o=s.double_tap_action:"hold"===i&&s.hold_action?o=s.hold_action:"tap"===i&&s.tap_action&&(o=s.tap_action),((e,t,s,i)=>{if(i||(i={action:"more-info"}),!i.confirmation||i.confirmation.exemptions&&i.confirmation.exemptions.some(e=>e.user===t.user.id)||(Us("warning"),confirm(i.confirmation.text||`Are you sure you want to ${i.action}?`)))switch(i.action){case"more-info":(s.entity||s.camera_image)&&Ls(e,"hass-more-info",{entityId:s.entity?s.entity:s.camera_image});break;case"navigate":i.navigation_path&&((e,t,s=!1)=>{s?history.replaceState(null,"",t):history.pushState(null,"",t),Ls(window,"location-changed",{replace:s})})(0,i.navigation_path);break;case"url":i.url_path&&window.open(i.url_path);break;case"toggle":s.entity&&(((e,t)=>{((e,t,s=!0)=>{const i=function(e){return e.substr(0,e.indexOf("."))}(t),o="group"===i?"homeassistant":i;let n;switch(i){case"lock":n=s?"unlock":"lock";break;case"cover":n=s?"open_cover":"close_cover";break;default:n=s?"turn_on":"turn_off"}e.callService(o,n,{entity_id:t})})(e,t,Gs.includes(e.states[t].state))})(t,s.entity),Us("success"));break;case"call-service":{if(!i.service)return void Us("failure");const[e,s]=i.service.split(".",2);t.callService(e,s,i.service_data,i.target),Us("success");break}case"fire-dom-event":Ls(e,"ll-custom",i)}})(e,t,s,o)})(this,this.hass,{entity:s,tap_action:t,hold_action:this._config.hold_action,double_tap_action:this._config.double_tap_action},e)}_resolvedCoverFromState(){if(this._config?.cover)return this._config.cover;if(null===this._registry)return;const e=this._discovered??this._memo(this.hass,{type:this._config.type,entry_id:this._config.entry_id},this._registry);return e?.managed_covers[0]}_stop(e){e.stopPropagation()}};ji.styles=r`
+    `;var de}_resolvedCover(e){return this._config?.cover?this._config.cover:e.managed_covers[0]}_currentPosition(e){const t=e.entities.target_position_sensor;if(!t)return null;const s=this.hass.states[t];if(!s)return null;const i=parseFloat(s.state);return Number.isNaN(i)?null:i}_transitState(e){const t=e.entities.target_position_sensor;if(!t)return null;const s=this._resolvedCover(e);if(!s)return null;const i=this.hass.states[t]?.attributes?.transit_states;return i?.[s]??null}_liveCoverPosition(e){if(!e)return null;const t=this.hass.states[e]?.attributes?.current_position;return"number"!=typeof t||Number.isNaN(t)?null:t}_winner(e){const t=e.entities.decision_trace_sensor;return t?this.hass.states[t]?.state??"default":"default"}_traceAttrs(e){const t=e.entities.decision_trace_sensor;if(t)return this.hass.states[t]?.attributes}_motionActiveState(e){const t=e.entities.motion_status_sensor;if(!t)return null;const s=this.hass.states[t]?.state;return"motion_detected"===s||"timeout_pending"===s?s:null}_manualOverrideOn(e){const t=e.entities.manual_override_binary;return!!t&&"on"===this.hass.states[t]?.state}_switchOn(e,t){const s=e.entities[t];return!s||"off"!==this.hass.states[s]?.state}_manualEndIso(e){if(!this._manualOverrideOn(e))return;const t=e.entities.manual_override_end_sensor;return t?this.hass.states[t]?.state:void 0}_setCoverPosition(e,t){e&&this._setAxis(e,"position",t)}_stopCover(e){e&&this.hass.callService(Ee,"stop",{},{entity_id:e})}_setAxis(e,t,s){e&&Zs(this.hass,e,{[t]:s})}_axisTarget(e,t){const s=t.targetRole;if(!s)return null;const i=e.entities[s];if(!i)return null;const o=parseFloat(this.hass.states[i]?.state??"");return Number.isNaN(o)?null:o}_liveAxis(e,t){if(!e||!t.stateAttr)return null;const s=this.hass.states[e]?.attributes?.[t.stateAttr];return"number"!=typeof s||Number.isNaN(s)?null:s}_axisLabel(e){const t=Le[e.id];return t?He(t,this.hass):e.label}_resume(e){const t=e.entities.reset_override_button;t&&this.hass.callService("button","press",{entity_id:t})}_tapActionConfig(){const e=this._config?.tap_action;if("string"!=typeof e)return e}_isFullyInert(e){return!!(e=>!!e&&"none"===e.action)(this._tapActionConfig())&&!Ws(e.hold_action)&&!Ws(e.double_tap_action)}_fireAction(e){if(!this._config||!this.hass)return;const t=this._tapActionConfig();if("tap"===e&&void 0===t)return this._dialogOpen=!0,void this.dispatchEvent(new CustomEvent("acp-tile-tap",{bubbles:!0,composed:!0}));const s=this._resolvedCoverFromState();((e,t,s,i)=>{let o;"double_tap"===i&&s.double_tap_action?o=s.double_tap_action:"hold"===i&&s.hold_action?o=s.hold_action:"tap"===i&&s.tap_action&&(o=s.tap_action),((e,t,s,i)=>{if(i||(i={action:"more-info"}),!i.confirmation||i.confirmation.exemptions&&i.confirmation.exemptions.some(e=>e.user===t.user.id)||(Us("warning"),confirm(i.confirmation.text||`Are you sure you want to ${i.action}?`)))switch(i.action){case"more-info":(s.entity||s.camera_image)&&Ls(e,"hass-more-info",{entityId:s.entity?s.entity:s.camera_image});break;case"navigate":i.navigation_path&&((e,t,s=!1)=>{s?history.replaceState(null,"",t):history.pushState(null,"",t),Ls(window,"location-changed",{replace:s})})(0,i.navigation_path);break;case"url":i.url_path&&window.open(i.url_path);break;case"toggle":s.entity&&(((e,t)=>{((e,t,s=!0)=>{const i=function(e){return e.substr(0,e.indexOf("."))}(t),o="group"===i?"homeassistant":i;let n;switch(i){case"lock":n=s?"unlock":"lock";break;case"cover":n=s?"open_cover":"close_cover";break;default:n=s?"turn_on":"turn_off"}e.callService(o,n,{entity_id:t})})(e,t,Gs.includes(e.states[t].state))})(t,s.entity),Us("success"));break;case"call-service":{if(!i.service)return void Us("failure");const[e,s]=i.service.split(".",2);t.callService(e,s,i.service_data,i.target),Us("success");break}case"fire-dom-event":Ls(e,"ll-custom",i)}})(e,t,s,o)})(this,this.hass,{entity:s,tap_action:t,hold_action:this._config.hold_action,double_tap_action:this._config.double_tap_action},e)}_resolvedCoverFromState(){if(this._config?.cover)return this._config.cover;if(null===this._registry)return;const e=this._discovered??this._memo(this.hass,{type:this._config.type,entry_id:this._config.entry_id},this._registry);return e?.managed_covers[0]}_stop(e){e.stopPropagation()}};ji.styles=r`
     :host {
       display: block;
       height: 100%;
@@ -2885,6 +2885,22 @@ function e(e,t,s,i){var o,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
         'icon chrome chrome'
         'icon tilt   tilt';
     }
+    /* Bar-only (position bar, no badges): confine the bar to the label column so
+       the controls can span both rows, then center the name/state across the
+       full height with the bar hugging the bottom — so a bar-only tile centers
+       its label instead of pinning it to the top (issue #208). */
+    .tile-body.detailed.bar-only {
+      grid-template-areas:
+        'icon label  controls'
+        'icon chrome controls';
+    }
+    .tile-body.detailed.bar-only .label {
+      grid-row: 1 / -1;
+      align-self: center;
+    }
+    .tile-body.detailed.bar-only .chrome-line {
+      align-self: end;
+    }
     /* Name over state, vertically centered against the icon (HA ha-tile-info). */
     .tile-body.detailed .label {
       display: flex;
@@ -2913,12 +2929,14 @@ function e(e,t,s,i){var o,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
       min-width: 0;
     }
     /* Chrome row: Auto/winner/floor badges (left) and the position bar (right)
-       share one row under the name/state. flex-wrap lets a long badge set spill
-       rather than clip. */
+       share one row under the name/state. Kept on a single line (nowrap): the
+       badges hold their size and the position bar shrinks to absorb the squeeze,
+       so badges never spill onto a second row before the bar has given up its
+       width (issue #208). */
     .chrome-line {
       grid-area: chrome;
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       align-items: center;
       gap: 6px;
       min-width: 0;
@@ -2928,8 +2946,14 @@ function e(e,t,s,i){var o,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
          height (0.75rem × 1.4 line + 2px×2 padding ≈ 22px). */
       min-height: 22px;
     }
+    /* Badges hold their intrinsic width so the bar (not the badges) absorbs any
+       shortage of room on the single chrome line. */
     .chrome-line acp-tile-badge {
       overflow: visible;
+      flex: 0 0 auto;
+    }
+    .chrome-line .acp-floor-chip {
+      flex: 0 0 auto;
     }
     /* Target-vs-actual mini bar: right-aligned (margin-left:auto) so it fills the
        otherwise-empty space beneath the ↑■↓ buttons. Fill = live openness in the
@@ -3207,6 +3231,12 @@ function e(e,t,s,i){var o,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
             'icon tilt'
             'controls controls';
         }
+        /* Narrow reflow stacks the controls on their own row, so the bar-only
+           label span from the wide layout would overlap them — pin it back to
+           the name row. */
+        .tile-body.detailed.bar-only .label {
+          grid-row: 1 / 2;
+        }
         .tile-body.detailed .controls {
           margin-top: 4px;
           gap: 8px;
@@ -3244,6 +3274,11 @@ function e(e,t,s,i){var o,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
           'icon chrome'
           'tilt tilt'
           'controls controls';
+      }
+      /* Narrow reflow stacks the controls on their own row, so the bar-only
+         label span from the wide layout would overlap them — pin it back. */
+      .tile-body.detailed.bar-only .label {
+        grid-row: 1 / 2;
       }
       .tile-body.detailed .controls {
         margin-top: 4px;

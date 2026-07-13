@@ -493,16 +493,19 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // right-aligned. The icon spans both rows so it stays vertically centered in
     // the tile (issue #208).
     const showWinnerBadge = renderBadge && inlineWinnerBadge;
-    const detailBadges =
-      detailed && (showAutoBadge || showWinnerBadge || showFloorChip)
-        ? html`${autoBadgeTpl}${showWinnerBadge ? badgeTpl : nothing}${floorChipTpl}`
-        : nothing;
-    const hasChromeRow =
-      detailed && (showAutoBadge || showWinnerBadge || showFloorChip || showPositionBar);
+    const hasDetailBadges = detailed && (showAutoBadge || showWinnerBadge || showFloorChip);
+    const detailBadges = hasDetailBadges
+      ? html`${autoBadgeTpl}${showWinnerBadge ? badgeTpl : nothing}${floorChipTpl}`
+      : nothing;
+    const hasChromeRow = detailed && (hasDetailBadges || showPositionBar);
+    // Bar-only: the chrome row carries just the position bar (no badges). Center
+    // the name/state across the reserved row height and let the bar hug the
+    // bottom, instead of pinning the label to the top (issue #208).
+    const barOnly = hasChromeRow && !hasDetailBadges;
 
     return html`
       <div
-        class=${`tile-body${detailed ? ' detailed' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip && !detailed ? ' has-floor-chip' : ''}${showTilt && detailed ? ' has-tilt' : ''}${hasChromeRow ? ' has-chrome-row' : ''}${unavailable ? ' unavailable' : ''}`}
+        class=${`tile-body${detailed ? ' detailed' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip && !detailed ? ' has-floor-chip' : ''}${showTilt && detailed ? ' has-tilt' : ''}${hasChromeRow ? ' has-chrome-row' : ''}${barOnly ? ' bar-only' : ''}${unavailable ? ' unavailable' : ''}`}
         role=${inert ? 'group' : 'button'}
         tabindex=${inert ? -1 : 0}
         @pointerdown=${this._onPointerDown}
@@ -907,6 +910,22 @@ export class AdaptiveCoverProTileCard extends LitElement {
         'icon chrome chrome'
         'icon tilt   tilt';
     }
+    /* Bar-only (position bar, no badges): confine the bar to the label column so
+       the controls can span both rows, then center the name/state across the
+       full height with the bar hugging the bottom — so a bar-only tile centers
+       its label instead of pinning it to the top (issue #208). */
+    .tile-body.detailed.bar-only {
+      grid-template-areas:
+        'icon label  controls'
+        'icon chrome controls';
+    }
+    .tile-body.detailed.bar-only .label {
+      grid-row: 1 / -1;
+      align-self: center;
+    }
+    .tile-body.detailed.bar-only .chrome-line {
+      align-self: end;
+    }
     /* Name over state, vertically centered against the icon (HA ha-tile-info). */
     .tile-body.detailed .label {
       display: flex;
@@ -935,12 +954,14 @@ export class AdaptiveCoverProTileCard extends LitElement {
       min-width: 0;
     }
     /* Chrome row: Auto/winner/floor badges (left) and the position bar (right)
-       share one row under the name/state. flex-wrap lets a long badge set spill
-       rather than clip. */
+       share one row under the name/state. Kept on a single line (nowrap): the
+       badges hold their size and the position bar shrinks to absorb the squeeze,
+       so badges never spill onto a second row before the bar has given up its
+       width (issue #208). */
     .chrome-line {
       grid-area: chrome;
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       align-items: center;
       gap: 6px;
       min-width: 0;
@@ -950,8 +971,14 @@ export class AdaptiveCoverProTileCard extends LitElement {
          height (0.75rem × 1.4 line + 2px×2 padding ≈ 22px). */
       min-height: 22px;
     }
+    /* Badges hold their intrinsic width so the bar (not the badges) absorbs any
+       shortage of room on the single chrome line. */
     .chrome-line acp-tile-badge {
       overflow: visible;
+      flex: 0 0 auto;
+    }
+    .chrome-line .acp-floor-chip {
+      flex: 0 0 auto;
     }
     /* Target-vs-actual mini bar: right-aligned (margin-left:auto) so it fills the
        otherwise-empty space beneath the ↑■↓ buttons. Fill = live openness in the
@@ -1229,6 +1256,12 @@ export class AdaptiveCoverProTileCard extends LitElement {
             'icon tilt'
             'controls controls';
         }
+        /* Narrow reflow stacks the controls on their own row, so the bar-only
+           label span from the wide layout would overlap them — pin it back to
+           the name row. */
+        .tile-body.detailed.bar-only .label {
+          grid-row: 1 / 2;
+        }
         .tile-body.detailed .controls {
           margin-top: 4px;
           gap: 8px;
@@ -1266,6 +1299,11 @@ export class AdaptiveCoverProTileCard extends LitElement {
           'icon chrome'
           'tilt tilt'
           'controls controls';
+      }
+      /* Narrow reflow stacks the controls on their own row, so the bar-only
+         label span from the wide layout would overlap them — pin it back. */
+      .tile-body.detailed.bar-only .label {
+        grid-row: 1 / 2;
       }
       .tile-body.detailed .controls {
         margin-top: 4px;

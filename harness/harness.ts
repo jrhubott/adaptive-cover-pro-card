@@ -27,7 +27,20 @@ for (const [k, v] of Object.entries(mdi)) {
 
 class HaCard extends HTMLElement {
   connectedCallback(): void {
-    this.style.display = 'block';
+    // Real HA <ha-card> paints its own chrome (background, rounded corners,
+    // themed border, shadow) from inside ITS shadow DOM. Here the card content is
+    // light-DOM children, and each ACP card places its <ha-card> inside its own
+    // shadow root — so page-level harness/styles.css can't reach it. Apply the
+    // chrome as inline styles on the host instead, using theme vars so it tracks
+    // light/dark. The themed 1px border is what visually frames every card in HA.
+    const s = this.style;
+    s.display = 'block';
+    s.background = 'var(--card-background-color)';
+    s.color = 'var(--primary-text-color)';
+    s.borderRadius = 'var(--ha-card-border-radius, 12px)';
+    s.border =
+      'var(--ha-card-border-width, 1px) solid var(--ha-card-border-color, var(--divider-color))';
+    s.boxShadow = 'var(--ha-card-box-shadow, none)';
   }
 }
 
