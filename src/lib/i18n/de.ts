@@ -342,7 +342,7 @@ export const de: EnDict = {
       show_position: 'Position % anzeigen',
       show_state: 'Status anzeigen (Offen/Geschlossen)',
       show_decision_summary: 'Entscheidungszusammenfassung anzeigen',
-      show_controls: 'Steuerung ↑■▼ anzeigen',
+      show_controls: 'Steuerung ↑ ■ ↓ anzeigen',
       show_badge: 'Kontextbadge anzeigen',
       badge_section: 'Badges',
       badge_auto: 'Auto',

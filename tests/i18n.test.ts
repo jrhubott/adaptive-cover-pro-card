@@ -324,3 +324,15 @@ describe('forecast.solar_only_note i18n', () => {
     expect(result.length).toBeGreaterThan(0);
   });
 });
+
+describe('tile card editor i18n — show_controls arrow consistency (issue #217)', () => {
+  it.each([
+    ['en', en],
+    ['fr', fr],
+    ['de', de],
+  ])('%s editor.tile.show_controls uses ↑ ■ ↓, not the ▼ triangle', (_locale, table) => {
+    const value = table.editor.tile.show_controls;
+    expect(value).toContain('↓');
+    expect(value).not.toContain('▼');
+  });
+});

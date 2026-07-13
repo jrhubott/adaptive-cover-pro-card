@@ -330,7 +330,7 @@ export const en = {
       show_position: 'Show position %',
       show_state: 'Show state (Open/Closed)',
       show_decision_summary: 'Show decision summary',
-      show_controls: 'Show ↑■▼ controls',
+      show_controls: 'Show ↑ ■ ↓ controls',
       show_badge: 'Show contextual badge',
       badge_section: 'Badges',
       badge_auto: 'Auto',
