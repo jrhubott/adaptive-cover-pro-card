@@ -275,6 +275,14 @@ class TooltipDirective extends AsyncDirective {
       manager.release();
       this._retained = false;
     }
+    // Clear the attributes this directive instance applied (_applyAttributes)
+    // so a surviving host element (e.g. a conditional `cond ? tooltip(...) :
+    // nothing` binding on a persistent element) doesn't keep announcing a
+    // stale tooltip via aria-describedby, or hold a dangling data-tooltip
+    // with no directive left to update it.
+    el.removeAttribute('data-tooltip');
+    el.removeAttribute('aria-describedby');
+    el.removeAttribute('acp-tt-shown');
     this._el = null;
   }
 

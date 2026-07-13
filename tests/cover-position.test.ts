@@ -150,4 +150,18 @@ describe('linear position preference — issue #219', () => {
     expect(displayTarget(hass, baseDiscovered)).toBe(10);
     expect(isOverrideDivergence(hass, baseDiscovered)).toBe(false);
   });
+
+  // Regression guard: coverHeldPosition composes coverLinearPosition() with
+  // `??`, which correctly treats a valid `0` as present (unlike `||`, which
+  // would treat falsy 0 as absent and fall through to the motor state). These
+  // pin that behavior so a future refactor to a falsy check would fail loudly.
+  it('coverHeldPosition preserves a valid linear_position of 0 rather than falling back to state', () => {
+    const hass = makeHass({ state: '5', linear: 0 });
+    expect(coverHeldPosition(hass, baseDiscovered)).toBe(0);
+  });
+
+  it('coverMotorDivergence reports the motor value when linear_position is 0 and state is not', () => {
+    const hass = makeHass({ state: '5', linear: 0 });
+    expect(coverMotorDivergence(hass, baseDiscovered)).toBe(5);
+  });
 });

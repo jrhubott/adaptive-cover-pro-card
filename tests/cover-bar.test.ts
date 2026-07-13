@@ -302,7 +302,12 @@ describe('acp-cover-bar linear position (motor tooltip) — issue #219', () => {
   it('attaches a motor tooltip to the Target chip when linear_position differs from state', async () => {
     const el = await mount(linearHass({ state: '31', linear: 10 }));
     const target = el.shadowRoot!.querySelector('.head .target') as HTMLElement;
-    expect(target.getAttribute('data-tooltip')).toContain('31');
+    const tip = target.getAttribute('data-tooltip') ?? '';
+    // Regression guard: formatPercent() already appends "%", so passing its
+    // output through the `{pct}%` tooltip template double-percents the value
+    // (e.g. "31%%"). The tooltip must render a single "%".
+    expect(tip).not.toContain('%%');
+    expect(tip).toContain('Motor: 31%');
   });
 
   it('attaches no motor tooltip when linear_position is absent', async () => {
@@ -315,6 +320,28 @@ describe('acp-cover-bar linear position (motor tooltip) — issue #219', () => {
     const el = await mount(linearHass({ state: '31', linear: 31 }));
     const target = el.shadowRoot!.querySelector('.head .target') as HTMLElement;
     expect(target.getAttribute('data-tooltip')).toBeNull();
+  });
+
+  it('clears the stale motor tooltip attributes when a live update removes the divergence', async () => {
+    // The Target chip is a persistent element: the tooltip directive attaches
+    // and detaches on it across re-renders (motorDivergence null <-> non-null)
+    // without the element itself ever being torn down. On detach, the
+    // directive must strip the attributes it applied — otherwise a screen
+    // reader keeps announcing a stale aria-describedby pointing at the shared
+    // tooltip bubble, and data-tooltip lingers with no directive to update it.
+    const el = await mount(linearHass({ state: '31', linear: 10 }));
+    const target = el.shadowRoot!.querySelector('.head .target') as HTMLElement;
+    expect(target.getAttribute('data-tooltip')).toContain('Motor: 31%');
+    expect(target.hasAttribute('aria-describedby')).toBe(true);
+
+    // Live hass update: linear_position now equals state, so the divergence
+    // clears and the tooltip directive detaches from this same element.
+    el.hass = linearHass({ state: '31', linear: 31 });
+    await el.updateComplete;
+
+    expect(target.hasAttribute('data-tooltip')).toBe(false);
+    expect(target.hasAttribute('aria-describedby')).toBe(false);
+    expect(target.hasAttribute('acp-tt-shown')).toBe(false);
   });
 });
 

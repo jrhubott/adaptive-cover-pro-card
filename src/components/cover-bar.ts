@@ -168,7 +168,7 @@ export class CoverBar extends LitElement {
               ${motorDivergence !== null
                 ? tooltip(
                     t('covers.target_tooltip_motor', this.hass, {
-                      pct: formatPercent(motorDivergence),
+                      pct: motorDivergence,
                     }),
                   )
                 : nothing}
