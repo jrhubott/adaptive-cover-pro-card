@@ -537,9 +537,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
             : nothing}
         </div>
         ${detailed ? nothing : html`${positionTpl}${floorChipTpl}`}
-        ${hasChromeRow
-          ? html`<div class="chrome-line">${detailBadges}${posBarTpl}</div>`
-          : nothing}
+        ${hasChromeRow ? html`<div class="chrome-line">${detailBadges}${posBarTpl}</div>` : nothing}
         ${showTilt && detailed
           ? html`<div
               class="tilt-line"
@@ -913,17 +911,21 @@ export class AdaptiveCoverProTileCard extends LitElement {
     /* Bar-only (position bar, no badges): confine the bar to the label column so
        the controls can span both rows, then center the name/state across the
        full height with the bar hugging the bottom — so a bar-only tile centers
-       its label instead of pinning it to the top (issue #208). */
-    .tile-body.detailed.bar-only {
+       its label instead of pinning it to the top (issue #208). Scoped to
+       :not(.has-tilt): a tilt tile keeps its 3-row grid (label/chrome/tilt) and
+       must NOT span the label across the bar + tilt rows, which would overlap
+       them (the tilt grid wins on specificity, so the label span has to opt out
+       explicitly here). */
+    .tile-body.detailed.bar-only:not(.has-tilt) {
       grid-template-areas:
         'icon label  controls'
         'icon chrome controls';
     }
-    .tile-body.detailed.bar-only .label {
+    .tile-body.detailed.bar-only:not(.has-tilt) .label {
       grid-row: 1 / -1;
       align-self: center;
     }
-    .tile-body.detailed.bar-only .chrome-line {
+    .tile-body.detailed.bar-only:not(.has-tilt) .chrome-line {
       align-self: end;
     }
     /* Name over state, vertically centered against the icon (HA ha-tile-info). */
@@ -1259,7 +1261,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
         /* Narrow reflow stacks the controls on their own row, so the bar-only
            label span from the wide layout would overlap them — pin it back to
            the name row. */
-        .tile-body.detailed.bar-only .label {
+        .tile-body.detailed.bar-only:not(.has-tilt) .label {
           grid-row: 1 / 2;
         }
         .tile-body.detailed .controls {
@@ -1302,7 +1304,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       }
       /* Narrow reflow stacks the controls on their own row, so the bar-only
          label span from the wide layout would overlap them — pin it back. */
-      .tile-body.detailed.bar-only .label {
+      .tile-body.detailed.bar-only:not(.has-tilt) .label {
         grid-row: 1 / 2;
       }
       .tile-body.detailed .controls {

@@ -1298,9 +1298,9 @@ describe('adaptive-cover-pro-tile-card new options', () => {
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed');
     expect(body).toBeTruthy();
-    // ACP badges collect on the dedicated .badge-line row, not on the name/state
+    // ACP badges collect on the dedicated .chrome-line row, not on the name/state
     // rows. The winner (Solar) badge lives there.
-    const badge = el.shadowRoot!.querySelector('.badge-line acp-tile-badge');
+    const badge = el.shadowRoot!.querySelector('.chrome-line acp-tile-badge');
     expect(badge).toBeTruthy();
   });
 
@@ -1332,15 +1332,15 @@ describe('adaptive-cover-pro-tile-card Auto indicator (issue #110)', () => {
       }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    // Both badges live on the dedicated .badge-line row: Auto first, then the
+    // Both badges live on the dedicated .chrome-line row: Auto first, then the
     // Cloudy winner.
-    const badges = body.querySelectorAll('.badge-line acp-tile-badge');
+    const badges = body.querySelectorAll('.chrome-line acp-tile-badge');
     expect(badges.length).toBe(2);
     expect(badgeText(badges[0])).toBe('Auto');
     expect(badgeText(badges[1])).toBe('Cloudy');
   });
 
-  it('detailed: the Auto badge appears before the winner badge within .badge-line', async () => {
+  it('detailed: the Auto badge appears before the winner badge within .chrome-line', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY, layout: 'detailed' },
       makeHass({
@@ -1351,7 +1351,7 @@ describe('adaptive-cover-pro-tile-card Auto indicator (issue #110)', () => {
       }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    const badges = Array.from(body.querySelectorAll('.badge-line acp-tile-badge'));
+    const badges = Array.from(body.querySelectorAll('.chrome-line acp-tile-badge'));
     const autoIdx = badges.findIndex((b) => badgeText(b) === 'Auto');
     const winnerIdx = badges.findIndex((b) => badgeText(b) === 'Cloudy');
     expect(autoIdx).toBeGreaterThanOrEqual(0);
@@ -1372,7 +1372,7 @@ describe('adaptive-cover-pro-tile-card Auto indicator (issue #110)', () => {
       }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    const badges = body.querySelectorAll('.badge-line acp-tile-badge');
+    const badges = body.querySelectorAll('.chrome-line acp-tile-badge');
     expect(badges.length).toBe(1);
     expect(badgeText(badges[0])).toBe('Auto');
   });
@@ -1383,7 +1383,7 @@ describe('adaptive-cover-pro-tile-card Auto indicator (issue #110)', () => {
       makeHass({ manualOverrideOn: true, decisionState: 'manual' }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    const badges = Array.from(body.querySelectorAll('.badge-line acp-tile-badge'));
+    const badges = Array.from(body.querySelectorAll('.chrome-line acp-tile-badge'));
     expect(badges.some((b) => badgeText(b) === 'Auto')).toBe(false);
   });
 
@@ -1398,7 +1398,7 @@ describe('adaptive-cover-pro-tile-card Auto indicator (issue #110)', () => {
       }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    const badges = Array.from(body.querySelectorAll('.badge-line acp-tile-badge'));
+    const badges = Array.from(body.querySelectorAll('.chrome-line acp-tile-badge'));
     expect(badges.some((b) => badgeText(b) === 'Auto')).toBe(false);
   });
 
@@ -1414,7 +1414,7 @@ describe('adaptive-cover-pro-tile-card Auto indicator (issue #110)', () => {
       }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    const badges = Array.from(body.querySelectorAll('.badge-line acp-tile-badge'));
+    const badges = Array.from(body.querySelectorAll('.chrome-line acp-tile-badge'));
     expect(badges.some((b) => badgeText(b) === 'Auto')).toBe(false);
   });
 
@@ -1430,7 +1430,7 @@ describe('adaptive-cover-pro-tile-card Auto indicator (issue #110)', () => {
       }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    const badges = Array.from(body.querySelectorAll('.badge-line acp-tile-badge'));
+    const badges = Array.from(body.querySelectorAll('.chrome-line acp-tile-badge'));
     expect(badges.some((b) => badgeText(b) === 'Auto')).toBe(true);
   });
 
@@ -1445,7 +1445,7 @@ describe('adaptive-cover-pro-tile-card Auto indicator (issue #110)', () => {
       }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    const badges = Array.from(body.querySelectorAll('.badge-line acp-tile-badge'));
+    const badges = Array.from(body.querySelectorAll('.chrome-line acp-tile-badge'));
     expect(badges.some((b) => badgeText(b) === 'Auto')).toBe(false);
     expect(badges.some((b) => badgeText(b) === 'Cloudy')).toBe(true);
   });
@@ -1729,13 +1729,21 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
 
   it('detailed: floor chip rides the dedicated badge row, not the one-line grid (#208 follow-up)', async () => {
     // Regression: an active min-mode floor must trigger the detailed badge row
-    // (.badge-line) and must NOT re-add the one-line `has-floor-chip` grid,
-    // which would clobber the detailed grid areas and orphan .badge-line/.tilt.
+    // (.chrome-line) and must NOT re-add the one-line `has-floor-chip` grid,
+    // which would clobber the detailed grid areas and orphan .chrome-line/.tilt.
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeFloorHass());
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    expect(body.classList.contains('has-badge-row')).toBe(true);
+    expect(body.classList.contains('has-chrome-row')).toBe(true);
     expect(body.classList.contains('has-floor-chip')).toBe(false);
-    expect(body.querySelector('.badge-line .acp-floor-chip')).toBeTruthy();
+    expect(body.querySelector('.chrome-line .acp-floor-chip')).toBeTruthy();
+  });
+
+  it('detailed: show_badge false hides the floor chip (badge master switch, #208)', async () => {
+    // The floor chip is now part of ACP's badge chrome: show_badge:false hides it
+    // along with the Auto/winner badges (previously it leaked through).
+    const el = await mount({ type: TYPE, entry_id: ENTRY, show_badge: false }, makeFloorHass());
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    expect(body.querySelector('.acp-floor-chip')).toBeFalsy();
   });
 
   it('floor chip has is-armed class when floor position <= target (not clamping)', async () => {
@@ -2132,11 +2140,16 @@ describe('adaptive-cover-pro-tile-card HA tile layout (detailed)', () => {
     expect(stateLine!.textContent?.trim()).toBe('Open · 42%');
   });
 
-  it('detailed: no badge row when no badge is present (show_badge false)', async () => {
-    const el = await mount({ type: TYPE, entry_id: ENTRY, show_badge: false }, makeHass());
+  it('detailed: no chrome row when neither badges nor the position bar are present', async () => {
+    // With badges off AND the bar off there is nothing to put on the chrome row,
+    // so it collapses entirely (bar-only would otherwise keep it for the bar).
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, show_badge: false, show_position_bar: false },
+      makeHass(),
+    );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    expect(body.classList.contains('has-badge-row')).toBe(false);
-    expect(body.querySelector('.badge-line')).toBeFalsy();
+    expect(body.classList.contains('has-chrome-row')).toBe(false);
+    expect(body.querySelector('.chrome-line')).toBeFalsy();
   });
 
   it('detailed: adds the badge row when the Auto badge shows', async () => {
@@ -2150,8 +2163,8 @@ describe('adaptive-cover-pro-tile-card HA tile layout (detailed)', () => {
       }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    expect(body.classList.contains('has-badge-row')).toBe(true);
-    expect(body.querySelector('.badge-line')).toBeTruthy();
+    expect(body.classList.contains('has-chrome-row')).toBe(true);
+    expect(body.querySelector('.chrome-line')).toBeTruthy();
   });
 
   it('links detailed controls to HA ha-control-button CSS tokens', () => {
@@ -2167,7 +2180,7 @@ describe('adaptive-cover-pro-tile-card HA tile layout (detailed)', () => {
       makeHass({ coverLeftCurrentPosition: 60 }),
     );
     const bar = el.shadowRoot!.querySelector(
-      '.tile-body.detailed .badge-line .pos-bar',
+      '.tile-body.detailed .chrome-line .pos-bar',
     ) as HTMLElement;
     expect(bar).toBeTruthy();
     const fill = bar.querySelector('.pos-fill') as HTMLElement;
@@ -2176,13 +2189,29 @@ describe('adaptive-cover-pro-tile-card HA tile layout (detailed)', () => {
     expect(marker.getAttribute('style') ?? '').toContain('42%');
   });
 
-  it('detailed: hides the position bar (and badge row) when show_badge is false', async () => {
+  it('detailed: keeps the position bar when show_badge is false (bar is independent of badges)', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY, show_badge: false },
       makeHass({ coverLeftCurrentPosition: 60 }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    // No ACP badges render, but the position bar stays — it has its own toggle.
+    expect(body.querySelector('acp-tile-badge')).toBeFalsy();
+    expect(body.querySelector('.pos-bar')).toBeTruthy();
+    // The chrome row still exists to carry the bar, in its bar-only form.
+    expect(body.classList.contains('has-chrome-row')).toBe(true);
+    expect(body.classList.contains('bar-only')).toBe(true);
+  });
+
+  it('detailed: show_position_bar false hides the position bar (independent of badges)', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, show_position_bar: false },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
     expect(body.querySelector('.pos-bar')).toBeFalsy();
-    expect(body.classList.contains('has-badge-row')).toBe(false);
+    // Badges still render (only the bar was turned off), so the chrome row is
+    // NOT bar-only here.
+    expect(body.classList.contains('bar-only')).toBe(false);
   });
 });
