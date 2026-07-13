@@ -168,6 +168,7 @@ export const en = {
     closing: 'Closing…',
     target_tooltip: 'Target {pct}%',
     target_tooltip_override: 'Would-be solar target {pct}% — cover is held by manual override',
+    target_tooltip_motor: 'Motor: {pct}% (before calibration)',
     tilt_title: 'Tilt',
     tilt_target: 'Tilt: {pct}',
     tilt_click_to_set: 'Click to set tilt',

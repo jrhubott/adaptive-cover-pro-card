@@ -20,6 +20,7 @@ import {
 import { buildSolarActiveContext, selectVisibleBadges } from '../lib/badge-visibility';
 import { coverStateIcon, coverStateColor } from '../lib/icons';
 import { resolveAxes } from '../lib/axes';
+import { coverHeldPosition } from '../lib/cover-position';
 import { startMinuteTimer } from '../lib/minute-timer';
 import type {
   AdaptiveCoverProTileCardConfig,
@@ -364,13 +365,10 @@ export class MoreInfoDialog extends LitElement {
     return selectVisibleBadges(kinds, this.badges, ctx);
   }
 
+  /** Prefers the pre-interpolation `linear_position` attribute (issue #219)
+   *  over the raw motor state when present. See {@link coverHeldPosition}. */
   private _target(): number | null {
-    const id = this.discovered.entities.target_position_sensor;
-    if (!id) return null;
-    const st = this.hass.states[id];
-    if (!st) return null;
-    const v = parseFloat(st.state);
-    return Number.isNaN(v) ? null : v;
+    return coverHeldPosition(this.hass, this.discovered);
   }
 
   private _mismatchActive(): boolean {

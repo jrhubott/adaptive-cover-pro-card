@@ -153,6 +153,7 @@ function makeEntry(
       manual_override: false,
       manual_override_minutes_from_now: 60,
       held_position: null,
+      linear_position: null,
       safety_slot_active: false,
       motion_status: 'idle',
       motion_timeout_minutes_from_now: 1,
@@ -800,6 +801,23 @@ export const SCENARIOS: Scenario[] = [
       c.entries[0].target_position = 60;
       c.entries[0].flags.held_position = 44;
       c.entries[0].covers[0].position = 44;
+      return c;
+    },
+  },
+  {
+    id: 'interpolation-linear-position',
+    label: 'Interpolation — linear vs. motor position (#219)',
+    description:
+      'A non-linear calibration curve maps the configured 10% to a 31% motor command. The COVERS "Target" chip shows the logical 10% the user configured, with a "Motor: 31%" tooltip on hover for debugging. Toggle the integration-version behavior by clearing linear_position to see the pre-#219 fallback (shows 31% as primary, no tooltip).',
+    build: () => {
+      const c = baseConfig('2026-06-21', 14 * 60);
+      c.scenario = 'interpolation-linear-position';
+      // target_position is what state-gen writes to the sensor STATE (the
+      // motor/interpolated command); linear_position is the pre-interpolation
+      // logical value the user actually configured.
+      c.entries[0].target_position = 31;
+      c.entries[0].covers[0].position = 31;
+      c.entries[0].flags.linear_position = 10;
       return c;
     },
   },

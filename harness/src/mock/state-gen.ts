@@ -182,6 +182,10 @@ function addEntryStates(
     control_method: decision.winner,
     reason: decision.reason,
     raw_calculated_position: decision.position,
+    // Pre-interpolation logical position (issue #219). Spread conditionally so
+    // "absent" is actually absent (not null), matching a real HA state object
+    // and exercising the card's `typeof val === 'number'` guard honestly.
+    ...(f.linear_position !== null ? { linear_position: f.linear_position } : {}),
   };
   // No-feedback covers publish an in-transit direction while mid-move; mirror it
   // so the tile renders the localized "Opening"/"Closing" state text.

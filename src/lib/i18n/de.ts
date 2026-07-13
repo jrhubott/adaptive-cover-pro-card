@@ -177,6 +177,7 @@ export const de: EnDict = {
     target_tooltip: 'Ziel {pct}%',
     target_tooltip_override:
       'Theoretisches Sonnenziel {pct}% — Beschattung wird durch manuelle Übersteuerung gehalten',
+    target_tooltip_motor: 'Motor: {pct}% (vor Kalibrierung)',
     tilt_title: 'Neigung',
     tilt_target: 'Neigung: {pct}',
     tilt_click_to_set: 'Klicken zum Festlegen der Neigung',

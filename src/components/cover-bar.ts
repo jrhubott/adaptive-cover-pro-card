@@ -4,7 +4,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import { entityStateChanged } from '../lib/hass-change';
 import type { CoverPositionAttributes, DiscoveredEntities } from '../types';
-import { displayTarget, isOverrideDivergence } from '../lib/cover-position';
+import { displayTarget, isOverrideDivergence, coverMotorDivergence } from '../lib/cover-position';
 import { formatPercent } from '../lib/formatters';
 import { AXIS_LABEL_I18N_KEYS } from '../const';
 import { resolveAxes, type ResolvedAxis } from '../lib/axes';
@@ -114,6 +114,13 @@ export class CoverBar extends LitElement {
     return typeof v === 'number' ? v : null;
   }
 
+  /** Motor value to disclose in the Target chip's tooltip — the raw
+   *  Cover_Position sensor state — when it diverges from the linear-preferred
+   *  display value, else null (issue #219). See {@link coverMotorDivergence}. */
+  private _motorDivergence(): number | null {
+    return coverMotorDivergence(this.hass, this.discovered);
+  }
+
   /** Display label for an axis: card i18n key wins for known ids, else the
    *  discovery label, else a capitalized id (already baked into axis.label). */
   private _axisLabel(axis: ResolvedAxis): string {
@@ -138,6 +145,7 @@ export class CoverBar extends LitElement {
     // the cover away from the solar target), so don't flag it as an alert — the
     // marker/fill gap already shows it. Keep the badge for genuine mismatches.
     const overrideDivergence = isOverrideDivergence(this.hass, this.discovered);
+    const motorDivergence = this._motorDivergence();
     const transit = this._transit();
     const entries = Object.entries(covers);
     if (entries.length === 0) {
@@ -155,7 +163,15 @@ export class CoverBar extends LitElement {
         <div class="head">
           <span class="label">${t('covers.title', this.hass)}</span>
           <span class="targets">
-            <span class="target"
+            <span
+              class="target"
+              ${motorDivergence !== null
+                ? tooltip(
+                    t('covers.target_tooltip_motor', this.hass, {
+                      pct: motorDivergence,
+                    }),
+                  )
+                : nothing}
               >${t(overrideDivergence ? 'covers.target_solar' : 'covers.target', this.hass, {
                 pct: formatPercent(target),
               })}</span
