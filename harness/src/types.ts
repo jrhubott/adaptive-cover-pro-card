@@ -237,6 +237,9 @@ export interface TileCardOptions {
   show_decision_summary: boolean;
   show_controls: boolean;
   show_badge: boolean;
+  /** Render the target-vs-actual position bar (default true). Independent of
+   *  `show_badge`. */
+  show_position_bar: boolean;
   /** Render the mini tilt bar on dual-axis venetian tiles (default true). */
   show_tilt: boolean;
   /** Per-kind badge opt-in. All default on; only `false` hides the kind. */

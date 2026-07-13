@@ -65,6 +65,10 @@ ha-card {
   display: block;
   background: var(--card-background-color);
   border-radius: var(--ha-card-border-radius, 12px);
+  /* Match HA's themed card outline (the border is what visually frames every
+     card in HA; without it the harness cards look edge-less on the dark bg). */
+  border: var(--ha-card-border-width, 1px) solid
+    var(--ha-card-border-color, var(--divider-color));
   box-shadow: var(--ha-card-box-shadow);
   color: var(--primary-text-color);
   transition: background 0.15s ease;

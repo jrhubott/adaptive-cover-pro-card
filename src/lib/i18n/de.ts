@@ -344,6 +344,7 @@ export const de: EnDict = {
       show_decision_summary: 'Entscheidungszusammenfassung anzeigen',
       show_controls: 'Steuerung ↑ ■ ↓ anzeigen',
       show_badge: 'Kontextbadge anzeigen',
+      show_position_bar: 'Positionsleiste anzeigen',
       badge_section: 'Badges',
       badge_auto: 'Auto',
       badge_solar: 'Sonnenverfolgung',

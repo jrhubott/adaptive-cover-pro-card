@@ -78,9 +78,15 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
    *  (default true). Self-hides when the entry exposes no `Cover_Tilt` sensor,
    *  and on the `one-line` layout (tilt folds into the readout there). */
   show_tilt?: boolean;
-  /** Render the contextual badge (default true). Master switch for the tile
-   *  badge — `badges` filters within it. */
+  /** Render the contextual badge (default true). Master switch for ACP's own
+   *  chrome badges — the Auto indicator, the winner/Manual badge, AND the
+   *  minimum-mode floor chip. `badges` filters the winner kinds within it.
+   *  Independent of the position bar (see `show_position_bar`). */
   show_badge?: boolean;
+  /** Render the target-vs-actual position bar on the chrome row (default true).
+   *  Independent of `show_badge` — the bar still shows when badges are hidden,
+   *  and hides on its own when this is false. Detailed layout only. */
+  show_position_bar?: boolean;
   /** Per-kind opt-in for the 10 configurable badge kinds. Omitted/undefined =
    *  on; only `=== false` hides. `off` is a state-fallback and is never
    *  filtered by this. */

@@ -85,6 +85,7 @@ function defaultTile(): HarnessConfig['tile'] {
     show_decision_summary: false,
     show_controls: true,
     show_badge: true,
+    show_position_bar: true,
     show_tilt: true,
     badges: defaultBadges(),
     show_compass: true,
@@ -246,8 +247,28 @@ export interface Scenario {
   label: string;
   description: string;
   build: () => HarnessConfig;
+  /** ISO date (YYYY-MM-DD) the scenario was added. Drives the "Date added" sort;
+   *  when omitted the scenario is treated as older than any dated one and keeps
+   *  its definition (append) order. Set it on every newly-added scenario. */
+  added?: string;
+  /** Associated GitHub issue number, when the scenario reproduces / guards one.
+   *  When omitted, {@link scenarioIssue} falls back to parsing `#NNN` out of the
+   *  label, so pre-existing scenarios that name their issue still get filtered. */
+  issue?: number;
 }
 
+/** Effective issue number for a scenario: the explicit `issue` field, else the
+ *  first `#NNN` found in its label, else null. */
+export function scenarioIssue(s: Scenario): number | null {
+  if (typeof s.issue === 'number') return s.issue;
+  const m = s.label.match(/#(\d+)/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+// IMPORTANT: keep this array in DATE-ADDED order — oldest first, newest last.
+// Always APPEND a new scenario to the END of the array; never insert in the
+// middle. The control panel's "Date added" sort relies on this definition order
+// as the proxy for when each scenario was added (scenarios carry no timestamp).
 export const SCENARIOS: Scenario[] = [
   {
     id: 'summer-noon-south',
@@ -1782,6 +1803,141 @@ export const SCENARIOS: Scenario[] = [
       ];
       c.entries[0].flags.transit_direction = 'opening';
       c.entries[1].flags.transit_direction = 'closing';
+      return c;
+    },
+  },
+  {
+    id: 'extreme-badges-crowded',
+    label: 'Extreme badges — bar shrinks before wrap (#208)',
+    added: '2026-07-13',
+    issue: 208,
+    description:
+      'Stress test for the chrome-row crowding fix (#208): the tile carries the widest badge set the pipeline produces — a resumable Manual badge WITH a live countdown next to the ↥ floor chip — plus the position bar, all pinned to a deliberately narrow 320px column. Because an enabled floor slot makes custom_position win before any later auto handler, Manual + floor is the realistic maximum (two chrome badges). The row is set to nowrap: the badges hold their width and the POSITION BAR shrinks to keep everything on one line — it must NOT push the badges onto a second row. Drag the tile-width control DOWN toward ~240px to watch the bar shrink to a sliver (its floor), and only below that do the badges finally clip — the extreme fallback. Drag UP to ~420px and the bar recovers its full width. A long cover name also pressures the name row so both rows are squeezed together.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'extreme-badges-crowded';
+      c.tile.layout = 'detailed';
+      c.tile.tileWidth = 320;
+      c.entries = [
+        makeEntry({
+          entry_id: 'living_room',
+          title: 'Living Room Bay Window',
+          window_azimuth: 180,
+          color: '#7e57c2',
+          target_position: 60,
+          covers: [
+            {
+              entity_id: 'cover.living_room_main',
+              friendly_name: 'Living Room shade',
+              position: 60,
+              device_class: 'shade',
+            },
+          ],
+          // Enable the priority-90 min-mode floor slot (slot 4) so its sensor
+          // arms and the ↥ floor chip renders; manual override (below) wins ahead
+          // of custom_position so the floor stays a constraint beside the Manual
+          // badge rather than becoming the winner.
+          slots: [
+            {
+              slot: 1,
+              enabled: false,
+              position: 75,
+              name: 'Movie time',
+              min_mode: false,
+              priority: 60,
+            },
+            {
+              slot: 2,
+              enabled: false,
+              position: 20,
+              name: 'Privacy',
+              min_mode: false,
+              priority: 70,
+            },
+            {
+              slot: 3,
+              enabled: false,
+              position: 100,
+              name: 'Welcome home',
+              min_mode: false,
+              priority: 50,
+            },
+            {
+              slot: 4,
+              enabled: true,
+              position: 40,
+              name: 'Aeration floor',
+              min_mode: true,
+              priority: 90,
+            },
+            {
+              slot: 5,
+              enabled: true,
+              position: 0,
+              name: 'Safety',
+              min_mode: false,
+              priority: 100,
+              sensors: ['binary_sensor.living_room_wind', 'binary_sensor.living_room_frost'],
+              template: true,
+              template_mode: 'or',
+            },
+          ],
+        }),
+      ];
+      // Arm a manual override with a countdown so the Manual badge renders at its
+      // widest (resumable pill + live timer), maximizing the crowding pressure.
+      c.entries[0].flags.manual_override = true;
+      c.entries[0].flags.manual_override_minutes_from_now = 45;
+      return c;
+    },
+  },
+  {
+    id: 'bar-only-tile',
+    label: 'Bar-only tile — no badges, centered name/state (#208)',
+    added: '2026-07-13',
+    issue: 208,
+    description:
+      "The bar-only detailed tile (commit that centers name/state, #208): integration enabled but AUTOMATIC control OFF, no manual override and no floor slot, so NO chrome badges render — only the position bar. The name/state must sit VERTICALLY CENTERED across the tile height (not pinned to the top), with the bar hugging the bottom and reserving the badge-height so this tile is the same height as a badged one. Two entries: one at ~65% open, one fully open. Verify the responsive fix: drag the tile-width control DOWN below ~340px — the ↑■↓ controls must drop to their own full-width row (they previously stayed inline for bar-only tiles because the wide grid out-specified the reflow). Toggle 'show_position_bar' off in Per-card config to confirm the chrome row collapses entirely (single-row tile).",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'bar-only-tile';
+      c.tile.layout = 'detailed';
+      c.entries = [
+        makeEntry({
+          entry_id: 'living_room',
+          title: 'Living Room',
+          window_azimuth: 180,
+          color: '#7e57c2',
+          target_position: 65,
+          covers: [
+            {
+              entity_id: 'cover.living_room_main',
+              friendly_name: 'Living Room shade',
+              position: 65,
+              device_class: 'shade',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'kitchen',
+          title: 'Kitchen Window',
+          window_azimuth: 90,
+          color: '#26a69a',
+          target_position: 100,
+          covers: [
+            {
+              entity_id: 'cover.kitchen_main',
+              friendly_name: 'Kitchen shade',
+              position: 100,
+              device_class: 'shade',
+            },
+          ],
+        }),
+      ];
+      // Automatic control OFF (integration still enabled) is the realistic path
+      // to a no-badge tile: the winner badge is suppressed and the Auto badge is
+      // inactive, leaving only the position bar → bar-only.
+      for (const e of c.entries) e.flags.automatic_control = false;
       return c;
     },
   },

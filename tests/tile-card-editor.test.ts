@@ -576,6 +576,7 @@ describe('adaptive-cover-pro-tile-card editor — schema', () => {
       'show_controls',
       'show_badge',
       '', // expandable "Badges" group
+      'show_position_bar',
       'show_motion_icon',
       'state_color',
       'show_compass',
