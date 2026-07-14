@@ -266,6 +266,74 @@ describe('resolveTileBadgeKind', () => {
   });
 });
 
+describe('resolveTileBadgeKind climate elevation (issue #223)', () => {
+  // Reproduces the tile-vs-dialog asymmetry: a real decision trace can carry a
+  // matched climate row in the same cycle whose ultimate winner is `default`
+  // (no BADGE_KINDS_BY_HANDLER entry, so it falls through to the generic
+  // `auto` badge). The dialog already surfaces the more specific `climate`
+  // badge by walking every matched row; the tile's single winner badge should
+  // do the same, but only when the plain winner-derived kind is the generic
+  // `auto` fallback — a winner that already resolves to a specific kind (e.g.
+  // `cloud`) keeps its own badge.
+  const base = { integrationEnabled: true, manualActive: false, showMotionIcon: true };
+
+  it('elevates to climate when winner is the generic default fallback but climate matched in the trace', () => {
+    expect(
+      resolveTileBadgeKind({
+        ...base,
+        winner: 'default',
+        badges: undefined,
+        trace: [
+          { handler: 'climate', matched: true, reason: 'heat protection', position: 20 },
+          { handler: 'default', matched: true, reason: 'default calc', position: 60 },
+        ],
+      }),
+    ).toBe('climate');
+  });
+
+  it('does not elevate when badges.climate is false (opt-out honored)', () => {
+    expect(
+      resolveTileBadgeKind({
+        ...base,
+        winner: 'default',
+        badges: { climate: false },
+        trace: [
+          { handler: 'climate', matched: true, reason: 'heat protection', position: 20 },
+          { handler: 'default', matched: true, reason: 'default calc', position: 60 },
+        ],
+      }),
+    ).toBe('auto');
+  });
+
+  it('does not elevate when climate is present in the trace but did not match', () => {
+    expect(
+      resolveTileBadgeKind({
+        ...base,
+        winner: 'default',
+        badges: undefined,
+        trace: [
+          { handler: 'climate', matched: false, reason: 'inactive', position: null },
+          { handler: 'default', matched: true, reason: 'default calc', position: 60 },
+        ],
+      }),
+    ).toBe('auto');
+  });
+
+  it('does not steal the badge from a winner that already resolves to a specific kind', () => {
+    expect(
+      resolveTileBadgeKind({
+        ...base,
+        winner: 'cloud',
+        badges: undefined,
+        trace: [
+          { handler: 'climate', matched: true, reason: 'heat protection', position: 20 },
+          { handler: 'cloud', matched: true, reason: 'cloud suppression', position: 100 },
+        ],
+      }),
+    ).toBe('cloud');
+  });
+});
+
 describe('isAutoControlActive', () => {
   const base = {
     integrationEnabled: true,

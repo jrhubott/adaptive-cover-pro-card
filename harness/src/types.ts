@@ -312,6 +312,13 @@ export interface HarnessConfig {
   /** Forces a specific handler winner instead of running the mock pipeline. */
   decisionMode: DecisionMode;
   scriptedWinner: HandlerName;
+  /** Scripted mode only (issue #223): additional handlers to mark `matched: true`
+   *  in the trace alongside `scriptedWinner`, without making them win. Lets a
+   *  scenario reproduce a real decision trace where more than one handler
+   *  contributes in the same cycle (e.g. climate matched, default wins) — the
+   *  derived `decide()` pipeline can only ever mark one row matched. Omitted /
+   *  empty = no extra matched rows (existing scripted scenarios unaffected). */
+  scriptedAlsoMatched?: HandlerName[];
   /** Per-card render options. */
   root: RootCardOptions;
   compass: SkyCompassCardOptions;

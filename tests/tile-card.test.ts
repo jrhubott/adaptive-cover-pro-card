@@ -1465,6 +1465,50 @@ describe('adaptive-cover-pro-tile-card Auto indicator (issue #110)', () => {
     expect(body.querySelector('.auto-line')).toBeFalsy();
     expect(body.querySelectorAll('acp-tile-badge').length).toBe(1);
   });
+
+  // Issue #223: the tile's single winner badge derived its kind purely from
+  // the literal winner string, never consulting the matched decision-trace
+  // rows. When climate is genuinely matched but a different handler (here,
+  // `default`) is the literal winner, the tile fell back to the generic
+  // "Auto" badge while the more-info dialog (which walks every matched row)
+  // correctly showed "Climate". Both layouts must agree once fixed.
+  it('one-line: climate matched but not the literal winner → single badge reads Climate, not Auto', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'one-line', badges: { climate: true } },
+      makeHass({
+        decisionState: 'default',
+        decisionAttrs: {
+          trace: [
+            { handler: 'climate', matched: true, reason: 'heat protection', position: 20 },
+            { handler: 'default', matched: true, reason: 'default calc', position: 60 },
+          ],
+        },
+      }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body')!;
+    const badges = body.querySelectorAll('acp-tile-badge');
+    expect(badges.length).toBe(1);
+    expect(badgeText(badges[0])).toBe('Climate');
+  });
+
+  it('detailed: climate matched but not the literal winner → winner badge reads Climate, not Auto', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', badges: { climate: true } },
+      makeHass({
+        decisionState: 'default',
+        decisionAttrs: {
+          trace: [
+            { handler: 'climate', matched: true, reason: 'heat protection', position: 20 },
+            { handler: 'default', matched: true, reason: 'default calc', position: 60 },
+          ],
+        },
+      }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    const badges = Array.from(body.querySelectorAll('.chrome-line acp-tile-badge'));
+    expect(badges.some((b) => badgeText(b) === 'Climate')).toBe(true);
+    expect(badges.some((b) => badgeText(b) === 'Auto')).toBe(true);
+  });
 });
 
 describe('adaptive-cover-pro-tile-card motion indicator', () => {

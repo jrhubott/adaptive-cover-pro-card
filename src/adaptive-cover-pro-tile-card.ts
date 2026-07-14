@@ -367,6 +367,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       badges: cfg.badges,
       showMotionIcon: cfg.show_motion_icon !== false,
       inTimeWindow: traceAttrs?.in_time_window,
+      trace: traceAttrs?.trace,
     });
     const solarCtx = buildSolarActiveContext(traceAttrs?.trace, winner);
     const winnerVisible =

@@ -1,5 +1,5 @@
 import { normalizeHandler } from './decision-summary';
-import { BADGE_KINDS_BY_HANDLER, type BadgeKind, type HandlerName } from '../const';
+import { BADGE_KINDS_BY_HANDLER, HANDLER_ORDER, type BadgeKind, type HandlerName } from '../const';
 import type { AdaptiveCoverProTileCardConfig, DecisionStep } from '../types';
 
 /** Per-kind opt-in flags. Omitted/undefined = on; only `=== false` hides. */
@@ -51,6 +51,53 @@ export function solarTraceMatched(trace: readonly DecisionStep[] | undefined): b
   return trace.some((row) => row.matched && normalizeHandler(row.handler) === 'solar');
 }
 
+/**
+ * Walk a decision trace and collect every `matched: true` row whose handler
+ * normalizes to a recognized `HANDLER_ORDER` entry. Real traces can carry
+ * multiple matched rows in one cycle (see `buildDecisionSentence`'s docstring
+ * example) — this is the shared primitive both the tile's single winner
+ * badge and the dialog's multi-badge list use to see "what else contributed"
+ * beyond the literal `winner` string.
+ */
+export function matchedHandlerSet(trace: readonly DecisionStep[] | undefined): Set<HandlerName> {
+  const matched = new Set<HandlerName>();
+  if (!trace) return matched;
+  for (const row of trace) {
+    if (!row.matched) continue;
+    const key = normalizeHandler(row.handler) as HandlerName;
+    if (HANDLER_ORDER.includes(key)) matched.add(key);
+  }
+  return matched;
+}
+
+/**
+ * When the plain winner-derived kind is the generic `auto` fallback (the
+ * winner itself doesn't map to a specific badge, e.g. `default`), scan the
+ * trace's matched handlers for the highest-priority one (HANDLER_ORDER order)
+ * that maps to a specific badge kind and isn't opted out via `badges.<kind>`.
+ * Returns `null` when nothing qualifies, so the caller keeps the `auto`
+ * fallback. `default`/`floor_clamp` never elevate — they have no
+ * `BADGE_KINDS_BY_HANDLER` entry (see const.ts) and would just be `auto` again.
+ */
+function elevateFromMatchedTrace(
+  trace: readonly DecisionStep[] | undefined,
+  badges: BadgesConfig | undefined,
+): BadgeKind | null {
+  const matched = matchedHandlerSet(trace);
+  for (const handler of HANDLER_ORDER) {
+    if (!matched.has(handler)) continue;
+    const kind = BADGE_KINDS_BY_HANDLER[handler];
+    if (kind === undefined) continue;
+    // `off`/`group` are status kinds with no opt-in flag in BadgesConfig — never
+    // gated, same as selectVisibleBadges. `group_scene`/`group_lock` are the
+    // only handlers that can reach here mapped to `group`.
+    if (kind === 'off' || kind === 'group') return kind;
+    if (badges?.[kind] === false) continue;
+    return kind;
+  }
+  return null;
+}
+
 /** Whether the winner string normalizes to the cloud handler. */
 export function isCloudWinner(winner: string): boolean {
   return normalizeHandler(winner) === 'cloud';
@@ -97,6 +144,15 @@ export function winnerBadgeKind(opts: {
  * "active intent" kinds — `off` (integration disabled), `manual` (override
  * active), or `force` (forced position). It can be opted out via
  * `badges.off_schedule === false`.
+ *
+ * Issue #223: when the plain resolution above is the generic `auto` fallback,
+ * a more specific handler can still be genuinely active in the same cycle
+ * without being the literal winner (e.g. climate matched, but `default` wins
+ * the trace). When `trace` is supplied, that case elevates the badge to the
+ * more specific kind — see {@link elevateFromMatchedTrace} — mirroring what
+ * the more-info dialog's matched-badge list already does. A winner that
+ * already resolves to a specific kind is untouched: elevation only ever
+ * replaces the generic `auto` fallback.
  */
 export function resolveTileBadgeKind(opts: {
   winner: string;
@@ -107,6 +163,9 @@ export function resolveTileBadgeKind(opts: {
   /** Schedule & Timing clock window active. `false` → automatic control paused
    *  (off-schedule). `true`/`undefined` → schedule not constraining. */
   inTimeWindow?: boolean;
+  /** The full decision trace, used only to elevate a generic `auto` fallback
+   *  to a more specific matched-but-not-winning handler (issue #223). */
+  trace?: readonly DecisionStep[];
 }): BadgeKind | null {
   const kind = resolveWinnerKind(opts);
   // Off-schedule is shown only when auto would otherwise be running — never over
@@ -125,16 +184,26 @@ export function resolveTileBadgeKind(opts: {
 }
 
 /** The motion-suppression + Auto-fallback resolution, before the off-schedule
- *  layer is applied. */
+ *  layer is applied. Issue #223 elevation (see {@link elevateFromMatchedTrace})
+ *  applies only to the direct `auto` fallback from {@link winnerBadgeKind} —
+ *  i.e. when the winner itself is unmapped (e.g. `default`). It intentionally
+ *  does NOT run when `auto` is reached via motion suppression: that path
+ *  exists specifically to hide the redundant "Motion idle" text when the
+ *  motion icon already shows it, and a matched-motion row re-elevating back
+ *  to the `motion` kind there would defeat the suppression. */
 function resolveWinnerKind(opts: {
   winner: string;
   integrationEnabled: boolean;
   manualActive: boolean;
   badges: BadgesConfig | undefined;
   showMotionIcon: boolean;
+  trace?: readonly DecisionStep[];
 }): BadgeKind | null {
   const kind = winnerBadgeKind(opts);
-  if (kind !== 'motion') return kind;
+  if (kind !== 'motion') {
+    if (kind !== 'auto') return kind;
+    return elevateFromMatchedTrace(opts.trace, opts.badges) ?? 'auto';
+  }
   const suppressed = opts.badges?.motion === false || opts.showMotionIcon;
   if (!suppressed) return kind;
   return opts.badges?.auto === false ? null : 'auto';
