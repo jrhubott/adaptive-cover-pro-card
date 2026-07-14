@@ -78,6 +78,14 @@ export function matchedHandlerSet(trace: readonly DecisionStep[] | undefined): S
  * Returns `null` when nothing qualifies, so the caller keeps the `auto`
  * fallback. `default`/`floor_clamp` never elevate — they have no
  * `BADGE_KINDS_BY_HANDLER` entry (see const.ts) and would just be `auto` again.
+ *
+ * `motion` is skipped even though it maps to a badge kind: it owns its own
+ * dedicated icon + `showMotionIcon` suppression path in {@link resolveWinnerKind},
+ * which only runs when motion is the literal winner. A matched-but-not-winning
+ * motion row re-surfacing here would render both the motion icon and a
+ * redundant "Motion idle" text badge, defeating that suppression (issue #223
+ * follow-up). Skipping it here just lets the scan continue to the next
+ * matched handler (e.g. climate) instead of returning early.
  */
 function elevateFromMatchedTrace(
   trace: readonly DecisionStep[] | undefined,
@@ -85,6 +93,7 @@ function elevateFromMatchedTrace(
 ): BadgeKind | null {
   const matched = matchedHandlerSet(trace);
   for (const handler of HANDLER_ORDER) {
+    if (handler === 'motion') continue;
     if (!matched.has(handler)) continue;
     const kind = BADGE_KINDS_BY_HANDLER[handler];
     if (kind === undefined) continue;
@@ -190,7 +199,12 @@ export function resolveTileBadgeKind(opts: {
  *  does NOT run when `auto` is reached via motion suppression: that path
  *  exists specifically to hide the redundant "Motion idle" text when the
  *  motion icon already shows it, and a matched-motion row re-elevating back
- *  to the `motion` kind there would defeat the suppression. */
+ *  to the `motion` kind there would defeat the suppression. For the same
+ *  reason, {@link elevateFromMatchedTrace} itself never returns `motion` even
+ *  when reached via the direct `auto` fallback above — motion's icon +
+ *  suppression is owned exclusively by the winner-is-motion branch below, so a
+ *  matched-but-not-winning motion row is skipped during elevation and the scan
+ *  continues to the next candidate (e.g. climate) instead. */
 function resolveWinnerKind(opts: {
   winner: string;
   integrationEnabled: boolean;

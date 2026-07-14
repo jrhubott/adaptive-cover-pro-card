@@ -332,6 +332,35 @@ describe('resolveTileBadgeKind climate elevation (issue #223)', () => {
       }),
     ).toBe('cloud');
   });
+
+  it('does not elevate to motion — a matched motion row alone stays auto (motion owns its own icon+suppression path)', () => {
+    expect(
+      resolveTileBadgeKind({
+        ...base,
+        winner: 'default',
+        badges: undefined,
+        trace: [
+          { handler: 'motion', matched: true, reason: 'occupancy timeout', position: 0 },
+          { handler: 'default', matched: true, reason: 'default calc', position: 60 },
+        ],
+      }),
+    ).toBe('auto');
+  });
+
+  it('skips a matched motion row and elevates to climate instead', () => {
+    expect(
+      resolveTileBadgeKind({
+        ...base,
+        winner: 'default',
+        badges: undefined,
+        trace: [
+          { handler: 'motion', matched: true, reason: 'occupancy timeout', position: 0 },
+          { handler: 'climate', matched: true, reason: 'heat protection', position: 20 },
+          { handler: 'default', matched: true, reason: 'default calc', position: 60 },
+        ],
+      }),
+    ).toBe('climate');
+  });
 });
 
 describe('isAutoControlActive', () => {
