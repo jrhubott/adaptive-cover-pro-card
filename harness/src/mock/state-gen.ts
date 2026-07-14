@@ -78,7 +78,13 @@ export function buildStates(cfg: HarnessConfig): GeneratedStates {
     const sun = nearestSample(samples, now);
     const decision =
       cfg.decisionMode === 'scripted'
-        ? scriptedDecision(cfg.scriptedWinner, entry, sun.azimuth, sun.elevation)
+        ? scriptedDecision(
+            cfg.scriptedWinner,
+            entry,
+            sun.azimuth,
+            sun.elevation,
+            cfg.scriptedAlsoMatched,
+          )
         : decide({
             entry,
             sunAzimuth: sun.azimuth,

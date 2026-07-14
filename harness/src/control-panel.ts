@@ -971,6 +971,16 @@ export class AcpHarnessControlPanel extends LitElement {
                 )}
               </select>
             </label>
+            <fieldset class="entry">
+              <legend>Also matched, not winning (issue #223)</legend>
+              ${HANDLER_ORDER.filter((h) => h !== this.config.scriptedWinner).map((h) =>
+                this._checkbox(h, (this.config.scriptedAlsoMatched ?? []).includes(h), (v) => {
+                  const current = this.config.scriptedAlsoMatched ?? [];
+                  const scriptedAlsoMatched = v ? [...current, h] : current.filter((x) => x !== h);
+                  this._emit({ ...this.config, scriptedAlsoMatched });
+                }),
+              )}
+            </fieldset>
           `
         : ''}
     `;

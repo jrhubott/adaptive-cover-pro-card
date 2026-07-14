@@ -9,15 +9,17 @@ import {
   INTEGRATION_DOMAIN,
   MANUAL_OVERRIDE_PRIORITY,
   type BadgeKind,
-  type HandlerName,
 } from '../const';
 import {
   buildDecisionSentence,
   isWinningSlotSafety,
-  normalizeHandler,
   resolveCustomPositionPct,
 } from '../lib/decision-summary';
-import { buildSolarActiveContext, selectVisibleBadges } from '../lib/badge-visibility';
+import {
+  buildSolarActiveContext,
+  matchedHandlerSet,
+  selectVisibleBadges,
+} from '../lib/badge-visibility';
 import { coverStateIcon, coverStateColor } from '../lib/icons';
 import { resolveAxes } from '../lib/axes';
 import { coverHeldPosition } from '../lib/cover-position';
@@ -26,7 +28,6 @@ import type {
   AdaptiveCoverProTileCardConfig,
   CustomPositionSlotSnapshot,
   DecisionTraceAttributes,
-  DecisionStep,
   DiscoveredEntities,
   ForecastEvent,
   ForecastSample,
@@ -350,12 +351,9 @@ export class MoreInfoDialog extends LitElement {
     winner: string,
   ): BadgeKind[] {
     if (!attrs?.trace) return [];
-    const matched = new Set<HandlerName>();
-    for (const row of attrs.trace as DecisionStep[]) {
-      if (!row.matched) continue;
-      const key = normalizeHandler(row.handler) as HandlerName;
-      if (HANDLER_ORDER.includes(key)) matched.add(key);
-    }
+    // Shared with the tile card's single winner-badge elevation (issue #223):
+    // walk every matched row in the trace, not just the literal winner.
+    const matched = matchedHandlerSet(attrs.trace);
     // Preserve HANDLER_ORDER (highest priority first), then map each matched
     // handler to its badge kind so the inversion + per-badge opt-in apply.
     const kinds = HANDLER_ORDER.filter((h) => matched.has(h))

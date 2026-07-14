@@ -303,18 +303,30 @@ function activeSlotIsSafety(entry: HarnessEntry): boolean {
  * Build a synthetic trace+attrs for a scripted winner. Iterates HANDLER_ORDER
  * marking everything before the target as "didn't match" with stub reasons,
  * and everything after as "skipped because <winner> already matched".
+ *
+ * `alsoMatched` (issue #223) marks additional handlers `matched: true` in the
+ * trace without making them the winner — reproducing a real decision trace
+ * where more than one handler contributes in a cycle (e.g. climate matched,
+ * `default` wins). The derived `decide()` pipeline above can only ever mark
+ * one row matched by construction, so this is scripted-only.
  */
 export function scriptedDecision(
   winner: HandlerName,
   entry: HarnessEntry,
   sunAzimuth: number,
   sunElevation: number,
+  alsoMatched: readonly HandlerName[] = [],
 ): DecisionResult {
   const trace: DecisionStep[] = HANDLER_ORDER.map((h) => ({
     handler: h,
-    matched: h === winner,
-    reason: h === winner ? `Scripted: ${h}` : 'skipped',
-    position: h === winner ? entry.target_position : null,
+    matched: h === winner || alsoMatched.includes(h),
+    reason:
+      h === winner
+        ? `Scripted: ${h}`
+        : alsoMatched.includes(h)
+          ? `Scripted (also matched): ${h}`
+          : 'skipped',
+    position: h === winner ? entry.target_position : alsoMatched.includes(h) ? 20 : null,
   }));
   const f = entry.flags;
   // A custom_position slot that sets an exact position (min_mode false) bypasses

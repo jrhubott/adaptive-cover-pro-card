@@ -1941,6 +1941,26 @@ export const SCENARIOS: Scenario[] = [
       return c;
     },
   },
+  {
+    id: 'climate-active-not-winner',
+    label: 'Climate matched but not the literal winner (#223)',
+    added: '2026-07-13',
+    issue: 223,
+    description:
+      'Distinct from "climate-not-winner" (#168, where climate computed but its thresholds weren\'t met — genuinely NOT in control): here climate IS genuinely active this cycle (winter mode, heat protection — the climate panel shows the full in-control view) and its decision-trace row is matched: true, but the trace\'s literal `winner` is scripted to "Default" (a shape the mock derived pipeline can\'t itself produce, since climate outranks default — a scripted trace models it directly, mirroring the multi-matched-row traces the real integration can emit). Before the #223 fix, the compact tile badge only ever looked at the literal winner and showed the generic "Auto" badge here; the more-info dialog (which walks every matched row) already showed "Climate" correctly. Open the tile in BOTH layouts to confirm the single winner badge now reads "Climate" in each — tap the tile to open the dialog and confirm it still agrees.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'climate-active-not-winner';
+      c.decisionMode = 'scripted';
+      c.scriptedWinner = 'default';
+      c.scriptedAlsoMatched = ['climate'];
+      const f = c.entries[0].flags;
+      f.climate_strategy = 'winter_mode';
+      f.indoor_temp = 17;
+      f.outdoor_temp = 4;
+      return c;
+    },
+  },
 ];
 
 export function findScenario(id: string): Scenario | undefined {
