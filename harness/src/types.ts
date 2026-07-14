@@ -80,6 +80,17 @@ export interface ManagedCoverCfg {
   /** Live slat tilt in 0..100 (venetian dual-axis only); null = unknown.
    *  Emitted as `current_tilt_position` on the cover state. */
   tilt?: number | null;
+  /** HA cover `device_class` (awning, blind, curtain, damper, door, garage,
+   *  gate, shade, shutter, window). Drives the card's HA-native icon + control
+   *  glyphs. When unset, the mock defaults it from the cover_type (see
+   *  `addCoverStates`). Pass `'none'` to emit NO device_class (fallback proof). */
+  device_class?: string;
+  /** Explicit `icon` attribute on the cover entity. When set, the card honors
+   *  it over the device_class glyph (mirrors HA's explicit-icon precedence). */
+  icon?: string;
+  /** HA state override, e.g. 'unavailable' — when set, wins over the
+   *  position-derived open/closed state. */
+  state?: string;
 }
 
 export interface HarnessEntry {
@@ -122,6 +133,11 @@ export interface HarnessEntry {
      *  solar would-be target (`target_position`). null = no divergence (held
      *  tracks the solar target, the pre-#132 collapse behavior). */
     held_position: number | null;
+    /** Pre-interpolation logical position the Cover_Position sensor's
+     *  `linear_position` attribute carries (issue #219). null = attribute
+     *  absent — simulates an older integration or interpolation not configured
+     *  for this axis; the card falls back to `state` (today's behavior). */
+    linear_position: number | null;
     /** When true, the priority-100 safety slot (slot 5) is armed and wins as a
      *  custom_position with bypass_auto_control. Replaces the pre-2.28
      *  standalone Force Override trigger count. */
@@ -161,6 +177,11 @@ export interface HarnessEntry {
     throttle_skipped_minutes_ago: number;
     /** Configured minimum interval between position changes, in minutes. */
     throttle_threshold_minutes: number;
+    /** In-transit direction for a no-feedback (open/close-only) cover. When set,
+     *  the Cover_Position sensor publishes a `transit_states` map for this
+     *  entry's covers so the tile shows the localized "Opening"/"Closing" state
+     *  text. null/undefined = at rest (no transit_states emitted). */
+    transit_direction?: 'opening' | 'closing' | null;
   };
   /** When true this entry is a Cover Group (issue #185): the mock emits the
    *  `group_*` entities from {@link group} and skips the per-cover sensor block,
@@ -187,6 +208,8 @@ export interface RootCardOptions {
   show_moon: boolean;
   hide_inactive_handlers: boolean;
   show_decision_summary: boolean;
+  /** Color the header cover icon by state, HA-style (default true). */
+  state_color: boolean;
   north_offset: number;
 }
 
@@ -214,6 +237,9 @@ export interface TileCardOptions {
   show_decision_summary: boolean;
   show_controls: boolean;
   show_badge: boolean;
+  /** Render the target-vs-actual position bar (default true). Independent of
+   *  `show_badge`. */
+  show_position_bar: boolean;
   /** Render the mini tilt bar on dual-axis venetian tiles (default true). */
   show_tilt: boolean;
   /** Per-kind badge opt-in. All default on; only `false` hides the kind. */
@@ -233,6 +259,9 @@ export interface TileCardOptions {
   show_elevation_chart: boolean;
   show_solar_calc: boolean;
   show_motion_icon: boolean;
+  /** Color the cover state icon by state (open/opening/closing = active tier,
+   *  closed = inactive tier, unavailable = unavailable tier). Default true. */
+  state_color: boolean;
   layout: 'one-line' | 'detailed';
   /** Simulated tile width in px, mimicking a narrow HA "Sections" column.
    *  0 = auto (the stage grid sizes tiles normally, ≥360px wide). A positive
@@ -283,6 +312,13 @@ export interface HarnessConfig {
   /** Forces a specific handler winner instead of running the mock pipeline. */
   decisionMode: DecisionMode;
   scriptedWinner: HandlerName;
+  /** Scripted mode only (issue #223): additional handlers to mark `matched: true`
+   *  in the trace alongside `scriptedWinner`, without making them win. Lets a
+   *  scenario reproduce a real decision trace where more than one handler
+   *  contributes in the same cycle (e.g. climate matched, default wins) — the
+   *  derived `decide()` pipeline can only ever mark one row matched. Omitted /
+   *  empty = no extra matched rows (existing scripted scenarios unaffected). */
+  scriptedAlsoMatched?: HandlerName[];
   /** Per-card render options. */
   root: RootCardOptions;
   compass: SkyCompassCardOptions;

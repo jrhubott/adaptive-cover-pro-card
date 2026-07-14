@@ -1,7 +1,11 @@
 import { LitElement, css, html, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HANDLER_ORDER, type HandlerName } from '../../src/const';
-import { SCENARIOS } from './scenarios';
+import { COVER_DEVICE_CLASS_ICONS, HANDLER_ORDER, type HandlerName } from '../../src/const';
+import { SCENARIOS, scenarioIssue, type Scenario } from './scenarios';
+
+/** Per-cover device_class selector options: the card's known HA classes plus
+ *  `none` (emit NO device_class, exercising the cover_type fallback chain). */
+const COVER_DEVICE_CLASS_OPTIONS: string[] = [...Object.keys(COVER_DEVICE_CLASS_ICONS), 'none'];
 import type {
   ClimateInactiveReason,
   ClimateStrategy,
@@ -46,6 +50,16 @@ export interface ConfigChangeDetail {
 @customElement('acp-harness-control-panel')
 export class AcpHarnessControlPanel extends LitElement {
   @property({ attribute: false }) config!: HarnessConfig;
+
+  // Preset ordering in the picker. 'name' (A–Z) is the default; 'added' sorts by
+  // the scenario's `added` date (undated ones keep their definition/append order,
+  // ahead of dated ones).
+  @state() private _scenarioSort: 'name' | 'added' = 'name';
+
+  // Preset issue filter. 'all' shows every scenario; a number limits the picker
+  // to scenarios whose effective issue (explicit `issue` field or `#NNN` parsed
+  // from the label) matches.
+  @state() private _issueFilter: number | 'all' = 'all';
 
   @state() private _openSections: Record<string, boolean> = {
     scenario: true,
@@ -99,15 +113,60 @@ export class AcpHarnessControlPanel extends LitElement {
   }
 
   private _renderScenario(): TemplateResult {
+    const sorted = this._sortedScenarios();
     return html`
       <label class="row">
         <span>Preset</span>
-        <select @change=${this._onScenarioChange}>
-          ${SCENARIOS.map(
-            (s) =>
-              html`<option value=${s.id} ?selected=${s.id === this.config.scenario}>
-                ${s.label}
-              </option>`,
+        <div class="scenario-picker">
+          <button
+            class="step-btn"
+            title="Previous scenario"
+            aria-label="Previous scenario"
+            @click=${() => this._stepScenario(-1)}
+          >
+            −
+          </button>
+          <select .value=${this.config.scenario} @change=${this._onScenarioChange}>
+            ${sorted.map(
+              (s) =>
+                html`<option value=${s.id} ?selected=${s.id === this.config.scenario}>
+                  ${s.label}
+                </option>`,
+            )}
+          </select>
+          <button
+            class="step-btn"
+            title="Next scenario"
+            aria-label="Next scenario"
+            @click=${() => this._stepScenario(1)}
+          >
+            +
+          </button>
+        </div>
+      </label>
+      <label class="row">
+        <span>Sort presets</span>
+        <select
+          .value=${this._scenarioSort}
+          @change=${(e: Event) =>
+            (this._scenarioSort = (e.target as HTMLSelectElement)
+              .value as typeof this._scenarioSort)}
+        >
+          <option value="name" ?selected=${this._scenarioSort === 'name'}>Name (A–Z)</option>
+          <option value="added" ?selected=${this._scenarioSort === 'added'}>Date added</option>
+        </select>
+      </label>
+      <label class="row">
+        <span>Filter by issue</span>
+        <select
+          @change=${(e: Event) => {
+            const v = (e.target as HTMLSelectElement).value;
+            this._issueFilter = v === 'all' ? 'all' : parseInt(v, 10);
+          }}
+        >
+          <option value="all" ?selected=${this._issueFilter === 'all'}>All issues</option>
+          ${this._scenarioIssues().map(
+            (n) => html`<option value=${n} ?selected=${this._issueFilter === n}>#${n}</option>`,
           )}
         </select>
       </label>
@@ -207,6 +266,50 @@ export class AcpHarnessControlPanel extends LitElement {
     const s = SCENARIOS.find((x) => x.id === id);
     if (!s) return;
     this._emit({ ...s.build(), theme: this.config.theme, language: this.config.language });
+  };
+
+  // Distinct issue numbers across all scenarios (explicit field or parsed from
+  // the label), ascending — populates the "Filter by issue" dropdown.
+  private _scenarioIssues(): number[] {
+    const set = new Set<number>();
+    for (const s of SCENARIOS) {
+      const n = scenarioIssue(s);
+      if (n != null) set.add(n);
+    }
+    return [...set].sort((a, b) => a - b);
+  }
+
+  // Presets after applying the issue filter, in the selected sort order. 'added'
+  // sorts by the `added` date; undated scenarios have no date so they keep their
+  // definition (append) order and sort ahead of dated ones. 'name' is A–Z.
+  private _sortedScenarios(): Scenario[] {
+    const idx = new Map(SCENARIOS.map((s, i) => [s, i] as const));
+    let list = [...SCENARIOS];
+    if (this._issueFilter !== 'all') {
+      list = list.filter((s) => scenarioIssue(s) === this._issueFilter);
+    }
+    if (this._scenarioSort === 'name') {
+      return list.sort((a, b) => a.label.localeCompare(b.label));
+    }
+    return list.sort((a, b) => {
+      const da = a.added ? Date.parse(a.added) : null;
+      const db = b.added ? Date.parse(b.added) : null;
+      if (da == null && db == null) return idx.get(a)! - idx.get(b)!;
+      if (da == null) return -1; // undated = older → first
+      if (db == null) return 1;
+      return da - db || idx.get(a)! - idx.get(b)!;
+    });
+  }
+
+  // Step to the previous (-1) / next (+1) scenario in the current sort order,
+  // wrapping at both ends, so the − / + buttons cycle presets without opening the
+  // dropdown.
+  private _stepScenario = (delta: number): void => {
+    const sorted = this._sortedScenarios();
+    const idx = sorted.findIndex((x) => x.id === this.config.scenario);
+    const next = sorted[(idx + delta + sorted.length) % sorted.length];
+    if (!next) return;
+    this._emit({ ...next.build(), theme: this.config.theme, language: this.config.language });
   };
 
   private _onReset = (): void => {
@@ -393,6 +496,7 @@ export class AcpHarnessControlPanel extends LitElement {
         manual_override: false,
         manual_override_minutes_from_now: 60,
         held_position: null,
+        linear_position: null,
         safety_slot_active: false,
         motion_status: 'idle',
         motion_timeout_minutes_from_now: 1,
@@ -484,10 +588,10 @@ export class AcpHarnessControlPanel extends LitElement {
         ${this._numberSlider('Window azimuth', e.window_azimuth, 0, 360, 1, (v) =>
           this._patchEntry(idx, { window_azimuth: v }),
         )}
-        ${this._numberSlider('FOV left', e.fov_left, 0, 90, 1, (v) =>
+        ${this._numberSlider('SAA left', e.fov_left, 0, 90, 1, (v) =>
           this._patchEntry(idx, { fov_left: v }),
         )}
-        ${this._numberSlider('FOV right', e.fov_right, 0, 90, 1, (v) =>
+        ${this._numberSlider('SAA right', e.fov_right, 0, 90, 1, (v) =>
           this._patchEntry(idx, { fov_right: v }),
         )}
         ${this._optionalNumber('Min elevation', e.min_elevation, -10, 90, (v) =>
@@ -591,6 +695,22 @@ export class AcpHarnessControlPanel extends LitElement {
                   this._patchEntry(idx, { covers });
                 }}
               />
+              <select
+                title="device_class (icon + control glyphs)"
+                @change=${(ev: Event) => {
+                  const v = (ev.target as HTMLSelectElement).value;
+                  const covers = e.covers.map((cc, i) =>
+                    i === ci ? { ...cc, device_class: v === '' ? undefined : v } : cc,
+                  );
+                  this._patchEntry(idx, { covers });
+                }}
+              >
+                <option value="" ?selected=${c.device_class === undefined}>dc: default</option>
+                ${COVER_DEVICE_CLASS_OPTIONS.map(
+                  (dc) =>
+                    html`<option value=${dc} ?selected=${c.device_class === dc}>${dc}</option>`,
+                )}
+              </select>
               ${e.cover_type === 'cover_venetian'
                 ? html`<input
                     type="number"
@@ -654,7 +774,28 @@ export class AcpHarnessControlPanel extends LitElement {
               this._patchFlags(idx, { safety_slot_active: v }),
             )}
             <label class="row">
-              <span>Motion status</span>
+              <span>Transit (no-feedback)</span>
+              <select
+                @change=${(ev: Event) => {
+                  const v = (ev.target as HTMLSelectElement).value;
+                  this._patchFlags(idx, {
+                    transit_direction: v === 'none' ? null : (v as 'opening' | 'closing'),
+                  });
+                }}
+              >
+                ${(['none', 'opening', 'closing'] as const).map(
+                  (v) =>
+                    html`<option
+                      value=${v}
+                      ?selected=${(e.flags.transit_direction ?? 'none') === v}
+                    >
+                      ${v}
+                    </option>`,
+                )}
+              </select>
+            </label>
+            <label class="row">
+              <span>Occupancy status</span>
               <select
                 @change=${(ev: Event) =>
                   this._patchFlags(idx, {
@@ -830,6 +971,16 @@ export class AcpHarnessControlPanel extends LitElement {
                 )}
               </select>
             </label>
+            <fieldset class="entry">
+              <legend>Also matched, not winning (issue #223)</legend>
+              ${HANDLER_ORDER.filter((h) => h !== this.config.scriptedWinner).map((h) =>
+                this._checkbox(h, (this.config.scriptedAlsoMatched ?? []).includes(h), (v) => {
+                  const current = this.config.scriptedAlsoMatched ?? [];
+                  const scriptedAlsoMatched = v ? [...current, h] : current.filter((x) => x !== h);
+                  this._emit({ ...this.config, scriptedAlsoMatched });
+                }),
+              )}
+            </fieldset>
           `
         : ''}
     `;
@@ -957,6 +1108,9 @@ export class AcpHarnessControlPanel extends LitElement {
             root: { ...this.config.root, show_decision_summary: v },
           }),
         )}
+        ${this._checkbox('Color icon by state', this.config.root.state_color, (v) =>
+          this._emit({ ...this.config, root: { ...this.config.root, state_color: v } }),
+        )}
         ${this._numberSlider('North offset °', this.config.root.north_offset, -180, 180, 1, (v) =>
           this._emit({ ...this.config, root: { ...this.config.root, north_offset: v } }),
         )}
@@ -1034,11 +1188,13 @@ export class AcpHarnessControlPanel extends LitElement {
             'show_decision_summary',
             'show_controls',
             'show_badge',
+            'show_position_bar',
             'show_tilt',
             'show_compass',
             'show_elevation_chart',
             'show_solar_calc',
             'show_motion_icon',
+            'state_color',
           ] as const
         ).map((k) =>
           this._checkbox(k, this.config.tile[k], (v) =>
@@ -1298,6 +1454,32 @@ export class AcpHarnessControlPanel extends LitElement {
       max-width: 140px;
       padding: 2px 4px;
       font-size: 0.85rem;
+    }
+    /* Scenario preset picker: a select flanked by − / + step buttons that cycle
+       through the presets without opening the dropdown. */
+    .scenario-picker {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .scenario-picker select {
+      max-width: 116px;
+    }
+    .step-btn {
+      flex: 0 0 auto;
+      width: 22px;
+      height: 22px;
+      line-height: 1;
+      padding: 0;
+      font-size: 1rem;
+      border: 1px solid var(--divider-color, #ccc);
+      border-radius: 4px;
+      background: var(--secondary-background-color, #f0f0f0);
+      color: var(--primary-text-color);
+      cursor: pointer;
+    }
+    .step-btn:hover {
+      background: var(--divider-color, #ddd);
     }
     input[type='range'] {
       width: 100%;

@@ -39,7 +39,7 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'badge.cloud': 'Cloudy',
   'badge.custom_position': 'Custom',
   'badge.solar': 'Solar tracking',
-  'badge.motion': 'Motion',
+  'badge.motion': 'Occupancy',
   'badge.off': 'Off',
   'badge.off_schedule': 'Off-schedule',
   'badge.safety': 'Safety',
@@ -72,13 +72,13 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'elevation.schedule_until': 'Schedule until {to}',
   'elevation.schedule_start_tooltip': 'Schedule start',
   'elevation.schedule_end_tooltip': 'Schedule end',
-  'compass.in_fov_tooltip': 'Sun is currently within this window’s field of view',
+  'compass.in_fov_tooltip': 'Sun is currently within this window’s sun acceptance angle',
   // Cover legend rows (#158): the solid wedge is the target, the dashed ring the
   // held position. Mirror the real en.ts strings so the harness legend renders
   // real text instead of the raw i18n keys.
   'compass.cover_target': 'Cover target',
   'compass.cover_held': 'Cover position (held)',
-  'compass.window_fov': 'Window FOV',
+  'compass.window_fov': 'Window SAA',
   'compass.window_normal': 'Window azimuth',
   'compass.sun': 'Sun',
   'compass.moon': 'Moon',
@@ -104,8 +104,8 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'tile.stop': 'Stop',
   'tile.resume': 'Resume',
   'tile.resume_aria': 'Resume automation',
-  'tile.motion_detected': 'Motion detected',
-  'tile.motion_pending': 'Motion timeout',
+  'tile.motion_detected': 'Occupancy detected',
+  'tile.motion_pending': 'Occupancy timeout',
   'dialog.floor': '↥',
   'dialog.floor_tooltip': 'Custom position floor is raising the calculated value.',
   'badge.floor_suffix': ' ↥',
@@ -250,7 +250,13 @@ export function buildMockHass(
       }
       return localize(key, args);
     }) as unknown as HomeAssistant['localize'],
-    formatEntityState: (stateObj: { state: string }): string => stateObj.state,
+    // HA's formatEntityState returns the localized, title-cased state
+    // ("Open", "Closed", "Opening", …); mirror that so the harness matches the
+    // real card instead of showing the raw lowercase state.
+    formatEntityState: (stateObj: { state: string }): string =>
+      stateObj.state
+        ? stateObj.state.charAt(0).toUpperCase() + stateObj.state.slice(1)
+        : stateObj.state,
   } as unknown as HomeAssistant;
 
   return { hass, generated };

@@ -4,28 +4,30 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import {
   BADGE_KINDS_BY_HANDLER,
-  COVER_TYPE_ICONS,
   HANDLER_I18N_KEYS,
   HANDLER_ORDER,
   INTEGRATION_DOMAIN,
   MANUAL_OVERRIDE_PRIORITY,
   type BadgeKind,
-  type HandlerName,
 } from '../const';
 import {
   buildDecisionSentence,
   isWinningSlotSafety,
-  normalizeHandler,
   resolveCustomPositionPct,
 } from '../lib/decision-summary';
-import { buildSolarActiveContext, selectVisibleBadges } from '../lib/badge-visibility';
+import {
+  buildSolarActiveContext,
+  matchedHandlerSet,
+  selectVisibleBadges,
+} from '../lib/badge-visibility';
+import { coverStateIcon, coverStateColor } from '../lib/icons';
 import { resolveAxes } from '../lib/axes';
+import { coverHeldPosition } from '../lib/cover-position';
 import { startMinuteTimer } from '../lib/minute-timer';
 import type {
   AdaptiveCoverProTileCardConfig,
   CustomPositionSlotSnapshot,
   DecisionTraceAttributes,
-  DecisionStep,
   DiscoveredEntities,
   ForecastEvent,
   ForecastSample,
@@ -69,6 +71,7 @@ export class MoreInfoDialog extends LitElement {
   @property({ type: Boolean }) public showCompass = true;
   @property({ type: Boolean }) public showElevationChart = true;
   @property({ type: Boolean }) public showSolarCalc = true;
+  @property({ type: Boolean }) public stateColor = true;
 
   /** Per-kind badge opt-in, threaded down from the tile-card config. */
   @property({ attribute: false }) public badges?: AdaptiveCoverProTileCardConfig['badges'];
@@ -145,6 +148,32 @@ export class MoreInfoDialog extends LitElement {
     return labels;
   }
 
+  /**
+   * Header glyph, derived from the managed cover entity (HA-native icon) with
+   * the same fallback chain the tile uses: explicit entity icon → device_class
+   * glyph → integration cover_type → generic fallback. Position-aware via the
+   * cover's `current_position`.
+   */
+  private _headerIcon(): string {
+    const coverId = this.discovered.managed_covers?.[0];
+    const stateObj = coverId ? this.hass.states[coverId] : undefined;
+    const pos = stateObj?.attributes?.current_position;
+    return coverStateIcon({
+      explicitIcon: stateObj?.attributes?.icon as string | undefined,
+      deviceClass: stateObj?.attributes?.device_class as string | undefined,
+      coverType: this.discovered.cover_type,
+      position: typeof pos === 'number' && !Number.isNaN(pos) ? pos : null,
+    });
+  }
+
+  /** Header icon color, following the same state resolution as {@link _headerIcon}. */
+  private _headerColor(): string | null {
+    if (!this.stateColor) return null;
+    const coverId = this.discovered.managed_covers?.[0];
+    const stateObj = coverId ? this.hass.states[coverId] : undefined;
+    return coverStateColor(stateObj?.state);
+  }
+
   protected render(): TemplateResult | typeof nothing {
     if (!this.open || !this.hass || !this.discovered) return nothing;
     const winner = this._winner();
@@ -167,6 +196,7 @@ export class MoreInfoDialog extends LitElement {
     const configureLabel = t('dialog.configure_integration', this.hass);
     const deviceLabel = t('dialog.open_device_page', this.hass);
     const closeLabel = t('dialog.close', this.hass);
+    const headerColor = this._headerColor();
 
     return html`
       <div class="backdrop" data-open @click=${this._onBackdrop}>
@@ -174,7 +204,8 @@ export class MoreInfoDialog extends LitElement {
           <div class="header">
             <ha-icon
               class="cover-icon"
-              icon=${COVER_TYPE_ICONS[this.discovered.cover_type] ?? 'mdi:window-shutter'}
+              icon=${this._headerIcon()}
+              style=${headerColor ? `color: ${headerColor}` : ''}
             ></ha-icon>
             <div class="title">${this.discovered.entry_title}</div>
             <div class="badges">
@@ -320,12 +351,9 @@ export class MoreInfoDialog extends LitElement {
     winner: string,
   ): BadgeKind[] {
     if (!attrs?.trace) return [];
-    const matched = new Set<HandlerName>();
-    for (const row of attrs.trace as DecisionStep[]) {
-      if (!row.matched) continue;
-      const key = normalizeHandler(row.handler) as HandlerName;
-      if (HANDLER_ORDER.includes(key)) matched.add(key);
-    }
+    // Shared with the tile card's single winner-badge elevation (issue #223):
+    // walk every matched row in the trace, not just the literal winner.
+    const matched = matchedHandlerSet(attrs.trace);
     // Preserve HANDLER_ORDER (highest priority first), then map each matched
     // handler to its badge kind so the inversion + per-badge opt-in apply.
     const kinds = HANDLER_ORDER.filter((h) => matched.has(h))
@@ -335,13 +363,10 @@ export class MoreInfoDialog extends LitElement {
     return selectVisibleBadges(kinds, this.badges, ctx);
   }
 
+  /** Prefers the pre-interpolation `linear_position` attribute (issue #219)
+   *  over the raw motor state when present. See {@link coverHeldPosition}. */
   private _target(): number | null {
-    const id = this.discovered.entities.target_position_sensor;
-    if (!id) return null;
-    const st = this.hass.states[id];
-    if (!st) return null;
-    const v = parseFloat(st.state);
-    return Number.isNaN(v) ? null : v;
+    return coverHeldPosition(this.hass, this.discovered);
   }
 
   private _mismatchActive(): boolean {

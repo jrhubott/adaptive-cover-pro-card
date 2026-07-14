@@ -4,7 +4,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import { entityStateChanged } from '../lib/hass-change';
 import type { CoverPositionAttributes, DiscoveredEntities } from '../types';
-import { displayTarget, isOverrideDivergence } from '../lib/cover-position';
+import { displayTarget, isOverrideDivergence, coverMotorDivergence } from '../lib/cover-position';
 import { formatPercent } from '../lib/formatters';
 import { AXIS_LABEL_I18N_KEYS } from '../const';
 import { resolveAxes, type ResolvedAxis } from '../lib/axes';
@@ -61,6 +61,18 @@ export class CoverBar extends LitElement {
     };
   }
 
+  /** Per-cover in-transit direction from the target sensor's `transit_states`
+   *  attribute (guarded like {@link _target}). No-feedback covers publish this
+   *  while mid-move; absent/empty otherwise. */
+  private _transit(): Record<string, 'opening' | 'closing'> {
+    const id = this.discovered.entities.target_position_sensor;
+    if (!id) return {};
+    const st = this.hass.states[id];
+    if (!st) return {};
+    const attrs = st.attributes as unknown as CoverPositionAttributes;
+    return attrs?.transit_states ?? {};
+  }
+
   private _mismatched(): Set<string> {
     const id = this.discovered.entities.position_mismatch_binary;
     if (!id) return new Set();
@@ -102,6 +114,13 @@ export class CoverBar extends LitElement {
     return typeof v === 'number' ? v : null;
   }
 
+  /** Motor value to disclose in the Target chip's tooltip — the raw
+   *  Cover_Position sensor state — when it diverges from the linear-preferred
+   *  display value, else null (issue #219). See {@link coverMotorDivergence}. */
+  private _motorDivergence(): number | null {
+    return coverMotorDivergence(this.hass, this.discovered);
+  }
+
   /** Display label for an axis: card i18n key wins for known ids, else the
    *  discovery label, else a capitalized id (already baked into axis.label). */
   private _axisLabel(axis: ResolvedAxis): string {
@@ -126,6 +145,8 @@ export class CoverBar extends LitElement {
     // the cover away from the solar target), so don't flag it as an alert — the
     // marker/fill gap already shows it. Keep the badge for genuine mismatches.
     const overrideDivergence = isOverrideDivergence(this.hass, this.discovered);
+    const motorDivergence = this._motorDivergence();
+    const transit = this._transit();
     const entries = Object.entries(covers);
     if (entries.length === 0) {
       return html`<div class="placeholder">${t('covers.placeholder', this.hass)}</div>`;
@@ -142,7 +163,15 @@ export class CoverBar extends LitElement {
         <div class="head">
           <span class="label">${t('covers.title', this.hass)}</span>
           <span class="targets">
-            <span class="target"
+            <span
+              class="target"
+              ${motorDivergence !== null
+                ? tooltip(
+                    t('covers.target_tooltip_motor', this.hass, {
+                      pct: motorDivergence,
+                    }),
+                  )
+                : nothing}
               >${t(overrideDivergence ? 'covers.target_solar' : 'covers.target', this.hass, {
                 pct: formatPercent(target),
               })}</span
@@ -158,7 +187,14 @@ export class CoverBar extends LitElement {
         ${entries.map(
           ([id, actual]) => html`
             <div class="cover-group">
-              ${this._bar(id, actual, target, mismatched.has(id), overrideDivergence)}
+              ${this._bar(
+                id,
+                actual,
+                target,
+                mismatched.has(id),
+                overrideDivergence,
+                transit[id] ?? null,
+              )}
               ${secondaryAxes.map(
                 (axis) =>
                   html`<acp-tilt-bar
@@ -188,6 +224,7 @@ export class CoverBar extends LitElement {
     target: number | null,
     mismatch: boolean,
     overrideDivergence: boolean,
+    transitDir: 'opening' | 'closing' | null,
   ): TemplateResult {
     const friendly =
       (this.hass.states[entityId]?.attributes?.friendly_name as string | undefined) ?? entityId;
@@ -205,7 +242,15 @@ export class CoverBar extends LitElement {
         >
           ${friendly}
         </div>
-        <div class="num">${formatPercent(actual)}</div>
+        <div class="num">
+          ${transitDir
+            ? html`<ha-icon
+                class="transit transit-${transitDir}"
+                icon=${transitDir === 'opening' ? 'mdi:arrow-up-thin' : 'mdi:arrow-down-thin'}
+                ${tooltip(t('covers.' + transitDir, this.hass))}
+              ></ha-icon>`
+            : nothing}${formatPercent(actual)}
+        </div>
         <div
           class="track"
           @click=${(e: MouseEvent) => this._handleTrackClick(e, entityId)}
@@ -367,6 +412,31 @@ export class CoverBar extends LitElement {
     .num {
       font-variant-numeric: tabular-nums;
       text-align: right;
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 2px;
+    }
+    /* In-transit motion indicator for no-feedback covers: a small direction
+       arrow beside the percent, sized to the .num text. */
+    .transit {
+      --mdc-icon-size: 1em;
+      color: var(--primary-color);
+      flex-shrink: 0;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .transit {
+        animation: acp-transit-pulse 1.1s ease-in-out infinite;
+      }
+    }
+    @keyframes acp-transit-pulse {
+      0%,
+      100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.35;
+      }
     }
     .warn {
       color: var(--warning-color, orange);

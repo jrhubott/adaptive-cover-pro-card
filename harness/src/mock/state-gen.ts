@@ -78,7 +78,13 @@ export function buildStates(cfg: HarnessConfig): GeneratedStates {
     const sun = nearestSample(samples, now);
     const decision =
       cfg.decisionMode === 'scripted'
-        ? scriptedDecision(cfg.scriptedWinner, entry, sun.azimuth, sun.elevation)
+        ? scriptedDecision(
+            cfg.scriptedWinner,
+            entry,
+            sun.azimuth,
+            sun.elevation,
+            cfg.scriptedAlsoMatched,
+          )
         : decide({
             entry,
             sunAzimuth: sun.azimuth,
@@ -174,7 +180,7 @@ function addEntryStates(
     (c) => c.position !== null && Math.abs(c.position - entry.target_position) <= 1,
   );
 
-  states[id('target_position_sensor')] = mkState(id('target_position_sensor'), String(coverState), {
+  const coverPositionAttrs: Record<string, unknown> = {
     friendly_name: `${entry.title} Cover Position`,
     unit_of_measurement: '%',
     actual_positions: actualPositions,
@@ -182,7 +188,23 @@ function addEntryStates(
     control_method: decision.winner,
     reason: decision.reason,
     raw_calculated_position: decision.position,
-  });
+    // Pre-interpolation logical position (issue #219). Spread conditionally so
+    // "absent" is actually absent (not null), matching a real HA state object
+    // and exercising the card's `typeof val === 'number'` guard honestly.
+    ...(f.linear_position !== null ? { linear_position: f.linear_position } : {}),
+  };
+  // No-feedback covers publish an in-transit direction while mid-move; mirror it
+  // so the tile renders the localized "Opening"/"Closing" state text.
+  if (f.transit_direction) {
+    coverPositionAttrs.transit_states = Object.fromEntries(
+      entry.covers.map((c) => [c.entity_id, f.transit_direction]),
+    );
+  }
+  states[id('target_position_sensor')] = mkState(
+    id('target_position_sensor'),
+    String(coverState),
+    coverPositionAttrs,
+  );
 
   // Dual-axis venetian: the Cover_Tilt sensor publishes the solar slat target
   // (0–100, no attributes). Its presence is the card's dual-axis gate, so only
@@ -463,10 +485,16 @@ function addCoverStates(states: Record<string, HassState>, entry: HarnessEntry):
   const dualAxis = entry.cover_type === 'cover_venetian';
   for (const c of entry.covers) {
     const pos = c.position ?? entry.target_position;
-    const state = pos === 0 ? 'closed' : pos === 100 ? 'open' : 'open';
+    const state = c.state ?? (pos === 0 ? 'closed' : pos === 100 ? 'open' : 'open');
     // Venetian covers carry a live slat angle the card reads directly off the
     // cover entity (the integration does not aggregate tilts into a sensor).
     const tilt = dualAxis ? (c.tilt ?? entry.target_tilt ?? 50) : undefined;
+    // device_class drives the card's HA-native icon + control glyphs. Explicit
+    // per-cover config wins; `'none'` suppresses it (fallback-chain proof);
+    // otherwise default from the cover_type (venetian → blind, else shade),
+    // preserving the pre-existing mock behavior.
+    const deviceClass =
+      c.device_class === 'none' ? undefined : (c.device_class ?? (dualAxis ? 'blind' : 'shade'));
     states[c.entity_id] = mkState(c.entity_id, state, {
       friendly_name: c.friendly_name,
       current_position: c.position,
@@ -474,7 +502,8 @@ function addCoverStates(states: Record<string, HassState>, entry: HarnessEntry):
       // Bit 16 (SET_TILT_POSITION) added for venetian so the cover advertises
       // tilt support alongside the position features (15).
       supported_features: dualAxis ? 143 : 15,
-      device_class: dualAxis ? 'blind' : 'shade',
+      ...(deviceClass !== undefined ? { device_class: deviceClass } : {}),
+      ...(c.icon ? { icon: c.icon } : {}),
     });
   }
 }

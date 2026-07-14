@@ -100,6 +100,10 @@ describe('acp-solar-calc: no solar target', () => {
     expect(noTarget).toBeTruthy();
     const chip = el.shadowRoot!.querySelector('.status-chip');
     expect(chip?.classList.contains('default')).toBe(true);
+    // #206: the integration keeps emitting the raw 'Default: FOV Exit' status
+    // literal (matched above via `status: 'Default: FOV Exit'`) — only the
+    // rendered chip LABEL retires "FOV" in favour of "SAA".
+    expect(chip?.textContent?.trim()).toBe('Default · SAA exit');
   });
 });
 

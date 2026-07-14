@@ -36,9 +36,9 @@ export function buildForecast(entry: HarnessEntry, samples: SunSample[]): Synthe
     if (!aboveHorizon && prevAboveHorizon)
       events.push({ t: s.t.toISOString(), kind: 'sunset', label: 'Sunset' });
     if (aboveHorizon && inFov && !prevInFov)
-      events.push({ t: s.t.toISOString(), kind: 'fov_enter', label: 'Sun enters FOV' });
+      events.push({ t: s.t.toISOString(), kind: 'fov_enter', label: 'Sun enters SAA' });
     if (aboveHorizon && !inFov && prevInFov)
-      events.push({ t: s.t.toISOString(), kind: 'fov_exit', label: 'Sun exits FOV' });
+      events.push({ t: s.t.toISOString(), kind: 'fov_exit', label: 'Sun exits SAA' });
 
     prevAboveHorizon = aboveHorizon;
     prevInFov = inFov;

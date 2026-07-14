@@ -7,6 +7,7 @@ import {
   countdownTo,
   formatCoverState,
   nextAllowedIso,
+  isUnavailable,
 } from '../src/lib/formatters';
 
 describe('formatters', () => {
@@ -92,6 +93,23 @@ describe('formatters', () => {
       expect(formatCoverState(hass, 'cover.x')).toBe('Closed');
     });
 
+    it('localizes an override state instead of the entity state when given', () => {
+      // No-feedback covers report a final `open`/`closed` state while mid-move;
+      // the transit direction is passed as an override so the readout reads
+      // "Opening"/"Closing" the same way a real position cover does.
+      const hass = { states: { 'cover.x': { state: 'open' } } };
+      expect(formatCoverState(hass, 'cover.x', 'opening')).toBe('Opening');
+      expect(formatCoverState(hass, 'cover.x', 'closing')).toBe('Closing');
+    });
+
+    it('passes the override state through hass.formatEntityState', () => {
+      const hass = {
+        states: { 'cover.x': { state: 'closed', attributes: { device_class: 'shade' } } },
+        formatEntityState: (s: unknown): string => `FMT:${(s as { state: string }).state}`,
+      };
+      expect(formatCoverState(hass, 'cover.x', 'opening')).toBe('FMT:opening');
+    });
+
     it('returns null for missing entity, missing state, unknown or unavailable', () => {
       const hass = {
         states: {
@@ -104,6 +122,29 @@ describe('formatters', () => {
       expect(formatCoverState(hass, 'cover.missing')).toBeNull();
       expect(formatCoverState(hass, 'cover.unknown')).toBeNull();
       expect(formatCoverState(hass, 'cover.unavailable')).toBeNull();
+    });
+  });
+
+  describe('isUnavailable', () => {
+    it('is true for "unavailable"', () => {
+      expect(isUnavailable('unavailable')).toBe(true);
+    });
+
+    it('is true for "unknown"', () => {
+      expect(isUnavailable('unknown')).toBe(true);
+    });
+
+    it('is false for real cover states', () => {
+      expect(isUnavailable('open')).toBe(false);
+      expect(isUnavailable('closed')).toBe(false);
+      expect(isUnavailable('closing')).toBe(false);
+      expect(isUnavailable('some_arbitrary_state')).toBe(false);
+    });
+
+    it('treats a missing state as unavailable', () => {
+      expect(isUnavailable(undefined)).toBe(true);
+      expect(isUnavailable(null)).toBe(true);
+      expect(isUnavailable('')).toBe(true);
     });
   });
 

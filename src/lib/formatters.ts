@@ -13,29 +13,45 @@ interface HassLike {
 }
 
 /**
+ * True when a state string signals the entity has no usable data — HA's
+ * `unavailable`/`unknown` sentinels, or a missing state entirely (treated the
+ * same way, since a missing entity is functionally the same signal).
+ */
+export function isUnavailable(state: string | null | undefined): boolean {
+  return !state || state === 'unavailable' || state === 'unknown';
+}
+
+/**
  * Localized cover state ("Open", "Closed", "Opening", …). Returns null when
  * the entity is missing or has no state. Prefers `hass.formatEntityState`
  * (modern HA frontend), falls back to `hass.localize` with the standard
  * cover state translation key, and finally to a capitalized raw state.
+ *
+ * `overrideState` substitutes the state to localize while keeping the entity's
+ * attributes/context — no-feedback covers report a final `open`/`closed` state
+ * mid-move, so the transit direction is passed here to render "Opening"/
+ * "Closing" the same way a real position cover does.
  */
 export function formatCoverState(
   hass: HassLike | undefined,
   entityId: string | undefined,
+  overrideState?: string,
 ): string | null {
   if (!hass || !entityId) return null;
   const stateObj = hass.states[entityId];
-  if (!stateObj?.state || stateObj.state === 'unknown' || stateObj.state === 'unavailable') {
+  if (!stateObj || isUnavailable(stateObj.state)) {
     return null;
   }
+  const effective = overrideState ? { ...stateObj, state: overrideState } : stateObj;
   if (typeof hass.formatEntityState === 'function') {
-    const formatted = hass.formatEntityState(stateObj);
+    const formatted = hass.formatEntityState(effective);
     if (formatted) return formatted;
   }
   if (typeof hass.localize === 'function') {
-    const localized = hass.localize(`component.cover.entity_component._.state.${stateObj.state}`);
+    const localized = hass.localize(`component.cover.entity_component._.state.${effective.state}`);
     if (localized) return localized;
   }
-  return stateObj.state.charAt(0).toUpperCase() + stateObj.state.slice(1);
+  return effective.state.charAt(0).toUpperCase() + effective.state.slice(1);
 }
 
 /** Format an angle in degrees with one decimal. */

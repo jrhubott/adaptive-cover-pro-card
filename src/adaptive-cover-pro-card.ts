@@ -4,13 +4,8 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import { entityStateChanged } from './lib/hass-change';
 
-import {
-  CARD_EDITOR_NAME,
-  CARD_NAME,
-  CARD_VERSION,
-  COVER_TYPE_ICONS,
-  resolveControlFlags,
-} from './const';
+import { CARD_EDITOR_NAME, CARD_NAME, CARD_VERSION, resolveControlFlags } from './const';
+import { coverStateIcon, coverStateColor } from './lib/icons';
 import { t } from './lib/i18n';
 import { setTooltipDefaults } from './lib/tooltip';
 import { createDiscoveryMemo } from './lib/entity-discovery';
@@ -255,7 +250,20 @@ export class AdaptiveCoverProCard extends LitElement {
     d: DiscoveredEntities,
     flags: ReturnType<typeof resolveControlFlags>,
   ): TemplateResult {
-    const icon = COVER_TYPE_ICONS[d.cover_type] ?? 'mdi:window-shutter';
+    // Resolve the header glyph from the underlying HA cover so it matches HA's
+    // native icon (explicit entity icon → device_class glyph → cover_type →
+    // generic), position-aware via the cover's current_position.
+    const coverId = d.managed_covers?.[0];
+    const coverState = coverId ? this.hass.states[coverId] : undefined;
+    const coverPos = coverState?.attributes?.current_position;
+    const icon = coverStateIcon({
+      explicitIcon: coverState?.attributes?.icon as string | undefined,
+      deviceClass: coverState?.attributes?.device_class as string | undefined,
+      coverType: d.cover_type,
+      position: typeof coverPos === 'number' && !Number.isNaN(coverPos) ? coverPos : null,
+    });
+    const iconColor =
+      this._config!.state_color !== false ? coverStateColor(coverState?.state) : null;
     const enabledId = d.entities.integration_enabled_switch;
     const autoId = d.entities.automatic_control_switch;
     const enabledOn = enabledId ? this.hass.states[enabledId]?.state === 'on' : true;
@@ -269,7 +277,7 @@ export class AdaptiveCoverProCard extends LitElement {
           @click=${this._openDialog}
           @keydown=${this._onHeaderInfoKeydown}
         >
-          <ha-icon .icon=${icon}></ha-icon>
+          <ha-icon .icon=${icon} style=${iconColor ? `color: ${iconColor}` : ''}></ha-icon>
           <span class="title">${d.entry_title}</span>
         </div>
         <span class="spacer"></span>
@@ -457,6 +465,7 @@ export class AdaptiveCoverProCard extends LitElement {
         .hass=${this.hass}
         .discovered=${discovered}
         .open=${this._dialogOpen}
+        .stateColor=${this._config!.state_color !== false}
         @acp-dialog-close=${this._closeDialog}
       ></acp-more-info-dialog>
     `;

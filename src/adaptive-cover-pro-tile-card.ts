@@ -12,6 +12,7 @@ import {
   INTEGRATION_DOMAIN,
   TILE_CARD_NAME,
   TILE_CARD_EDITOR_NAME,
+  COVER_ICON_FALLBACK_UNAVAILABLE,
 } from './const';
 import { createDiscoveryMemo } from './lib/entity-discovery';
 import { makeEntitySuggestion } from './lib/entity-suggestion';
@@ -20,7 +21,7 @@ import { setAxes } from './lib/services';
 import { AXIS_LABEL_I18N_KEYS } from './const';
 import { entityStateChanged } from './lib/hass-change';
 import { fetchAcpConfigEntries } from './lib/config-entries';
-import { pickCoverIcon } from './lib/icons';
+import { coverStateIcon, coverStateColor, coverOpenIcon, coverCloseIcon } from './lib/icons';
 import { subscribeEntityRegistry, type EntityRegistryEntry } from './lib/entity-registry';
 import { loadEntityRegistry, getCachedRegistry } from './lib/registry-store';
 import { registryCache } from './lib/registry-cache';
@@ -37,13 +38,14 @@ import {
   resolveCustomPositionPct,
   resolveActiveMinModeFloor,
 } from './lib/decision-summary';
+import { coverHeldPosition } from './lib/cover-position';
 import {
   buildSolarActiveContext,
   isAutoControlActive,
   resolveTileBadgeKind,
   selectVisibleBadges,
 } from './lib/badge-visibility';
-import { formatCoverState, formatPercent } from './lib/formatters';
+import { formatCoverState, formatPercent, isUnavailable } from './lib/formatters';
 import { t } from './lib/i18n';
 import { tooltip, setTooltipDefaults } from './lib/tooltip';
 
@@ -257,6 +259,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
         .showCompass=${this._config.show_compass !== false}
         .showElevationChart=${this._config.show_elevation_chart !== false}
         .showSolarCalc=${this._config.show_solar_calc !== false}
+        .stateColor=${this._config.state_color !== false}
         .badges=${this._config.badges}
         @acp-dialog-close=${this._closeDialog}
       ></acp-more-info-dialog>
@@ -279,7 +282,28 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const cfg = this._config!;
     const title = cfg.name ?? discovered.entry_title;
     const cover = this._resolvedCover(discovered);
-    const icon = cfg.icon ?? pickCoverIcon(discovered.cover_type, this._liveCoverPosition(cover));
+    // Resolve the icon from the underlying HA cover entity so it matches HA's
+    // native tile/more-info glyph: cfg.icon override → explicit entity icon →
+    // device_class glyph → integration cover_type → generic fallback.
+    const stateObj = cover ? this.hass.states[cover] : undefined;
+    const coverDeviceClass = stateObj?.attributes?.device_class as string | undefined;
+    // An offline/unresponsive cover (issue #212): the underlying HA entity is
+    // `unavailable`/`unknown`. Every downstream derivation below (icon,
+    // position, label, controls) must gate on this rather than let the
+    // diagnostic target-position sensor or a stale `current_position`
+    // attribute leak through as if the cover were live.
+    const unavailable = isUnavailable(stateObj?.state);
+    const icon =
+      cfg.icon ??
+      (unavailable
+        ? COVER_ICON_FALLBACK_UNAVAILABLE
+        : coverStateIcon({
+            explicitIcon: stateObj?.attributes?.icon as string | undefined,
+            deviceClass: coverDeviceClass,
+            coverType: discovered.cover_type,
+            position: this._liveCoverPosition(cover),
+          }));
+    const iconColor = cfg.state_color !== false ? coverStateColor(stateObj?.state) : null;
     const showPosition = cfg.show_position !== false;
     const showState = cfg.show_state !== false;
     const showControls = cfg.show_controls !== false;
@@ -293,7 +317,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const detailed = cfg.layout !== 'one-line';
     const calculatedPosition = this._currentPosition(discovered);
     const reportedPosition = this._liveCoverPosition(cover);
-    const livePosition = reportedPosition ?? calculatedPosition;
+    const livePosition = unavailable ? null : (reportedPosition ?? calculatedPosition);
     // Data-driven axes: any non-position axis (venetian tilt) drives the mini
     // bar. The detailed layout gets the bar; one-line folds it into the readout.
     // `show_tilt` is reinterpreted as "show non-position axes". On an older
@@ -301,8 +325,12 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // behavior is unchanged.
     const secondaryAxis = resolveAxes(discovered).find((a) => a.id !== 'position');
     const showTilt = cfg.show_tilt !== false && !!secondaryAxis;
-    const liveTilt = secondaryAxis ? this._liveAxis(cover, secondaryAxis) : null;
-    const tiltTarget = secondaryAxis ? this._axisTarget(discovered, secondaryAxis) : null;
+    // Same unavailable gate as `livePosition` above: an offline cover must not
+    // leak a stale `current_tilt_position` attribute or the always-live
+    // diagnostic tilt-target sensor (issue #212 follow-up).
+    const liveTilt = !unavailable && secondaryAxis ? this._liveAxis(cover, secondaryAxis) : null;
+    const tiltTarget =
+      !unavailable && secondaryAxis ? this._axisTarget(discovered, secondaryAxis) : null;
     // When the cover reports its position, disable the control that can't do
     // anything: open (↑) at fully-open, close (↓) at fully-closed. Covers that
     // don't report a position leave both enabled (gate stays on `!cover`).
@@ -339,6 +367,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       badges: cfg.badges,
       showMotionIcon: cfg.show_motion_icon !== false,
       inTimeWindow: traceAttrs?.in_time_window,
+      trace: traceAttrs?.trace,
     });
     const solarCtx = buildSolarActiveContext(traceAttrs?.trace, winner);
     const winnerVisible =
@@ -361,7 +390,15 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // Dedupe: when the winner badge is itself `auto` (default winner), render
     // the Auto line only and suppress the inline winner badge.
     const inlineWinnerBadge = !(showAutoBadge && winnerKind === 'auto');
-    const stateText = showState ? formatCoverState(this.hass, cover) : null;
+    // No-feedback covers publish an in-transit direction; surface it as the same
+    // localized "Opening"/"Closing" state text a real position cover shows, by
+    // overriding the entity's (final open/closed) state in the readout.
+    const transitDir = this._transitState(discovered);
+    const stateText = unavailable
+      ? t('tile.unavailable', this.hass)
+      : showState
+        ? formatCoverState(this.hass, cover, transitDir ?? undefined)
+        : null;
     const positionText = showPosition && livePosition !== null ? formatPercent(livePosition) : null;
     // One-line has no room for the bar, so fold tilt into the readout as ⟂30%.
     const tiltText =
@@ -372,6 +409,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const activeFloor = resolveActiveMinModeFloor(traceAttrs, this.hass.states, calculatedPosition);
     const winnerNormalized = normalizeHandler(winner);
     const showFloorChip =
+      showBadge &&
       !!activeFloor &&
       !(
         winnerNormalized === 'custom_position' && traceAttrs?.custom_position_minimum_mode === true
@@ -424,9 +462,52 @@ export class AdaptiveCoverProTileCard extends LitElement {
         ></acp-tile-badge>`
       : nothing;
 
+    // HA-tile secondary line: the "Open · 25%" readout stacked under the name.
+    const stateLineTpl =
+      labelParts.length > 0 ? html`<div class="state">${labelParts.join(' · ')}</div>` : nothing;
+    // Right-aligned target-vs-actual mini bar under the ↑■↓ controls (fills the
+    // otherwise-empty right half of the chrome row). Live position is the fill;
+    // the auto/solar target is a marker tick. Purely informational — the ↑■↓
+    // buttons remain the control surface. Detailed layout only, with its own
+    // `show_position_bar` toggle independent of the badge master switch.
+    const showPositionBar = detailed && cfg.show_position_bar !== false && livePosition !== null;
+    const posBarTooltip = showPositionBar
+      ? calculatedPosition !== null
+        ? `${formatPercent(livePosition)} · ${t('dialog.target', this.hass)} ${formatPercent(calculatedPosition)}`
+        : formatPercent(livePosition)
+      : '';
+    const posBarTpl = showPositionBar
+      ? html`<div class="pos-bar" ${tooltip(posBarTooltip)}>
+          <div
+            class="pos-fill"
+            style=${`width:${livePosition}%${iconColor ? `;background:${iconColor}` : ''}`}
+          ></div>
+          ${calculatedPosition !== null
+            ? html`<div
+                class="pos-marker"
+                style=${`left:clamp(1px, ${calculatedPosition}%, calc(100% - 1px))`}
+              ></div>`
+            : nothing}
+        </div>`
+      : nothing;
+    // ACP's own chrome (Auto badge, winner/Manual badge, floor chip) and the
+    // position bar share one row beneath the name/state: badges left, bar
+    // right-aligned. The icon spans both rows so it stays vertically centered in
+    // the tile (issue #208).
+    const showWinnerBadge = renderBadge && inlineWinnerBadge;
+    const hasDetailBadges = detailed && (showAutoBadge || showWinnerBadge || showFloorChip);
+    const detailBadges = hasDetailBadges
+      ? html`${autoBadgeTpl}${showWinnerBadge ? badgeTpl : nothing}${floorChipTpl}`
+      : nothing;
+    const hasChromeRow = detailed && (hasDetailBadges || showPositionBar);
+    // Bar-only: the chrome row carries just the position bar (no badges). Center
+    // the name/state across the reserved row height and let the bar hug the
+    // bottom, instead of pinning the label to the top (issue #208).
+    const barOnly = hasChromeRow && !hasDetailBadges;
+
     return html`
       <div
-        class=${`tile-body${detailed ? ' detailed' : ''}${hasBottomSummary ? ' has-summary' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip ? ' has-floor-chip' : ''}${showTilt && detailed ? ' has-tilt' : ''}`}
+        class=${`tile-body${detailed ? ' detailed' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip && !detailed ? ' has-floor-chip' : ''}${showTilt && detailed ? ' has-tilt' : ''}${hasChromeRow ? ' has-chrome-row' : ''}${barOnly ? ' bar-only' : ''}${unavailable ? ' unavailable' : ''}`}
         role=${inert ? 'group' : 'button'}
         tabindex=${inert ? -1 : 0}
         @pointerdown=${this._onPointerDown}
@@ -436,7 +517,11 @@ export class AdaptiveCoverProTileCard extends LitElement {
         @click=${this._onClick}
       >
         <div class="cover-icon-wrap">
-          <ha-icon class="cover-icon" icon=${icon}></ha-icon>
+          <ha-icon
+            class="cover-icon"
+            icon=${icon}
+            style=${iconColor ? `color: ${iconColor}` : ''}
+          ></ha-icon>
           ${motionState
             ? html`<ha-icon
                 class="motion-overlay ${motionState}"
@@ -447,17 +532,14 @@ export class AdaptiveCoverProTileCard extends LitElement {
         </div>
         <div class="label">
           <div class="title">${title}</div>
+          ${detailed ? stateLineTpl : nothing}
           ${summary && !detailed ? html`<div class="summary">${summary}</div>` : nothing}
           ${hasBottomSummary
-            ? html`<div class="summary inline-summary" ${tooltip(summary)}>${summary}</div>`
+            ? html`<div class="summary" ${tooltip(summary)}>${summary}</div>`
             : nothing}
         </div>
-        ${detailed && showAutoBadge ? html`<div class="auto-line">${autoBadgeTpl}</div>` : nothing}
-        ${detailed
-          ? html`<div class="detail-line">
-              ${positionTpl}${floorChipTpl}${inlineWinnerBadge ? badgeTpl : nothing}
-            </div>`
-          : html`${positionTpl}${floorChipTpl}`}
+        ${detailed ? nothing : html`${positionTpl}${floorChipTpl}`}
+        ${hasChromeRow ? html`<div class="chrome-line">${detailBadges}${posBarTpl}</div>` : nothing}
         ${showTilt && detailed
           ? html`<div
               class="tilt-line"
@@ -474,6 +556,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 .unit=${secondaryAxis?.unit ?? '%'}
                 .actual=${liveTilt}
                 .target=${tiltTarget}
+                .disabled=${unavailable}
                 @acp-tilt-set=${(e: CustomEvent<number>) =>
                   secondaryAxis && this._setAxis(cover, secondaryAxis.id, e.detail)}
               ></acp-tilt-bar>
@@ -485,16 +568,16 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 class="up"
                 type="button"
                 aria-label=${t('tile.open', this.hass)}
-                ?disabled=${!cover || atOpen}
+                ?disabled=${!cover || unavailable || atOpen}
                 @click=${() => this._setCoverPosition(cover, 100)}
               >
-                <ha-icon icon="mdi:arrow-up"></ha-icon>
+                <ha-icon icon=${coverOpenIcon(coverDeviceClass)}></ha-icon>
               </button>
               <button
                 class="stop"
                 type="button"
                 aria-label=${t('tile.stop', this.hass)}
-                ?disabled=${!cover}
+                ?disabled=${!cover || unavailable}
                 @click=${() => this._stopCover(cover)}
               >
                 <ha-icon icon="mdi:stop"></ha-icon>
@@ -503,10 +586,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 class="down"
                 type="button"
                 aria-label=${t('tile.close', this.hass)}
-                ?disabled=${!cover || atClosed}
+                ?disabled=${!cover || unavailable || atClosed}
                 @click=${() => this._setCoverPosition(cover, 0)}
               >
-                <ha-icon icon="mdi:arrow-down"></ha-icon>
+                <ha-icon icon=${coverCloseIcon(coverDeviceClass)}></ha-icon>
               </button>
             </div>`
           : nothing}
@@ -520,13 +603,24 @@ export class AdaptiveCoverProTileCard extends LitElement {
     return discovered.managed_covers[0];
   }
 
+  /** Prefers the pre-interpolation `linear_position` attribute (issue #219)
+   *  over the raw motor state when present. See {@link coverHeldPosition}. */
   private _currentPosition(discovered: DiscoveredEntities): number | null {
+    return coverHeldPosition(this.hass, discovered);
+  }
+
+  /** In-transit direction for this entry's resolved cover, read from the
+   *  target sensor's `transit_states` attribute (no-feedback covers publish it
+   *  while mid-move). Returns null when absent or for a different cover. */
+  private _transitState(discovered: DiscoveredEntities): 'opening' | 'closing' | null {
     const id = discovered.entities.target_position_sensor;
     if (!id) return null;
-    const st = this.hass.states[id];
-    if (!st) return null;
-    const v = parseFloat(st.state);
-    return Number.isNaN(v) ? null : v;
+    const cover = this._resolvedCover(discovered);
+    if (!cover) return null;
+    const transit = this.hass.states[id]?.attributes?.transit_states as
+      | Record<string, 'opening' | 'closing'>
+      | undefined;
+    return transit?.[cover] ?? null;
   }
 
   private _liveCoverPosition(cover: string | undefined): number | null {
@@ -772,116 +866,210 @@ export class AdaptiveCoverProTileCard extends LitElement {
     .tile-body.has-state-label {
       grid-template-columns: 24px minmax(0, 1fr) auto auto auto;
     }
-    /* Detailed layout: title row, then a state row that inlines the position
-       text + contextual badge + floor chip (.detail-line). Icon spans both
-       rows so it's vertically centered; controls float to the right of rows
-       1-2 (HA tile-card style). Always two rows — the Resume action is folded
-       into the Manual badge rather than getting its own row. */
+    /* Detailed layout matches HA's native tile card: a tinted icon shape, a
+       name-over-state label column, and inline control buttons on the right —
+       all on one row. ACP's own chrome (Auto / winner / floor badges) and the
+       position bar share a second row (.chrome-line): badges left, bar right.
+       The icon spans both rows so it stays vertically centered (issue #208). */
     .tile-body.detailed {
-      grid-template-columns: 24px minmax(0, 1fr) auto auto;
-      grid-template-rows: auto auto;
-      grid-template-areas:
-        'icon label       auto-line   controls'
-        'icon detail-line detail-line controls';
+      grid-template-columns: 36px minmax(0, 1fr) auto;
+      grid-template-rows: auto;
+      grid-template-areas: 'icon label controls';
+      align-items: center;
+      column-gap: 12px;
+      /* Tight row gap pulls the chrome row (badges + position bar) up snug under
+         the name/state so the tile stays as short as possible when badges are
+         present (issue #208). */
       row-gap: 2px;
     }
-    /* The standalone Auto indicator (issue #110) rides right-aligned on the
-       title row — same line as the cover name, above the state line — so the
-       tile stays two text lines tall. When absent the cell collapses to 0px. */
-    .auto-line {
-      grid-area: auto-line;
+    /* Row 2 = the chrome row: Auto/winner/floor badges on the left, position bar
+       right-aligned. The icon spans both rows (grid-area repeated) so it stays
+       vertically centered in the tile rather than pinned to the name row
+       (issue #208). */
+    .tile-body.detailed.has-chrome-row {
+      grid-template-rows: auto auto;
+      grid-template-areas:
+        'icon label  controls'
+        'icon chrome chrome';
+    }
+    /* Row 2 (or 3) = the venetian tilt slider, indented under label; icon still
+       spans every row so it stays centered. */
+    .tile-body.detailed.has-tilt {
+      grid-template-rows: auto auto;
+      grid-template-areas:
+        'icon label controls'
+        'icon tilt  tilt';
+    }
+    .tile-body.detailed.has-chrome-row.has-tilt {
+      grid-template-rows: auto auto auto;
+      grid-template-areas:
+        'icon label  controls'
+        'icon chrome chrome'
+        'icon tilt   tilt';
+    }
+    /* Bar-only (position bar, no badges): confine the bar to the label column so
+       the controls can span both rows, then center the name/state across the
+       full height with the bar hugging the bottom — so a bar-only tile centers
+       its label instead of pinning it to the top (issue #208). Scoped to
+       :not(.has-tilt): a tilt tile keeps its 3-row grid (label/chrome/tilt) and
+       must NOT span the label across the bar + tilt rows, which would overlap
+       them (the tilt grid wins on specificity, so the label span has to opt out
+       explicitly here). */
+    .tile-body.detailed.bar-only:not(.has-tilt) {
+      grid-template-areas:
+        'icon label  controls'
+        'icon chrome controls';
+    }
+    .tile-body.detailed.bar-only:not(.has-tilt) .label {
+      grid-row: 1 / -1;
+      align-self: center;
+    }
+    .tile-body.detailed.bar-only:not(.has-tilt) .chrome-line {
+      align-self: end;
+    }
+    /* Name over state, vertically centered against the icon (HA ha-tile-info). */
+    .tile-body.detailed .label {
       display: flex;
-      justify-content: flex-end;
-      align-items: center;
+      flex-direction: column;
+      justify-content: center;
+      gap: 2px;
+    }
+    /* Match HA's ha-tile-info text through the same theme tokens the native
+       tile card uses, so ACP inherits any theme font-scaling/recoloring
+       instead of drifting with hardcoded values. Fallbacks are HA's own
+       defaults (name 14px/500, state 12px/400). */
+    .tile-body.detailed .title {
+      font-size: var(--ha-font-size-m, 0.875rem);
+      font-weight: var(--ha-font-weight-medium, 500);
+      line-height: var(--ha-line-height-condensed, 1.375);
+      color: var(--primary-text-color);
+    }
+    .tile-body.detailed .state {
+      font-size: var(--ha-font-size-s, 0.75rem);
+      font-weight: var(--ha-font-weight-normal, 400);
+      line-height: var(--ha-line-height-condensed, 1.375);
+      color: var(--secondary-text-color);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
       min-width: 0;
     }
-    .auto-line acp-tile-badge {
-      overflow: visible;
-    }
-    .detail-line {
-      grid-area: detail-line;
+    /* Chrome row: Auto/winner/floor badges (left) and the position bar (right)
+       share one row under the name/state. Kept on a single line (nowrap): the
+       badges hold their size and the position bar shrinks to absorb the squeeze,
+       so badges never spill onto a second row before the bar has given up its
+       width (issue #208). */
+    .chrome-line {
+      grid-area: chrome;
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       align-items: center;
       gap: 6px;
       min-width: 0;
+      /* Reserve the badge pill's height even when no badge is present, so a
+         bar-only tile is the same height as one with badges — the position bar
+         just centers in the reserved space (issue #208). Matches the tile-badge
+         height (0.75rem × 1.4 line + 2px×2 padding ≈ 22px). */
+      min-height: 22px;
     }
-    .detail-line .position {
-      padding: 0;
-      text-align: left;
-      /* Push the badge + floor chip to the right edge of the row so they sit
-         flush against the controls column. */
-      margin-right: auto;
-    }
-    .detail-line acp-tile-badge {
+    /* Badges hold their intrinsic width so the bar (not the badges) absorbs any
+       shortage of room on the single chrome line. */
+    .chrome-line acp-tile-badge {
       overflow: visible;
+      flex: 0 0 auto;
     }
-    .tile-body.detailed.has-state-label {
-      grid-template-columns: 24px minmax(0, 1fr) auto auto;
-      grid-template-rows: auto auto;
-      grid-template-areas:
-        'icon label       auto-line   controls'
-        'icon detail-line detail-line controls';
+    .chrome-line .acp-floor-chip {
+      flex: 0 0 auto;
     }
-    /* Dual-axis venetian: add a third full-width row for the mini tilt bar,
-       beneath the detail line and spanning under the controls column. */
-    .tile-body.detailed.has-tilt,
-    .tile-body.detailed.has-tilt.has-state-label {
-      grid-template-rows: auto auto auto;
-      /* The tilt row skips the icon column so "TILT" aligns with the state text
-         ("open · 60%") rather than the icon. */
-      grid-template-areas:
-        'icon label       auto-line   controls'
-        'icon detail-line detail-line controls'
-        '.    tilt-line   tilt-line   tilt-line';
+    /* Target-vs-actual mini bar: right-aligned (margin-left:auto) so it fills the
+       otherwise-empty space beneath the ↑■↓ buttons. Fill = live openness in the
+       state color; the tick marks the auto/solar target. */
+    .chrome-line .pos-bar {
+      margin-left: auto;
+      align-self: center;
+      position: relative;
+      flex: 0 1 170px;
+      max-width: 55%;
+      height: 6px;
+      border-radius: 6px;
+      background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
+      overflow: hidden;
+    }
+    .chrome-line .pos-fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      background: var(--primary-color);
+      opacity: 0.55;
+      border-radius: 6px;
+      transition: width 0.3s ease;
+    }
+    .chrome-line .pos-marker {
+      position: absolute;
+      top: 0;
+      width: 2px;
+      height: 100%;
+      background: var(--accent-color, #ff9800);
+      transform: translateX(-50%);
+      transition: left 0.3s ease;
     }
     .tilt-line {
-      grid-area: tilt-line;
+      grid-area: tilt;
       min-width: 0;
       margin-top: 2px;
       cursor: default;
     }
-    .tile-body.detailed.has-summary .label {
-      display: flex;
-      align-items: baseline;
-      gap: 8px;
-      min-width: 0;
+    /* Optional decision summary stacks as a dim third line under the state. */
+    .tile-body.detailed .label .summary {
+      font-size: 0.72rem;
     }
-    .tile-body.detailed.has-summary .label .title {
-      flex: 1 1 auto;
-      min-width: 0;
-    }
-    .tile-body.detailed.has-summary .label .inline-summary {
-      flex: 0 1 auto;
-      text-align: right;
-    }
-    .tile-body.detailed .position {
-      text-align: left;
-      padding: 0;
-    }
+    /* Link to HA's own ha-control-button tokens so height/radius/fill follow the
+       native cover tile (and the theme) instead of hardcoded values. Fallbacks
+       are HA defaults: 40px thickness, 12px radius, disabled-color @ 20% fill,
+       24px glyph. Width is fixed (~56) since this inline row doesn't flex-fill
+       like HA's full-width control-button-group. */
     .tile-body.detailed .controls {
       align-self: center;
-      gap: 6px;
+      gap: 12px;
     }
     .tile-body.detailed .controls button {
       width: 56px;
-      height: 44px;
-      border-radius: 12px;
+      height: var(--control-button-group-thickness, 40px);
+      border-radius: var(--control-button-border-radius, 12px);
       border: none;
-      background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
+      background: color-mix(
+        in srgb,
+        var(--control-button-background-color, var(--disabled-color, #7f7f7f)) 20%,
+        transparent
+      );
     }
     .tile-body.detailed .controls button ha-icon {
-      --mdc-icon-size: 22px;
+      --mdc-icon-size: 24px;
       color: var(--primary-text-color);
     }
     .tile-body.detailed .controls button:hover {
-      background: var(--divider-color, rgba(127, 127, 127, 0.25));
+      background: color-mix(
+        in srgb,
+        var(--control-button-background-color, var(--disabled-color, #7f7f7f)) 32%,
+        transparent
+      );
     }
+    /* Bare 36px glyph, no background shape — the state color carries the
+       cover's status without a tinted square behind it. */
     .tile-body.detailed .cover-icon-wrap {
       place-self: center;
+      width: 36px;
+      height: 36px;
+    }
+    .tile-body.detailed .cover-icon {
+      --mdc-icon-size: 24px;
     }
     .tile-body[role='group'] {
       cursor: default;
+    }
+    /* Offline/unresponsive cover (issue #212): dim the whole tile so it reads
+       as unavailable at a glance, matching HA's own unavailable-entity dimming. */
+    .tile-body.unavailable {
+      opacity: 0.5;
     }
     .cover-icon-wrap {
       grid-area: icon;
@@ -1022,30 +1210,12 @@ export class AdaptiveCoverProTileCard extends LitElement {
         'icon label     position  controls badge resume'
         'icon label     floor-chip .        .     .';
     }
-    /* Detailed layout: the floor chip rides inline on the state line
-       (.detail-line), so these just re-assert the detailed grid — the
-       one-line .has-floor-chip rules have equal specificity and would
-       otherwise win by source order. */
-    .tile-body.detailed.has-floor-chip {
-      grid-template-columns: 24px minmax(0, 1fr) auto auto;
-      grid-template-rows: auto auto;
-      grid-template-areas:
-        'icon label       auto-line   controls'
-        'icon detail-line detail-line controls';
-    }
-    .tile-body.detailed.has-row3.has-floor-chip {
-      grid-template-columns: 24px minmax(0, 1fr) auto auto;
-      grid-template-rows: auto auto auto;
-      grid-template-areas:
-        'icon label       auto-line   controls'
-        'icon detail-line detail-line controls'
-        'icon resume      resume      resume';
-    }
     /* Reflow (issues #136, #154): drop the ↑■▼ controls onto their own
-       full-width row beneath the name so the cover name gets the whole column.
-       The same reflow fires from two independent triggers, because "the tile is
-       narrow" alone can't tell a phone from a medium tile in a multi-column
-       desktop dashboard — both can be ~400px wide:
+       full-width row beneath the name so the cover name gets the whole column,
+       with the badge and tilt rows stacked between. The same reflow fires from
+       two independent triggers, because "the tile is narrow" alone can't tell a
+       phone from a medium tile in a multi-column desktop dashboard — both can be
+       ~400px wide:
 
          1. #154 — a phone: the whole viewport is narrow (≤500px) AND the tile is
             near full-width (≤480px). Gated on the *viewport*, not the container
@@ -1062,28 +1232,50 @@ export class AdaptiveCoverProTileCard extends LitElement {
        order, not just specificity). */
     @media (max-width: 500px) {
       @container (max-width: 480px) {
-        .tile-body.detailed,
-        .tile-body.detailed.has-state-label,
-        .tile-body.detailed.has-floor-chip {
-          grid-template-columns: 24px minmax(0, 1fr) auto;
-          grid-template-rows: auto auto auto;
+        .tile-body.detailed {
+          grid-template-columns: 36px minmax(0, 1fr);
           grid-template-areas:
-            'icon label       auto-line'
-            'icon detail-line detail-line'
-            'controls controls controls';
+            'icon label'
+            'controls controls';
         }
-        .tile-body.detailed.has-row3.has-floor-chip {
-          grid-template-columns: 24px minmax(0, 1fr) auto;
-          grid-template-rows: auto auto auto auto;
+        .tile-body.detailed.has-chrome-row {
           grid-template-areas:
-            'icon label       auto-line'
-            'icon detail-line detail-line'
-            'icon resume      resume'
-            'controls controls controls';
+            'icon label'
+            'icon chrome'
+            'controls controls';
+        }
+        .tile-body.detailed.has-tilt {
+          grid-template-areas:
+            'icon label'
+            'icon tilt'
+            'controls controls';
+        }
+        .tile-body.detailed.has-chrome-row.has-tilt {
+          grid-template-areas:
+            'icon label'
+            'icon chrome'
+            'icon tilt'
+            'controls controls';
+        }
+        /* The wide bar-only grid is :not(.has-tilt) at (0,4,0), which out-weighs
+           the (0,3,0) has-chrome-row reflow above — so re-assert the reflowed
+           (controls on their own row) grid at matching specificity here, or a
+           bar-only tile would keep its inline layout on phones. */
+        .tile-body.detailed.bar-only:not(.has-tilt) {
+          grid-template-areas:
+            'icon label'
+            'icon chrome'
+            'controls controls';
+        }
+        /* Narrow reflow stacks the controls on their own row, so the bar-only
+           label span from the wide layout would overlap them — pin it back to
+           the name row. */
+        .tile-body.detailed.bar-only:not(.has-tilt) .label {
+          grid-row: 1 / 2;
         }
         .tile-body.detailed .controls {
           margin-top: 4px;
-          gap: 6px;
+          gap: 8px;
           justify-content: space-between;
         }
         .tile-body.detailed .controls button {
@@ -1094,30 +1286,48 @@ export class AdaptiveCoverProTileCard extends LitElement {
       }
     }
     @container (max-width: 340px) {
-      .tile-body.detailed,
-      .tile-body.detailed.has-state-label,
-      .tile-body.detailed.has-floor-chip {
-        grid-template-columns: 24px minmax(0, 1fr) auto;
-        grid-template-rows: auto auto auto;
+      .tile-body.detailed {
+        grid-template-columns: 36px minmax(0, 1fr);
         grid-template-areas:
-          'icon label       auto-line'
-          'icon detail-line detail-line'
-          'controls controls controls';
+          'icon label'
+          'controls controls';
       }
-      .tile-body.detailed.has-row3.has-floor-chip {
-        grid-template-columns: 24px minmax(0, 1fr) auto;
-        grid-template-rows: auto auto auto auto;
+      .tile-body.detailed.has-chrome-row {
         grid-template-areas:
-          'icon label       auto-line'
-          'icon detail-line detail-line'
-          'icon resume      resume'
-          'controls controls controls';
+          'icon label'
+          'icon chrome'
+          'controls controls';
       }
-      /* Controls now own a full-width row — spread the three buttons across it
-         and trim their fixed 56px width so they share the space evenly. */
+      .tile-body.detailed.has-tilt {
+        grid-template-areas:
+          'icon label'
+          'icon tilt'
+          'controls controls';
+      }
+      .tile-body.detailed.has-chrome-row.has-tilt {
+        grid-template-areas:
+          'icon label'
+          'icon chrome'
+          'tilt tilt'
+          'controls controls';
+      }
+      /* Re-assert the reflowed grid for bar-only (see the 480px block): the wide
+         bar-only rule out-specifies the has-chrome-row reflow, so without this a
+         bar-only tile in a narrow Sections column keeps its inline controls. */
+      .tile-body.detailed.bar-only:not(.has-tilt) {
+        grid-template-areas:
+          'icon label'
+          'icon chrome'
+          'controls controls';
+      }
+      /* Narrow reflow stacks the controls on their own row, so the bar-only
+         label span from the wide layout would overlap them — pin it back. */
+      .tile-body.detailed.bar-only:not(.has-tilt) .label {
+        grid-row: 1 / 2;
+      }
       .tile-body.detailed .controls {
         margin-top: 4px;
-        gap: 6px;
+        gap: 8px;
         justify-content: space-between;
       }
       .tile-body.detailed .controls button {

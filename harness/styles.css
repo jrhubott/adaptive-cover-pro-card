@@ -12,6 +12,8 @@
   --warning-color: #ffa600;
   --accent-color: #ff9800;
   --state-active-color: #ffa726;
+  --state-inactive-color: #8a8a8a;
+  --state-unavailable-color: #bdbdbd;
   --code-editor-background-color: rgba(0, 0, 0, 0.08);
   --rgb-primary-color: 3, 169, 244;
   --text-primary-color: #ffffff;
@@ -32,6 +34,8 @@
   --secondary-background-color: #2c2c2c;
   --card-background-color: #1c1c1c;
   --divider-color: rgba(255, 255, 255, 0.12);
+  --state-inactive-color: #9b9b9b;
+  --state-unavailable-color: #6f6f6f;
   --code-editor-background-color: rgba(255, 255, 255, 0.08);
   --text-primary-color: #ffffff;
   --harness-bg: #121212;
@@ -61,6 +65,10 @@ ha-card {
   display: block;
   background: var(--card-background-color);
   border-radius: var(--ha-card-border-radius, 12px);
+  /* Match HA's themed card outline (the border is what visually frames every
+     card in HA; without it the harness cards look edge-less on the dark bg). */
+  border: var(--ha-card-border-width, 1px) solid
+    var(--ha-card-border-color, var(--divider-color));
   box-shadow: var(--ha-card-box-shadow);
   color: var(--primary-text-color);
   transition: background 0.15s ease;

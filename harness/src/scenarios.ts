@@ -19,6 +19,7 @@ function defaultRoot(): HarnessConfig['root'] {
     show_moon: false,
     hide_inactive_handlers: false,
     show_decision_summary: true,
+    state_color: true,
     north_offset: 0,
   };
 }
@@ -84,12 +85,14 @@ function defaultTile(): HarnessConfig['tile'] {
     show_decision_summary: false,
     show_controls: true,
     show_badge: true,
+    show_position_bar: true,
     show_tilt: true,
     badges: defaultBadges(),
     show_compass: true,
     show_elevation_chart: true,
     show_solar_calc: true,
     show_motion_icon: true,
+    state_color: true,
     layout: 'detailed',
     tileWidth: 0,
   };
@@ -151,6 +154,7 @@ function makeEntry(
       manual_override: false,
       manual_override_minutes_from_now: 60,
       held_position: null,
+      linear_position: null,
       safety_slot_active: false,
       motion_status: 'idle',
       motion_timeout_minutes_from_now: 1,
@@ -243,8 +247,28 @@ export interface Scenario {
   label: string;
   description: string;
   build: () => HarnessConfig;
+  /** ISO date (YYYY-MM-DD) the scenario was added. Drives the "Date added" sort;
+   *  when omitted the scenario is treated as older than any dated one and keeps
+   *  its definition (append) order. Set it on every newly-added scenario. */
+  added?: string;
+  /** Associated GitHub issue number, when the scenario reproduces / guards one.
+   *  When omitted, {@link scenarioIssue} falls back to parsing `#NNN` out of the
+   *  label, so pre-existing scenarios that name their issue still get filtered. */
+  issue?: number;
 }
 
+/** Effective issue number for a scenario: the explicit `issue` field, else the
+ *  first `#NNN` found in its label, else null. */
+export function scenarioIssue(s: Scenario): number | null {
+  if (typeof s.issue === 'number') return s.issue;
+  const m = s.label.match(/#(\d+)/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+// IMPORTANT: keep this array in DATE-ADDED order — oldest first, newest last.
+// Always APPEND a new scenario to the END of the array; never insert in the
+// middle. The control panel's "Date added" sort relies on this definition order
+// as the proxy for when each scenario was added (scenarios carry no timestamp).
 export const SCENARIOS: Scenario[] = [
   {
     id: 'summer-noon-south',
@@ -330,6 +354,285 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'ha-device-class-icons',
+    label: 'HA device_class icons + control glyphs',
+    description:
+      "Issue #208: the tile/header/dialog icon and the up/down control glyphs are derived from each managed cover's HA device_class (and honor an explicit entity `icon`), matching HA's native tile card instead of the integration's coarse cover_type. Six tiles exercise the fallback chain: an AWNING (retracted → awning glyph, and horizontal expand/collapse >|< controls), a SHUTTER (partial → window-shutter), a CURTAIN (open → curtains, inset controls), a VENETIAN with device_class blind (closed → blinds-horizontal-closed), a cover with an explicit icon (mdi:star wins over its awning device_class), and a cover with NO device_class (device_class 'none' → falls back to the cover_type cover_blind glyph, plain ↑↓ controls). Compare each tile's icon + control buttons to what HA shows for the same cover.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'ha-device-class-icons';
+      c.entries = [
+        makeEntry({
+          entry_id: 'awning',
+          title: 'Awning',
+          cover_type: 'cover_awning',
+          window_azimuth: 180,
+          color: '#ff7043',
+          target_position: 0,
+          covers: [
+            {
+              entity_id: 'cover.awning_main',
+              friendly_name: 'Patio awning',
+              position: 0,
+              device_class: 'awning',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'shutter',
+          title: 'Shutter',
+          cover_type: 'cover_blind',
+          window_azimuth: 200,
+          color: '#8d6e63',
+          target_position: 50,
+          covers: [
+            {
+              entity_id: 'cover.shutter_main',
+              friendly_name: 'Bedroom shutter',
+              position: 50,
+              device_class: 'shutter',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'curtain',
+          title: 'Curtain',
+          cover_type: 'cover_blind',
+          window_azimuth: 160,
+          color: '#5c6bc0',
+          target_position: 100,
+          covers: [
+            {
+              entity_id: 'cover.curtain_main',
+              friendly_name: 'Living curtain',
+              position: 100,
+              device_class: 'curtain',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'venetian',
+          title: 'Venetian',
+          cover_type: 'cover_venetian',
+          window_azimuth: 140,
+          color: '#26a69a',
+          target_position: 0,
+          target_tilt: 70,
+          covers: [
+            {
+              entity_id: 'cover.venetian_main',
+              friendly_name: 'Office venetian',
+              position: 0,
+              tilt: 35,
+              device_class: 'blind',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'explicit_icon',
+          title: 'Explicit icon',
+          cover_type: 'cover_awning',
+          window_azimuth: 120,
+          color: '#ec407a',
+          target_position: 60,
+          covers: [
+            {
+              entity_id: 'cover.explicit_icon_main',
+              friendly_name: 'Starred cover',
+              position: 60,
+              device_class: 'awning',
+              icon: 'mdi:star',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'no_device_class',
+          title: 'No device_class',
+          cover_type: 'cover_blind',
+          window_azimuth: 220,
+          color: '#78909c',
+          target_position: 40,
+          covers: [
+            {
+              entity_id: 'cover.no_device_class_main',
+              friendly_name: 'Generic cover',
+              position: 40,
+              device_class: 'none',
+            },
+          ],
+        }),
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'state-color-by-status',
+    label: 'Cover icon color follows state (#208)',
+    description:
+      "Issue #208: the tile/header/dialog cover icon COLOR now follows the underlying HA cover state, matching HA's own theme-aware --state-cover-* cascade instead of a single fixed color. Five tiles, same cover_type, side by side: OPEN and OPENING/CLOSING (in-transit) resolve to the active tier (orange --state-active-color by default), CLOSED resolves to the inactive tier (grey --state-inactive-color), and UNAVAILABLE resolves to its own --state-unavailable-color (lighter grey). Toggle each tile's `state_color` config off in the control panel to confirm the icon falls back to the old fixed color when the feature is disabled.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'state-color-by-status';
+      c.entries = [
+        makeEntry({
+          entry_id: 'state_open',
+          title: 'Open',
+          window_azimuth: 180,
+          color: '#ffa726',
+          target_position: 100,
+          covers: [
+            {
+              entity_id: 'cover.state_open_main',
+              friendly_name: 'Open cover',
+              position: 100,
+              state: 'open',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'state_opening',
+          title: 'Opening',
+          window_azimuth: 180,
+          color: '#ffa726',
+          target_position: 60,
+          covers: [
+            {
+              entity_id: 'cover.state_opening_main',
+              friendly_name: 'Opening cover',
+              position: 40,
+              state: 'opening',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'state_closing',
+          title: 'Closing',
+          window_azimuth: 180,
+          color: '#ffa726',
+          target_position: 20,
+          covers: [
+            {
+              entity_id: 'cover.state_closing_main',
+              friendly_name: 'Closing cover',
+              position: 60,
+              state: 'closing',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'state_closed',
+          title: 'Closed',
+          window_azimuth: 180,
+          color: '#8a8a8a',
+          target_position: 0,
+          covers: [
+            {
+              entity_id: 'cover.state_closed_main',
+              friendly_name: 'Closed cover',
+              position: 0,
+              state: 'closed',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'state_unavailable',
+          title: 'Unavailable',
+          window_azimuth: 180,
+          color: '#bdbdbd',
+          target_position: 40,
+          covers: [
+            {
+              entity_id: 'cover.state_unavailable_main',
+              friendly_name: 'Unavailable cover',
+              position: null,
+              state: 'unavailable',
+            },
+          ],
+        }),
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'ha-tile-badge-row',
+    label: 'HA tile layout — badges on the dedicated row',
+    description:
+      "HA-tile layout match (#208 follow-up): the detailed Tile card now mirrors HA's native tile — a state-tinted 36px icon shape, a name-over-state label column, and HA-metric control buttons — with ACP's own chrome (Auto / Manual / floor badges) dropped onto a dedicated full-width row that starts at the label's left edge. This scenario arms a manual override AND an enabled min-mode floor slot, so the badge row shows the Manual badge alongside the ↥ floor chip; the top two rows read exactly like a native HA tile. Regression guard: the floor chip must ride this badge row, not collapse the detailed grid back to the one-line layout.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'ha-tile-badge-row';
+      c.entries = [
+        makeEntry({
+          entry_id: 'living_room',
+          title: 'Living Room',
+          window_azimuth: 180,
+          color: '#7e57c2',
+          target_position: 60,
+          covers: [
+            {
+              entity_id: 'cover.living_room_main',
+              friendly_name: 'Living Room shade',
+              position: 60,
+              device_class: 'shade',
+            },
+          ],
+          // Enable the priority-90 min-mode floor slot (slot 4) so its sensor
+          // arms — with manual override winning (manual precedes custom_position
+          // in HANDLER_ORDER), the floor stays a constraint and its ↥ chip shows.
+          slots: [
+            {
+              slot: 1,
+              enabled: false,
+              position: 75,
+              name: 'Movie time',
+              min_mode: false,
+              priority: 60,
+            },
+            {
+              slot: 2,
+              enabled: false,
+              position: 20,
+              name: 'Privacy',
+              min_mode: false,
+              priority: 70,
+            },
+            {
+              slot: 3,
+              enabled: false,
+              position: 100,
+              name: 'Welcome home',
+              min_mode: false,
+              priority: 50,
+            },
+            {
+              slot: 4,
+              enabled: true,
+              position: 40,
+              name: 'Aeration floor',
+              min_mode: true,
+              priority: 90,
+            },
+            {
+              slot: 5,
+              enabled: true,
+              position: 0,
+              name: 'Safety',
+              min_mode: false,
+              priority: 100,
+              sensors: ['binary_sensor.living_room_wind', 'binary_sensor.living_room_frost'],
+              template: true,
+              template_mode: 'or',
+            },
+          ],
+        }),
+      ];
+      // Arm the manual override on the built entry (makeEntry's `flags` override
+      // wants the full flag set; mutating the returned full object is simpler).
+      c.entries[0].flags.manual_override = true;
+      return c;
+    },
+  },
+  {
     id: 'winter-morning-east',
     label: 'Winter morning — east window',
     description: 'Low elevation sun rising, narrow east FOV.',
@@ -381,6 +684,55 @@ export const SCENARIOS: Scenario[] = [
               entity_id: 'cover.closed_window_main',
               friendly_name: 'Fully closed cover',
               position: 0,
+            },
+          ],
+        }),
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'cover-unavailable',
+    label: 'Cover unavailable — tile shows offline',
+    description:
+      'The physical cover entity has gone unavailable (offline/unresponsive), but the ' +
+      "integration's diagnostics keep running — the decision trace and target-position " +
+      'sensor stay live. The tile must not leak a stale position: it shows an ' +
+      '"Unavailable" label, dims the whole tile, and disables all three ↑■▼ controls. A ' +
+      'second, dual-axis venetian entry proves the same gate covers the tilt axis (issue ' +
+      '#212 follow-up): its mini tilt bar shows no stale actual/target and ignores clicks, ' +
+      'even though sensor.cover_tilt keeps reporting a live solar target.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'cover-unavailable';
+      c.entries = [
+        makeEntry({
+          entry_id: 'offline_window',
+          title: 'Offline cover',
+          window_azimuth: 180,
+          covers: [
+            {
+              entity_id: 'cover.offline_window_main',
+              friendly_name: 'Offline cover',
+              position: null,
+              state: 'unavailable',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'offline_venetian_window',
+          title: 'Offline venetian',
+          cover_type: 'cover_venetian',
+          window_azimuth: 180,
+          color: '#26a69a',
+          target_tilt: 70,
+          covers: [
+            {
+              entity_id: 'cover.offline_venetian_window_main',
+              friendly_name: 'Offline venetian',
+              position: null,
+              tilt: 35,
+              state: 'unavailable',
             },
           ],
         }),
@@ -474,6 +826,23 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'interpolation-linear-position',
+    label: 'Interpolation — linear vs. motor position (#219)',
+    description:
+      'A non-linear calibration curve maps the configured 10% to a 31% motor command. The COVERS "Target" chip shows the logical 10% the user configured, with a "Motor: 31%" tooltip on hover for debugging. Toggle the integration-version behavior by clearing linear_position to see the pre-#219 fallback (shows 31% as primary, no tooltip).',
+    build: () => {
+      const c = baseConfig('2026-06-21', 14 * 60);
+      c.scenario = 'interpolation-linear-position';
+      // target_position is what state-gen writes to the sensor STATE (the
+      // motor/interpolated command); linear_position is the pre-interpolation
+      // logical value the user actually configured.
+      c.entries[0].target_position = 31;
+      c.entries[0].covers[0].position = 31;
+      c.entries[0].flags.linear_position = 10;
+      return c;
+    },
+  },
+  {
     id: 'safety-slot',
     label: 'Safety slot (priority 100)',
     description:
@@ -537,8 +906,8 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: 'motion-timeout-pending',
-    label: 'Motion timeout pending',
-    description: 'Motion just cleared; covers reopen in 30s.',
+    label: 'Occupancy timeout pending',
+    description: 'Occupancy just cleared; covers reopen in 30s.',
     build: () => {
       const c = baseConfig('2026-06-21', 19 * 60);
       c.scenario = 'motion-timeout-pending';
@@ -569,9 +938,9 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: 'motion-idle-badge',
-    label: 'Motion idle badge',
+    label: 'Occupancy idle badge',
     description:
-      'Motion handler winning with the motion indicator icon turned off, so the "Motion idle" text badge shows. Turn the indicator back on, or disable the motion badge, to watch it fall back to Auto.',
+      'Occupancy handler winning with the occupancy indicator icon turned off, so the "Occupancy idle" text badge shows. Turn the indicator back on, or disable the occupancy badge, to watch it fall back to Auto.',
     build: () => {
       const c = baseConfig('2026-06-21', 19 * 60);
       c.scenario = 'motion-idle-badge';
@@ -935,7 +1304,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'multi-window',
     label: 'Multi-window — SE + S + SW',
     description:
-      'Three entries with overlapping in-FOV times so the per-window FOV ribbon below the elevation strip shows color-keyed bars; mixed elevation limits.',
+      'Three entries with overlapping in-FOV times so the per-window FOV ribbon below the elevation strip shows color-keyed bars; mixed elevation limits. Also exercises the "Sun acceptance angle" / SAA rename (#206): the multi-entry legend rows show the "in SAA" / "✓ in SAA" status badges, and hovering a window wedge shows the "SAA {left} left / {right} right" arc tooltip.',
     build: () => {
       // Early afternoon: the SE, S and SW windows all catch the sun within a
       // few hours of each other, so ≥2 are simultaneously in FOV and the
@@ -1407,6 +1776,188 @@ export const SCENARIOS: Scenario[] = [
           color: '#bdbdbd',
         }),
       ];
+      return c;
+    },
+  },
+  {
+    id: 'transit-opening-closing',
+    label: 'No-feedback cover — Opening / Closing text',
+    description:
+      'Two open/close-only (Somfy-RTS-style) covers mid-move. The integration publishes a transit_states map, so the tile shows the localized "Opening"/"Closing" state text in the readout — the same way a real position cover does — instead of a static Open/Closed. Toggle direction live via the "Transit (no-feedback)" control.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'transit-opening-closing';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Opening now',
+          window_azimuth: 180,
+          color: '#66bb6a',
+        }),
+        makeEntry({
+          entry_id: 'west_window',
+          title: 'Closing now',
+          window_azimuth: 270,
+          color: '#ef5350',
+        }),
+      ];
+      c.entries[0].flags.transit_direction = 'opening';
+      c.entries[1].flags.transit_direction = 'closing';
+      return c;
+    },
+  },
+  {
+    id: 'extreme-badges-crowded',
+    label: 'Extreme badges — bar shrinks before wrap (#208)',
+    added: '2026-07-13',
+    issue: 208,
+    description:
+      'Stress test for the chrome-row crowding fix (#208): the tile carries the widest badge set the pipeline produces — a resumable Manual badge WITH a live countdown next to the ↥ floor chip — plus the position bar, all pinned to a deliberately narrow 320px column. Because an enabled floor slot makes custom_position win before any later auto handler, Manual + floor is the realistic maximum (two chrome badges). The row is set to nowrap: the badges hold their width and the POSITION BAR shrinks to keep everything on one line — it must NOT push the badges onto a second row. Drag the tile-width control DOWN toward ~240px to watch the bar shrink to a sliver (its floor), and only below that do the badges finally clip — the extreme fallback. Drag UP to ~420px and the bar recovers its full width. A long cover name also pressures the name row so both rows are squeezed together.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'extreme-badges-crowded';
+      c.tile.layout = 'detailed';
+      c.tile.tileWidth = 320;
+      c.entries = [
+        makeEntry({
+          entry_id: 'living_room',
+          title: 'Living Room Bay Window',
+          window_azimuth: 180,
+          color: '#7e57c2',
+          target_position: 60,
+          covers: [
+            {
+              entity_id: 'cover.living_room_main',
+              friendly_name: 'Living Room shade',
+              position: 60,
+              device_class: 'shade',
+            },
+          ],
+          // Enable the priority-90 min-mode floor slot (slot 4) so its sensor
+          // arms and the ↥ floor chip renders; manual override (below) wins ahead
+          // of custom_position so the floor stays a constraint beside the Manual
+          // badge rather than becoming the winner.
+          slots: [
+            {
+              slot: 1,
+              enabled: false,
+              position: 75,
+              name: 'Movie time',
+              min_mode: false,
+              priority: 60,
+            },
+            {
+              slot: 2,
+              enabled: false,
+              position: 20,
+              name: 'Privacy',
+              min_mode: false,
+              priority: 70,
+            },
+            {
+              slot: 3,
+              enabled: false,
+              position: 100,
+              name: 'Welcome home',
+              min_mode: false,
+              priority: 50,
+            },
+            {
+              slot: 4,
+              enabled: true,
+              position: 40,
+              name: 'Aeration floor',
+              min_mode: true,
+              priority: 90,
+            },
+            {
+              slot: 5,
+              enabled: true,
+              position: 0,
+              name: 'Safety',
+              min_mode: false,
+              priority: 100,
+              sensors: ['binary_sensor.living_room_wind', 'binary_sensor.living_room_frost'],
+              template: true,
+              template_mode: 'or',
+            },
+          ],
+        }),
+      ];
+      // Arm a manual override with a countdown so the Manual badge renders at its
+      // widest (resumable pill + live timer), maximizing the crowding pressure.
+      c.entries[0].flags.manual_override = true;
+      c.entries[0].flags.manual_override_minutes_from_now = 45;
+      return c;
+    },
+  },
+  {
+    id: 'bar-only-tile',
+    label: 'Bar-only tile — no badges, centered name/state (#208)',
+    added: '2026-07-13',
+    issue: 208,
+    description:
+      "The bar-only detailed tile (commit that centers name/state, #208): integration enabled but AUTOMATIC control OFF, no manual override and no floor slot, so NO chrome badges render — only the position bar. The name/state must sit VERTICALLY CENTERED across the tile height (not pinned to the top), with the bar hugging the bottom and reserving the badge-height so this tile is the same height as a badged one. Two entries: one at ~65% open, one fully open. Verify the responsive fix: drag the tile-width control DOWN below ~340px — the ↑■↓ controls must drop to their own full-width row (they previously stayed inline for bar-only tiles because the wide grid out-specified the reflow). Toggle 'show_position_bar' off in Per-card config to confirm the chrome row collapses entirely (single-row tile).",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'bar-only-tile';
+      c.tile.layout = 'detailed';
+      c.entries = [
+        makeEntry({
+          entry_id: 'living_room',
+          title: 'Living Room',
+          window_azimuth: 180,
+          color: '#7e57c2',
+          target_position: 65,
+          covers: [
+            {
+              entity_id: 'cover.living_room_main',
+              friendly_name: 'Living Room shade',
+              position: 65,
+              device_class: 'shade',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'kitchen',
+          title: 'Kitchen Window',
+          window_azimuth: 90,
+          color: '#26a69a',
+          target_position: 100,
+          covers: [
+            {
+              entity_id: 'cover.kitchen_main',
+              friendly_name: 'Kitchen shade',
+              position: 100,
+              device_class: 'shade',
+            },
+          ],
+        }),
+      ];
+      // Automatic control OFF (integration still enabled) is the realistic path
+      // to a no-badge tile: the winner badge is suppressed and the Auto badge is
+      // inactive, leaving only the position bar → bar-only.
+      for (const e of c.entries) e.flags.automatic_control = false;
+      return c;
+    },
+  },
+  {
+    id: 'climate-active-not-winner',
+    label: 'Climate matched but not the literal winner (#223)',
+    added: '2026-07-13',
+    issue: 223,
+    description:
+      'Distinct from "climate-not-winner" (#168, where climate computed but its thresholds weren\'t met — genuinely NOT in control): here climate IS genuinely active this cycle (winter mode, heat protection — the climate panel shows the full in-control view) and its decision-trace row is matched: true, but the trace\'s literal `winner` is scripted to "Default" (a shape the mock derived pipeline can\'t itself produce, since climate outranks default — a scripted trace models it directly, mirroring the multi-matched-row traces the real integration can emit). Before the #223 fix, the compact tile badge only ever looked at the literal winner and showed the generic "Auto" badge here; the more-info dialog (which walks every matched row) already showed "Climate" correctly. Open the tile in BOTH layouts to confirm the single winner badge now reads "Climate" in each — tap the tile to open the dialog and confirm it still agrees.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'climate-active-not-winner';
+      c.decisionMode = 'scripted';
+      c.scriptedWinner = 'default';
+      c.scriptedAlsoMatched = ['climate'];
+      const f = c.entries[0].flags;
+      f.climate_strategy = 'winter_mode';
+      f.indoor_temp = 17;
+      f.outdoor_temp = 4;
       return c;
     },
   },

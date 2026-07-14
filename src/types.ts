@@ -31,6 +31,11 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
   show_compass_stats?: boolean;
   show_compass_legend?: boolean;
   show_moon?: boolean;
+  /** Color the header cover state icon by its HA state (open/opening/closing =
+   *  active tier, closed = inactive tier, unavailable/unknown = unavailable
+   *  tier), matching HA's own theme-aware `--state-cover-*` cascade
+   *  (default true). */
+  state_color?: boolean;
   hide_inactive_handlers?: boolean;
   /** Render a plain-English "Why this position?" sentence above the decision
    *  strip's row grid. Defaults to true. */
@@ -73,9 +78,15 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
    *  (default true). Self-hides when the entry exposes no `Cover_Tilt` sensor,
    *  and on the `one-line` layout (tilt folds into the readout there). */
   show_tilt?: boolean;
-  /** Render the contextual badge (default true). Master switch for the tile
-   *  badge — `badges` filters within it. */
+  /** Render the contextual badge (default true). Master switch for ACP's own
+   *  chrome badges — the Auto indicator, the winner/Manual badge, AND the
+   *  minimum-mode floor chip. `badges` filters the winner kinds within it.
+   *  Independent of the position bar (see `show_position_bar`). */
   show_badge?: boolean;
+  /** Render the target-vs-actual position bar on the chrome row (default true).
+   *  Independent of `show_badge` — the bar still shows when badges are hidden,
+   *  and hides on its own when this is false. Detailed layout only. */
+  show_position_bar?: boolean;
   /** Per-kind opt-in for the 10 configurable badge kinds. Omitted/undefined =
    *  on; only `=== false` hides. `off` is a state-fallback and is never
    *  filtered by this. */
@@ -105,6 +116,11 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   /** Render a small motion indicator overlaid on the cover icon when the
    *  motion handler reports `motion_detected` (default true). */
   show_motion_icon?: boolean;
+  /** Color the cover state icon by its HA state (open/opening/closing =
+   *  active tier, closed = inactive tier, unavailable/unknown = unavailable
+   *  tier), matching HA's own theme-aware `--state-cover-*` cascade
+   *  (default true). */
+  state_color?: boolean;
   /** Tile layout. `detailed` (default) stacks title on row 1, an optional
    *  standalone "Auto" indicator on row 2, and state · position + inline winner
    *  badge on row 3, with the controls floating to the right across the rows.
@@ -417,10 +433,21 @@ export interface LastSkippedAttributes {
 
 export interface CoverPositionAttributes {
   actual_positions: Record<string, number | null>;
+  /** Per-cover in-transit direction for no-feedback (Somfy-RTS-style) covers,
+   *  keyed by cover entity_id. Present only while a cover is mid-move (~45s
+   *  window); absent/empty otherwise. Lets the card show motion the way a
+   *  position cover shows a changing %. */
+  transit_states?: Record<string, 'opening' | 'closing'>;
   all_at_target: boolean;
   control_method: HandlerName | string;
   reason: string;
   raw_calculated_position?: number;
+  /** Pre-interpolation logical position — the value the user configured,
+   *  before the integration's calibration curve maps it to a motor command
+   *  (issue #219). Additive/optional: absent on integrations that don't yet
+   *  expose it, or when interpolation isn't configured for this axis — the
+   *  card falls back to `state` either way. */
+  linear_position?: number;
   edge_case_detected?: boolean;
   safety_margin?: number;
   effective_distance?: number;

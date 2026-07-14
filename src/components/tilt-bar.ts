@@ -36,6 +36,9 @@ export class AxisBar extends LitElement {
   @property({ attribute: false }) public coverColor: string | null = null;
   /** Compact sizing (cover-bar compact mode). */
   @property({ type: Boolean, reflect: true }) public compact = false;
+  /** Non-interactive when true (e.g. the underlying cover is unavailable):
+   *  the track ignores clicks and does not dispatch `acp-tilt-set`. */
+  @property({ type: Boolean, reflect: true }) public disabled = false;
   /** Grid variant: align under the cover-bar position row, or inline tile row. */
   @property({ reflect: true }) public layout: 'cover' | 'tile' = 'cover';
   /** Display label. When null, falls back to the tilt title (original behavior). */
@@ -70,7 +73,7 @@ export class AxisBar extends LitElement {
         <span class="label">${label}</span>
         <span class="num">${formatPercent(this.actual)}</span>
         <div
-          class="track"
+          class="track ${this.disabled ? 'disabled' : ''}"
           @click=${this._onClick}
           ${tooltip(t('covers.tilt_click_to_set', this.hass))}
         >
@@ -89,6 +92,7 @@ export class AxisBar extends LitElement {
   }
 
   private _onClick(e: MouseEvent): void {
+    if (this.disabled) return;
     const track = e.currentTarget as HTMLElement;
     const rect = track.getBoundingClientRect();
     const frac = (e.clientX - rect.left) / rect.width;
@@ -150,6 +154,11 @@ export class AxisBar extends LitElement {
     :host([compact]) .track,
     .row.tile .track {
       height: 6px;
+    }
+    /* Unavailable cover (issue #212): non-interactive track — no click-to-set,
+       matching the up/stop/down controls disabled elsewhere on the tile. */
+    .track.disabled {
+      cursor: default;
     }
     .fill {
       height: 100%;

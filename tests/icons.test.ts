@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { pickCoverIcon } from '../src/lib/icons';
+import {
+  pickCoverIcon,
+  coverStateIcon,
+  coverOpenIcon,
+  coverCloseIcon,
+  coverStateColor,
+} from '../src/lib/icons';
 
 describe('pickCoverIcon', () => {
   describe('cover_blind', () => {
@@ -53,6 +59,18 @@ describe('pickCoverIcon', () => {
     });
   });
 
+  describe('cover_venetian', () => {
+    it('open uses blinds-open', () => {
+      expect(pickCoverIcon('cover_venetian', 100)).toBe('mdi:blinds-open');
+    });
+    it('partial uses blinds', () => {
+      expect(pickCoverIcon('cover_venetian', 50)).toBe('mdi:blinds');
+    });
+    it('closed also uses blinds', () => {
+      expect(pickCoverIcon('cover_venetian', 0)).toBe('mdi:blinds');
+    });
+  });
+
   describe('unknown cover_type fallback', () => {
     it('open falls back to window-shutter-open', () => {
       expect(pickCoverIcon('cover_mystery', 100)).toBe('mdi:window-shutter-open');
@@ -70,5 +88,131 @@ describe('pickCoverIcon', () => {
 
   it('NaN position treated as unknown', () => {
     expect(pickCoverIcon('cover_blind', NaN)).toBe('mdi:blinds-horizontal');
+  });
+});
+
+describe('coverStateIcon', () => {
+  describe('device_class map (position-aware open/partial/closed)', () => {
+    const cases: Array<[string, string, string, string]> = [
+      // [device_class, open (100), partial (50), closed (0)]
+      ['awning', 'mdi:awning-outline', 'mdi:awning-outline', 'mdi:awning-outline'],
+      ['blind', 'mdi:blinds-open', 'mdi:blinds-horizontal', 'mdi:blinds-horizontal-closed'],
+      ['curtain', 'mdi:curtains', 'mdi:curtains', 'mdi:curtains-closed'],
+      ['damper', 'mdi:circle', 'mdi:circle-slice-8', 'mdi:circle-slice-8'],
+      ['door', 'mdi:door-open', 'mdi:door-open', 'mdi:door-closed'],
+      ['garage', 'mdi:garage-open', 'mdi:garage-open', 'mdi:garage'],
+      ['gate', 'mdi:gate-open', 'mdi:gate-open', 'mdi:gate'],
+      ['shade', 'mdi:roller-shade', 'mdi:roller-shade', 'mdi:roller-shade-closed'],
+      ['shutter', 'mdi:window-shutter-open', 'mdi:window-shutter', 'mdi:window-shutter'],
+      ['window', 'mdi:window-open', 'mdi:window-open', 'mdi:window-closed'],
+    ];
+    for (const [deviceClass, open, partial, closed] of cases) {
+      it(`${deviceClass} open`, () => {
+        expect(coverStateIcon({ deviceClass, coverType: 'cover_blind', position: 100 })).toBe(open);
+      });
+      it(`${deviceClass} partial`, () => {
+        expect(coverStateIcon({ deviceClass, coverType: 'cover_blind', position: 50 })).toBe(
+          partial,
+        );
+      });
+      it(`${deviceClass} closed`, () => {
+        expect(coverStateIcon({ deviceClass, coverType: 'cover_blind', position: 0 })).toBe(closed);
+      });
+    }
+  });
+
+  describe('fallback chain', () => {
+    it('explicit entity icon wins over device_class', () => {
+      expect(
+        coverStateIcon({
+          explicitIcon: 'mdi:foo',
+          deviceClass: 'awning',
+          coverType: 'cover_blind',
+          position: 0,
+        }),
+      ).toBe('mdi:foo');
+    });
+    it('ignores an empty explicit icon and uses device_class', () => {
+      expect(
+        coverStateIcon({
+          explicitIcon: '',
+          deviceClass: 'window',
+          coverType: 'cover_blind',
+          position: 0,
+        }),
+      ).toBe('mdi:window-closed');
+    });
+    it('unknown device_class falls back to cover_type', () => {
+      expect(coverStateIcon({ deviceClass: 'zzz', coverType: 'cover_awning', position: 0 })).toBe(
+        'mdi:window-closed-variant',
+      );
+    });
+    it('no device_class falls back to cover_type', () => {
+      expect(coverStateIcon({ coverType: 'cover_blind', position: 100 })).toBe('mdi:blinds-open');
+    });
+    it('no device_class + unknown cover_type falls back to the generic glyph', () => {
+      expect(coverStateIcon({ coverType: 'cover_x', position: 0 })).toBe('mdi:window-shutter');
+    });
+  });
+});
+
+describe('coverOpenIcon / coverCloseIcon', () => {
+  for (const dc of ['awning', 'curtain', 'door', 'gate']) {
+    it(`${dc} open uses horizontal expand`, () => {
+      expect(coverOpenIcon(dc)).toBe('mdi:arrow-expand-horizontal');
+    });
+    it(`${dc} close uses horizontal collapse`, () => {
+      expect(coverCloseIcon(dc)).toBe('mdi:arrow-collapse-horizontal');
+    });
+  }
+  it('shutter open uses the up arrow', () => {
+    expect(coverOpenIcon('shutter')).toBe('mdi:arrow-up');
+  });
+  it('shutter close uses the down arrow', () => {
+    expect(coverCloseIcon('shutter')).toBe('mdi:arrow-down');
+  });
+  it('undefined device_class open uses the up arrow', () => {
+    expect(coverOpenIcon(undefined)).toBe('mdi:arrow-up');
+  });
+  it('undefined device_class close uses the down arrow', () => {
+    expect(coverCloseIcon(undefined)).toBe('mdi:arrow-down');
+  });
+});
+
+describe('coverStateColor', () => {
+  it('open resolves to the cover-open var with active fallback chain', () => {
+    expect(coverStateColor('open')).toBe(
+      'var(--state-cover-open-color, var(--state-cover-active-color, var(--state-cover-color, var(--state-active-color))))',
+    );
+  });
+  it('opening resolves to the cover-opening var with active fallback chain', () => {
+    expect(coverStateColor('opening')).toBe(
+      'var(--state-cover-opening-color, var(--state-cover-active-color, var(--state-cover-color, var(--state-active-color))))',
+    );
+  });
+  it('closing resolves to the cover-closing var with active fallback chain', () => {
+    expect(coverStateColor('closing')).toBe(
+      'var(--state-cover-closing-color, var(--state-cover-active-color, var(--state-cover-color, var(--state-active-color))))',
+    );
+  });
+  it('closed resolves to the cover-closed var with inactive fallback chain', () => {
+    expect(coverStateColor('closed')).toBe(
+      'var(--state-cover-closed-color, var(--state-cover-inactive-color, var(--state-cover-color, var(--state-inactive-color))))',
+    );
+  });
+  it('unavailable resolves to the unavailable var', () => {
+    expect(coverStateColor('unavailable')).toBe('var(--state-unavailable-color)');
+  });
+  it('unknown resolves to the unavailable var', () => {
+    expect(coverStateColor('unknown')).toBe('var(--state-unavailable-color)');
+  });
+  it('undefined resolves to the unavailable var', () => {
+    expect(coverStateColor(undefined)).toBe('var(--state-unavailable-color)');
+  });
+  it('null resolves to the unavailable var', () => {
+    expect(coverStateColor(null)).toBe('var(--state-unavailable-color)');
+  });
+  it('empty string resolves to the unavailable var', () => {
+    expect(coverStateColor('')).toBe('var(--state-unavailable-color)');
   });
 });

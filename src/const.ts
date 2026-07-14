@@ -75,7 +75,7 @@ export const HANDLER_LABELS: Record<HandlerName, string> = {
   manual: 'Manual Override',
   group_lock: 'Group Lock',
   custom_position: 'Custom Position',
-  motion: 'Motion Timeout',
+  motion: 'Occupancy Timeout',
   cloud: 'Cloud Suppression',
   climate: 'Climate',
   glare_zone: 'Glare Zone',
@@ -109,26 +109,92 @@ export const COVER_TYPE_ICONS: Record<string, string> = {
   cover_blind: 'mdi:blinds-horizontal',
   cover_awning: 'mdi:awning-outline',
   cover_tilt: 'mdi:blinds',
+  cover_venetian: 'mdi:blinds',
 };
 
 export const COVER_TYPE_ICONS_OPEN: Record<string, string> = {
   cover_blind: 'mdi:blinds-open',
   cover_awning: 'mdi:awning-outline',
   cover_tilt: 'mdi:blinds-open',
+  cover_venetian: 'mdi:blinds-open',
 };
 
 export const COVER_TYPE_ICONS_CLOSED: Record<string, string> = {
   cover_blind: 'mdi:blinds-horizontal-closed',
   cover_awning: 'mdi:window-closed-variant',
   cover_tilt: 'mdi:blinds',
+  cover_venetian: 'mdi:blinds',
 };
 
 export const COVER_ICON_FALLBACK = 'mdi:window-shutter';
 export const COVER_ICON_FALLBACK_OPEN = 'mdi:window-shutter-open';
 export const COVER_ICON_FALLBACK_CLOSED = 'mdi:window-shutter';
+/** Distinct glyph for a cover entity that is `unavailable`/`unknown` (issue
+ *  #212) — neutral/offline-looking, independent of position-derived variants. */
+export const COVER_ICON_FALLBACK_UNAVAILABLE = 'mdi:help-rhombus-outline';
 
 export const COVER_OPEN_THRESHOLD = 95;
 export const COVER_CLOSED_THRESHOLD = 5;
+
+/**
+ * Position-aware open/partial/closed glyphs keyed by the underlying HA cover
+ * `device_class`. Mirrors HA's own native tile / more-info cover icons so a
+ * cover renders the same glyph the user already sees elsewhere in HA, instead
+ * of the integration's coarse `cover_type` mapping.
+ *
+ * Values are runtime `mdi:*` strings resolved by HA's icon set (same as every
+ * `<ha-icon icon="mdi:…">`), so this costs a small object literal — no
+ * `@mdi/js` import, bundle-neutral. `partial` is used for any non-open,
+ * non-closed position (and for a null/unknown position), matching HA's
+ * "not closed ⇒ open"-leaning behavior.
+ */
+export interface CoverIconVariants {
+  open: string;
+  partial: string;
+  closed: string;
+}
+
+export const COVER_DEVICE_CLASS_ICONS: Record<string, CoverIconVariants> = {
+  awning: {
+    open: 'mdi:awning-outline',
+    partial: 'mdi:awning-outline',
+    closed: 'mdi:awning-outline',
+  },
+  blind: {
+    open: 'mdi:blinds-open',
+    partial: 'mdi:blinds-horizontal',
+    closed: 'mdi:blinds-horizontal-closed',
+  },
+  curtain: { open: 'mdi:curtains', partial: 'mdi:curtains', closed: 'mdi:curtains-closed' },
+  damper: { open: 'mdi:circle', partial: 'mdi:circle-slice-8', closed: 'mdi:circle-slice-8' },
+  door: { open: 'mdi:door-open', partial: 'mdi:door-open', closed: 'mdi:door-closed' },
+  garage: { open: 'mdi:garage-open', partial: 'mdi:garage-open', closed: 'mdi:garage' },
+  gate: { open: 'mdi:gate-open', partial: 'mdi:gate-open', closed: 'mdi:gate' },
+  shade: {
+    open: 'mdi:roller-shade',
+    partial: 'mdi:roller-shade',
+    closed: 'mdi:roller-shade-closed',
+  },
+  shutter: {
+    open: 'mdi:window-shutter-open',
+    partial: 'mdi:window-shutter',
+    closed: 'mdi:window-shutter',
+  },
+  window: { open: 'mdi:window-open', partial: 'mdi:window-open', closed: 'mdi:window-closed' },
+};
+
+/**
+ * device_class values whose open/close controls use HA's horizontal
+ * expand/collapse affordance (`<|>` / `>|<`) instead of the default up/down
+ * arrows — awnings, curtains, doors, and gates. Everything else keeps the
+ * vertical arrows.
+ */
+export const COVER_BUTTON_INSET_CLASSES = new Set<string>(['awning', 'curtain', 'door', 'gate']);
+
+export const COVER_OPEN_ICON = 'mdi:arrow-up';
+export const COVER_CLOSE_ICON = 'mdi:arrow-down';
+export const COVER_OPEN_ICON_INSET = 'mdi:arrow-expand-horizontal';
+export const COVER_CLOSE_ICON_INSET = 'mdi:arrow-collapse-horizontal';
 
 /**
  * Badge kinds rendered on the tile card. Each ACP pipeline handler maps to one
@@ -191,7 +257,7 @@ export const BADGE_TOKENS: Record<BadgeKind, BadgeTokens> = {
   cloud: { label: 'Cloudy', bg: 'rgba(33, 150, 243, 0.22)', fg: '#0d47a1' },
   custom_position: { label: 'Custom', bg: 'rgba(156, 39, 176, 0.22)', fg: '#6a1b9a' },
   solar: { label: 'Solar tracking', bg: 'rgba(76, 175, 80, 0.22)', fg: '#1b5e20' },
-  motion: { label: 'Motion', bg: 'rgba(255, 235, 59, 0.22)', fg: '#827717' },
+  motion: { label: 'Occupancy', bg: 'rgba(255, 235, 59, 0.22)', fg: '#827717' },
   off: { label: 'Off', bg: 'rgba(97, 97, 97, 0.28)', fg: '#212121' },
   off_schedule: { label: 'Off-schedule', bg: 'rgba(96, 125, 139, 0.22)', fg: '#37474f' },
   // Cover Group who-won count badge (issue #185). Neutral indigo, distinct from

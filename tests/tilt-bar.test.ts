@@ -13,6 +13,7 @@ interface TiltBarLike extends HTMLElement {
   min?: number;
   max?: number;
   unit?: string;
+  disabled?: boolean;
 }
 
 const hass = { states: {} } as unknown as HomeAssistant;
@@ -77,6 +78,21 @@ describe('acp-tilt-bar', () => {
   it('defaults its label to the tilt title when no label prop is set', async () => {
     const el = await mount({ actual: 35, target: 70 });
     expect(el.shadowRoot!.querySelector('.label')!.textContent).toContain('Tilt');
+  });
+
+  it('does not fire acp-tilt-set on a track click when disabled', async () => {
+    const el = await mount({ actual: 35, target: 70, disabled: true });
+    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    Object.defineProperty(track, 'getBoundingClientRect', {
+      value: () => ({ left: 0, width: 100, top: 0, bottom: 8, right: 100, height: 8 }),
+      configurable: true,
+    });
+    let fired = false;
+    el.addEventListener('acp-tilt-set', () => {
+      fired = true;
+    });
+    track.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 80 }));
+    expect(fired).toBe(false);
   });
 });
 
