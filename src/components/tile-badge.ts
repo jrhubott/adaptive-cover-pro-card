@@ -76,6 +76,16 @@ export class TileBadge extends LitElement {
    *  actual service call. A trailing ↺ icon signals the affordance. */
   @property({ type: Boolean, reflect: true }) public resumable = false;
 
+  /** When true, the badge grows an Extend action that emits `acp-extend` (the
+   *  host opens the extend-override dialog and runs the service call — the badge
+   *  stays presentational, exactly like {@link resumable}).
+   *
+   *  The host must gate this on **`manualActive`, never on the badge `kind`**:
+   *  an active override renders kind `custom_position` or `force` whenever a
+   *  slot also wins (`badge-visibility.ts:127`), and deriving override
+   *  affordances from the winning handler is the bug behind #81, #82 and #199. */
+  @property({ type: Boolean, reflect: true }) public extendable = false;
+
   protected render(): TemplateResult {
     const kind = this._kind();
     // A priority-100 safety custom_position slot (v2.28.0+ migrated Force
@@ -90,6 +100,50 @@ export class TileBadge extends LitElement {
         : 'Safety'
       : this._label(kind, base);
     const icon = safetyVariant ? BADGE_ICONS.force : BADGE_ICONS[kind];
+
+    // Two-action branch (#229). A second tap target cannot live inside the
+    // resumable branch below — that makes the *whole badge* a <button>, and a
+    // nested <button> is invalid HTML that breaks both handlers. So the badge
+    // becomes a plain container holding sibling buttons instead.
+    if (this.extendable) {
+      const extendHint = this.hass ? t('tile.extend_aria', this.hass) : 'Extend manual override';
+      const resumeHint = this.hass ? t('tile.resume_aria', this.hass) : 'Resume automatic control';
+      // Compact already drops the "Manual · " prefix to stay narrow; with two
+      // action glyphs the leading kind icon is the next thing to go — the badge
+      // color already signals the kind (same rationale as `_label()`).
+      const showKindIcon = !!icon && !this.compact;
+      return html`<span
+        class="badge kind-${kind} has-actions"
+        style="background:${tokens.bg};color:${tokens.fg};"
+        part="badge"
+      >
+        ${showKindIcon ? html`<ha-icon class="badge-icon" icon=${icon}></ha-icon>` : nothing}
+        <span class="badge-label">${label}</span>
+        <button
+          class="act extend"
+          type="button"
+          ${tooltip(extendHint)}
+          aria-label=${extendHint}
+          @click=${this._onExtendClick}
+          @pointerdown=${this._stop}
+        >
+          <ha-icon icon="mdi:clock-plus-outline"></ha-icon>
+        </button>
+        ${this.resumable
+          ? html`<button
+              class="act resume"
+              type="button"
+              ${tooltip(resumeHint)}
+              aria-label=${resumeHint}
+              @click=${this._onResumeClick}
+              @pointerdown=${this._stop}
+            >
+              <ha-icon icon="mdi:restore"></ha-icon>
+            </button>`
+          : nothing}
+      </span>`;
+    }
+
     const inner = html`${icon
       ? html`<ha-icon class="badge-icon" icon=${icon}></ha-icon>`
       : nothing}${label}${this.resumable
@@ -125,6 +179,11 @@ export class TileBadge extends LitElement {
   private _onResumeClick(e: Event): void {
     e.stopPropagation();
     this.dispatchEvent(new CustomEvent('acp-resume', { bubbles: true, composed: true }));
+  }
+
+  private _onExtendClick(e: Event): void {
+    e.stopPropagation();
+    this.dispatchEvent(new CustomEvent('acp-extend', { bubbles: true, composed: true }));
   }
 
   private _kind(): BadgeKind {
@@ -201,6 +260,81 @@ export class TileBadge extends LitElement {
     }
     button.badge:hover {
       filter: brightness(0.92);
+    }
+    .badge.has-actions {
+      /* Deliberately the same 4px every other badge uses. Only the Extend/Resume
+         pair needs extra separation (see .act + .act) — and gap is a *container*
+         property, so widening it here would re-space badge-icon/badge-label and
+         badge-label/Extend as collateral. This container has 4 children normally
+         and 3 in compact, so a widened gap costs 3x / 2x what the pair actually
+         needs and leaves this badge spaced looser than every other badge for no
+         functional reason. Scope the spacing to the pair instead. */
+      gap: 4px;
+    }
+    .act {
+      background: none;
+      border: none;
+      /* WCAG 2.2 SC 2.5.8 wants a 24px-minimum target. With zero padding the
+         button box *is* the 14px glyph, so Resume and Extend become two sub-24px
+         targets 4px apart on a touch tile — mis-tapping "extend the override"
+         for "cancel the override". The padding grows the target to 24px and the
+         matching negative margin pulls the box back onto the glyph's original
+         footprint, so the badge lays out exactly as it did before. Padding and
+         margin must stay equal and opposite, and sum with the glyph to 24. */
+      box-sizing: border-box;
+      padding: 5px;
+      margin: -5px;
+      min-width: 24px;
+      min-height: 24px;
+      color: inherit;
+      font: inherit;
+      line-height: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      opacity: 0.85;
+      --mdc-icon-size: 14px;
+    }
+    .act:hover {
+      opacity: 1;
+    }
+    :host([compact]) .act {
+      /* Smaller glyph, same 24px target — so the padding takes up the slack. */
+      --mdc-icon-size: 12px;
+      padding: 6px;
+      margin: -6px;
+    }
+    .act + .act {
+      /* The negative margin on .act shrinks its *margin* box back to the glyph,
+         but its 24px *border* box — the box that hit-tests — still bleeds padding
+         px past that on every side. Left alone the two action buttons overlap, and
+         Resume (later in DOM order, no z-index on either) paints last and wins,
+         turning taps on the Extend glyph into "cancel the override".
+
+         Separation between the two border boxes is
+             Extend margin-right + container gap + Resume margin-left
+           = -5 + 4 + margin-left
+         so margin-left must be >= 1px to reach zero overlap; at 1px they abut
+         exactly and both buttons get a true, unshared 24px target. This is NOT
+         the "gap >= 2 x padding" the container-gap approach needed: overriding
+         margin-left cancels this button's own negative margin instead of adding
+         separation on top of it, so the number is much smaller. Only Resume
+         matches — Extend follows the label, not an .act, and keeps its -5px.
+         Costs 6px of badge width (margin-left -5 to 1), and unlike a widened
+         container gap it costs it once rather than on every child boundary.
+         Keep in sync with the padding on .act. */
+      margin-left: 1px;
+    }
+    :host([compact]) .act + .act {
+      /* Compact .act pads 6px a side, so zero overlap needs -6 + 4 + 2 = 0, i.e.
+         margin-left >= 2px. NOT redundant with the rule above: ":host([compact])
+         .act" is specificity (0,3,0) and its margin shorthand would re-clobber
+         that (0,2,0) margin-left straight back to -6px. This selector is (0,4,0)
+         and wins. Costs 8px of badge width (-6 to 2) — the compact has-actions
+         branch already drops the kind icon and the "Manual · " prefix to buy that
+         room back. */
+      margin-left: 2px;
     }
     .resume-icon {
       --mdc-icon-size: 14px;

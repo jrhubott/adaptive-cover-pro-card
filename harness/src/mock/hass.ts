@@ -104,6 +104,15 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'tile.stop': 'Stop',
   'tile.resume': 'Resume',
   'tile.resume_aria': 'Resume automation',
+  'tile.extend_aria': 'Extend manual override',
+  'dialog.extend.title': 'Extend manual override',
+  'dialog.extend.presets_label': 'Until',
+  'dialog.extend.relative_label': 'Add time',
+  'dialog.extend.absolute_label': 'End at',
+  'dialog.extend.preview': 'Override until {time}',
+  'dialog.extend.confirm': 'Extend',
+  'dialog.extend.cancel': 'Cancel',
+  'dialog.extend.tomorrow_suffix': ' (tomorrow)',
   'tile.motion_detected': 'Occupancy detected',
   'tile.motion_pending': 'Occupancy timeout',
   'dialog.floor': '↥',
@@ -197,16 +206,17 @@ export function buildMockHass(
     return Promise.resolve();
   };
 
-  // Integration service registry the card feature-detects (issue #180). Under
-  // the legacy flag `set_axes` is omitted so `setAxes` falls back to the
-  // per-axis legacy services.
+  // Integration service registry the card feature-detects (issues #180, #229).
+  // Under the legacy flag `set_axes` is omitted so `setAxes` falls back to the
+  // per-axis legacy services, and `engage_manual_override` is omitted so the
+  // badge's Extend affordance hides (integrations before v2026.7.0).
   const services = {
     [INTEGRATION_DOMAIN]: {
       set_position: {},
       set_tilt: {},
       stop: {},
       set_custom_position: {},
-      ...(cfg.legacyIntegration ? {} : { set_axes: {} }),
+      ...(cfg.legacyIntegration ? {} : { set_axes: {}, engage_manual_override: {} }),
     },
   };
 

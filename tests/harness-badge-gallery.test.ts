@@ -34,3 +34,23 @@ describe('acp-harness-badge-gallery', () => {
     expect(variants.length).toBeGreaterThan(0);
   });
 });
+
+// Issue #229: the two-action badge is a gallery variant so the restructured
+// container is visible in the harness alongside the resumable-only form.
+describe('acp-harness-badge-gallery — extend variants (#229)', () => {
+  it('renders an extendable + resumable two-button variant', async () => {
+    const el = await mountGallery();
+    const badges = Array.from(el.shadowRoot!.querySelectorAll('#variants acp-tile-badge')) as Array<
+      HTMLElement & { updateComplete: Promise<boolean> }
+    >;
+    const twoAction = badges.filter((b) => b.hasAttribute('extendable'));
+    expect(twoAction.length).toBeGreaterThanOrEqual(2); // regular + compact
+    await Promise.all(twoAction.map((b) => b.updateComplete));
+    for (const b of twoAction) {
+      expect(b.shadowRoot!.querySelector('button.act.extend')).toBeTruthy();
+      // No nested buttons — the whole point of the restructure.
+      expect(b.shadowRoot!.querySelector('button.badge')).toBeFalsy();
+    }
+    expect(twoAction.some((b) => b.hasAttribute('compact'))).toBe(true);
+  });
+});

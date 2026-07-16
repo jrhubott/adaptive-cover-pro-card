@@ -37,6 +37,31 @@ const VARIANTS: Variant[] = [
       ></acp-tile-badge>`,
   },
   {
+    caption: 'Manual · extendable + resumable (two buttons)',
+    render: (hass) =>
+      html`<acp-tile-badge
+        .hass=${hass}
+        kind-override="manual"
+        manual-end-iso=${MANUAL_END_ISO}
+        manual-active
+        resumable
+        extendable
+      ></acp-tile-badge>`,
+  },
+  {
+    caption: 'Manual · extendable + resumable, compact (kind icon dropped)',
+    render: (hass) =>
+      html`<acp-tile-badge
+        .hass=${hass}
+        kind-override="manual"
+        manual-end-iso=${MANUAL_END_ISO}
+        manual-active
+        resumable
+        extendable
+        compact
+      ></acp-tile-badge>`,
+  },
+  {
     caption: 'Custom · named slot + % + floor',
     render: (hass) =>
       html`<acp-tile-badge

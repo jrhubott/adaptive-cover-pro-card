@@ -1961,6 +1961,41 @@ export const SCENARIOS: Scenario[] = [
       return c;
     },
   },
+  {
+    id: 'manual-override-extend',
+    label: 'Manual override — extendable from the badge (#229)',
+    added: '2026-07-16',
+    issue: 229,
+    description:
+      'A manual override active with 45 minutes left, on a current integration that exposes engage_manual_override. The badge is no longer a single Resume button: it is a container with two sibling buttons — Extend (clock-plus) and Resume (↺). Tap Extend to open the dialog: preset chips come from the position_forecast sensor (fov_exit / sunset), the relative chips add to the CURRENT end (not to now), and the time input rolls to tomorrow for a clock time already past. Confirm and watch the badge countdown jump — the mock applies end_time against the harness fake clock. Check the service log: the end_time is Z-suffixed (the integration silently treats a naive string as UTC) and targets every managed cover, not just the first.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'manual-override-extend';
+      const f = c.entries[0].flags;
+      f.manual_override = true;
+      f.manual_override_minutes_from_now = 45;
+      f.held_position = 30;
+      return c;
+    },
+  },
+  {
+    id: 'legacy-integration-no-extend',
+    label: 'Legacy integration — no Extend affordance (#229)',
+    added: '2026-07-16',
+    issue: 229,
+    description:
+      'The same active override as "manual-override-extend", but simulating an integration older than v2026.7.0: the mock hass omits engage_manual_override from the service registry. The card must feature-detect and degrade — the badge shows ONLY the Resume button (today\'s single-button form, byte-identical), with no Extend icon and no way to open the dialog. Pairs with legacy-integration-venetian (#180): same graceful-degradation contract, different service.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'legacy-integration-no-extend';
+      c.legacyIntegration = true;
+      const f = c.entries[0].flags;
+      f.manual_override = true;
+      f.manual_override_minutes_from_now = 45;
+      f.held_position = 30;
+      return c;
+    },
+  },
 ];
 
 export function findScenario(id: string): Scenario | undefined {

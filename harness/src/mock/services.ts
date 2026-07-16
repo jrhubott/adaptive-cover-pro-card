@@ -1,5 +1,6 @@
 import { INTEGRATION_DOMAIN } from '../../../src/const';
 import type { HarnessConfig, HarnessEntry } from '../types';
+import { zonedNowMs, zoneForLongitude } from '../zone';
 
 export interface ServiceCall {
   ts: number;
@@ -55,6 +56,14 @@ export function applyService(
   // button.press — reset manual override
   if (key === 'button.press' && typeof entityId === 'string') {
     const result = pressButton(cfg, entityId);
+    if (result) return { next: result, applied: true };
+    return { next: cfg, applied: false };
+  }
+
+  // adaptive_cover_pro.engage_manual_override (#229) — the inverse of the
+  // reset button above: engage or extend the override without moving anything.
+  if (key === `${INTEGRATION_DOMAIN}.engage_manual_override`) {
+    const result = engageManualOverride(cfg, data, target);
     if (result) return { next: result, applied: true };
     return { next: cfg, applied: false };
   }
@@ -164,6 +173,72 @@ function pressButton(cfg: HarnessConfig, entityId: string): HarnessConfig | null
     return { ...e, flags: { ...e.flags, manual_override: false } };
   });
   return found ? { ...cfg, entries } : null;
+}
+
+/**
+ * Engage/extend the manual override (#229) — the mock of the integration's
+ * move-free `engage_manual_override`.
+ *
+ * `end_time` is absolute, so it re-derives `manual_override_minutes_from_now`
+ * against the harness's *fake* clock (the same instant `state-gen` renders the
+ * end sensor from) — not wall-clock now, or the countdown would jump. `duration`
+ * adds to whatever is left. `end_time` wins, matching the real service.
+ */
+function engageManualOverride(
+  cfg: HarnessConfig,
+  data: Record<string, unknown> | undefined,
+  target: { entity_id?: string | string[] } | undefined,
+): HarnessConfig | null {
+  const rawTarget = (data?.entity_id ?? target?.entity_id) as string | string[] | undefined;
+  const ids =
+    rawTarget === undefined ? undefined : Array.isArray(rawTarget) ? rawTarget : [rawTarget];
+
+  const endTime = typeof data?.end_time === 'string' ? data.end_time : undefined;
+  const durationSeconds = readDurationSeconds(data?.duration);
+  if (endTime === undefined && durationSeconds === undefined) return null;
+
+  const nowMs = zonedNowMs(cfg.date, cfg.timeOfDayMinutes, zoneForLongitude(cfg.longitude));
+  let found = false;
+
+  const entries = cfg.entries.map((e) => {
+    // No entity_id targets every entry, mirroring HA's "all matching" default.
+    const matches =
+      ids === undefined ||
+      e.covers.some((c) => ids.includes(c.entity_id)) ||
+      ids.includes(e.entry_id);
+    if (!matches) return e;
+
+    let minutes: number;
+    if (endTime !== undefined) {
+      const endMs = Date.parse(endTime);
+      if (Number.isNaN(endMs)) return e;
+      minutes = Math.round((endMs - nowMs) / 60_000);
+    } else {
+      const current = e.flags.manual_override ? e.flags.manual_override_minutes_from_now : 0;
+      minutes = current + Math.round(durationSeconds! / 60);
+    }
+    found = true;
+    return {
+      ...e,
+      flags: {
+        ...e.flags,
+        manual_override: true,
+        manual_override_minutes_from_now: minutes,
+      },
+    };
+  });
+
+  return found ? { ...cfg, entries } : null;
+}
+
+/** Read HA's `duration` selector shape (`{hours,minutes,seconds}`) as seconds. */
+function readDurationSeconds(value: unknown): number | undefined {
+  if (typeof value === 'number') return value;
+  if (!value || typeof value !== 'object') return undefined;
+  const d = value as Record<string, unknown>;
+  const num = (k: string): number => (typeof d[k] === 'number' ? (d[k] as number) : 0);
+  const total = num('hours') * 3600 + num('minutes') * 60 + num('seconds');
+  return total > 0 ? total : undefined;
 }
 
 function updateTargetForCover(
