@@ -262,23 +262,14 @@ export class TileBadge extends LitElement {
       filter: brightness(0.92);
     }
     .badge.has-actions {
-      /* Must be >= the sum of .act's horizontal padding (2 x 5px), NOT the 4px
-         the other badges use. The negative margin on .act shrinks its *margin*
-         box back to the glyph, but its 24px *border* box — the box that
-         hit-tests — still bleeds padding px past that on every side. Two
-         adjacent action buttons therefore overlap by (2 x padding - gap), and
-         Resume (later in DOM order, no z-index on either) paints last and wins
-         the overlap, turning taps on the Extend glyph into "cancel the
-         override". At 10px the boxes abut exactly, so both buttons get a true,
-         unshared 24px target. Costs 6px of badge width. Keep in sync with the
-         padding on .act. */
-      gap: 10px;
-    }
-    :host([compact]) .badge.has-actions {
-      /* Compact .act pads 6px a side, so zero overlap needs 12px here. Costs 8px
-         of badge width — the compact has-actions branch already drops the kind
-         icon and the "Manual · " prefix to buy that room back. */
-      gap: 12px;
+      /* Deliberately the same 4px every other badge uses. Only the Extend/Resume
+         pair needs extra separation (see .act + .act) — and gap is a *container*
+         property, so widening it here would re-space badge-icon/badge-label and
+         badge-label/Extend as collateral. This container has 4 children normally
+         and 3 in compact, so a widened gap costs 3x / 2x what the pair actually
+         needs and leaves this badge spaced looser than every other badge for no
+         functional reason. Scope the spacing to the pair instead. */
+      gap: 4px;
     }
     .act {
       background: none;
@@ -313,6 +304,37 @@ export class TileBadge extends LitElement {
       --mdc-icon-size: 12px;
       padding: 6px;
       margin: -6px;
+    }
+    .act + .act {
+      /* The negative margin on .act shrinks its *margin* box back to the glyph,
+         but its 24px *border* box — the box that hit-tests — still bleeds padding
+         px past that on every side. Left alone the two action buttons overlap, and
+         Resume (later in DOM order, no z-index on either) paints last and wins,
+         turning taps on the Extend glyph into "cancel the override".
+
+         Separation between the two border boxes is
+             Extend margin-right + container gap + Resume margin-left
+           = -5 + 4 + margin-left
+         so margin-left must be >= 1px to reach zero overlap; at 1px they abut
+         exactly and both buttons get a true, unshared 24px target. This is NOT
+         the "gap >= 2 x padding" the container-gap approach needed: overriding
+         margin-left cancels this button's own negative margin instead of adding
+         separation on top of it, so the number is much smaller. Only Resume
+         matches — Extend follows the label, not an .act, and keeps its -5px.
+         Costs 6px of badge width (margin-left -5 to 1), and unlike a widened
+         container gap it costs it once rather than on every child boundary.
+         Keep in sync with the padding on .act. */
+      margin-left: 1px;
+    }
+    :host([compact]) .act + .act {
+      /* Compact .act pads 6px a side, so zero overlap needs -6 + 4 + 2 = 0, i.e.
+         margin-left >= 2px. NOT redundant with the rule above: ":host([compact])
+         .act" is specificity (0,3,0) and its margin shorthand would re-clobber
+         that (0,2,0) margin-left straight back to -6px. This selector is (0,4,0)
+         and wins. Costs 8px of badge width (-6 to 2) — the compact has-actions
+         branch already drops the kind icon and the "Manual · " prefix to buy that
+         room back. */
+      margin-left: 2px;
     }
     .resume-icon {
       --mdc-icon-size: 14px;

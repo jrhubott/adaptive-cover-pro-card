@@ -130,6 +130,47 @@ function hasActionsDecls(compact: boolean): Decls {
   return compact ? { ...base, ...optionalRule(':host([compact]) .badge.has-actions') } : base;
 }
 
+type Sides = { top: number; right: number; bottom: number; left: number };
+
+/** Applies rules in the given order, expanding the `margin` shorthand into
+ *  longhands as it goes — so a `margin-left` set by an earlier (lower-
+ *  specificity) rule is correctly clobbered by a later `margin` shorthand,
+ *  exactly as the cascade would. Merging the decl objects instead would let a
+ *  longhand win regardless of where it sits, hiding precisely the bug this
+ *  models. */
+function resolveMargin(selectors: string[]): Sides {
+  const m: Sides = { top: 0, right: 0, bottom: 0, left: 0 };
+  for (const selector of selectors) {
+    const decls = optionalRule(selector);
+    if (decls.margin !== undefined) Object.assign(m, sides(decls.margin));
+    for (const side of ['top', 'right', 'bottom', 'left'] as const) {
+      const longhand = decls[`margin-${side}`];
+      if (longhand !== undefined) m[side] = px(longhand);
+    }
+  }
+  return m;
+}
+
+/** The cascade layers that set margin on an action button, in ASCENDING
+ *  specificity order — which is the load-bearing part of this helper.
+ *
+ *  `.act + .act` is (0,2,0) and `:host([compact]) .act` is (0,3,0), so in
+ *  compact the shorthand in the latter re-clobbers any margin-left the
+ *  adjacent-sibling rule set, and the scoped spacing needs its own compact rule
+ *  at (0,4,0) to survive. Listing the layers in real cascade order is what lets
+ *  this test notice when that rule is missing rather than reading the longhand
+ *  and going green while the browser lays out something else.
+ *
+ *  `adjacent` selects the second action button (Resume), the only one the
+ *  sibling combinator matches — Extend is preceded by the label, not an `.act`. */
+function actMarginSelectors(compact: boolean, adjacent: boolean): string[] {
+  const selectors = ['.act'];
+  if (adjacent) selectors.push('.act + .act');
+  if (compact) selectors.push(':host([compact]) .act');
+  if (compact && adjacent) selectors.push(':host([compact]) .act + .act');
+  return selectors;
+}
+
 describe('acp-tile-badge action tap targets (WCAG 2.2 SC 2.5.8)', () => {
   // Sanity-check the inspection itself: if the parser silently found nothing,
   // every assertion below would be meaningless.
@@ -170,29 +211,54 @@ describe('acp-tile-badge action tap targets (WCAG 2.2 SC 2.5.8)', () => {
   // button is 24px on its own while the two still physically overlap: `.act`'s
   // negative margin shrinks its *margin* box to the glyph, but the 24px *border*
   // box (the thing that hit-tests) keeps bleeding `padding` px past it on every
-  // side. Two adjacent flex items therefore overlap by `padding.right +
-  // padding.left - gap`, and since both are non-positioned in-flow siblings with
-  // no z-index, the later one in DOM order (Resume) paints last and wins the
-  // overlap — stealing taps aimed at the Extend glyph and pressing the reset
-  // button instead. The invariant lives across two rules, so it needs its own test.
+  // side. Since both are non-positioned in-flow siblings with no z-index, the
+  // later one in DOM order (Resume) paints last and wins any overlap — stealing
+  // taps aimed at the Extend glyph and pressing the reset button instead. The
+  // invariant lives across several rules, so it needs its own test.
   it('sanity-checks that the container rule is actually being read', () => {
     expect(px(hasActionsDecls(false).gap)).toBeGreaterThan(0);
     expect(px(hasActionsDecls(true).gap)).toBeGreaterThan(0);
+  });
+
+  // `gap` is a *container* property: it re-spaces every gap in the flex box, not
+  // just the one between the two action buttons. The container holds 4 children
+  // normally (kind icon, label, Extend, Resume) and 3 in compact, so widening it
+  // to buy room between the actions also blows out badge-icon/badge-label and
+  // label/Extend as collateral, costing 3x / 2x what the pair actually needs and
+  // leaving this badge spaced looser than every other badge for no reason. Pin
+  // the container to the shared `.badge` default so that regression can't return
+  // quietly; the pair's spacing is scoped to `.act + .act` instead.
+  it('leaves the has-actions container gap at the shared badge default', () => {
+    const shared = px(declaredRule('.badge').gap);
+    expect(px(hasActionsDecls(false).gap), 'normal has-actions gap').toBe(shared);
+    expect(px(hasActionsDecls(true).gap), 'compact has-actions gap').toBe(shared);
   });
 
   for (const compact of [false, true]) {
     const name = compact ? 'compact' : 'normal';
 
     it(`spaces the ${name} action buttons so their 24px hit boxes never overlap`, () => {
-      const pad = sides(actDecls(compact).padding);
+      const first = resolveMargin(actMarginSelectors(compact, false));
+      const second = resolveMargin(actMarginSelectors(compact, true));
       const gap = px(hasActionsDecls(compact).gap);
-      const overlap = pad.left + pad.right - gap;
+      // Extend's border box bleeds |margin-right| past the right edge of its
+      // margin box; flex then leaves `gap` before Resume's margin box; and
+      // Resume's own border box starts margin-left px inside that. So:
+      //
+      //   separation = first.margin-right + gap + second.margin-left
+      //
+      // With margin: -Npx on both, a bare 4px gap gives 4 - 2N < 0 — the boxes
+      // overlap. Note this is NOT the same arithmetic as the container-gap case
+      // (which needed gap >= 2 x padding), because a positive margin-left on the
+      // second button cancels its own negative margin rather than adding to the
+      // pair's separation on top of it.
+      const separation = first.right + gap + second.left;
       expect(
-        overlap,
-        `${name}: adjacent .act border boxes overlap by ${overlap}px — the later ` +
+        separation,
+        `${name}: adjacent .act border boxes overlap by ${-separation}px — the later ` +
           `sibling (Resume) wins hit-testing inside the Extend glyph. ` +
-          `Need gap >= ${pad.left + pad.right}px, got ${gap}px.`,
-      ).toBeLessThanOrEqual(0);
+          `margin-right ${first.right} + gap ${gap} + margin-left ${second.left} = ${separation}.`,
+      ).toBeGreaterThanOrEqual(0);
     });
   }
 });
