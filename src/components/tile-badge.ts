@@ -268,13 +268,24 @@ export class TileBadge extends LitElement {
     .act {
       background: none;
       border: none;
-      padding: 0;
-      margin: 0;
+      /* WCAG 2.2 SC 2.5.8 wants a 24px-minimum target. With zero padding the
+         button box *is* the 14px glyph, so Resume and Extend become two sub-24px
+         targets 4px apart on a touch tile — mis-tapping "extend the override"
+         for "cancel the override". The padding grows the target to 24px and the
+         matching negative margin pulls the box back onto the glyph's original
+         footprint, so the badge lays out exactly as it did before. Padding and
+         margin must stay equal and opposite, and sum with the glyph to 24. */
+      box-sizing: border-box;
+      padding: 5px;
+      margin: -5px;
+      min-width: 24px;
+      min-height: 24px;
       color: inherit;
       font: inherit;
       line-height: 0;
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       cursor: pointer;
       opacity: 0.85;
       --mdc-icon-size: 14px;
@@ -283,7 +294,10 @@ export class TileBadge extends LitElement {
       opacity: 1;
     }
     :host([compact]) .act {
+      /* Smaller glyph, same 24px target — so the padding takes up the slack. */
       --mdc-icon-size: 12px;
+      padding: 6px;
+      margin: -6px;
     }
     .resume-icon {
       --mdc-icon-size: 14px;

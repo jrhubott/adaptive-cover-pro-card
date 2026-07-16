@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import '../src/components/tile-badge';
+import { TileBadge } from '../src/components/tile-badge';
 
 interface BadgeLike extends HTMLElement {
   updateComplete: Promise<boolean>;
@@ -45,6 +45,110 @@ function kindOf(el: BadgeLike, selector: string): string {
     .filter((c) => c.startsWith('kind-'))
     .map((c) => c.slice('kind-'.length))[0];
 }
+
+// ---------------------------------------------------------------------------
+// Declared-CSS inspection.
+//
+// happy-dom does no layout — getBoundingClientRect() is all zeros and
+// getComputedStyle() resolves nothing from a shadow-root stylesheet — so a hit
+// area asserted against the rendered box would pass vacuously no matter what
+// the component ships. These helpers read the rule the component actually
+// declares instead, which is the thing the browser would lay out.
+// ---------------------------------------------------------------------------
+
+const BADGE_CSS = ([TileBadge.styles].flat(Infinity) as { cssText: string }[])
+  .map((s) => s.cssText)
+  .join('\n')
+  // Comments would otherwise glue onto the next property name and hide it.
+  .replace(/\/\*[\s\S]*?\*\//g, '');
+
+type Decls = Record<string, string>;
+
+/** Declarations of the rule whose selector is exactly `selector`. */
+function declaredRule(selector: string): Decls {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`).exec(BADGE_CSS);
+  if (!match) throw new Error(`no rule found for selector "${selector}"`);
+  const decls: Decls = {};
+  for (const decl of match[1].split(';')) {
+    const idx = decl.indexOf(':');
+    if (idx === -1) continue;
+    decls[decl.slice(0, idx).trim()] = decl.slice(idx + 1).trim();
+  }
+  return decls;
+}
+
+function px(value: string | undefined): number {
+  if (!value) return 0;
+  const n = parseFloat(value);
+  return Number.isNaN(n) ? 0 : n;
+}
+
+/** Expands a `padding`/`margin` shorthand into per-side pixels (1/2/3/4 values). */
+function sides(shorthand: string | undefined): {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+} {
+  const parts = (shorthand ?? '0').split(/\s+/).map(px);
+  const [top, right = top, bottom = top, left = right] = parts;
+  return { top, right, bottom, left };
+}
+
+/** The tap target the browser would render for `.act`, from the declared rule. */
+function hitBox(decls: Decls): { width: number; height: number; glyph: number } {
+  const pad = sides(decls.padding);
+  const glyph = px(decls['--mdc-icon-size']);
+  return {
+    width: Math.max(px(decls['min-width']), glyph + pad.left + pad.right),
+    height: Math.max(px(decls['min-height']), glyph + pad.top + pad.bottom),
+    glyph,
+  };
+}
+
+/** `.act` as it resolves in compact — the base rule with the compact override applied. */
+function actDecls(compact: boolean): Decls {
+  const base = declaredRule('.act');
+  return compact ? { ...base, ...declaredRule(':host([compact]) .act') } : base;
+}
+
+describe('acp-tile-badge action tap targets (WCAG 2.2 SC 2.5.8)', () => {
+  // Sanity-check the inspection itself: if the parser silently found nothing,
+  // every assertion below would be meaningless.
+  it('reads the .act rule out of the component styles', () => {
+    expect(declaredRule('.act').cursor).toBe('pointer');
+    expect(actDecls(true)['--mdc-icon-size']).toBe('12px');
+    expect(actDecls(false)['--mdc-icon-size']).toBe('14px');
+  });
+
+  for (const compact of [false, true]) {
+    const name = compact ? 'compact' : 'normal';
+
+    it(`gives each ${name} action button a 24px-minimum hit area in both dimensions`, () => {
+      const box = hitBox(actDecls(compact));
+      expect(box.width, `${name} .act hit width`).toBeGreaterThanOrEqual(24);
+      expect(box.height, `${name} .act hit height`).toBeGreaterThanOrEqual(24);
+    });
+
+    it(`grows the ${name} tap target without changing the badge's rendered layout`, () => {
+      const decls = actDecls(compact);
+      const box = hitBox(decls);
+      const margin = sides(decls.margin);
+      // Negative margins pull the enlarged box back to the glyph's original
+      // footprint, so the badge lays out exactly as it did with `padding: 0`.
+      expect(box.width - Math.abs(margin.left) - Math.abs(margin.right)).toBe(box.glyph);
+      expect(box.height - Math.abs(margin.top) - Math.abs(margin.bottom)).toBe(box.glyph);
+      expect(margin.left).toBeLessThan(0);
+      expect(margin.top).toBeLessThan(0);
+    });
+  }
+
+  it('keeps the glyph itself at 14px / 12px — the target grows, the icon does not', () => {
+    expect(actDecls(false)['--mdc-icon-size']).toBe('14px');
+    expect(actDecls(true)['--mdc-icon-size']).toBe('12px');
+  });
+});
 
 describe('acp-tile-badge', () => {
   it('renders Auto when winner is default', async () => {

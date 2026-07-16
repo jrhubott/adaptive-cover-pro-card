@@ -11,8 +11,6 @@ import type { OverridePreset } from '../lib/override-presets';
  *  the clock from now. */
 const RELATIVE_MINUTES = [15, 30, 60, 120];
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 /**
  * Dialog for extending an active manual override (#229).
  *
@@ -157,8 +155,11 @@ export class ExtendOverrideDialog extends LitElement {
     const candidate = new Date(now);
     candidate.setHours(hh, mm, 0, 0);
     // A clock time already past today means the user meant tomorrow — an
-    // override cannot end in the past.
-    if (candidate.getTime() <= now.getTime()) candidate.setTime(candidate.getTime() + DAY_MS);
+    // override cannot end in the past. Roll the calendar day rather than adding
+    // a fixed 24h: across a DST transition the day is 23h or 25h long, and the
+    // fixed offset would land on the wrong wall-clock hour, silently running the
+    // override longer or shorter than the user typed.
+    if (candidate.getTime() <= now.getTime()) candidate.setDate(candidate.getDate() + 1);
     this._endMs = candidate.getTime();
   }
 

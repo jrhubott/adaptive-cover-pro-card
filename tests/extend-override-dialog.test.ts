@@ -35,6 +35,33 @@ function q<T extends Element>(el: DialogLike, sel: string): T {
   return el.shadowRoot!.querySelector(sel) as T;
 }
 
+/** The repo has no `@types/node` — reach `process.env` through a local type
+ *  rather than take on a dependency for one test. */
+const nodeEnv = (globalThis as unknown as { process: { env: Record<string, string | undefined> } })
+  .process.env;
+
+/**
+ * Runs `fn` with the process timezone pinned, then restores it.
+ *
+ * Scoped to the case that needs it — `vitest.config.ts` pins no TZ, and pinning
+ * one globally would silently re-home every other test in the suite. Node
+ * re-reads `process.env.TZ` on assignment, so this genuinely takes effect.
+ *
+ * `Date.prototype.getHours()` resolves against the TZ that is live *when it is
+ * called*, not when the Date was constructed — so every assertion has to run
+ * inside `fn`, before the restore.
+ */
+async function withTimeZone(tz: string, fn: () => Promise<void>): Promise<void> {
+  const prev = nodeEnv.TZ;
+  nodeEnv.TZ = tz;
+  try {
+    await fn();
+  } finally {
+    if (prev === undefined) delete nodeEnv.TZ;
+    else nodeEnv.TZ = prev;
+  }
+}
+
 function previewText(el: DialogLike): string {
   return q<HTMLElement>(el, '.preview')!.textContent!.replace(/\s+/g, ' ').trim();
 }
@@ -136,6 +163,30 @@ describe('acp-extend-override-dialog (#229)', () => {
     expect(rolled.getHours()).toBe(past.getHours());
     expect(rolled.getMinutes()).toBe(past.getMinutes());
     expect(rolled.getDate()).toBe(new Date(NOW.getTime() + 86_400_000).getDate());
+  });
+
+  it('rolls to tomorrow across a DST spring-forward without shifting the wall clock', async () => {
+    await withTimeZone('America/New_York', async () => {
+      // Sat 2027-03-13 23:00 EST. The calendar day the override rolls into is
+      // 23 hours long — 02:00 EST springs forward to 03:00 EDT on Mar 14 — so a
+      // fixed +86_400_000ms lands an hour late, running the override longer
+      // than the user asked for.
+      vi.setSystemTime(new Date('2027-03-14T04:00:00Z'));
+      // Guard the mechanism, not just the behaviour: if pinning the TZ ever
+      // stops biting, this case would pass vacuously in UTC (no DST on Mar 14).
+      expect(new Date('2027-03-14T04:00:00Z').getHours(), 'TZ pin did not take effect').toBe(23);
+
+      const el = await mount();
+      const input = q<HTMLInputElement>(el, 'input[type="time"]');
+      input.value = '22:00';
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      await el.updateComplete;
+
+      const rolled = new Date(confirmedEndMs(el)!);
+      expect(rolled.getHours()).toBe(22);
+      expect(rolled.getMinutes()).toBe(0);
+      expect(rolled.getDate()).toBe(14);
+    });
   });
 
   it('keeps an absolute time later today as today', async () => {
