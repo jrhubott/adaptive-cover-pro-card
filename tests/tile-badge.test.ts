@@ -11,6 +11,9 @@ interface BadgeLike extends HTMLElement {
   manualEndIso?: string;
   integrationEnabled?: boolean;
   resumable?: boolean;
+  extendable?: boolean;
+  manualActive?: boolean;
+  compact?: boolean;
   safetyActive?: boolean;
   kindOverride?: string;
   groupCount?: number;
@@ -32,6 +35,13 @@ function text(el: BadgeLike): string {
 function kind(el: BadgeLike): string {
   const span = el.shadowRoot!.querySelector('span.badge') as HTMLElement;
   return Array.from(span.classList)
+    .filter((c) => c.startsWith('kind-'))
+    .map((c) => c.slice('kind-'.length))[0];
+}
+
+function kindOf(el: BadgeLike, selector: string): string {
+  const node = el.shadowRoot!.querySelector(selector) as HTMLElement;
+  return Array.from(node.classList)
     .filter((c) => c.startsWith('kind-'))
     .map((c) => c.slice('kind-'.length))[0];
 }
@@ -255,5 +265,122 @@ describe('acp-tile-badge', () => {
     });
     button.click();
     expect(fired).toBe(true);
+  });
+});
+
+// Issue #229: while a manual override is active the badge can carry two
+// actions. Today's resumable branch makes the *whole badge* a <button>, so a
+// second action nested inside it would be invalid HTML and would break Resume.
+describe('acp-tile-badge — extendable (#229)', () => {
+  it('renders no nested buttons when both actions are present', async () => {
+    const el = await mountBadge({
+      winner: 'manual',
+      manualActive: true,
+      resumable: true,
+      extendable: true,
+    });
+    const buttons = Array.from(el.shadowRoot!.querySelectorAll('button'));
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const b of buttons) {
+      expect(b.closest('button')).toBe(b); // no button ancestor other than itself
+    }
+    // The container is a span, not a button.
+    expect(el.shadowRoot!.querySelector('button.badge')).toBeFalsy();
+    expect(el.shadowRoot!.querySelector('span.badge.has-actions')).toBeTruthy();
+  });
+
+  it('emits acp-extend from the extend button and acp-resume from the resume button — no cross-fire', async () => {
+    const el = await mountBadge({
+      winner: 'manual',
+      manualActive: true,
+      resumable: true,
+      extendable: true,
+    });
+    const events: string[] = [];
+    el.addEventListener('acp-extend', () => events.push('extend'));
+    el.addEventListener('acp-resume', () => events.push('resume'));
+
+    (el.shadowRoot!.querySelector('button.act.extend') as HTMLButtonElement).click();
+    expect(events).toEqual(['extend']);
+
+    (el.shadowRoot!.querySelector('button.act.resume') as HTMLButtonElement).click();
+    expect(events).toEqual(['extend', 'resume']);
+  });
+
+  it('renders the extend button with no resume button when not resumable', async () => {
+    const el = await mountBadge({ winner: 'manual', manualActive: true, extendable: true });
+    expect(el.shadowRoot!.querySelector('button.act.extend')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('button.act.resume')).toBeFalsy();
+  });
+
+  it('stops pointerdown on both action buttons so the tile hold/tap gesture never fires', async () => {
+    const el = await mountBadge({
+      winner: 'manual',
+      manualActive: true,
+      resumable: true,
+      extendable: true,
+    });
+    for (const sel of ['button.act.extend', 'button.act.resume']) {
+      let leaked = false;
+      const host = (e: Event) => {
+        if (e.composed) leaked = true;
+      };
+      document.body.addEventListener('pointerdown', host);
+      const btn = el.shadowRoot!.querySelector(sel) as HTMLButtonElement;
+      btn.dispatchEvent(new Event('pointerdown', { bubbles: true, composed: true }));
+      document.body.removeEventListener('pointerdown', host);
+      expect(leaked, `${sel} leaked pointerdown to the tile`).toBe(false);
+    }
+  });
+
+  // #81/#82/#199 guard: an active override can render kind `custom_position`.
+  // Gating the extend affordance on kind would hide it in exactly that case.
+  it('renders the extend button when a custom_position slot wins with an override active', async () => {
+    const el = await mountBadge({
+      winner: 'custom_position',
+      slotNumber: 1,
+      pct: 60,
+      manualActive: true,
+      resumable: true,
+      extendable: true,
+    });
+    expect(kindOf(el, 'span.badge')).toBe('custom_position');
+    expect(el.shadowRoot!.querySelector('button.act.extend')).toBeTruthy();
+  });
+
+  it('uses the clock-plus icon for extend and keeps restore for resume', async () => {
+    const el = await mountBadge({
+      winner: 'manual',
+      manualActive: true,
+      resumable: true,
+      extendable: true,
+    });
+    expect(el.shadowRoot!.querySelector('button.act.extend ha-icon')!.getAttribute('icon')).toBe(
+      'mdi:clock-plus-outline',
+    );
+    expect(el.shadowRoot!.querySelector('button.act.resume ha-icon')!.getAttribute('icon')).toBe(
+      'mdi:restore',
+    );
+  });
+
+  it('leaves the resumable-only markup byte-identical to today when extendable is false', async () => {
+    const el = await mountBadge({ winner: 'manual', manualActive: true, resumable: true });
+    expect(el.shadowRoot!.querySelector('button.badge.resumable')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('.act')).toBeFalsy();
+    expect(el.shadowRoot!.querySelector('.badge.has-actions')).toBeFalsy();
+  });
+
+  it('drops the leading kind icon in compact + has-actions so the badge stays at three glyphs', async () => {
+    const el = await mountBadge({
+      winner: 'manual',
+      manualActive: true,
+      manualEndIso: '2026-05-23T16:51:00Z',
+      resumable: true,
+      extendable: true,
+      compact: true,
+    });
+    // clock text + extend icon + resume icon — no leading kind icon.
+    expect(el.shadowRoot!.querySelector('.badge-icon')).toBeFalsy();
+    expect(el.shadowRoot!.querySelectorAll('button.act').length).toBe(2);
   });
 });

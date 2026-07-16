@@ -76,6 +76,16 @@ export class TileBadge extends LitElement {
    *  actual service call. A trailing ↺ icon signals the affordance. */
   @property({ type: Boolean, reflect: true }) public resumable = false;
 
+  /** When true, the badge grows an Extend action that emits `acp-extend` (the
+   *  host opens the extend-override dialog and runs the service call — the badge
+   *  stays presentational, exactly like {@link resumable}).
+   *
+   *  The host must gate this on **`manualActive`, never on the badge `kind`**:
+   *  an active override renders kind `custom_position` or `force` whenever a
+   *  slot also wins (`badge-visibility.ts:127`), and deriving override
+   *  affordances from the winning handler is the bug behind #81, #82 and #199. */
+  @property({ type: Boolean, reflect: true }) public extendable = false;
+
   protected render(): TemplateResult {
     const kind = this._kind();
     // A priority-100 safety custom_position slot (v2.28.0+ migrated Force
@@ -90,6 +100,50 @@ export class TileBadge extends LitElement {
         : 'Safety'
       : this._label(kind, base);
     const icon = safetyVariant ? BADGE_ICONS.force : BADGE_ICONS[kind];
+
+    // Two-action branch (#229). A second tap target cannot live inside the
+    // resumable branch below — that makes the *whole badge* a <button>, and a
+    // nested <button> is invalid HTML that breaks both handlers. So the badge
+    // becomes a plain container holding sibling buttons instead.
+    if (this.extendable) {
+      const extendHint = this.hass ? t('tile.extend_aria', this.hass) : 'Extend manual override';
+      const resumeHint = this.hass ? t('tile.resume_aria', this.hass) : 'Resume automatic control';
+      // Compact already drops the "Manual · " prefix to stay narrow; with two
+      // action glyphs the leading kind icon is the next thing to go — the badge
+      // color already signals the kind (same rationale as `_label()`).
+      const showKindIcon = !!icon && !this.compact;
+      return html`<span
+        class="badge kind-${kind} has-actions"
+        style="background:${tokens.bg};color:${tokens.fg};"
+        part="badge"
+      >
+        ${showKindIcon ? html`<ha-icon class="badge-icon" icon=${icon}></ha-icon>` : nothing}
+        <span class="badge-label">${label}</span>
+        <button
+          class="act extend"
+          type="button"
+          ${tooltip(extendHint)}
+          aria-label=${extendHint}
+          @click=${this._onExtendClick}
+          @pointerdown=${this._stop}
+        >
+          <ha-icon icon="mdi:clock-plus-outline"></ha-icon>
+        </button>
+        ${this.resumable
+          ? html`<button
+              class="act resume"
+              type="button"
+              ${tooltip(resumeHint)}
+              aria-label=${resumeHint}
+              @click=${this._onResumeClick}
+              @pointerdown=${this._stop}
+            >
+              <ha-icon icon="mdi:restore"></ha-icon>
+            </button>`
+          : nothing}
+      </span>`;
+    }
+
     const inner = html`${icon
       ? html`<ha-icon class="badge-icon" icon=${icon}></ha-icon>`
       : nothing}${label}${this.resumable
@@ -125,6 +179,11 @@ export class TileBadge extends LitElement {
   private _onResumeClick(e: Event): void {
     e.stopPropagation();
     this.dispatchEvent(new CustomEvent('acp-resume', { bubbles: true, composed: true }));
+  }
+
+  private _onExtendClick(e: Event): void {
+    e.stopPropagation();
+    this.dispatchEvent(new CustomEvent('acp-extend', { bubbles: true, composed: true }));
   }
 
   private _kind(): BadgeKind {
@@ -201,6 +260,30 @@ export class TileBadge extends LitElement {
     }
     button.badge:hover {
       filter: brightness(0.92);
+    }
+    .badge.has-actions {
+      /* Flex gap already spaces the label from the sibling action buttons. */
+      gap: 4px;
+    }
+    .act {
+      background: none;
+      border: none;
+      padding: 0;
+      margin: 0;
+      color: inherit;
+      font: inherit;
+      line-height: 0;
+      display: inline-flex;
+      align-items: center;
+      cursor: pointer;
+      opacity: 0.85;
+      --mdc-icon-size: 14px;
+    }
+    .act:hover {
+      opacity: 1;
+    }
+    :host([compact]) .act {
+      --mdc-icon-size: 12px;
     }
     .resume-icon {
       --mdc-icon-size: 14px;

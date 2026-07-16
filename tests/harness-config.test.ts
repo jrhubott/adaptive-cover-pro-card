@@ -10,6 +10,9 @@ import {
 } from '../harness/src/scenarios';
 import type { HarnessConfig } from '../harness/src/types';
 import { buildStates } from '../harness/src/mock/state-gen';
+import { applyService } from '../harness/src/mock/services';
+import { zonedNowMs, zoneForLongitude } from '../harness/src/zone';
+import { INTEGRATION_DOMAIN } from '../src/const';
 import { buildRegistry } from '../harness/src/mock/registry';
 import { discoverEntities } from '../src/lib/entity-discovery';
 
@@ -435,5 +438,104 @@ describe('solar chart card harness plumbing (issue #187)', () => {
     el.config = cfg;
     const solarChartCfg = el._solarChartConfig();
     expect((solarChartCfg.entry_ids as string[]).length).toBe(cfg.entries.length);
+  });
+});
+
+// ── Extend manual override (#229) ────────────────────────────────────────────
+
+describe('applyService — adaptive_cover_pro.engage_manual_override (#229)', () => {
+  function baseCfg(): HarnessConfig {
+    const cfg = defaultScenarioConfig();
+    const entries = cfg.entries.map((e) => ({
+      ...e,
+      flags: { ...e.flags, manual_override: true, manual_override_minutes_from_now: 45 },
+    }));
+    return { ...cfg, entries };
+  }
+
+  /** The harness's pinned "now" — the same instant state-gen derives the
+   *  override end from, so minutes-from-now round-trips exactly. */
+  function harnessNowMs(cfg: HarnessConfig): number {
+    return zonedNowMs(cfg.date, cfg.timeOfDayMinutes, zoneForLongitude(cfg.longitude));
+  }
+
+  it('applies an absolute end_time as minutes from the fake clock', () => {
+    const cfg = baseCfg();
+    const entry = cfg.entries[0];
+    const endMs = harnessNowMs(cfg) + 90 * 60_000;
+    const { next, applied } = applyService(
+      cfg,
+      INTEGRATION_DOMAIN,
+      'engage_manual_override',
+      { end_time: new Date(endMs).toISOString() },
+      { entity_id: entry.covers[0].entity_id },
+    );
+    expect(applied).toBe(true);
+    const flags = next.entries[0].flags;
+    expect(flags.manual_override).toBe(true);
+    expect(flags.manual_override_minutes_from_now).toBe(90);
+  });
+
+  it('adds a duration to the current override end', () => {
+    const cfg = baseCfg();
+    const { next, applied } = applyService(
+      cfg,
+      INTEGRATION_DOMAIN,
+      'engage_manual_override',
+      { duration: { seconds: 1800 } },
+      { entity_id: cfg.entries[0].covers[0].entity_id },
+    );
+    expect(applied).toBe(true);
+    // 45 active + 30 added.
+    expect(next.entries[0].flags.manual_override_minutes_from_now).toBe(75);
+  });
+
+  it('engages the override when none is active', () => {
+    const cfg = baseCfg();
+    const off = {
+      ...cfg,
+      entries: cfg.entries.map((e) => ({
+        ...e,
+        flags: { ...e.flags, manual_override: false },
+      })),
+    };
+    const { next } = applyService(
+      off,
+      INTEGRATION_DOMAIN,
+      'engage_manual_override',
+      { end_time: new Date(harnessNowMs(off) + 60 * 60_000).toISOString() },
+      { entity_id: off.entries[0].covers[0].entity_id },
+    );
+    expect(next.entries[0].flags.manual_override).toBe(true);
+  });
+
+  it('targets every entry when entity_id is an array of covers', () => {
+    const cfg = baseCfg();
+    const ids = cfg.entries.flatMap((e) => e.covers.map((c) => c.entity_id));
+    const endMs = harnessNowMs(cfg) + 120 * 60_000;
+    const { next, applied } = applyService(
+      cfg,
+      INTEGRATION_DOMAIN,
+      'engage_manual_override',
+      { end_time: new Date(endMs).toISOString() },
+      { entity_id: ids } as unknown as { entity_id?: string },
+    );
+    expect(applied).toBe(true);
+    for (const e of next.entries) {
+      expect(e.flags.manual_override_minutes_from_now).toBe(120);
+    }
+  });
+
+  it('no-ops with neither end_time nor duration', () => {
+    const cfg = baseCfg();
+    const { next, applied } = applyService(
+      cfg,
+      INTEGRATION_DOMAIN,
+      'engage_manual_override',
+      {},
+      { entity_id: cfg.entries[0].covers[0].entity_id },
+    );
+    expect(applied).toBe(false);
+    expect(next).toBe(cfg);
   });
 });

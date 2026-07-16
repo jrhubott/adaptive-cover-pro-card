@@ -13,6 +13,8 @@ import type { GroupScene } from '../types';
  *   state.
  * - **Multi-axis covers** (#180): `setAxes` feature-detects the integration's
  *   `set_axes` service and otherwise fans out to the legacy per-axis services.
+ * - **Manual override** (#229): `engageManualOverride` extends (or engages) a
+ *   move-free manual override, feature-detected like `setAxes`.
  */
 
 // ── Cover Group: integration service helpers (target = group entity_id) ──────
@@ -187,4 +189,53 @@ export function setAxes(
     if (!service) continue;
     hass.callService(INTEGRATION_DOMAIN, service, { [axisId]: value }, { entity_id: entityId });
   }
+}
+
+// ── Manual override (#229) ───────────────────────────────────────────────────
+
+export interface EngageManualOverrideOptions {
+  /** Absolute end of the override. Serialized with `.toISOString()` so the wire
+   *  value always carries an explicit UTC offset — see the note on
+   *  {@link engageManualOverride}. Wins over `duration` when both are given. */
+  endTime?: Date;
+  /** Seconds to extend an active override by (or engage fresh for, if none is
+   *  active). Ignored when `endTime` is set. */
+  duration?: number;
+}
+
+/** `adaptive_cover_pro.engage_manual_override` shipped in integration v2026.7.0
+ *  — recent enough that older installs must degrade gracefully rather than
+ *  render an affordance that throws. Mirrors {@link setAxes}' feature-detect. */
+export function hasEngageManualOverride(hass: HomeAssistant): boolean {
+  const services = (hass as unknown as { services?: Record<string, Record<string, unknown>> })
+    .services;
+  return !!services?.[INTEGRATION_DOMAIN]?.engage_manual_override;
+}
+
+/**
+ * Extend (or engage) a move-free manual override on `entityIds`.
+ *
+ * Timezone contract: the integration treats an `end_time` with no UTC offset as
+ * UTC, not local time (services.yaml:203-205), so a naive local ISO string would
+ * silently shift the override by the viewer's offset. `.toISOString()` is always
+ * `Z`-suffixed, which sidesteps the trap entirely.
+ *
+ * Sends `end_time` **or** `duration`, never both: the integration lets `end_time`
+ * win, but the card shouldn't lean on a tie-break. With neither, this no-ops
+ * rather than silently engaging for the configured default duration.
+ */
+export function engageManualOverride(
+  hass: HomeAssistant,
+  entityIds: string[],
+  opts: EngageManualOverrideOptions,
+): void {
+  const data: { end_time?: string; duration?: { seconds: number } } = {};
+  if (opts.endTime) {
+    data.end_time = opts.endTime.toISOString();
+  } else if (opts.duration != null) {
+    data.duration = { seconds: opts.duration };
+  } else {
+    return;
+  }
+  hass.callService(INTEGRATION_DOMAIN, 'engage_manual_override', data, { entity_id: entityIds });
 }

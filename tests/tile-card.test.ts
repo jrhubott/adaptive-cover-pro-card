@@ -2259,3 +2259,150 @@ describe('adaptive-cover-pro-tile-card HA tile layout (detailed)', () => {
     expect(body.classList.contains('bar-only')).toBe(false);
   });
 });
+
+// ── Extend manual override (#229) ────────────────────────────────────────────
+
+const EXTEND_REGISTRY: EntityRegistryEntry[] = [
+  ...REGISTRY,
+  {
+    entity_id: 'sensor.position_forecast',
+    unique_id: `${ENTRY}_position_forecast`,
+    config_entry_id: ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+];
+
+const FORECAST_EVENTS = [
+  { t: '2099-06-15T15:30:00Z', kind: 'fov_exit', label: 'Sun leaves window' },
+  { t: '2099-06-15T19:58:00Z', kind: 'sunset', label: 'Sunset' },
+];
+
+function extendHass(
+  opts: {
+    manualOverrideOn?: boolean;
+    decisionState?: string;
+    withService?: boolean;
+    callService?: (...args: unknown[]) => unknown;
+  } = {},
+): HomeAssistant {
+  const h = makeHass({
+    manualOverrideOn: opts.manualOverrideOn ?? true,
+    decisionState: opts.decisionState ?? 'manual',
+    callService: opts.callService,
+  });
+  h.states['sensor.position_forecast'] = {
+    state: 'ok',
+    attributes: { forecast: [], events: FORECAST_EVENTS },
+  } as never;
+  if (opts.withService !== false) {
+    (h as unknown as { services: unknown }).services = {
+      [INTEGRATION_DOMAIN]: { engage_manual_override: {} },
+    };
+  }
+  (h as unknown as { config: unknown }).config = { latitude: 52.37, longitude: 4.9 };
+  (h as unknown as { callWS: unknown }).callWS = vi.fn().mockResolvedValue(EXTEND_REGISTRY);
+  return h;
+}
+
+async function mountExtend(hass: HomeAssistant): Promise<CardLike> {
+  const el = makeCard();
+  el.setConfig({ type: TYPE, entry_id: ENTRY });
+  el.hass = hass;
+  document.body.appendChild(el);
+  el._registry = EXTEND_REGISTRY;
+  await el.updateComplete;
+  return el;
+}
+
+describe('adaptive-cover-pro-tile-card — extend manual override (#229)', () => {
+  it('makes the badge extendable when an override is active and the service exists', async () => {
+    const el = await mountExtend(extendHass());
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge!.hasAttribute('extendable')).toBe(true);
+  });
+
+  it('hides the extend affordance on a legacy integration lacking the service, keeping Resume', async () => {
+    const el = await mountExtend(extendHass({ withService: false }));
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge!.hasAttribute('extendable')).toBe(false);
+    expect(badge!.hasAttribute('resumable')).toBe(true);
+  });
+
+  it('is not extendable when no override is active', async () => {
+    const el = await mountExtend(extendHass({ manualOverrideOn: false, decisionState: 'solar' }));
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge!.hasAttribute('extendable')).toBe(false);
+  });
+
+  // #81/#82/#199 guard at the card layer: gate on manualActive, never on kind.
+  it('is extendable when a custom_position slot wins with an override active', async () => {
+    const el = await mountExtend(
+      extendHass({ manualOverrideOn: true, decisionState: 'custom_position_1' }),
+    );
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge!.hasAttribute('extendable')).toBe(true);
+  });
+
+  it('opens the extend dialog on acp-extend from the badge', async () => {
+    const el = await mountExtend(extendHass());
+    const dialog = el.shadowRoot!.querySelector('acp-extend-override-dialog') as HTMLElement & {
+      open?: boolean;
+    };
+    expect(dialog.open).toBe(false);
+    el.shadowRoot!.querySelector('acp-tile-badge')!.dispatchEvent(
+      new CustomEvent('acp-extend', { bubbles: true, composed: true }),
+    );
+    await el.updateComplete;
+    expect(dialog.open).toBe(true);
+  });
+
+  it('passes presets derived from the position_forecast sensor to the dialog', async () => {
+    const el = await mountExtend(extendHass());
+    const dialog = el.shadowRoot!.querySelector('acp-extend-override-dialog') as HTMLElement & {
+      presets?: Array<{ kind: string; t: string }>;
+    };
+    expect(dialog.presets!.map((p) => p.kind)).toEqual(['fov_exit', 'sunset']);
+    expect(dialog.presets![0].t).toBe('2099-06-15T15:30:00Z');
+  });
+
+  it('calls engage_manual_override on ALL managed covers with a Z-suffixed end_time', async () => {
+    const callService = vi.fn();
+    const el = await mountExtend(extendHass({ callService }));
+    const endMs = Date.parse('2099-06-15T19:58:00Z');
+    el.shadowRoot!.querySelector('acp-extend-override-dialog')!.dispatchEvent(
+      new CustomEvent('acp-extend-confirm', { detail: { endMs }, bubbles: true, composed: true }),
+    );
+    await el.updateComplete;
+
+    const call = callService.mock.calls.find((c) => c[1] === 'engage_manual_override');
+    expect(call).toBeTruthy();
+    expect(call![0]).toBe(INTEGRATION_DOMAIN);
+    const data = call![2] as { end_time: string };
+    expect(data.end_time).toMatch(/(Z|[+-]\d{2}:\d{2})$/);
+    expect(new Date(data.end_time).getTime()).toBe(endMs);
+    // Entry-level surface: every managed cover, not just the first.
+    expect(call![3]).toEqual({ entity_id: ['cover.left', 'cover.right'] });
+  });
+
+  it('closes the dialog after confirming', async () => {
+    const el = await mountExtend(extendHass({ callService: vi.fn() }));
+    el.shadowRoot!.querySelector('acp-tile-badge')!.dispatchEvent(
+      new CustomEvent('acp-extend', { bubbles: true, composed: true }),
+    );
+    await el.updateComplete;
+    const dialog = el.shadowRoot!.querySelector('acp-extend-override-dialog') as HTMLElement & {
+      open?: boolean;
+    };
+    expect(dialog.open).toBe(true);
+    dialog.dispatchEvent(
+      new CustomEvent('acp-extend-confirm', {
+        detail: { endMs: Date.parse('2099-06-15T19:58:00Z') },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+    await el.updateComplete;
+    expect(dialog.open).toBe(false);
+  });
+});

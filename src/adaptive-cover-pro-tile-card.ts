@@ -17,7 +17,9 @@ import {
 import { createDiscoveryMemo } from './lib/entity-discovery';
 import { makeEntitySuggestion } from './lib/entity-suggestion';
 import { resolveAxes, type ResolvedAxis } from './lib/axes';
-import { setAxes } from './lib/services';
+import { setAxes, engageManualOverride, hasEngageManualOverride } from './lib/services';
+import { buildOverridePresets } from './lib/override-presets';
+import './components/extend-override-dialog';
 import { AXIS_LABEL_I18N_KEYS } from './const';
 import { entityStateChanged } from './lib/hass-change';
 import { fetchAcpConfigEntries } from './lib/config-entries';
@@ -30,7 +32,9 @@ import type {
   AdaptiveCoverProTileCardConfig,
   DecisionTraceAttributes,
   DiscoveredEntities,
+  PositionForecastAttributes,
 } from './types';
+import type { OverridePreset } from './lib/override-presets';
 import {
   buildDecisionSentence,
   isWinningSlotSafety,
@@ -68,6 +72,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
   @state() public _registry: EntityRegistryEntry[] | null = null;
   @state() private _registryError: string | null = null;
   @state() private _dialogOpen = false;
+  @state() private _extendOpen = false;
 
   private _unsubRegistry: (() => void) | null = null;
   private _fetchInFlight = false;
@@ -263,7 +268,53 @@ export class AdaptiveCoverProTileCard extends LitElement {
         .badges=${this._config.badges}
         @acp-dialog-close=${this._closeDialog}
       ></acp-more-info-dialog>
+      <acp-extend-override-dialog
+        .hass=${this.hass}
+        .open=${this._extendOpen}
+        .presets=${this._extendPresets(discovered)}
+        .currentEndMs=${this._manualEndMs(discovered)}
+        @acp-extend-confirm=${(e: CustomEvent<{ endMs: number }>) =>
+          this._onExtendConfirm(e, discovered)}
+        @acp-extend-close=${() => (this._extendOpen = false)}
+      ></acp-extend-override-dialog>
     `;
+  }
+
+  /** Preset moments for the extend dialog, sourced from the `position_forecast`
+   *  sensor the card already discovers, topped up from suncalc late in the day. */
+  private _extendPresets(discovered: DiscoveredEntities): OverridePreset[] {
+    const id = discovered.entities.position_forecast_sensor;
+    const attrs = id
+      ? (this.hass.states[id]?.attributes as PositionForecastAttributes | undefined)
+      : undefined;
+    return buildOverridePresets({
+      events: attrs?.events ?? [],
+      nowMs: Date.now(),
+      latitude: this.hass.config?.latitude,
+      longitude: this.hass.config?.longitude,
+    });
+  }
+
+  /** The current override end as epoch ms — the base the dialog's relative chips
+   *  push out from. Undefined when the sensor is missing or unparseable. */
+  private _manualEndMs(discovered: DiscoveredEntities): number | undefined {
+    const id = discovered.entities.manual_override_end_sensor;
+    const raw = id ? this.hass.states[id]?.state : undefined;
+    if (!raw) return undefined;
+    const ms = Date.parse(raw);
+    return Number.isNaN(ms) ? undefined : ms;
+  }
+
+  private _onExtendConfirm(
+    e: CustomEvent<{ endMs: number }>,
+    discovered: DiscoveredEntities,
+  ): void {
+    // Entry-level surface: the badge summarises the whole entry, so extending
+    // only one cover would desync the badge from reality.
+    engageManualOverride(this.hass, discovered.managed_covers, {
+      endTime: new Date(e.detail.endMs),
+    });
+    this._extendOpen = false;
   }
 
   private _closeDialog = (): void => {
@@ -422,6 +473,14 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // (Manual, or Custom when a slot also wins) becomes tappable to resume
     // automatic control — replacing the old standalone Resume pill.
     const resumable = manualActive && !!discovered.entities.reset_override_button;
+    // Extend (#229) gates on `manualActive` and service presence — never on the
+    // badge kind. Per `badge-visibility.ts:127` an active override renders kind
+    // `custom_position`/`force` whenever a slot also wins, so `kind === 'manual'`
+    // is NOT equivalent to "override active"; deriving override affordances from
+    // the winning handler is the bug behind #81, #82 and #199. The service half
+    // mirrors the entity-presence idiom above: integrations older than v2026.7.0
+    // lack `engage_manual_override`, and the affordance simply doesn't render.
+    const extendable = manualActive && hasEngageManualOverride(this.hass);
 
     const positionTpl =
       labelParts.length > 0 ? html`<div class="position">${labelParts.join(' · ')}</div>` : nothing;
@@ -448,7 +507,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
           .manualEndIso=${manualEndIso}
           .manualActive=${manualActive}
           .resumable=${resumable}
+          .extendable=${extendable}
           @acp-resume=${() => this._resume(discovered)}
+          @acp-extend=${() => (this._extendOpen = true)}
         ></acp-tile-badge>`
       : nothing;
     // The standalone Auto badge reuses the existing `auto` kind/tokens/icon —
