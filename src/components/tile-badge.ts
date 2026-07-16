@@ -262,8 +262,23 @@ export class TileBadge extends LitElement {
       filter: brightness(0.92);
     }
     .badge.has-actions {
-      /* Flex gap already spaces the label from the sibling action buttons. */
-      gap: 4px;
+      /* Must be >= the sum of .act's horizontal padding (2 x 5px), NOT the 4px
+         the other badges use. The negative margin on .act shrinks its *margin*
+         box back to the glyph, but its 24px *border* box — the box that
+         hit-tests — still bleeds padding px past that on every side. Two
+         adjacent action buttons therefore overlap by (2 x padding - gap), and
+         Resume (later in DOM order, no z-index on either) paints last and wins
+         the overlap, turning taps on the Extend glyph into "cancel the
+         override". At 10px the boxes abut exactly, so both buttons get a true,
+         unshared 24px target. Costs 6px of badge width. Keep in sync with the
+         padding on .act. */
+      gap: 10px;
+    }
+    :host([compact]) .badge.has-actions {
+      /* Compact .act pads 6px a side, so zero overlap needs 12px here. Costs 8px
+         of badge width — the compact has-actions branch already drops the kind
+         icon and the "Manual · " prefix to buy that room back. */
+      gap: 12px;
     }
     .act {
       background: none;

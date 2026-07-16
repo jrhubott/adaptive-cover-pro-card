@@ -113,6 +113,23 @@ function actDecls(compact: boolean): Decls {
   return compact ? { ...base, ...declaredRule(':host([compact]) .act') } : base;
 }
 
+/** Like {@link declaredRule} but returns `{}` for a selector the component never
+ *  declares, so an optional cascade layer (a compact override that may or may not
+ *  exist) can be merged without the caller knowing whether it's there. */
+function optionalRule(selector: string): Decls {
+  try {
+    return declaredRule(selector);
+  } catch {
+    return {};
+  }
+}
+
+/** The flex container that lays the action buttons out, as it resolves in compact. */
+function hasActionsDecls(compact: boolean): Decls {
+  const base = declaredRule('.badge.has-actions');
+  return compact ? { ...base, ...optionalRule(':host([compact]) .badge.has-actions') } : base;
+}
+
 describe('acp-tile-badge action tap targets (WCAG 2.2 SC 2.5.8)', () => {
   // Sanity-check the inspection itself: if the parser silently found nothing,
   // every assertion below would be meaningless.
@@ -148,6 +165,36 @@ describe('acp-tile-badge action tap targets (WCAG 2.2 SC 2.5.8)', () => {
     expect(actDecls(false)['--mdc-icon-size']).toBe('14px');
     expect(actDecls(true)['--mdc-icon-size']).toBe('12px');
   });
+
+  // The hitBox() assertions above read `.act` in isolation, so they can prove each
+  // button is 24px on its own while the two still physically overlap: `.act`'s
+  // negative margin shrinks its *margin* box to the glyph, but the 24px *border*
+  // box (the thing that hit-tests) keeps bleeding `padding` px past it on every
+  // side. Two adjacent flex items therefore overlap by `padding.right +
+  // padding.left - gap`, and since both are non-positioned in-flow siblings with
+  // no z-index, the later one in DOM order (Resume) paints last and wins the
+  // overlap — stealing taps aimed at the Extend glyph and pressing the reset
+  // button instead. The invariant lives across two rules, so it needs its own test.
+  it('sanity-checks that the container rule is actually being read', () => {
+    expect(px(hasActionsDecls(false).gap)).toBeGreaterThan(0);
+    expect(px(hasActionsDecls(true).gap)).toBeGreaterThan(0);
+  });
+
+  for (const compact of [false, true]) {
+    const name = compact ? 'compact' : 'normal';
+
+    it(`spaces the ${name} action buttons so their 24px hit boxes never overlap`, () => {
+      const pad = sides(actDecls(compact).padding);
+      const gap = px(hasActionsDecls(compact).gap);
+      const overlap = pad.left + pad.right - gap;
+      expect(
+        overlap,
+        `${name}: adjacent .act border boxes overlap by ${overlap}px — the later ` +
+          `sibling (Resume) wins hit-testing inside the Extend glyph. ` +
+          `Need gap >= ${pad.left + pad.right}px, got ${gap}px.`,
+      ).toBeLessThanOrEqual(0);
+    });
+  }
 });
 
 describe('acp-tile-badge', () => {
