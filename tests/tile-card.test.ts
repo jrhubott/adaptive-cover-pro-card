@@ -505,9 +505,26 @@ describe('adaptive-cover-pro-tile-card render', () => {
         coverLeftCurrentPosition: 16,
       }),
     );
-    // Override the sensor state to 100 to make calculated vs live differ clearly.
-    (el.hass!.states['sensor.cover_position'] as { state: string }).state = '100';
-    el.hass = { ...el.hass! };
+    // Override the sensor state to 100 on a LATER `hass` tick (not just at mount
+    // time), to make calculated vs live differ clearly. This must swap in a
+    // fresh `sensor.cover_position` object and a fresh top-level `hass` +
+    // `states` object — mutating the existing sensor object in place would
+    // leave its reference identity unchanged, and `shouldUpdate`
+    // (src/adaptive-cover-pro-tile-card.ts) skips re-rendering via
+    // `entityStateChanged` (src/lib/hass-change.ts) whenever none of the
+    // discovered entities' object identities changed, silently leaving this
+    // assertion checking the mount-time DOM instead of the poked value.
+    const oldHass = el.hass!;
+    el.hass = {
+      ...oldHass,
+      states: {
+        ...oldHass.states,
+        'sensor.cover_position': {
+          ...(oldHass.states['sensor.cover_position'] as { state: string }),
+          state: '100',
+        },
+      },
+    } as unknown as HomeAssistant;
     await el.updateComplete;
     const text = el.shadowRoot!.querySelector('.state')?.textContent?.trim();
     expect(text).toBe('Open · 16%');
@@ -2067,6 +2084,15 @@ describe('adaptive-cover-pro-tile-card unavailable cover (issue #212)', () => {
     expect(downBtn(el).disabled).toBe(true);
   });
 
+  it('renders the unavailable fallback glyph (not the normal position-derived cover icon) when the cover is unavailable', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unavailable' }),
+    );
+    const icon = el.shadowRoot!.querySelector('ha-icon.cover-icon');
+    expect(icon?.getAttribute('icon')).toBe('mdi:help-rhombus-outline');
+  });
+
   it("shows the calculated-sensor position (parity with any other no-feedback cover) but never the cover's own stale-looking current_position attribute when unknown", async () => {
     // Unlike hard-offline, an `unknown` cover (issue #232) is still
     // controllable, and its live readout should behave like any other
@@ -2121,8 +2147,22 @@ describe('adaptive-cover-pro-tile-card unavailable cover (issue #212)', () => {
         coverLeftCurrentPosition: 16,
       }),
     );
-    (el.hass!.states['sensor.cover_position'] as { state: string }).state = '100';
-    el.hass = { ...el.hass! };
+    // Poke the sensor state on a LATER `hass` tick (not at mount time) — see the
+    // identical pattern (and rationale) above in "does not leak a stale position
+    // when the cover is unavailable...": a fresh top-level `hass` + `states` +
+    // `sensor.cover_position` object is required, or `shouldUpdate` skips the
+    // re-render and this assertion silently checks the mount-time DOM instead.
+    const oldHass = el.hass!;
+    el.hass = {
+      ...oldHass,
+      states: {
+        ...oldHass.states,
+        'sensor.cover_position': {
+          ...(oldHass.states['sensor.cover_position'] as { state: string }),
+          state: '100',
+        },
+      },
+    } as unknown as HomeAssistant;
     await el.updateComplete;
     const text = el.shadowRoot!.querySelector('.state')?.textContent?.trim();
     expect(text).toBe('Open · 16%');

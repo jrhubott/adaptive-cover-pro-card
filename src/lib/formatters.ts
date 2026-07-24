@@ -16,6 +16,11 @@ interface HassLike {
  * True when a state string signals the entity has no usable data — HA's
  * `unavailable`/`unknown` sentinels, or a missing state entirely (treated the
  * same way, since a missing entity is functionally the same signal).
+ *
+ * This is broader than hard-offline: see {@link isOffline} for the narrower,
+ * `unavailable`/missing-only predicate that gates the tile card's total
+ * blackout treatment (dimming, disabled controls, "Unavailable" label) —
+ * `unknown` alone must not trigger that (issue #232).
  */
 export function isUnavailable(state: string | null | undefined): boolean {
   return !state || state === 'unavailable' || state === 'unknown';
