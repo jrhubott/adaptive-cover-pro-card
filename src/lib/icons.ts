@@ -15,7 +15,7 @@ import {
   COVER_CLOSE_ICON_INSET,
   type CoverIconVariants,
 } from '../const';
-import { isUnavailable } from './formatters';
+import { isOffline } from './formatters';
 
 /**
  * Resolve an open/partial/closed variant set against a live position, using the
@@ -111,11 +111,19 @@ export function coverCloseIcon(deviceClass?: string): string {
  *   3. the domain-generic var (`--state-cover-color`)
  *   4. the generic active/inactive var (`--state-active-color` /
  *      `--state-inactive-color`)
- * `closed` is the only "inactive" state; unavailable/unknown/missing short-
- * circuits to `--state-unavailable-color` instead of running the cascade.
+ * `closed` is the only "inactive" state; hard-offline (unavailable/missing,
+ * {@link isOffline}) short-circuits to `--state-unavailable-color` instead of
+ * running the cascade. `unknown` does NOT short-circuit (issue #232): a
+ * no-feedback cover (e.g. an assumed-state RTS/one-way cover) can sit at
+ * `unknown` forever while still fully controllable, so it runs the normal
+ * "active" cascade (`--state-cover-unknown-color, …`) like any other live
+ * state, rather than being painted as if the entity had dropped off HA.
  */
 export function coverStateColor(state: string | null | undefined): string {
-  if (isUnavailable(state) || !state) return 'var(--state-unavailable-color)';
+  // The `|| !state` is redundant with `isOffline` at runtime (it already
+  // treats a missing state as offline) but narrows `state` to `string` for
+  // TypeScript below.
+  if (isOffline(state) || !state) return 'var(--state-unavailable-color)';
   const key = state.toLowerCase();
   const active = key !== 'closed';
   const tier = active ? 'active' : 'inactive';

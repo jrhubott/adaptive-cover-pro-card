@@ -111,18 +111,30 @@ describe('formatters', () => {
       expect(formatCoverState(hass, 'cover.x', 'opening')).toBe('FMT:opening');
     });
 
-    it('returns null for missing entity, missing state, unknown or unavailable', () => {
-      const hass = {
-        states: {
-          'cover.unknown': { state: 'unknown' },
-          'cover.unavailable': { state: 'unavailable' },
-        },
-      };
+    it('returns null for a missing entity id, missing hass, or an entity absent from states', () => {
+      const hass = { states: {} };
       expect(formatCoverState(hass, undefined)).toBeNull();
       expect(formatCoverState(undefined, 'cover.x')).toBeNull();
       expect(formatCoverState(hass, 'cover.missing')).toBeNull();
-      expect(formatCoverState(hass, 'cover.unknown')).toBeNull();
+    });
+
+    it('returns null when the cover is hard-offline (unavailable)', () => {
+      const hass = { states: { 'cover.unavailable': { state: 'unavailable' } } };
       expect(formatCoverState(hass, 'cover.unavailable')).toBeNull();
+    });
+
+    it('formats the raw "unknown" state instead of discarding it (issue #232) — a no-feedback cover (e.g. an assumed-state RTS cover) is still controllable and needs a non-blank readout', () => {
+      const hass = { states: { 'cover.unknown': { state: 'unknown' } } };
+      expect(formatCoverState(hass, 'cover.unknown')).toBe('Unknown');
+    });
+
+    it('applies an override state through "unknown" too, so the transit Opening/Closing text still works for a no-feedback cover (issue #232)', () => {
+      // Before #232 this override was silently discarded whenever the entity
+      // state was `unknown` — the old guard returned null before ever
+      // consulting `overrideState`.
+      const hass = { states: { 'cover.unknown': { state: 'unknown' } } };
+      expect(formatCoverState(hass, 'cover.unknown', 'opening')).toBe('Opening');
+      expect(formatCoverState(hass, 'cover.unknown', 'closing')).toBe('Closing');
     });
   });
 

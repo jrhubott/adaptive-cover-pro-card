@@ -2015,8 +2015,11 @@ describe('adaptive-cover-pro-tile-card unavailable cover (issue #212)', () => {
     el.hass = { ...el.hass! };
     await el.updateComplete;
 
-    const positionCell = el.shadowRoot!.querySelector('.position');
-    expect(positionCell?.textContent ?? '').not.toMatch(/%/);
+    // `.position` only renders in the one-line layout; the default (detailed)
+    // layout this test mounts puts the readout in `.state` instead, so assert
+    // against the element that actually renders here.
+    const stateCell = el.shadowRoot!.querySelector('.state');
+    expect(stateCell?.textContent ?? '').not.toMatch(/%/);
   });
 
   it('renders an "Unavailable" label when the cover is unavailable', async () => {
@@ -2047,13 +2050,21 @@ describe('adaptive-cover-pro-tile-card unavailable cover (issue #212)', () => {
     expect(downBtn(el).disabled).toBe(true);
   });
 
-  it('does not leak a stale position when the cover is unknown', async () => {
+  it("shows the calculated-sensor position (parity with any other no-feedback cover) but never the cover's own stale-looking current_position attribute when unknown", async () => {
+    // Unlike hard-offline, an `unknown` cover (issue #232) is still
+    // controllable, and its live readout should behave like any other
+    // no-feedback cover: the ACP diagnostic (calculated) sensor is a
+    // legitimate fallback. But this entity's OWN current_position attribute
+    // is not trusted while its state itself signals "no confidence" — so the
+    // stale-looking 16 must never surface, even though the calculated
+    // sensor's 42 legitimately does.
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({ coverLeftState: 'unknown', coverLeftCurrentPosition: 16 }),
     );
-    const positionCell = el.shadowRoot!.querySelector('.position');
-    expect(positionCell?.textContent ?? '').not.toMatch(/%/);
+    const stateText = el.shadowRoot!.querySelector('.state')?.textContent ?? '';
+    expect(stateText).not.toContain('16%');
+    expect(stateText).toContain('42%');
   });
 
   it('does not render an "Unavailable" label when the cover is unknown (it stays controllable)', async () => {
@@ -2178,6 +2189,83 @@ describe('adaptive-cover-pro-tile-card unavailable dual-axis cover (issue #212)'
     });
     track.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 80 }));
     expect(callService).toHaveBeenCalled();
+  });
+
+  it('does not trust the raw current_tilt_position attribute, but the diagnostic tilt-target sensor still shows, when the cover is unknown', async () => {
+    // Mirrors the primary-axis fixture: `noLiveData` blocks the raw attribute
+    // (35, set unconditionally by tiltHass) but not the independently-sourced
+    // diagnostic target sensor (70) — same live/diagnostic split as position.
+    const el = await mountTilt(
+      { type: TYPE, entry_id: ENTRY },
+      tiltHass(undefined, { coverLeftState: 'unknown' }),
+    );
+    const tilt = el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
+      actual: number | null;
+      target: number | null;
+    };
+    expect(tilt.actual).toBeNull();
+    expect(tilt.target).toBe(70);
+  });
+});
+
+describe('adaptive-cover-pro-tile-card unknown-state cover renders like any other live cover (issue #232)', () => {
+  const upBtn = (el: CardLike) => el.shadowRoot!.querySelector('button.up') as HTMLButtonElement;
+
+  it('uses the normal cover icon glyph, not the unavailable fallback', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unknown' }),
+    );
+    const icon = el.shadowRoot!.querySelector('ha-icon.cover-icon');
+    expect(icon?.getAttribute('icon')).not.toBe('mdi:help-rhombus-outline');
+    expect(icon?.getAttribute('icon')).toBe('mdi:blinds-horizontal');
+  });
+
+  it('colors the icon with the live (active) cascade, not the unavailable var', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unknown' }),
+    );
+    const icon = el.shadowRoot!.querySelector('ha-icon.cover-icon');
+    expect(icon?.getAttribute('style') ?? '').not.toContain('var(--state-unavailable-color)');
+    expect(icon?.getAttribute('style')).toContain(
+      'var(--state-cover-unknown-color, var(--state-cover-active-color, var(--state-cover-color, var(--state-active-color))))',
+    );
+  });
+
+  it('shows the state text alone, with no percentage, when neither a live nor a calculated position exists', async () => {
+    // No current_position attribute on the cover, and the calculated-sensor
+    // fallback is made non-numeric here too (simulating a no-feedback cover
+    // with no diagnostic estimate available either) — the row must show the
+    // state text, never a blank row or an invented percentage. Set the
+    // non-numeric sensor state before mount (not via a post-mount mutation):
+    // the card skips re-rendering on a `hass` tick that doesn't change any
+    // discovered entity's object identity, so mutating in place afterwards
+    // would silently no-op.
+    const hass = makeHass({ coverLeftState: 'unknown' });
+    (hass.states['sensor.cover_position'] as { state: string }).state = 'unavailable';
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, hass);
+    const stateEl = el.shadowRoot!.querySelector('.state');
+    expect(stateEl?.textContent?.trim()).toBe('Unknown');
+  });
+
+  it('renders "Opening"/"Closing" transit text for a no-feedback cover mid-move even while unknown', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({
+        coverLeftState: 'unknown',
+        coverPositionSensorAttrs: { transit_states: { 'cover.left': 'opening' } },
+      }),
+    );
+    expect(el.shadowRoot!.querySelector('.state')?.textContent).toContain('Opening');
+  });
+
+  it('does not disable ↑ from a stale-looking fully-open current_position attribute — an unknown cover does not trust its own attribute', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unknown', coverLeftCurrentPosition: 100 }),
+    );
+    expect(upBtn(el).disabled).toBe(false);
   });
 });
 

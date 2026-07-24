@@ -338,24 +338,29 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // device_class glyph → integration cover_type → generic fallback.
     const stateObj = cover ? this.hass.states[cover] : undefined;
     const coverDeviceClass = stateObj?.attributes?.device_class as string | undefined;
-    // An offline/unresponsive cover (issue #212): the underlying HA entity is
-    // `unavailable`/`unknown`. Every downstream derivation below (icon,
-    // position, label, controls) must gate on this rather than let the
-    // diagnostic target-position sensor or a stale `current_position`
-    // attribute leak through as if the cover were live.
-    const unavailable = isUnavailable(stateObj?.state);
-    // Narrower than `unavailable` above: `unknown` alone does NOT mean
-    // hard-offline (issue #232) — an assumed-state/one-way cover (e.g. Somfy
-    // RTS) never reports a position and sits at `unknown` forever while still
-    // accepting commands. Only genuine `unavailable`/missing-entity gates the
-    // controllability-facing bits (dim the tile, disable ↑■▼, show the
-    // "Unavailable" label); `unavailable` above stays the broader flag for
-    // "no trustworthy position/state data" (icon fallback, position/tilt
-    // null-gating) where `unknown` legitimately behaves the same as offline.
+    // Two distinct "no live data" concepts (split after issue #232 — a Somfy
+    // RTS-style one-way cover sits at `unknown` forever but is still fully
+    // controllable, so it must render like any other live, no-feedback cover):
+    // - `offline` (narrow — HA `unavailable`/missing only): the entity itself
+    //   is gone. This alone drives total blackout — dim the tile, disable
+    //   every control and the tilt bar, show the "Unavailable" label, use the
+    //   fallback glyph/color, and null out BOTH the live position/tilt AND
+    //   the diagnostic calculated-position/tilt-target sensors (issue #212's
+    //   original concern: neither a stale `current_position` attribute nor an
+    //   always-live diagnostic sensor may leak through as if the cover were
+    //   live).
+    // - `noLiveData` (broad — also true for `unknown`): this entity's OWN
+    //   reported attributes (`current_position`, `current_tilt_position`)
+    //   aren't trustworthy right now, so those raw reads are blocked below.
+    //   It does NOT gate the icon, color, dim class, controls, or the
+    //   independently-sourced ACP diagnostic sensors (calculated position,
+    //   tilt target) — an `unknown` cover shows those exactly like any other
+    //   no-feedback cover.
     const offline = isOffline(stateObj?.state);
+    const noLiveData = isUnavailable(stateObj?.state);
     const icon =
       cfg.icon ??
-      (unavailable
+      (offline
         ? COVER_ICON_FALLBACK_UNAVAILABLE
         : coverStateIcon({
             explicitIcon: stateObj?.attributes?.icon as string | undefined,
@@ -376,8 +381,13 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // `detailed` is the default layout; `one-line` is the compact opt-out.
     const detailed = cfg.layout !== 'one-line';
     const calculatedPosition = this._currentPosition(discovered);
-    const reportedPosition = this._liveCoverPosition(cover);
-    const livePosition = unavailable ? null : (reportedPosition ?? calculatedPosition);
+    // The raw entity attribute is only trusted when this cover's own state
+    // gives us a reason to trust it (`!noLiveData`) — an `unknown` cover does
+    // not get its `current_position` attribute treated as live truth, but the
+    // independently-sourced `calculatedPosition` fallback below still applies,
+    // same as any other no-feedback cover (issue #232).
+    const reportedPosition = noLiveData ? null : this._liveCoverPosition(cover);
+    const livePosition = offline ? null : (reportedPosition ?? calculatedPosition);
     // Data-driven axes: any non-position axis (venetian tilt) drives the mini
     // bar. The detailed layout gets the bar; one-line folds it into the readout.
     // `show_tilt` is reinterpreted as "show non-position axes". On an older
@@ -385,12 +395,16 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // behavior is unchanged.
     const secondaryAxis = resolveAxes(discovered).find((a) => a.id !== 'position');
     const showTilt = cfg.show_tilt !== false && !!secondaryAxis;
-    // Same unavailable gate as `livePosition` above: an offline cover must not
-    // leak a stale `current_tilt_position` attribute or the always-live
-    // diagnostic tilt-target sensor (issue #212 follow-up).
-    const liveTilt = !unavailable && secondaryAxis ? this._liveAxis(cover, secondaryAxis) : null;
+    // liveTilt mirrors reportedPosition above: the raw `current_tilt_position`
+    // attribute is gated on `noLiveData` (not trusted for `unknown` either).
+    // tiltTarget mirrors calculatedPosition: it's the independently-sourced
+    // diagnostic tilt-target sensor, so it's gated only on `offline` — a
+    // genuinely offline cover must not leak a stale attribute or an
+    // always-live diagnostic sensor (issue #212 follow-up), but an `unknown`
+    // cover's live solar tilt target is legitimate to show.
+    const liveTilt = !noLiveData && secondaryAxis ? this._liveAxis(cover, secondaryAxis) : null;
     const tiltTarget =
-      !unavailable && secondaryAxis ? this._axisTarget(discovered, secondaryAxis) : null;
+      !offline && secondaryAxis ? this._axisTarget(discovered, secondaryAxis) : null;
     // When the cover reports its position, disable the control that can't do
     // anything: open (↑) at fully-open, close (↓) at fully-closed. Covers that
     // don't report a position leave both enabled (gate stays on `!cover`).

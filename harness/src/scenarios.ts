@@ -741,38 +741,6 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
-    id: 'cover-unknown-controllable',
-    label: 'Cover state unknown — stays controllable (assumed-state RTS)',
-    description:
-      'Contrast against `cover-unavailable`: an assumed-state/one-way RTS cover (e.g. a Somfy ' +
-      'awning) never reports a position, so its entity state sits permanently at `unknown` — ' +
-      'but unlike a genuinely `unavailable` entity, the integration keeps commanding it ' +
-      'successfully. The tile must NOT dim, must NOT show the "Unavailable" label, and must ' +
-      'keep all three ↑■▼ controls enabled and clickable (issue #232).',
-    added: '2026-07-24',
-    issue: 232,
-    build: () => {
-      const c = baseConfig('2026-06-21', 12 * 60);
-      c.scenario = 'cover-unknown-controllable';
-      c.entries = [
-        makeEntry({
-          entry_id: 'unknown_window',
-          title: 'Unknown-state cover',
-          window_azimuth: 180,
-          covers: [
-            {
-              entity_id: 'cover.unknown_window_main',
-              friendly_name: 'Unknown-state cover',
-              position: null,
-              state: 'unknown',
-            },
-          ],
-        }),
-      ];
-      return c;
-    },
-  },
-  {
     id: 'single-entry-cover-color',
     label: 'Single entry — custom cover color',
     description:
@@ -2025,6 +1993,63 @@ export const SCENARIOS: Scenario[] = [
       f.manual_override = true;
       f.manual_override_minutes_from_now = 45;
       f.held_position = 30;
+      return c;
+    },
+  },
+  {
+    id: 'cover-unknown-controllable',
+    label: 'Cover state unknown — stays controllable (assumed-state RTS)',
+    description:
+      'Contrast against `cover-unavailable`: an assumed-state/one-way RTS cover (e.g. a Somfy ' +
+      'awning) never reports a position, so its entity state sits permanently at `unknown` — ' +
+      'but unlike a genuinely `unavailable` entity, the integration keeps commanding it ' +
+      'successfully. The tile must NOT dim, must NOT show the "Unavailable" label, and must ' +
+      "keep all three ↑■▼ controls enabled and clickable (issue #232). Since #232's follow-up " +
+      'fix it also renders like any other live, no-feedback cover instead of going blank: a ' +
+      'normal cover icon in its normal state color (not the grey "unavailable" glyph/color), and ' +
+      'an "Unknown · 40%" readout — that percentage is the same calculated-sensor fallback any ' +
+      'position-less open/closed cover shows, never an invented or stale value. A second, ' +
+      'dual-axis venetian entry proves the same gate covers the tilt axis: its mini tilt bar ' +
+      'stays enabled and clickable, with no live "actual" fill (the raw current_tilt_position ' +
+      'attribute is not trusted for an unknown-state cover) while the solar tilt-target tick ' +
+      'still shows.',
+    added: '2026-07-24',
+    issue: 232,
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'cover-unknown-controllable';
+      c.entries = [
+        makeEntry({
+          entry_id: 'unknown_window',
+          title: 'Unknown-state cover',
+          window_azimuth: 180,
+          covers: [
+            {
+              entity_id: 'cover.unknown_window_main',
+              friendly_name: 'Unknown-state cover',
+              position: null,
+              state: 'unknown',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'unknown_venetian_window',
+          title: 'Unknown-state venetian',
+          cover_type: 'cover_venetian',
+          window_azimuth: 180,
+          color: '#26a69a',
+          target_tilt: 70,
+          covers: [
+            {
+              entity_id: 'cover.unknown_venetian_window_main',
+              friendly_name: 'Unknown-state venetian',
+              position: null,
+              tilt: 35,
+              state: 'unknown',
+            },
+          ],
+        }),
+      ];
       return c;
     },
   },

@@ -34,15 +34,24 @@ export function isOffline(state: string | null | undefined): boolean {
 }
 
 /**
- * Localized cover state ("Open", "Closed", "Opening", …). Returns null when
- * the entity is missing or has no state. Prefers `hass.formatEntityState`
- * (modern HA frontend), falls back to `hass.localize` with the standard
- * cover state translation key, and finally to a capitalized raw state.
+ * Localized cover state ("Open", "Closed", "Opening", "Unknown", …). Returns
+ * null only when the entity is missing or hard-offline ({@link isOffline}).
+ * Prefers `hass.formatEntityState` (modern HA frontend), falls back to
+ * `hass.localize` with the standard cover state translation key, and finally
+ * to a capitalized raw state.
+ *
+ * Unlike {@link isUnavailable}, this does NOT short-circuit on `unknown`
+ * (issue #232): an assumed-state/one-way cover (e.g. Somfy RTS) sits at
+ * `unknown` forever while still fully controllable, and the tile needs a
+ * non-blank readout for it — "Unknown" absent an override, or the transit
+ * direction below when mid-move.
  *
  * `overrideState` substitutes the state to localize while keeping the entity's
- * attributes/context — no-feedback covers report a final `open`/`closed` state
- * mid-move, so the transit direction is passed here to render "Opening"/
- * "Closing" the same way a real position cover does.
+ * attributes/context — no-feedback covers report a final `open`/`closed`/
+ * `unknown` state mid-move, so the transit direction is passed here to render
+ * "Opening"/"Closing" the same way a real position cover does. Before #232
+ * this override was silently discarded whenever the entity state was
+ * `unknown`, since the old guard returned null before ever looking at it.
  */
 export function formatCoverState(
   hass: HassLike | undefined,
@@ -51,7 +60,7 @@ export function formatCoverState(
 ): string | null {
   if (!hass || !entityId) return null;
   const stateObj = hass.states[entityId];
-  if (!stateObj || isUnavailable(stateObj.state)) {
+  if (!stateObj || isOffline(stateObj.state)) {
     return null;
   }
   const effective = overrideState ? { ...stateObj, state: overrideState } : stateObj;

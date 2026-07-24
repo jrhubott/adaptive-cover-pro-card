@@ -203,8 +203,10 @@ describe('coverStateColor', () => {
   it('unavailable resolves to the unavailable var', () => {
     expect(coverStateColor('unavailable')).toBe('var(--state-unavailable-color)');
   });
-  it('unknown resolves to the unavailable var', () => {
-    expect(coverStateColor('unknown')).toBe('var(--state-unavailable-color)');
+  it('unknown resolves to the live (active) cascade, not the unavailable var — a no-feedback cover (e.g. an assumed-state RTS cover) is still controllable (issue #232)', () => {
+    expect(coverStateColor('unknown')).toBe(
+      'var(--state-cover-unknown-color, var(--state-cover-active-color, var(--state-cover-color, var(--state-active-color))))',
+    );
   });
   it('undefined resolves to the unavailable var', () => {
     expect(coverStateColor(undefined)).toBe('var(--state-unavailable-color)');
