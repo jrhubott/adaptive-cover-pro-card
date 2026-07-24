@@ -741,6 +741,38 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'cover-unknown-controllable',
+    label: 'Cover state unknown — stays controllable (assumed-state RTS)',
+    description:
+      'Contrast against `cover-unavailable`: an assumed-state/one-way RTS cover (e.g. a Somfy ' +
+      'awning) never reports a position, so its entity state sits permanently at `unknown` — ' +
+      'but unlike a genuinely `unavailable` entity, the integration keeps commanding it ' +
+      'successfully. The tile must NOT dim, must NOT show the "Unavailable" label, and must ' +
+      'keep all three ↑■▼ controls enabled and clickable (issue #232).',
+    added: '2026-07-24',
+    issue: 232,
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'cover-unknown-controllable';
+      c.entries = [
+        makeEntry({
+          entry_id: 'unknown_window',
+          title: 'Unknown-state cover',
+          window_azimuth: 180,
+          covers: [
+            {
+              entity_id: 'cover.unknown_window_main',
+              friendly_name: 'Unknown-state cover',
+              position: null,
+              state: 'unknown',
+            },
+          ],
+        }),
+      ];
+      return c;
+    },
+  },
+  {
     id: 'single-entry-cover-color',
     label: 'Single entry — custom cover color',
     description:

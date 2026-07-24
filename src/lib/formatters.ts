@@ -22,6 +22,18 @@ export function isUnavailable(state: string | null | undefined): boolean {
 }
 
 /**
+ * True only for a hard-offline entity — HA's `unavailable` sentinel, or a
+ * missing state entirely. Unlike {@link isUnavailable}, this does NOT treat
+ * `unknown` as offline: a cover reporting `unknown` (e.g. an assumed-state
+ * RTS/one-way cover that never reports a position) is still reachable and
+ * accepts commands, so it must not be dimmed/disabled/mislabeled as if the
+ * entity itself had dropped off HA (issue #232).
+ */
+export function isOffline(state: string | null | undefined): boolean {
+  return !state || state === 'unavailable';
+}
+
+/**
  * Localized cover state ("Open", "Closed", "Opening", …). Returns null when
  * the entity is missing or has no state. Prefers `hass.formatEntityState`
  * (modern HA frontend), falls back to `hass.localize` with the standard

@@ -2056,32 +2056,32 @@ describe('adaptive-cover-pro-tile-card unavailable cover (issue #212)', () => {
     expect(positionCell?.textContent ?? '').not.toMatch(/%/);
   });
 
-  it('renders an "Unavailable" label when the cover is unknown', async () => {
+  it('does not render an "Unavailable" label when the cover is unknown (it stays controllable)', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({ coverLeftState: 'unknown' }),
     );
-    expect(el.shadowRoot!.textContent).toContain('Unavailable');
+    expect(el.shadowRoot!.textContent).not.toContain('Unavailable');
   });
 
-  it('adds the unavailable class to .tile-body when the cover is unknown', async () => {
+  it('does not add the unavailable class to .tile-body when the cover is unknown', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({ coverLeftState: 'unknown' }),
     );
     expect(el.shadowRoot!.querySelector('.tile-body')?.classList.contains('unavailable')).toBe(
-      true,
+      false,
     );
   });
 
-  it('disables all three controls when the cover is unknown', async () => {
+  it('keeps all three controls enabled when the cover is unknown', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({ coverLeftState: 'unknown' }),
     );
-    expect(upBtn(el).disabled).toBe(true);
-    expect(stopBtn(el).disabled).toBe(true);
-    expect(downBtn(el).disabled).toBe(true);
+    expect(upBtn(el).disabled).toBe(false);
+    expect(stopBtn(el).disabled).toBe(false);
+    expect(downBtn(el).disabled).toBe(false);
   });
 
   it('regression (#73/#74): still shows the live cover position, not the calculated sensor value, when the cover IS available', async () => {
@@ -2157,6 +2157,27 @@ describe('adaptive-cover-pro-tile-card unavailable dual-axis cover (issue #212)'
       tiltHass(undefined, { coverLeftState: 'unavailable' }),
     );
     expect(el.shadowRoot!.textContent ?? '').not.toContain('⟂');
+  });
+
+  it('keeps the tilt bar enabled and clickable when the cover is unknown', async () => {
+    const callService = vi.fn();
+    const el = await mountTilt(
+      { type: TYPE, entry_id: ENTRY },
+      tiltHass(callService, { coverLeftState: 'unknown' }),
+    );
+    const tiltBar = el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
+      disabled: boolean;
+      updateComplete: Promise<boolean>;
+    };
+    expect(tiltBar.disabled).toBe(false);
+    await tiltBar.updateComplete;
+    const track = tiltBar.shadowRoot!.querySelector('.track') as HTMLElement;
+    Object.defineProperty(track, 'getBoundingClientRect', {
+      value: () => ({ left: 0, width: 100, top: 0, bottom: 8, right: 100, height: 8 }),
+      configurable: true,
+    });
+    track.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 80 }));
+    expect(callService).toHaveBeenCalled();
   });
 });
 

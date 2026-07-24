@@ -8,6 +8,7 @@ import {
   formatCoverState,
   nextAllowedIso,
   isUnavailable,
+  isOffline,
 } from '../src/lib/formatters';
 
 describe('formatters', () => {
@@ -145,6 +146,27 @@ describe('formatters', () => {
       expect(isUnavailable(undefined)).toBe(true);
       expect(isUnavailable(null)).toBe(true);
       expect(isUnavailable('')).toBe(true);
+    });
+  });
+
+  describe('isOffline', () => {
+    it('is true for "unavailable"', () => {
+      expect(isOffline('unavailable')).toBe(true);
+    });
+
+    it('treats a missing state as offline', () => {
+      expect(isOffline(undefined)).toBe(true);
+      expect(isOffline(null)).toBe(true);
+      expect(isOffline('')).toBe(true);
+    });
+
+    it('is false for "unknown" — a no-feedback cover is still controllable', () => {
+      expect(isOffline('unknown')).toBe(false);
+    });
+
+    it('is false for real cover states', () => {
+      expect(isOffline('open')).toBe(false);
+      expect(isOffline('closed')).toBe(false);
     });
   });
 

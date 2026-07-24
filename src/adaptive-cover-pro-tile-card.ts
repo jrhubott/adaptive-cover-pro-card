@@ -49,7 +49,7 @@ import {
   resolveTileBadgeKind,
   selectVisibleBadges,
 } from './lib/badge-visibility';
-import { formatCoverState, formatPercent, isUnavailable } from './lib/formatters';
+import { formatCoverState, formatPercent, isUnavailable, isOffline } from './lib/formatters';
 import { t } from './lib/i18n';
 import { tooltip, setTooltipDefaults } from './lib/tooltip';
 
@@ -344,6 +344,15 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // diagnostic target-position sensor or a stale `current_position`
     // attribute leak through as if the cover were live.
     const unavailable = isUnavailable(stateObj?.state);
+    // Narrower than `unavailable` above: `unknown` alone does NOT mean
+    // hard-offline (issue #232) — an assumed-state/one-way cover (e.g. Somfy
+    // RTS) never reports a position and sits at `unknown` forever while still
+    // accepting commands. Only genuine `unavailable`/missing-entity gates the
+    // controllability-facing bits (dim the tile, disable ↑■▼, show the
+    // "Unavailable" label); `unavailable` above stays the broader flag for
+    // "no trustworthy position/state data" (icon fallback, position/tilt
+    // null-gating) where `unknown` legitimately behaves the same as offline.
+    const offline = isOffline(stateObj?.state);
     const icon =
       cfg.icon ??
       (unavailable
@@ -445,7 +454,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // localized "Opening"/"Closing" state text a real position cover shows, by
     // overriding the entity's (final open/closed) state in the readout.
     const transitDir = this._transitState(discovered);
-    const stateText = unavailable
+    const stateText = offline
       ? t('tile.unavailable', this.hass)
       : showState
         ? formatCoverState(this.hass, cover, transitDir ?? undefined)
@@ -568,7 +577,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
     return html`
       <div
-        class=${`tile-body${detailed ? ' detailed' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip && !detailed ? ' has-floor-chip' : ''}${showTilt && detailed ? ' has-tilt' : ''}${hasChromeRow ? ' has-chrome-row' : ''}${barOnly ? ' bar-only' : ''}${unavailable ? ' unavailable' : ''}`}
+        class=${`tile-body${detailed ? ' detailed' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip && !detailed ? ' has-floor-chip' : ''}${showTilt && detailed ? ' has-tilt' : ''}${hasChromeRow ? ' has-chrome-row' : ''}${barOnly ? ' bar-only' : ''}${offline ? ' unavailable' : ''}`}
         role=${inert ? 'group' : 'button'}
         tabindex=${inert ? -1 : 0}
         @pointerdown=${this._onPointerDown}
@@ -617,7 +626,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 .unit=${secondaryAxis?.unit ?? '%'}
                 .actual=${liveTilt}
                 .target=${tiltTarget}
-                .disabled=${unavailable}
+                .disabled=${offline}
                 @acp-tilt-set=${(e: CustomEvent<number>) =>
                   secondaryAxis && this._setAxis(cover, secondaryAxis.id, e.detail)}
               ></acp-tilt-bar>
@@ -629,7 +638,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 class="up"
                 type="button"
                 aria-label=${t('tile.open', this.hass)}
-                ?disabled=${!cover || unavailable || atOpen}
+                ?disabled=${!cover || offline || atOpen}
                 @click=${() => this._setCoverPosition(cover, 100)}
               >
                 <ha-icon icon=${coverOpenIcon(coverDeviceClass)}></ha-icon>
@@ -638,7 +647,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 class="stop"
                 type="button"
                 aria-label=${t('tile.stop', this.hass)}
-                ?disabled=${!cover || unavailable}
+                ?disabled=${!cover || offline}
                 @click=${() => this._stopCover(cover)}
               >
                 <ha-icon icon="mdi:stop"></ha-icon>
@@ -647,7 +656,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 class="down"
                 type="button"
                 aria-label=${t('tile.close', this.hass)}
-                ?disabled=${!cover || unavailable || atClosed}
+                ?disabled=${!cover || offline || atClosed}
                 @click=${() => this._setCoverPosition(cover, 0)}
               >
                 <ha-icon icon=${coverCloseIcon(coverDeviceClass)}></ha-icon>
