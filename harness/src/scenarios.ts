@@ -2006,7 +2006,9 @@ export const SCENARIOS: Scenario[] = [
       'successfully. The tile must NOT dim, must NOT show the "Unavailable" label, and must ' +
       "keep all three ↑■▼ controls enabled and clickable (issue #232). Since #232's follow-up " +
       'fix it also renders like any other live, no-feedback cover instead of going blank: a ' +
-      'normal cover icon in its normal state color (not the grey "unavailable" glyph/color), and ' +
+      'normal cover icon, colored with the same inactive-tier state color HA paints a `closed` ' +
+      'cover with (not the amber "active" tint, and not the grey "unavailable" glyph/color — ' +
+      'matching native HA, which treats `unknown` as inactive, never active), and ' +
       'an "Unknown · 40%" readout — that percentage is the same calculated-sensor fallback any ' +
       'position-less open/closed cover shows, never an invented or stale value. A second, ' +
       'dual-axis venetian entry proves the same gate covers the tilt axis: its mini tilt bar ' +

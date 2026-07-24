@@ -111,13 +111,16 @@ export function coverCloseIcon(deviceClass?: string): string {
  *   3. the domain-generic var (`--state-cover-color`)
  *   4. the generic active/inactive var (`--state-active-color` /
  *      `--state-inactive-color`)
- * `closed` is the only "inactive" state; hard-offline (unavailable/missing,
- * {@link isOffline}) short-circuits to `--state-unavailable-color` instead of
- * running the cascade. `unknown` does NOT short-circuit (issue #232): a
- * no-feedback cover (e.g. an assumed-state RTS/one-way cover) can sit at
- * `unknown` forever while still fully controllable, so it runs the normal
- * "active" cascade (`--state-cover-unknown-color, …`) like any other live
- * state, rather than being painted as if the entity had dropped off HA.
+ * `closed` and `unknown` are the "inactive" states; hard-offline
+ * (unavailable/missing, {@link isOffline}) short-circuits to
+ * `--state-unavailable-color` instead of running the cascade. `unknown` does
+ * NOT short-circuit (issue #232): a no-feedback cover (e.g. an assumed-state
+ * RTS/one-way cover) can sit at `unknown` forever while still fully
+ * controllable, so it runs the normal cascade (`--state-cover-unknown-color,
+ * …`) like any other live state, rather than being painted as if the entity
+ * had dropped off HA. It lands in the inactive tier, though, mirroring
+ * home-assistant-frontend's `stateActive()` (`UNAVAILABLE`/`UNKNOWN` both
+ * return `false`) — an unknown cover reads as grey/off, not amber/on.
  */
 export function coverStateColor(state: string | null | undefined): string {
   // The `|| !state` is redundant with `isOffline` at runtime (it already
@@ -125,7 +128,7 @@ export function coverStateColor(state: string | null | undefined): string {
   // TypeScript below.
   if (isOffline(state) || !state) return 'var(--state-unavailable-color)';
   const key = state.toLowerCase();
-  const active = key !== 'closed';
+  const active = key !== 'closed' && key !== 'unknown';
   const tier = active ? 'active' : 'inactive';
   return (
     `var(--state-cover-${key}-color, ` +

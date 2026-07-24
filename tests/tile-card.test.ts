@@ -2010,9 +2010,26 @@ describe('adaptive-cover-pro-tile-card unavailable cover (issue #212)', () => {
       { type: TYPE, entry_id: ENTRY },
       makeHass({ coverLeftState: 'unavailable', coverLeftCurrentPosition: 16 }),
     );
-    // Simulate the diagnostic sensor staying live/stale at a divergent value.
-    (el.hass!.states['sensor.cover_position'] as { state: string }).state = '100';
-    el.hass = { ...el.hass! };
+    // Simulate the diagnostic sensor staying live/stale at a divergent value
+    // on a LATER `hass` tick (not just at mount time). This must swap in a
+    // fresh `sensor.cover_position` object and a fresh top-level `hass` +
+    // `states` object — mutating the existing sensor object in place would
+    // leave its reference identity unchanged, and `shouldUpdate`
+    // (src/adaptive-cover-pro-tile-card.ts) skips re-rendering via
+    // `entityStateChanged` (src/lib/hass-change.ts) whenever none of the
+    // discovered entities' object identities changed, silently leaving this
+    // assertion checking the mount-time DOM instead of the poked value.
+    const oldHass = el.hass!;
+    el.hass = {
+      ...oldHass,
+      states: {
+        ...oldHass.states,
+        'sensor.cover_position': {
+          ...(oldHass.states['sensor.cover_position'] as { state: string }),
+          state: '100',
+        },
+      },
+    } as unknown as HomeAssistant;
     await el.updateComplete;
 
     // `.position` only renders in the one-line layout; the default (detailed)
@@ -2221,7 +2238,7 @@ describe('adaptive-cover-pro-tile-card unknown-state cover renders like any othe
     expect(icon?.getAttribute('icon')).toBe('mdi:blinds-horizontal');
   });
 
-  it('colors the icon with the live (active) cascade, not the unavailable var', async () => {
+  it('colors the icon with the live (inactive-tier) cascade, not the unavailable var — matches native HA, which paints an unknown cover as inactive/grey rather than active/on', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({ coverLeftState: 'unknown' }),
@@ -2229,7 +2246,7 @@ describe('adaptive-cover-pro-tile-card unknown-state cover renders like any othe
     const icon = el.shadowRoot!.querySelector('ha-icon.cover-icon');
     expect(icon?.getAttribute('style') ?? '').not.toContain('var(--state-unavailable-color)');
     expect(icon?.getAttribute('style')).toContain(
-      'var(--state-cover-unknown-color, var(--state-cover-active-color, var(--state-cover-color, var(--state-active-color))))',
+      'var(--state-cover-unknown-color, var(--state-cover-inactive-color, var(--state-cover-color, var(--state-inactive-color))))',
     );
   });
 
@@ -2266,6 +2283,30 @@ describe('adaptive-cover-pro-tile-card unknown-state cover renders like any othe
       makeHass({ coverLeftState: 'unknown', coverLeftCurrentPosition: 100 }),
     );
     expect(upBtn(el).disabled).toBe(false);
+  });
+
+  it('does not let a leftover stale current_position attribute drive the icon glyph — the glyph follows the same gated position as the readout/bar', async () => {
+    // Same untrusted-attribute rule as the readout and the button-disable
+    // gating above must also apply to the icon glyph. A HA restart can leave
+    // a stale `current_position` attribute in place while the state is still
+    // `unknown`; the glyph must reflect the gated position (here, the
+    // calculated-sensor fallback of 42 → the "partial" variant), never the
+    // raw attribute's fully-closed or fully-open variant.
+    const closedLeftover = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unknown', coverLeftCurrentPosition: 0 }),
+    );
+    const closedIcon = closedLeftover.shadowRoot!.querySelector('ha-icon.cover-icon');
+    expect(closedIcon?.getAttribute('icon')).not.toBe('mdi:blinds-horizontal-closed');
+    expect(closedIcon?.getAttribute('icon')).toBe('mdi:blinds-horizontal');
+
+    const openLeftover = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unknown', coverLeftCurrentPosition: 100 }),
+    );
+    const openIcon = openLeftover.shadowRoot!.querySelector('ha-icon.cover-icon');
+    expect(openIcon?.getAttribute('icon')).not.toBe('mdi:blinds-open');
+    expect(openIcon?.getAttribute('icon')).toBe('mdi:blinds-horizontal');
   });
 });
 

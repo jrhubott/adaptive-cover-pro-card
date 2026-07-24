@@ -358,6 +358,14 @@ export class AdaptiveCoverProTileCard extends LitElement {
     //   no-feedback cover.
     const offline = isOffline(stateObj?.state);
     const noLiveData = isUnavailable(stateObj?.state);
+    const calculatedPosition = this._currentPosition(discovered);
+    // The raw entity attribute is only trusted when this cover's own state
+    // gives us a reason to trust it (`!noLiveData`) — an `unknown` cover does
+    // not get its `current_position` attribute treated as live truth, but the
+    // independently-sourced `calculatedPosition` fallback below still applies,
+    // same as any other no-feedback cover (issue #232).
+    const reportedPosition = noLiveData ? null : this._liveCoverPosition(cover);
+    const livePosition = offline ? null : (reportedPosition ?? calculatedPosition);
     const icon =
       cfg.icon ??
       (offline
@@ -366,7 +374,12 @@ export class AdaptiveCoverProTileCard extends LitElement {
             explicitIcon: stateObj?.attributes?.icon as string | undefined,
             deviceClass: coverDeviceClass,
             coverType: discovered.cover_type,
-            position: this._liveCoverPosition(cover),
+            // Gated, not the raw attribute (issue #232 follow-up): the glyph
+            // must agree with the readout/position bar below, both of which
+            // derive from `livePosition` — a leftover stale `current_position`
+            // attribute on an `unknown` cover must not paint a fully-open/
+            // fully-closed variant that the rest of the tile disagrees with.
+            position: livePosition,
           }));
     const iconColor = cfg.state_color !== false ? coverStateColor(stateObj?.state) : null;
     const showPosition = cfg.show_position !== false;
@@ -380,14 +393,6 @@ export class AdaptiveCoverProTileCard extends LitElement {
         : t('tile.motion_detected', this.hass);
     // `detailed` is the default layout; `one-line` is the compact opt-out.
     const detailed = cfg.layout !== 'one-line';
-    const calculatedPosition = this._currentPosition(discovered);
-    // The raw entity attribute is only trusted when this cover's own state
-    // gives us a reason to trust it (`!noLiveData`) — an `unknown` cover does
-    // not get its `current_position` attribute treated as live truth, but the
-    // independently-sourced `calculatedPosition` fallback below still applies,
-    // same as any other no-feedback cover (issue #232).
-    const reportedPosition = noLiveData ? null : this._liveCoverPosition(cover);
-    const livePosition = offline ? null : (reportedPosition ?? calculatedPosition);
     // Data-driven axes: any non-position axis (venetian tilt) drives the mini
     // bar. The detailed layout gets the bar; one-line folds it into the readout.
     // `show_tilt` is reinterpreted as "show non-position axes". On an older
