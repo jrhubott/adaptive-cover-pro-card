@@ -5,6 +5,8 @@ import { INTEGRATION_DOMAIN } from '../src/const';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities } from '../src/types';
 import type { CSSResult } from 'lit';
+import { t } from '../src/lib/i18n';
+import { formatPercent } from '../src/lib/formatters';
 
 interface CoverBarLike extends HTMLElement {
   updateComplete: Promise<boolean>;
@@ -826,5 +828,214 @@ describe('acp-cover-bar cover name opens more-info', () => {
     // Regression guard: the track still drives set-position and never opens the dialog.
     expect(spy).not.toHaveBeenCalled();
     expect(callService).toHaveBeenCalled();
+  });
+});
+
+describe('acp-cover-bar position slider — issue #231', () => {
+  function stubRect(track: HTMLElement): void {
+    Object.defineProperty(track, 'getBoundingClientRect', {
+      value: () => ({ left: 0, width: 100, top: 0, bottom: 10, right: 100, height: 10 }),
+      configurable: true,
+    });
+  }
+
+  function singleCoverHass(actual: number, callService = vi.fn()): HomeAssistant {
+    return {
+      states: {
+        'sensor.cover_position': {
+          state: String(actual),
+          attributes: { actual_positions: { 'cover.a': actual } },
+        },
+        'cover.a': { state: 'open', attributes: { friendly_name: 'Cover A' } },
+      },
+      callService,
+    } as unknown as HomeAssistant;
+  }
+
+  const discovered: DiscoveredEntities = {
+    ...baseDiscovered,
+    entities: { target_position_sensor: 'sensor.cover_position' },
+  };
+
+  async function mount(hass: HomeAssistant): Promise<CoverBarLike> {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    document.body.appendChild(el);
+    el.hass = hass;
+    el.discovered = discovered;
+    await el.updateComplete;
+    return el;
+  }
+
+  it('renders .track as an accessible slider with aria-valuenow matching the actual percent', async () => {
+    const el = await mount(singleCoverHass(42));
+    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    expect(track.getAttribute('role')).toBe('slider');
+    expect(track.getAttribute('tabindex')).toBe('0');
+    expect(track.getAttribute('aria-valuemin')).toBe('0');
+    expect(track.getAttribute('aria-valuemax')).toBe('100');
+    expect(track.getAttribute('aria-valuenow')).toBe('42');
+    expect(track.getAttribute('aria-valuetext')).toBe(formatPercent(42));
+    expect(track.getAttribute('aria-label')).toBe(t('covers.position_slider_label', el.hass));
+  });
+
+  it('previews a live percentage on .num/.fill while dragging, without committing', async () => {
+    const callService = vi.fn();
+    const el = await mount(singleCoverHass(20, callService));
+    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    stubRect(track);
+
+    track.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, clientX: 20, pointerId: 1 }),
+    );
+    track.dispatchEvent(
+      new PointerEvent('pointermove', { bubbles: true, clientX: 80, pointerId: 1 }),
+    );
+    await el.updateComplete;
+
+    const num = el.shadowRoot!.querySelector('.num')!;
+    expect(num.textContent).toContain('80');
+    const fill = el.shadowRoot!.querySelector('.fill') as HTMLElement;
+    expect(fill.style.width).toBe('80%');
+    expect(callService).not.toHaveBeenCalled();
+  });
+
+  it('commits the final dragged value exactly once via the trailing click', async () => {
+    const callService = vi.fn();
+    const el = await mount(singleCoverHass(20, callService));
+    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    stubRect(track);
+
+    track.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, clientX: 20, pointerId: 1 }),
+    );
+    track.dispatchEvent(
+      new PointerEvent('pointermove', { bubbles: true, clientX: 80, pointerId: 1 }),
+    );
+    track.dispatchEvent(
+      new PointerEvent('pointerup', { bubbles: true, clientX: 80, pointerId: 1 }),
+    );
+    // A real browser fires a trailing compatibility `click` at the release point.
+    track.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 80 }));
+    await el.updateComplete;
+
+    expect(callService).toHaveBeenCalledTimes(1);
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_position',
+      { position: 80 },
+      { entity_id: 'cover.a' },
+    );
+  });
+
+  it('reverts the preview and does not commit on pointercancel', async () => {
+    const callService = vi.fn();
+    const el = await mount(singleCoverHass(20, callService));
+    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    stubRect(track);
+
+    track.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, clientX: 20, pointerId: 1 }),
+    );
+    track.dispatchEvent(
+      new PointerEvent('pointermove', { bubbles: true, clientX: 80, pointerId: 1 }),
+    );
+    track.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 1 }));
+    await el.updateComplete;
+
+    expect(callService).not.toHaveBeenCalled();
+    const num = el.shadowRoot!.querySelector('.num')!;
+    expect(num.textContent).toContain('20');
+    const fill = el.shadowRoot!.querySelector('.fill') as HTMLElement;
+    expect(fill.style.width).toBe('20%');
+  });
+
+  it.each([
+    ['ArrowRight', 51],
+    ['ArrowUp', 51],
+    ['ArrowLeft', 49],
+    ['ArrowDown', 49],
+    ['PageUp', 60],
+    ['PageDown', 40],
+    ['Home', 0],
+    ['End', 100],
+  ])('keydown %s from actual=50 calls set_position with %d', async (key, expected) => {
+    const callService = vi.fn();
+    const el = await mount(singleCoverHass(50, callService));
+    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+
+    track.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_position',
+      { position: expected },
+      { entity_id: 'cover.a' },
+    );
+  });
+
+  it('clamps PageUp at 100 near the top of the range', async () => {
+    const callService = vi.fn();
+    const el = await mount(singleCoverHass(95, callService));
+    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    track.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageUp', bubbles: true }));
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_position',
+      { position: 100 },
+      { entity_id: 'cover.a' },
+    );
+  });
+
+  it('clamps PageDown at 0 near the bottom of the range', async () => {
+    const callService = vi.fn();
+    const el = await mount(singleCoverHass(5, callService));
+    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    track.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown', bubbles: true }));
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_position',
+      { position: 0 },
+      { entity_id: 'cover.a' },
+    );
+  });
+
+  it('drags only the targeted cover row — the other cover renders unaffected', async () => {
+    const callService = vi.fn();
+    const el = await mount({
+      states: {
+        'sensor.cover_position': {
+          state: '20',
+          attributes: { actual_positions: { 'cover.a': 20, 'cover.b': 70 } },
+        },
+        'cover.a': { state: 'open', attributes: { friendly_name: 'Cover A' } },
+        'cover.b': { state: 'open', attributes: { friendly_name: 'Cover B' } },
+      },
+      callService,
+    } as unknown as HomeAssistant);
+
+    const tracks = el.shadowRoot!.querySelectorAll('.track');
+    const nums = el.shadowRoot!.querySelectorAll('.num');
+    expect(tracks.length).toBe(2);
+    const trackA = tracks[0] as HTMLElement;
+    stubRect(trackA);
+
+    trackA.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, clientX: 20, pointerId: 1 }),
+    );
+    trackA.dispatchEvent(
+      new PointerEvent('pointermove', { bubbles: true, clientX: 90, pointerId: 1 }),
+    );
+    await el.updateComplete;
+
+    expect(nums[0].textContent).toContain('90');
+    expect(nums[1].textContent).toContain('70');
+    const fillB = el.shadowRoot!.querySelectorAll('.fill')[1] as HTMLElement;
+    expect(fillB.style.width).toBe('70%');
+    expect(callService).not.toHaveBeenCalled();
+  });
+
+  it('adds touch-action: none to .track so a touch drag does not fight page scroll', () => {
+    const styles = (CoverBar as unknown as { styles: CSSResult }).styles.cssText;
+    expect(styles).toMatch(/\.track\s*{[^}]*touch-action:\s*none/);
   });
 });

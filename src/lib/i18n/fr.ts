@@ -184,6 +184,7 @@ export const fr: EnDict = {
     target: 'Cible : {pct}',
     target_solar: 'Cible solaire : {pct}',
     click_to_set: 'Cliquer pour définir la position',
+    position_slider_label: 'Curseur de position du store',
     opening: 'Ouverture…',
     closing: 'Fermeture…',
     target_tooltip: 'Cible {pct}%',

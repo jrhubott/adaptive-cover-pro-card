@@ -174,6 +174,7 @@ export const en = {
     target: 'Target: {pct}',
     target_solar: 'Solar target: {pct}',
     click_to_set: 'Click to set position',
+    position_slider_label: 'Cover position slider',
     opening: 'Opening…',
     closing: 'Closing…',
     target_tooltip: 'Target {pct}%',
