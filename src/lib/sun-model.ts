@@ -237,6 +237,45 @@ function _phaseName(p: number): string {
   return 'Waning Crescent';
 }
 
+/** A future solar event as a `{kind, t}` pair — the shape the override-preset
+ *  builder (#229) consumes, deliberately matching `ForecastEvent`'s `kind`/`t`
+ *  fields so integration-sourced and locally-computed presets interleave. */
+export interface SolarEvent {
+  kind: 'sunrise' | 'sunset';
+  /** ISO-8601, always offset-bearing. */
+  t: string;
+}
+
+/**
+ * The next sunrise and sunset strictly after `fromMs`, ascending.
+ *
+ * Scans today and tomorrow (relative to `fromMs`) so a call made after today's
+ * sunset still finds tomorrow's pair. Entries SunCalc cannot resolve — polar day
+ * or polar night, where it yields `Invalid Date` — are dropped rather than
+ * emitted as `"Invalid Date"` strings, so high-latitude callers get a shorter
+ * list instead of unusable presets.
+ *
+ * Distinct from {@link sunriseSetAzimuths}, which returns *azimuths* derived from
+ * sampled horizon crossings and is not reusable for times.
+ */
+export function nextSolarEvents(latitude: number, longitude: number, fromMs: number): SolarEvent[] {
+  const events: SolarEvent[] = [];
+  for (let dayOffset = 0; dayOffset <= 1; dayOffset++) {
+    const day = new Date(fromMs + dayOffset * 24 * 60 * 60 * 1000);
+    const times = SunCalc.getTimes(day, latitude, longitude);
+    for (const [kind, d] of [
+      ['sunrise', times.sunrise],
+      ['sunset', times.sunset],
+    ] as Array<[SolarEvent['kind'], Date]>) {
+      if (!d || Number.isNaN(d.getTime())) continue;
+      if (d.getTime() <= fromMs) continue;
+      if (events.some((e) => e.kind === kind)) continue;
+      events.push({ kind, t: d.toISOString() });
+    }
+  }
+  return events.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
+}
+
 /**
  * Return the compass azimuths of sunrise and sunset, detected as the actual
  * horizon crossings within the sampled day: rise is the first below→above

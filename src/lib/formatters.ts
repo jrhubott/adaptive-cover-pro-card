@@ -16,21 +16,47 @@ interface HassLike {
  * True when a state string signals the entity has no usable data — HA's
  * `unavailable`/`unknown` sentinels, or a missing state entirely (treated the
  * same way, since a missing entity is functionally the same signal).
+ *
+ * This is broader than hard-offline: see {@link isOffline} for the narrower,
+ * `unavailable`/missing-only predicate that gates the tile card's total
+ * blackout treatment (dimming, disabled controls, "Unavailable" label) —
+ * `unknown` alone must not trigger that (issue #232).
  */
 export function isUnavailable(state: string | null | undefined): boolean {
   return !state || state === 'unavailable' || state === 'unknown';
 }
 
 /**
- * Localized cover state ("Open", "Closed", "Opening", …). Returns null when
- * the entity is missing or has no state. Prefers `hass.formatEntityState`
- * (modern HA frontend), falls back to `hass.localize` with the standard
- * cover state translation key, and finally to a capitalized raw state.
+ * True only for a hard-offline entity — HA's `unavailable` sentinel, or a
+ * missing state entirely. Unlike {@link isUnavailable}, this does NOT treat
+ * `unknown` as offline: a cover reporting `unknown` (e.g. an assumed-state
+ * RTS/one-way cover that never reports a position) is still reachable and
+ * accepts commands, so it must not be dimmed/disabled/mislabeled as if the
+ * entity itself had dropped off HA (issue #232).
+ */
+export function isOffline(state: string | null | undefined): boolean {
+  return !state || state === 'unavailable';
+}
+
+/**
+ * Localized cover state ("Open", "Closed", "Opening", "Unknown", …). Returns
+ * null only when the entity is missing or hard-offline ({@link isOffline}).
+ * Prefers `hass.formatEntityState` (modern HA frontend), falls back to
+ * `hass.localize` with the standard cover state translation key, and finally
+ * to a capitalized raw state.
+ *
+ * Unlike {@link isUnavailable}, this does NOT short-circuit on `unknown`
+ * (issue #232): an assumed-state/one-way cover (e.g. Somfy RTS) sits at
+ * `unknown` forever while still fully controllable, and the tile needs a
+ * non-blank readout for it — "Unknown" absent an override, or the transit
+ * direction below when mid-move.
  *
  * `overrideState` substitutes the state to localize while keeping the entity's
- * attributes/context — no-feedback covers report a final `open`/`closed` state
- * mid-move, so the transit direction is passed here to render "Opening"/
- * "Closing" the same way a real position cover does.
+ * attributes/context — no-feedback covers report a final `open`/`closed`/
+ * `unknown` state mid-move, so the transit direction is passed here to render
+ * "Opening"/"Closing" the same way a real position cover does. Before #232
+ * this override was silently discarded whenever the entity state was
+ * `unknown`, since the old guard returned null before ever looking at it.
  */
 export function formatCoverState(
   hass: HassLike | undefined,
@@ -39,7 +65,7 @@ export function formatCoverState(
 ): string | null {
   if (!hass || !entityId) return null;
   const stateObj = hass.states[entityId];
-  if (!stateObj || isUnavailable(stateObj.state)) {
+  if (!stateObj || isOffline(stateObj.state)) {
     return null;
   }
   const effective = overrideState ? { ...stateObj, state: overrideState } : stateObj;

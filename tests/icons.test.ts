@@ -203,8 +203,10 @@ describe('coverStateColor', () => {
   it('unavailable resolves to the unavailable var', () => {
     expect(coverStateColor('unavailable')).toBe('var(--state-unavailable-color)');
   });
-  it('unknown resolves to the unavailable var', () => {
-    expect(coverStateColor('unknown')).toBe('var(--state-unavailable-color)');
+  it('unknown resolves to the live (inactive-tier) cascade, not the unavailable var — a no-feedback cover (e.g. an assumed-state RTS cover) is still controllable, but native HA colors an unknown cover as inactive/grey, not active/on (issue #232)', () => {
+    expect(coverStateColor('unknown')).toBe(
+      'var(--state-cover-unknown-color, var(--state-cover-inactive-color, var(--state-cover-color, var(--state-inactive-color))))',
+    );
   });
   it('undefined resolves to the unavailable var', () => {
     expect(coverStateColor(undefined)).toBe('var(--state-unavailable-color)');

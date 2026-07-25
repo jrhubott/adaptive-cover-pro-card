@@ -5,6 +5,7 @@ import {
   findFovWindow,
   findFovWindows,
   getMoonData,
+  nextSolarEvents,
   sampleDay,
   startOfDay,
   startOfDayInZone,
@@ -341,5 +342,60 @@ describe('aboveHorizonSegments', () => {
       { startIdx: 0, endIdx: 1 },
       { startIdx: 4, endIdx: 5 },
     ]);
+  });
+});
+
+describe('nextSolarEvents (#229)', () => {
+  // Amsterdam — a mid-latitude location with unambiguous rise/set every day.
+  const LAT = 52.37;
+  const LON = 4.9;
+
+  it('returns the next sunrise and sunset strictly after fromMs, ascending', () => {
+    const fromMs = Date.parse('2026-06-15T13:00:00Z');
+    const events = nextSolarEvents(LAT, LON, fromMs);
+
+    expect(events.map((e) => e.kind).sort()).toEqual(['sunrise', 'sunset']);
+    for (const e of events) {
+      expect(Date.parse(e.t)).toBeGreaterThan(fromMs);
+      expect(Number.isNaN(Date.parse(e.t))).toBe(false);
+    }
+    const times = events.map((e) => Date.parse(e.t));
+    expect(times).toEqual([...times].sort((a, b) => a - b));
+  });
+
+  it('emits ISO-8601 strings', () => {
+    const events = nextSolarEvents(LAT, LON, Date.parse('2026-06-15T13:00:00Z'));
+    for (const e of events) {
+      expect(e.t).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+      expect(new Date(e.t).toISOString()).toBe(new Date(Date.parse(e.t)).toISOString());
+    }
+  });
+
+  it("puts today's sunset before tomorrow's sunrise from a mid-afternoon start", () => {
+    // 13:00Z ≈ 15:00 local — after sunrise (~03:18Z), well before sunset (~19:58Z).
+    const events = nextSolarEvents(LAT, LON, Date.parse('2026-06-15T13:00:00Z'));
+    expect(events[0].kind).toBe('sunset');
+    expect(events[1].kind).toBe('sunrise');
+  });
+
+  it('rolls both events to the next day when started after sunset', () => {
+    const fromMs = Date.parse('2026-06-15T21:00:00Z'); // past sunset, before midnight local
+    const events = nextSolarEvents(LAT, LON, fromMs);
+    expect(events[0].kind).toBe('sunrise');
+    expect(events[1].kind).toBe('sunset');
+    for (const e of events) {
+      expect(Date.parse(e.t)).toBeGreaterThan(fromMs);
+      // Both land on 2026-06-16 UTC.
+      expect(e.t.slice(0, 10)).toBe('2026-06-16');
+    }
+  });
+
+  it('omits invalid entries under the midnight sun rather than emitting Invalid Date', () => {
+    // 78°N in June: the sun never sets, so SunCalc yields Invalid Date times.
+    const events = nextSolarEvents(78, 15, Date.parse('2026-06-15T13:00:00Z'));
+    for (const e of events) {
+      expect(Number.isNaN(Date.parse(e.t))).toBe(false);
+      expect(e.t).not.toContain('Invalid');
+    }
   });
 });

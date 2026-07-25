@@ -32,9 +32,9 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
   show_compass_legend?: boolean;
   show_moon?: boolean;
   /** Color the header cover state icon by its HA state (open/opening/closing =
-   *  active tier, closed = inactive tier, unavailable/unknown = unavailable
-   *  tier), matching HA's own theme-aware `--state-cover-*` cascade
-   *  (default true). */
+   *  active tier, closed/unknown = inactive tier, unavailable/missing =
+   *  unavailable tier), matching HA's own theme-aware `--state-cover-*`
+   *  cascade (default true). */
   state_color?: boolean;
   hide_inactive_handlers?: boolean;
   /** Render a plain-English "Why this position?" sentence above the decision
@@ -117,9 +117,9 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
    *  motion handler reports `motion_detected` (default true). */
   show_motion_icon?: boolean;
   /** Color the cover state icon by its HA state (open/opening/closing =
-   *  active tier, closed = inactive tier, unavailable/unknown = unavailable
-   *  tier), matching HA's own theme-aware `--state-cover-*` cascade
-   *  (default true). */
+   *  active tier, closed/unknown = inactive tier, unavailable/missing =
+   *  unavailable tier), matching HA's own theme-aware `--state-cover-*`
+   *  cascade (default true). */
   state_color?: boolean;
   /** Tile layout. `detailed` (default) stacks title on row 1, an optional
    *  standalone "Auto" indicator on row 2, and state · position + inline winner

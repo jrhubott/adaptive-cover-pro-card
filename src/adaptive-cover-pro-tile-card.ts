@@ -17,7 +17,9 @@ import {
 import { createDiscoveryMemo } from './lib/entity-discovery';
 import { makeEntitySuggestion } from './lib/entity-suggestion';
 import { resolveAxes, type ResolvedAxis } from './lib/axes';
-import { setAxes } from './lib/services';
+import { setAxes, engageManualOverride, hasEngageManualOverride } from './lib/services';
+import { buildOverridePresets } from './lib/override-presets';
+import './components/extend-override-dialog';
 import { AXIS_LABEL_I18N_KEYS } from './const';
 import { entityStateChanged } from './lib/hass-change';
 import { fetchAcpConfigEntries } from './lib/config-entries';
@@ -30,7 +32,9 @@ import type {
   AdaptiveCoverProTileCardConfig,
   DecisionTraceAttributes,
   DiscoveredEntities,
+  PositionForecastAttributes,
 } from './types';
+import type { OverridePreset } from './lib/override-presets';
 import {
   buildDecisionSentence,
   isWinningSlotSafety,
@@ -45,7 +49,7 @@ import {
   resolveTileBadgeKind,
   selectVisibleBadges,
 } from './lib/badge-visibility';
-import { formatCoverState, formatPercent, isUnavailable } from './lib/formatters';
+import { formatCoverState, formatPercent, isUnavailable, isOffline } from './lib/formatters';
 import { t } from './lib/i18n';
 import { tooltip, setTooltipDefaults } from './lib/tooltip';
 
@@ -68,6 +72,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
   @state() public _registry: EntityRegistryEntry[] | null = null;
   @state() private _registryError: string | null = null;
   @state() private _dialogOpen = false;
+  @state() private _extendOpen = false;
 
   private _unsubRegistry: (() => void) | null = null;
   private _fetchInFlight = false;
@@ -263,7 +268,53 @@ export class AdaptiveCoverProTileCard extends LitElement {
         .badges=${this._config.badges}
         @acp-dialog-close=${this._closeDialog}
       ></acp-more-info-dialog>
+      <acp-extend-override-dialog
+        .hass=${this.hass}
+        .open=${this._extendOpen}
+        .presets=${this._extendPresets(discovered)}
+        .currentEndMs=${this._manualEndMs(discovered)}
+        @acp-extend-confirm=${(e: CustomEvent<{ endMs: number }>) =>
+          this._onExtendConfirm(e, discovered)}
+        @acp-extend-close=${() => (this._extendOpen = false)}
+      ></acp-extend-override-dialog>
     `;
+  }
+
+  /** Preset moments for the extend dialog, sourced from the `position_forecast`
+   *  sensor the card already discovers, topped up from suncalc late in the day. */
+  private _extendPresets(discovered: DiscoveredEntities): OverridePreset[] {
+    const id = discovered.entities.position_forecast_sensor;
+    const attrs = id
+      ? (this.hass.states[id]?.attributes as PositionForecastAttributes | undefined)
+      : undefined;
+    return buildOverridePresets({
+      events: attrs?.events ?? [],
+      nowMs: Date.now(),
+      latitude: this.hass.config?.latitude,
+      longitude: this.hass.config?.longitude,
+    });
+  }
+
+  /** The current override end as epoch ms — the base the dialog's relative chips
+   *  push out from. Undefined when the sensor is missing or unparseable. */
+  private _manualEndMs(discovered: DiscoveredEntities): number | undefined {
+    const id = discovered.entities.manual_override_end_sensor;
+    const raw = id ? this.hass.states[id]?.state : undefined;
+    if (!raw) return undefined;
+    const ms = Date.parse(raw);
+    return Number.isNaN(ms) ? undefined : ms;
+  }
+
+  private _onExtendConfirm(
+    e: CustomEvent<{ endMs: number }>,
+    discovered: DiscoveredEntities,
+  ): void {
+    // Entry-level surface: the badge summarises the whole entry, so extending
+    // only one cover would desync the badge from reality.
+    engageManualOverride(this.hass, discovered.managed_covers, {
+      endTime: new Date(e.detail.endMs),
+    });
+    this._extendOpen = false;
   }
 
   private _closeDialog = (): void => {
@@ -287,21 +338,48 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // device_class glyph → integration cover_type → generic fallback.
     const stateObj = cover ? this.hass.states[cover] : undefined;
     const coverDeviceClass = stateObj?.attributes?.device_class as string | undefined;
-    // An offline/unresponsive cover (issue #212): the underlying HA entity is
-    // `unavailable`/`unknown`. Every downstream derivation below (icon,
-    // position, label, controls) must gate on this rather than let the
-    // diagnostic target-position sensor or a stale `current_position`
-    // attribute leak through as if the cover were live.
-    const unavailable = isUnavailable(stateObj?.state);
+    // Two distinct "no live data" concepts (split after issue #232 — a Somfy
+    // RTS-style one-way cover sits at `unknown` forever but is still fully
+    // controllable, so it must render like any other live, no-feedback cover):
+    // - `offline` (narrow — HA `unavailable`/missing only): the entity itself
+    //   is gone. This alone drives total blackout — dim the tile, disable
+    //   every control and the tilt bar, show the "Unavailable" label, use the
+    //   fallback glyph/color, and null out BOTH the live position/tilt AND
+    //   the diagnostic calculated-position/tilt-target sensors (issue #212's
+    //   original concern: neither a stale `current_position` attribute nor an
+    //   always-live diagnostic sensor may leak through as if the cover were
+    //   live).
+    // - `noLiveData` (broad — also true for `unknown`): this entity's OWN
+    //   reported attributes (`current_position`, `current_tilt_position`)
+    //   aren't trustworthy right now, so those raw reads are blocked below.
+    //   It does NOT gate the icon, color, dim class, controls, or the
+    //   independently-sourced ACP diagnostic sensors (calculated position,
+    //   tilt target) — an `unknown` cover shows those exactly like any other
+    //   no-feedback cover.
+    const offline = isOffline(stateObj?.state);
+    const noLiveData = isUnavailable(stateObj?.state);
+    const calculatedPosition = this._currentPosition(discovered);
+    // The raw entity attribute is only trusted when this cover's own state
+    // gives us a reason to trust it (`!noLiveData`) — an `unknown` cover does
+    // not get its `current_position` attribute treated as live truth, but the
+    // independently-sourced `calculatedPosition` fallback below still applies,
+    // same as any other no-feedback cover (issue #232).
+    const reportedPosition = noLiveData ? null : this._liveCoverPosition(cover);
+    const livePosition = offline ? null : (reportedPosition ?? calculatedPosition);
     const icon =
       cfg.icon ??
-      (unavailable
+      (offline
         ? COVER_ICON_FALLBACK_UNAVAILABLE
         : coverStateIcon({
             explicitIcon: stateObj?.attributes?.icon as string | undefined,
             deviceClass: coverDeviceClass,
             coverType: discovered.cover_type,
-            position: this._liveCoverPosition(cover),
+            // Gated, not the raw attribute (issue #232 follow-up): the glyph
+            // must agree with the readout/position bar below, both of which
+            // derive from `livePosition` — a leftover stale `current_position`
+            // attribute on an `unknown` cover must not paint a fully-open/
+            // fully-closed variant that the rest of the tile disagrees with.
+            position: livePosition,
           }));
     const iconColor = cfg.state_color !== false ? coverStateColor(stateObj?.state) : null;
     const showPosition = cfg.show_position !== false;
@@ -315,9 +393,6 @@ export class AdaptiveCoverProTileCard extends LitElement {
         : t('tile.motion_detected', this.hass);
     // `detailed` is the default layout; `one-line` is the compact opt-out.
     const detailed = cfg.layout !== 'one-line';
-    const calculatedPosition = this._currentPosition(discovered);
-    const reportedPosition = this._liveCoverPosition(cover);
-    const livePosition = unavailable ? null : (reportedPosition ?? calculatedPosition);
     // Data-driven axes: any non-position axis (venetian tilt) drives the mini
     // bar. The detailed layout gets the bar; one-line folds it into the readout.
     // `show_tilt` is reinterpreted as "show non-position axes". On an older
@@ -325,12 +400,16 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // behavior is unchanged.
     const secondaryAxis = resolveAxes(discovered).find((a) => a.id !== 'position');
     const showTilt = cfg.show_tilt !== false && !!secondaryAxis;
-    // Same unavailable gate as `livePosition` above: an offline cover must not
-    // leak a stale `current_tilt_position` attribute or the always-live
-    // diagnostic tilt-target sensor (issue #212 follow-up).
-    const liveTilt = !unavailable && secondaryAxis ? this._liveAxis(cover, secondaryAxis) : null;
+    // liveTilt mirrors reportedPosition above: the raw `current_tilt_position`
+    // attribute is gated on `noLiveData` (not trusted for `unknown` either).
+    // tiltTarget mirrors calculatedPosition: it's the independently-sourced
+    // diagnostic tilt-target sensor, so it's gated only on `offline` — a
+    // genuinely offline cover must not leak a stale attribute or an
+    // always-live diagnostic sensor (issue #212 follow-up), but an `unknown`
+    // cover's live solar tilt target is legitimate to show.
+    const liveTilt = !noLiveData && secondaryAxis ? this._liveAxis(cover, secondaryAxis) : null;
     const tiltTarget =
-      !unavailable && secondaryAxis ? this._axisTarget(discovered, secondaryAxis) : null;
+      !offline && secondaryAxis ? this._axisTarget(discovered, secondaryAxis) : null;
     // When the cover reports its position, disable the control that can't do
     // anything: open (↑) at fully-open, close (↓) at fully-closed. Covers that
     // don't report a position leave both enabled (gate stays on `!cover`).
@@ -394,7 +473,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // localized "Opening"/"Closing" state text a real position cover shows, by
     // overriding the entity's (final open/closed) state in the readout.
     const transitDir = this._transitState(discovered);
-    const stateText = unavailable
+    const stateText = offline
       ? t('tile.unavailable', this.hass)
       : showState
         ? formatCoverState(this.hass, cover, transitDir ?? undefined)
@@ -422,6 +501,14 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // (Manual, or Custom when a slot also wins) becomes tappable to resume
     // automatic control — replacing the old standalone Resume pill.
     const resumable = manualActive && !!discovered.entities.reset_override_button;
+    // Extend (#229) gates on `manualActive` and service presence — never on the
+    // badge kind. Per `badge-visibility.ts:127` an active override renders kind
+    // `custom_position`/`force` whenever a slot also wins, so `kind === 'manual'`
+    // is NOT equivalent to "override active"; deriving override affordances from
+    // the winning handler is the bug behind #81, #82 and #199. The service half
+    // mirrors the entity-presence idiom above: integrations older than v2026.7.0
+    // lack `engage_manual_override`, and the affordance simply doesn't render.
+    const extendable = manualActive && hasEngageManualOverride(this.hass);
 
     const positionTpl =
       labelParts.length > 0 ? html`<div class="position">${labelParts.join(' · ')}</div>` : nothing;
@@ -448,7 +535,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
           .manualEndIso=${manualEndIso}
           .manualActive=${manualActive}
           .resumable=${resumable}
+          .extendable=${extendable}
           @acp-resume=${() => this._resume(discovered)}
+          @acp-extend=${() => (this._extendOpen = true)}
         ></acp-tile-badge>`
       : nothing;
     // The standalone Auto badge reuses the existing `auto` kind/tokens/icon —
@@ -507,7 +596,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
     return html`
       <div
-        class=${`tile-body${detailed ? ' detailed' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip && !detailed ? ' has-floor-chip' : ''}${showTilt && detailed ? ' has-tilt' : ''}${hasChromeRow ? ' has-chrome-row' : ''}${barOnly ? ' bar-only' : ''}${unavailable ? ' unavailable' : ''}`}
+        class=${`tile-body${detailed ? ' detailed' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip && !detailed ? ' has-floor-chip' : ''}${showTilt && detailed ? ' has-tilt' : ''}${hasChromeRow ? ' has-chrome-row' : ''}${barOnly ? ' bar-only' : ''}${offline ? ' unavailable' : ''}`}
         role=${inert ? 'group' : 'button'}
         tabindex=${inert ? -1 : 0}
         @pointerdown=${this._onPointerDown}
@@ -556,7 +645,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 .unit=${secondaryAxis?.unit ?? '%'}
                 .actual=${liveTilt}
                 .target=${tiltTarget}
-                .disabled=${unavailable}
+                .disabled=${offline}
                 @acp-tilt-set=${(e: CustomEvent<number>) =>
                   secondaryAxis && this._setAxis(cover, secondaryAxis.id, e.detail)}
               ></acp-tilt-bar>
@@ -568,7 +657,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 class="up"
                 type="button"
                 aria-label=${t('tile.open', this.hass)}
-                ?disabled=${!cover || unavailable || atOpen}
+                ?disabled=${!cover || offline || atOpen}
                 @click=${() => this._setCoverPosition(cover, 100)}
               >
                 <ha-icon icon=${coverOpenIcon(coverDeviceClass)}></ha-icon>
@@ -577,7 +666,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 class="stop"
                 type="button"
                 aria-label=${t('tile.stop', this.hass)}
-                ?disabled=${!cover || unavailable}
+                ?disabled=${!cover || offline}
                 @click=${() => this._stopCover(cover)}
               >
                 <ha-icon icon="mdi:stop"></ha-icon>
@@ -586,7 +675,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 class="down"
                 type="button"
                 aria-label=${t('tile.close', this.hass)}
-                ?disabled=${!cover || unavailable || atClosed}
+                ?disabled=${!cover || offline || atClosed}
                 @click=${() => this._setCoverPosition(cover, 0)}
               >
                 <ha-icon icon=${coverCloseIcon(coverDeviceClass)}></ha-icon>

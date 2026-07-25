@@ -1961,6 +1961,104 @@ export const SCENARIOS: Scenario[] = [
       return c;
     },
   },
+  {
+    id: 'manual-override-extend',
+    label: 'Manual override — extendable from the badge (#229)',
+    added: '2026-07-16',
+    issue: 229,
+    description:
+      'A manual override active with 45 minutes left, on a current integration that exposes engage_manual_override. The badge is no longer a single Resume button: it is a container with two sibling buttons — Extend (clock-plus) and Resume (↺). Tap Extend to open the dialog: preset chips come from the position_forecast sensor (fov_exit / sunset), the relative chips add to the CURRENT end (not to now), and the time input rolls to tomorrow for a clock time already past. Confirm and watch the badge countdown jump — the mock applies end_time against the harness fake clock. Check the service log: the end_time is Z-suffixed (the integration silently treats a naive string as UTC) and targets every managed cover, not just the first.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'manual-override-extend';
+      const f = c.entries[0].flags;
+      f.manual_override = true;
+      f.manual_override_minutes_from_now = 45;
+      f.held_position = 30;
+      return c;
+    },
+  },
+  {
+    id: 'legacy-integration-no-extend',
+    label: 'Legacy integration — no Extend affordance (#229)',
+    added: '2026-07-16',
+    issue: 229,
+    description:
+      'The same active override as "manual-override-extend", but simulating an integration older than v2026.7.0: the mock hass omits engage_manual_override from the service registry. The card must feature-detect and degrade — the badge shows ONLY the Resume button (today\'s single-button form, byte-identical), with no Extend icon and no way to open the dialog. Pairs with legacy-integration-venetian (#180): same graceful-degradation contract, different service.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'legacy-integration-no-extend';
+      c.legacyIntegration = true;
+      const f = c.entries[0].flags;
+      f.manual_override = true;
+      f.manual_override_minutes_from_now = 45;
+      f.held_position = 30;
+      return c;
+    },
+  },
+  {
+    id: 'cover-unknown-controllable',
+    label: 'Cover state unknown — stays controllable (assumed-state RTS)',
+    description:
+      'Contrast against `cover-unavailable`: an assumed-state/one-way RTS cover (e.g. a Somfy ' +
+      'awning) never reports a live position, so its entity state sits permanently at ' +
+      '`unknown` — but unlike a genuinely `unavailable` entity, the integration keeps ' +
+      'commanding it successfully. The tile must NOT dim, must NOT show the "Unavailable" ' +
+      'label, and must keep all three ↑■▼ controls enabled and clickable (issue #232). Since ' +
+      "#232's follow-up fix it also renders like any other live, no-feedback cover instead of " +
+      'going blank — but the primary entry ALSO carries a stale `current_position: 100` ' +
+      'attribute (left over from before the cover went unknown) that must NOT be trusted: the ' +
+      'icon stays the "partial" `mdi:blinds-horizontal` glyph, never the fully-open ' +
+      '`mdi:blinds-open` variant the stale attribute would otherwise paint, colored with the ' +
+      'same inactive-tier state color HA paints a `closed` cover with (not the amber "active" ' +
+      'tint, and not the grey "unavailable" glyph/color — matching native HA, which treats ' +
+      '`unknown` as inactive, never active). The readout instead reads "Unknown · 40%" — the ' +
+      'same independently-sourced calculated-sensor fallback any position-less open/closed ' +
+      "cover shows, never the untrusted attribute's value. A second, dual-axis venetian entry " +
+      'proves the same gate covers the tilt axis: its mini tilt bar stays enabled and ' +
+      'clickable, with no live "actual" fill (the raw current_tilt_position attribute is not ' +
+      'trusted for an unknown-state cover) while the solar tilt-target tick still shows.',
+    added: '2026-07-24',
+    issue: 232,
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'cover-unknown-controllable';
+      c.entries = [
+        makeEntry({
+          entry_id: 'unknown_window',
+          title: 'Unknown-state cover',
+          window_azimuth: 180,
+          covers: [
+            {
+              entity_id: 'cover.unknown_window_main',
+              friendly_name: 'Unknown-state cover',
+              position: 100,
+              state: 'unknown',
+              device_class: 'blind',
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'unknown_venetian_window',
+          title: 'Unknown-state venetian',
+          cover_type: 'cover_venetian',
+          window_azimuth: 180,
+          color: '#26a69a',
+          target_tilt: 70,
+          covers: [
+            {
+              entity_id: 'cover.unknown_venetian_window_main',
+              friendly_name: 'Unknown-state venetian',
+              position: null,
+              tilt: 35,
+              state: 'unknown',
+            },
+          ],
+        }),
+      ];
+      return c;
+    },
+  },
 ];
 
 export function findScenario(id: string): Scenario | undefined {
