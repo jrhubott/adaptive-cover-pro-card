@@ -8,6 +8,7 @@ import {
   formatCoverState,
   nextAllowedIso,
   isUnavailable,
+  isOffline,
 } from '../src/lib/formatters';
 
 describe('formatters', () => {
@@ -110,18 +111,30 @@ describe('formatters', () => {
       expect(formatCoverState(hass, 'cover.x', 'opening')).toBe('FMT:opening');
     });
 
-    it('returns null for missing entity, missing state, unknown or unavailable', () => {
-      const hass = {
-        states: {
-          'cover.unknown': { state: 'unknown' },
-          'cover.unavailable': { state: 'unavailable' },
-        },
-      };
+    it('returns null for a missing entity id, missing hass, or an entity absent from states', () => {
+      const hass = { states: {} };
       expect(formatCoverState(hass, undefined)).toBeNull();
       expect(formatCoverState(undefined, 'cover.x')).toBeNull();
       expect(formatCoverState(hass, 'cover.missing')).toBeNull();
-      expect(formatCoverState(hass, 'cover.unknown')).toBeNull();
+    });
+
+    it('returns null when the cover is hard-offline (unavailable)', () => {
+      const hass = { states: { 'cover.unavailable': { state: 'unavailable' } } };
       expect(formatCoverState(hass, 'cover.unavailable')).toBeNull();
+    });
+
+    it('formats the raw "unknown" state instead of discarding it (issue #232) — a no-feedback cover (e.g. an assumed-state RTS cover) is still controllable and needs a non-blank readout', () => {
+      const hass = { states: { 'cover.unknown': { state: 'unknown' } } };
+      expect(formatCoverState(hass, 'cover.unknown')).toBe('Unknown');
+    });
+
+    it('applies an override state through "unknown" too, so the transit Opening/Closing text still works for a no-feedback cover (issue #232)', () => {
+      // Before #232 this override was silently discarded whenever the entity
+      // state was `unknown` — the old guard returned null before ever
+      // consulting `overrideState`.
+      const hass = { states: { 'cover.unknown': { state: 'unknown' } } };
+      expect(formatCoverState(hass, 'cover.unknown', 'opening')).toBe('Opening');
+      expect(formatCoverState(hass, 'cover.unknown', 'closing')).toBe('Closing');
     });
   });
 
@@ -145,6 +158,27 @@ describe('formatters', () => {
       expect(isUnavailable(undefined)).toBe(true);
       expect(isUnavailable(null)).toBe(true);
       expect(isUnavailable('')).toBe(true);
+    });
+  });
+
+  describe('isOffline', () => {
+    it('is true for "unavailable"', () => {
+      expect(isOffline('unavailable')).toBe(true);
+    });
+
+    it('treats a missing state as offline', () => {
+      expect(isOffline(undefined)).toBe(true);
+      expect(isOffline(null)).toBe(true);
+      expect(isOffline('')).toBe(true);
+    });
+
+    it('is false for "unknown" — a no-feedback cover is still controllable', () => {
+      expect(isOffline('unknown')).toBe(false);
+    });
+
+    it('is false for real cover states', () => {
+      expect(isOffline('open')).toBe(false);
+      expect(isOffline('closed')).toBe(false);
     });
   });
 

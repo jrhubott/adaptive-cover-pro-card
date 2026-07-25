@@ -505,9 +505,26 @@ describe('adaptive-cover-pro-tile-card render', () => {
         coverLeftCurrentPosition: 16,
       }),
     );
-    // Override the sensor state to 100 to make calculated vs live differ clearly.
-    (el.hass!.states['sensor.cover_position'] as { state: string }).state = '100';
-    el.hass = { ...el.hass! };
+    // Override the sensor state to 100 on a LATER `hass` tick (not just at mount
+    // time), to make calculated vs live differ clearly. This must swap in a
+    // fresh `sensor.cover_position` object and a fresh top-level `hass` +
+    // `states` object — mutating the existing sensor object in place would
+    // leave its reference identity unchanged, and `shouldUpdate`
+    // (src/adaptive-cover-pro-tile-card.ts) skips re-rendering via
+    // `entityStateChanged` (src/lib/hass-change.ts) whenever none of the
+    // discovered entities' object identities changed, silently leaving this
+    // assertion checking the mount-time DOM instead of the poked value.
+    const oldHass = el.hass!;
+    el.hass = {
+      ...oldHass,
+      states: {
+        ...oldHass.states,
+        'sensor.cover_position': {
+          ...(oldHass.states['sensor.cover_position'] as { state: string }),
+          state: '100',
+        },
+      },
+    } as unknown as HomeAssistant;
     await el.updateComplete;
     const text = el.shadowRoot!.querySelector('.state')?.textContent?.trim();
     expect(text).toBe('Open · 16%');
@@ -2010,13 +2027,33 @@ describe('adaptive-cover-pro-tile-card unavailable cover (issue #212)', () => {
       { type: TYPE, entry_id: ENTRY },
       makeHass({ coverLeftState: 'unavailable', coverLeftCurrentPosition: 16 }),
     );
-    // Simulate the diagnostic sensor staying live/stale at a divergent value.
-    (el.hass!.states['sensor.cover_position'] as { state: string }).state = '100';
-    el.hass = { ...el.hass! };
+    // Simulate the diagnostic sensor staying live/stale at a divergent value
+    // on a LATER `hass` tick (not just at mount time). This must swap in a
+    // fresh `sensor.cover_position` object and a fresh top-level `hass` +
+    // `states` object — mutating the existing sensor object in place would
+    // leave its reference identity unchanged, and `shouldUpdate`
+    // (src/adaptive-cover-pro-tile-card.ts) skips re-rendering via
+    // `entityStateChanged` (src/lib/hass-change.ts) whenever none of the
+    // discovered entities' object identities changed, silently leaving this
+    // assertion checking the mount-time DOM instead of the poked value.
+    const oldHass = el.hass!;
+    el.hass = {
+      ...oldHass,
+      states: {
+        ...oldHass.states,
+        'sensor.cover_position': {
+          ...(oldHass.states['sensor.cover_position'] as { state: string }),
+          state: '100',
+        },
+      },
+    } as unknown as HomeAssistant;
     await el.updateComplete;
 
-    const positionCell = el.shadowRoot!.querySelector('.position');
-    expect(positionCell?.textContent ?? '').not.toMatch(/%/);
+    // `.position` only renders in the one-line layout; the default (detailed)
+    // layout this test mounts puts the readout in `.state` instead, so assert
+    // against the element that actually renders here.
+    const stateCell = el.shadowRoot!.querySelector('.state');
+    expect(stateCell?.textContent ?? '').not.toMatch(/%/);
   });
 
   it('renders an "Unavailable" label when the cover is unavailable', async () => {
@@ -2047,41 +2084,58 @@ describe('adaptive-cover-pro-tile-card unavailable cover (issue #212)', () => {
     expect(downBtn(el).disabled).toBe(true);
   });
 
-  it('does not leak a stale position when the cover is unknown', async () => {
+  it('renders the unavailable fallback glyph (not the normal position-derived cover icon) when the cover is unavailable', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unavailable' }),
+    );
+    const icon = el.shadowRoot!.querySelector('ha-icon.cover-icon');
+    expect(icon?.getAttribute('icon')).toBe('mdi:help-rhombus-outline');
+  });
+
+  it("shows the calculated-sensor position (parity with any other no-feedback cover) but never the cover's own stale-looking current_position attribute when unknown", async () => {
+    // Unlike hard-offline, an `unknown` cover (issue #232) is still
+    // controllable, and its live readout should behave like any other
+    // no-feedback cover: the ACP diagnostic (calculated) sensor is a
+    // legitimate fallback. But this entity's OWN current_position attribute
+    // is not trusted while its state itself signals "no confidence" — so the
+    // stale-looking 16 must never surface, even though the calculated
+    // sensor's 42 legitimately does.
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({ coverLeftState: 'unknown', coverLeftCurrentPosition: 16 }),
     );
-    const positionCell = el.shadowRoot!.querySelector('.position');
-    expect(positionCell?.textContent ?? '').not.toMatch(/%/);
+    const stateText = el.shadowRoot!.querySelector('.state')?.textContent ?? '';
+    expect(stateText).not.toContain('16%');
+    expect(stateText).toContain('42%');
   });
 
-  it('renders an "Unavailable" label when the cover is unknown', async () => {
+  it('does not render an "Unavailable" label when the cover is unknown (it stays controllable)', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({ coverLeftState: 'unknown' }),
     );
-    expect(el.shadowRoot!.textContent).toContain('Unavailable');
+    expect(el.shadowRoot!.textContent).not.toContain('Unavailable');
   });
 
-  it('adds the unavailable class to .tile-body when the cover is unknown', async () => {
+  it('does not add the unavailable class to .tile-body when the cover is unknown', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({ coverLeftState: 'unknown' }),
     );
     expect(el.shadowRoot!.querySelector('.tile-body')?.classList.contains('unavailable')).toBe(
-      true,
+      false,
     );
   });
 
-  it('disables all three controls when the cover is unknown', async () => {
+  it('keeps all three controls enabled when the cover is unknown', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({ coverLeftState: 'unknown' }),
     );
-    expect(upBtn(el).disabled).toBe(true);
-    expect(stopBtn(el).disabled).toBe(true);
-    expect(downBtn(el).disabled).toBe(true);
+    expect(upBtn(el).disabled).toBe(false);
+    expect(stopBtn(el).disabled).toBe(false);
+    expect(downBtn(el).disabled).toBe(false);
   });
 
   it('regression (#73/#74): still shows the live cover position, not the calculated sensor value, when the cover IS available', async () => {
@@ -2093,8 +2147,22 @@ describe('adaptive-cover-pro-tile-card unavailable cover (issue #212)', () => {
         coverLeftCurrentPosition: 16,
       }),
     );
-    (el.hass!.states['sensor.cover_position'] as { state: string }).state = '100';
-    el.hass = { ...el.hass! };
+    // Poke the sensor state on a LATER `hass` tick (not at mount time) — see the
+    // identical pattern (and rationale) above in "does not leak a stale position
+    // when the cover is unavailable...": a fresh top-level `hass` + `states` +
+    // `sensor.cover_position` object is required, or `shouldUpdate` skips the
+    // re-render and this assertion silently checks the mount-time DOM instead.
+    const oldHass = el.hass!;
+    el.hass = {
+      ...oldHass,
+      states: {
+        ...oldHass.states,
+        'sensor.cover_position': {
+          ...(oldHass.states['sensor.cover_position'] as { state: string }),
+          state: '100',
+        },
+      },
+    } as unknown as HomeAssistant;
     await el.updateComplete;
     const text = el.shadowRoot!.querySelector('.state')?.textContent?.trim();
     expect(text).toBe('Open · 16%');
@@ -2157,6 +2225,128 @@ describe('adaptive-cover-pro-tile-card unavailable dual-axis cover (issue #212)'
       tiltHass(undefined, { coverLeftState: 'unavailable' }),
     );
     expect(el.shadowRoot!.textContent ?? '').not.toContain('⟂');
+  });
+
+  it('keeps the tilt bar enabled and clickable when the cover is unknown', async () => {
+    const callService = vi.fn();
+    const el = await mountTilt(
+      { type: TYPE, entry_id: ENTRY },
+      tiltHass(callService, { coverLeftState: 'unknown' }),
+    );
+    const tiltBar = el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
+      disabled: boolean;
+      updateComplete: Promise<boolean>;
+    };
+    expect(tiltBar.disabled).toBe(false);
+    await tiltBar.updateComplete;
+    const track = tiltBar.shadowRoot!.querySelector('.track') as HTMLElement;
+    Object.defineProperty(track, 'getBoundingClientRect', {
+      value: () => ({ left: 0, width: 100, top: 0, bottom: 8, right: 100, height: 8 }),
+      configurable: true,
+    });
+    track.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 80 }));
+    expect(callService).toHaveBeenCalled();
+  });
+
+  it('does not trust the raw current_tilt_position attribute, but the diagnostic tilt-target sensor still shows, when the cover is unknown', async () => {
+    // Mirrors the primary-axis fixture: `noLiveData` blocks the raw attribute
+    // (35, set unconditionally by tiltHass) but not the independently-sourced
+    // diagnostic target sensor (70) — same live/diagnostic split as position.
+    const el = await mountTilt(
+      { type: TYPE, entry_id: ENTRY },
+      tiltHass(undefined, { coverLeftState: 'unknown' }),
+    );
+    const tilt = el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
+      actual: number | null;
+      target: number | null;
+    };
+    expect(tilt.actual).toBeNull();
+    expect(tilt.target).toBe(70);
+  });
+});
+
+describe('adaptive-cover-pro-tile-card unknown-state cover renders like any other live cover (issue #232)', () => {
+  const upBtn = (el: CardLike) => el.shadowRoot!.querySelector('button.up') as HTMLButtonElement;
+
+  it('uses the normal cover icon glyph, not the unavailable fallback', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unknown' }),
+    );
+    const icon = el.shadowRoot!.querySelector('ha-icon.cover-icon');
+    expect(icon?.getAttribute('icon')).not.toBe('mdi:help-rhombus-outline');
+    expect(icon?.getAttribute('icon')).toBe('mdi:blinds-horizontal');
+  });
+
+  it('colors the icon with the live (inactive-tier) cascade, not the unavailable var — matches native HA, which paints an unknown cover as inactive/grey rather than active/on', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unknown' }),
+    );
+    const icon = el.shadowRoot!.querySelector('ha-icon.cover-icon');
+    expect(icon?.getAttribute('style') ?? '').not.toContain('var(--state-unavailable-color)');
+    expect(icon?.getAttribute('style')).toContain(
+      'var(--state-cover-unknown-color, var(--state-cover-inactive-color, var(--state-cover-color, var(--state-inactive-color))))',
+    );
+  });
+
+  it('shows the state text alone, with no percentage, when neither a live nor a calculated position exists', async () => {
+    // No current_position attribute on the cover, and the calculated-sensor
+    // fallback is made non-numeric here too (simulating a no-feedback cover
+    // with no diagnostic estimate available either) — the row must show the
+    // state text, never a blank row or an invented percentage. Set the
+    // non-numeric sensor state before mount (not via a post-mount mutation):
+    // the card skips re-rendering on a `hass` tick that doesn't change any
+    // discovered entity's object identity, so mutating in place afterwards
+    // would silently no-op.
+    const hass = makeHass({ coverLeftState: 'unknown' });
+    (hass.states['sensor.cover_position'] as { state: string }).state = 'unavailable';
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, hass);
+    const stateEl = el.shadowRoot!.querySelector('.state');
+    expect(stateEl?.textContent?.trim()).toBe('Unknown');
+  });
+
+  it('renders "Opening"/"Closing" transit text for a no-feedback cover mid-move even while unknown', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({
+        coverLeftState: 'unknown',
+        coverPositionSensorAttrs: { transit_states: { 'cover.left': 'opening' } },
+      }),
+    );
+    expect(el.shadowRoot!.querySelector('.state')?.textContent).toContain('Opening');
+  });
+
+  it('does not disable ↑ from a stale-looking fully-open current_position attribute — an unknown cover does not trust its own attribute', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unknown', coverLeftCurrentPosition: 100 }),
+    );
+    expect(upBtn(el).disabled).toBe(false);
+  });
+
+  it('does not let a leftover stale current_position attribute drive the icon glyph — the glyph follows the same gated position as the readout/bar', async () => {
+    // Same untrusted-attribute rule as the readout and the button-disable
+    // gating above must also apply to the icon glyph. A HA restart can leave
+    // a stale `current_position` attribute in place while the state is still
+    // `unknown`; the glyph must reflect the gated position (here, the
+    // calculated-sensor fallback of 42 → the "partial" variant), never the
+    // raw attribute's fully-closed or fully-open variant.
+    const closedLeftover = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unknown', coverLeftCurrentPosition: 0 }),
+    );
+    const closedIcon = closedLeftover.shadowRoot!.querySelector('ha-icon.cover-icon');
+    expect(closedIcon?.getAttribute('icon')).not.toBe('mdi:blinds-horizontal-closed');
+    expect(closedIcon?.getAttribute('icon')).toBe('mdi:blinds-horizontal');
+
+    const openLeftover = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftState: 'unknown', coverLeftCurrentPosition: 100 }),
+    );
+    const openIcon = openLeftover.shadowRoot!.querySelector('ha-icon.cover-icon');
+    expect(openIcon?.getAttribute('icon')).not.toBe('mdi:blinds-open');
+    expect(openIcon?.getAttribute('icon')).toBe('mdi:blinds-horizontal');
   });
 });
 
