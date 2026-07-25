@@ -91,6 +91,8 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'covers.target_tooltip_override':
     'Would-be solar target {pct}% — cover is held by manual override',
   'covers.click_to_set': 'Click to set position',
+  // Accessible name for the Position track's role="slider" (issue #231).
+  'covers.position_slider_label': 'Cover position slider',
   'covers.placeholder': 'No covers reported by the integration.',
   'root.loading_registry': 'Loading entity registry…',
   'root.no_entities_title': 'No matching entities',

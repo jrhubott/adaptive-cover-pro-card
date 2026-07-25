@@ -182,6 +182,7 @@ export const de: EnDict = {
     target: 'Ziel: {pct}',
     target_solar: 'Sonnenziel: {pct}',
     click_to_set: 'Klicken zum Festlegen der Position',
+    position_slider_label: 'Positionsschieberegler',
     opening: 'Öffnet…',
     closing: 'Schließt…',
     target_tooltip: 'Ziel {pct}%',

@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing, type TemplateResult, type PropertyValues } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
 import { entityStateChanged } from '../lib/hass-change';
@@ -22,6 +22,13 @@ export class CoverBar extends LitElement {
    *  closed segment to match the compass cover wedge. Null falls back to
    *  `--primary-color`, exactly like the compass in single-entry mode. */
   @property({ attribute: false }) public coverColor: string | null = null;
+
+  /** Live client-side preview for a Position track drag/keyboard-in-progress —
+   *  set on pointerdown/pointermove, cleared on pointerup/pointercancel. Drives
+   *  `.fill`/`.num` for the matching row only; never itself calls a service
+   *  (the trailing native `click` after a drag commits via `_handleTrackClick`,
+   *  exactly as it does for a plain tap today). */
+  @state() private _dragPreview: { entityId: string; pct: number } | null = null;
 
   // Live positions come from the target sensor's `actual_positions`; mismatches from the
   // position-mismatch binary. Per-cover friendly names are effectively static, so those
@@ -230,6 +237,12 @@ export class CoverBar extends LitElement {
       (this.hass.states[entityId]?.attributes?.friendly_name as string | undefined) ?? entityId;
     const actualPct = actual ?? 0;
     const targetPct = target ?? 0;
+    // A drag/keyboard gesture in progress for this row overrides the server-truth
+    // percentage in the fill bar and the percent readout; every other row (and
+    // this row once the drag ends) renders from `actual` unchanged.
+    const dragPct = this._dragPreview?.entityId === entityId ? this._dragPreview.pct : null;
+    const fillPct = dragPct ?? actualPct;
+    const numText = dragPct !== null ? formatPercent(dragPct) : formatPercent(actual);
     return html`
       <div class="cover ${mismatch ? 'mismatch' : ''}">
         <div
@@ -249,15 +262,27 @@ export class CoverBar extends LitElement {
                 icon=${transitDir === 'opening' ? 'mdi:arrow-up-thin' : 'mdi:arrow-down-thin'}
                 ${tooltip(t('covers.' + transitDir, this.hass))}
               ></ha-icon>`
-            : nothing}${formatPercent(actual)}
+            : nothing}${numText}
         </div>
         <div
           class="track"
+          role="slider"
+          tabindex="0"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow=${fillPct}
+          aria-valuetext=${numText}
+          aria-label=${t('covers.position_slider_label', this.hass)}
           @click=${(e: MouseEvent) => this._handleTrackClick(e, entityId)}
+          @pointerdown=${(e: PointerEvent) => this._onTrackPointerDown(e, entityId)}
+          @pointermove=${(e: PointerEvent) => this._onTrackPointerMove(e, entityId)}
+          @pointerup=${() => this._onTrackPointerEnd(entityId)}
+          @pointercancel=${() => this._onTrackPointerEnd(entityId)}
+          @keydown=${(e: KeyboardEvent) => this._onTrackKeydown(e, entityId, actualPct)}
           ${tooltip(t('covers.click_to_set', this.hass))}
         >
-          <div class="fill" style="width:${actualPct}%"></div>
-          <div class="fill-closed" style="width:${100 - actualPct}%"></div>
+          <div class="fill" style="width:${fillPct}%"></div>
+          <div class="fill-closed" style="width:${100 - fillPct}%"></div>
           ${target !== null
             ? html`<div
                 class="marker"
@@ -293,11 +318,79 @@ export class CoverBar extends LitElement {
     this._openMoreInfo();
   };
 
-  private _handleTrackClick(e: MouseEvent, entityId: string): void {
-    const track = e.currentTarget as HTMLElement;
+  /** Shared clientX→0-100 track-fraction math, used by the click commit path
+   *  and the drag-preview pointer handlers alike. */
+  private _pctFromEvent(e: { clientX: number }, track: HTMLElement): number {
     const rect = track.getBoundingClientRect();
     const pct = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-    const clamped = Math.max(0, Math.min(100, pct));
+    return Math.max(0, Math.min(100, pct));
+  }
+
+  private _handleTrackClick(e: MouseEvent, entityId: string): void {
+    const track = e.currentTarget as HTMLElement;
+    const clamped = this._pctFromEvent(e, track);
+    this._setAxis(entityId, 'position', clamped);
+  }
+
+  /** Begin a drag: capture the pointer (best-effort — happy-dom may not
+   *  implement it) and start the live client-side preview for this row. No
+   *  `preventDefault()` here — suppressing it would also suppress the
+   *  trailing compatibility `click` the commit path depends on. */
+  private _onTrackPointerDown = (e: PointerEvent, entityId: string): void => {
+    const track = e.currentTarget as HTMLElement;
+    (track as HTMLElement & { setPointerCapture?: (id: number) => void }).setPointerCapture?.(
+      e.pointerId,
+    );
+    this._dragPreview = { entityId, pct: this._pctFromEvent(e, track) };
+  };
+
+  /** Update the live preview while dragging. No-op for any row other than the
+   *  one that owns the current drag. */
+  private _onTrackPointerMove = (e: PointerEvent, entityId: string): void => {
+    if (this._dragPreview?.entityId !== entityId) return;
+    const track = e.currentTarget as HTMLElement;
+    this._dragPreview = { entityId, pct: this._pctFromEvent(e, track) };
+  };
+
+  /** End of gesture: clear the preview for this row. Never calls a service —
+   *  on pointerup, the browser's native trailing `click` fires and
+   *  `_handleTrackClick` commits; on pointercancel there is no commit at all. */
+  private _onTrackPointerEnd = (entityId: string): void => {
+    if (this._dragPreview?.entityId !== entityId) return;
+    this._dragPreview = null;
+  };
+
+  /** Standard WAI-ARIA slider keyboard pattern on the focused `.track`:
+   *  Arrow keys step by 1, Page keys by 10, Home/End jump to the extremes.
+   *  Commits immediately via `_setAxis` (no drag preview involved). */
+  private _onTrackKeydown(e: KeyboardEvent, entityId: string, current: number): void {
+    let next: number;
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'ArrowUp':
+        next = current + 1;
+        break;
+      case 'ArrowLeft':
+      case 'ArrowDown':
+        next = current - 1;
+        break;
+      case 'PageUp':
+        next = current + 10;
+        break;
+      case 'PageDown':
+        next = current - 10;
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = 100;
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+    const clamped = Math.max(0, Math.min(100, next));
     this._setAxis(entityId, 'position', clamped);
   }
 
@@ -370,6 +463,12 @@ export class CoverBar extends LitElement {
       border-radius: 6px;
       cursor: pointer;
       overflow: hidden;
+      /* A touch-drag must move the fill, not the page — own the gesture. */
+      touch-action: none;
+    }
+    .track:focus-visible {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 2px;
     }
     :host([compact]) .track {
       height: 6px;
