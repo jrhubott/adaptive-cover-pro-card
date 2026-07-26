@@ -6,6 +6,7 @@ import { entityStateChanged } from './lib/hass-change';
 
 import { CARD_EDITOR_NAME, CARD_NAME, CARD_VERSION, resolveControlFlags } from './const';
 import { coverStateIcon, coverStateColor } from './lib/icons';
+import { logicalCoverPosition } from './lib/cover-position';
 import { t } from './lib/i18n';
 import { setTooltipDefaults } from './lib/tooltip';
 import { createDiscoveryMemo } from './lib/entity-discovery';
@@ -252,15 +253,15 @@ export class AdaptiveCoverProCard extends LitElement {
   ): TemplateResult {
     // Resolve the header glyph from the underlying HA cover so it matches HA's
     // native icon (explicit entity icon → device_class glyph → cover_type →
-    // generic), position-aware via the cover's current_position.
+    // generic), position-aware via the cover's current_position — read in the
+    // logical frame so an inverse_state entry gets the right glyph (#234).
     const coverId = d.managed_covers?.[0];
     const coverState = coverId ? this.hass.states[coverId] : undefined;
-    const coverPos = coverState?.attributes?.current_position;
     const icon = coverStateIcon({
       explicitIcon: coverState?.attributes?.icon as string | undefined,
       deviceClass: coverState?.attributes?.device_class as string | undefined,
       coverType: d.cover_type,
-      position: typeof coverPos === 'number' && !Number.isNaN(coverPos) ? coverPos : null,
+      position: logicalCoverPosition(this.hass, d, coverId),
     });
     const iconColor =
       this._config!.state_color !== false ? coverStateColor(coverState?.state) : null;

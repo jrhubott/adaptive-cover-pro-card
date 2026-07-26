@@ -138,6 +138,14 @@ export interface HarnessEntry {
      *  absent — simulates an older integration or interpolation not configured
      *  for this axis; the card falls back to `state` (today's behavior). */
     linear_position: number | null;
+    /** Simulate an `inverse_state` install (issue #234): the integration
+     *  dispatches `100 − logical`, so the Cover_Position sensor STATE, its
+     *  `actual_positions` and the mock source cover entity all go cover-frame,
+     *  while `linear_position` / `linear_actual_positions` stay logical and the
+     *  discovery position axis carries `inverted: true`. Combine with
+     *  `legacyIntegration` to reproduce the pre-#1033 residual, where the card
+     *  has no frame oracle and renders the defect. */
+    inverse_state: boolean;
     /** When true, the priority-100 safety slot (slot 5) is armed and wins as a
      *  custom_position with bypass_auto_control. Replaces the pre-2.28
      *  standalone Force Override trigger count. */

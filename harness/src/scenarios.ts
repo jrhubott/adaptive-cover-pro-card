@@ -155,6 +155,7 @@ function makeEntry(
       manual_override_minutes_from_now: 60,
       held_position: null,
       linear_position: null,
+      inverse_state: false,
       safety_slot_active: false,
       motion_status: 'idle',
       motion_timeout_minutes_from_now: 1,
@@ -839,6 +840,49 @@ export const SCENARIOS: Scenario[] = [
       c.entries[0].target_position = 31;
       c.entries[0].covers[0].position = 31;
       c.entries[0].flags.linear_position = 10;
+      return c;
+    },
+  },
+  {
+    id: 'inverse-state-awning',
+    label: 'Inverse state — extended awning (#234)',
+    description:
+      'An `inverse_state` awning, fully extended and on target. The integration dispatches 100 − 100 = 0, so the Cover_Position sensor STATE, its actual_positions and the physical cover entity all read 0, while linear_position / linear_actual_positions stay at the logical 100 and the discovery position axis carries inverted: true. The card must render entirely in the logical frame: a FULL position bar with the target marker on top of it (not an empty bar with the marker pinned at the far end), the readout "Open · 100%" agreeing with the entity state, the open glyph, ↑ (open) disabled and ↓ (close) live, the compass actual ring on the target wedge, the forecast history track the same way up as the forecast curve, and no spurious "Motor: 0%" tooltip on the COVERS Target chip.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 14 * 60);
+      c.scenario = 'inverse-state-awning';
+      c.entries = [
+        makeEntry({
+          entry_id: 'patio',
+          title: 'Patio Awning',
+          cover_type: 'cover_awning',
+          window_azimuth: 180,
+          color: '#ff7043',
+          target_position: 100,
+          covers: [
+            {
+              entity_id: 'cover.patio_awning',
+              friendly_name: 'Patio awning',
+              // Logical: fully extended. state-gen flips this to the reported 0.
+              position: 100,
+              device_class: 'awning',
+            },
+          ],
+        }),
+      ];
+      c.entries[0].flags.inverse_state = true;
+      return c;
+    },
+  },
+  {
+    id: 'inverse-state-awning-legacy',
+    label: 'Inverse state — pre-#1033 integration (#234 residual)',
+    description:
+      'The same extended awning on an integration too old to publish either frame field: no linear_actual_positions and no cover_discovery (so no inverted flag). Every card-only way to infer the frame is unsound, so the card deliberately does NOT guess — this scenario intentionally shows the BROKEN rendering (empty bar, marker at 100%, "Open · 0%", ↓ close disabled). It is the documented residual and the guard against a future "helpful" inference; the fix requires the integration upgrade.',
+    build: () => {
+      const c = SCENARIOS.find((s) => s.id === 'inverse-state-awning')!.build();
+      c.scenario = 'inverse-state-awning-legacy';
+      c.legacyIntegration = true;
       return c;
     },
   },

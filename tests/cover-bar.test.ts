@@ -1039,3 +1039,77 @@ describe('acp-cover-bar position slider — issue #231', () => {
     expect(styles).toMatch(/\.track\s*{[^}]*touch-action:\s*none/);
   });
 });
+
+// ── inverse_state frame normalization (#234) ─────────────────────────────────
+
+describe('acp-cover-bar inverse_state frame normalization (#234)', () => {
+  const AWNING = 'cover.patio_awning';
+
+  function inverseDiscovered(legacy = false): DiscoveredEntities {
+    return {
+      ...baseDiscovered,
+      cover_type: 'cover_awning',
+      entities: { target_position_sensor: 'sensor.cover_position' },
+      ...(legacy
+        ? {}
+        : { discovery: { axes: [{ id: 'position', inverted: true, supported: true }] } }),
+    };
+  }
+
+  /** Fully-extended awning: logical 100, dispatched 0. */
+  function inverseHass(opts: { linearActuals?: boolean } = {}): HomeAssistant {
+    return {
+      states: {
+        'sensor.cover_position': {
+          state: '0',
+          attributes: {
+            actual_positions: { [AWNING]: 0 },
+            ...(opts.linearActuals === false ? {} : { linear_actual_positions: { [AWNING]: 100 } }),
+            linear_position: 100,
+            raw_calculated_position: 100,
+          },
+        },
+        [AWNING]: { state: 'open', attributes: { friendly_name: 'Patio Awning' } },
+      },
+      callService: vi.fn(),
+    } as unknown as HomeAssistant;
+  }
+
+  async function mount(hass: HomeAssistant, discovered: DiscoveredEntities): Promise<CoverBarLike> {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    document.body.appendChild(el);
+    el.hass = hass;
+    el.discovered = discovered;
+    await el.updateComplete;
+    return el;
+  }
+
+  it('fills the per-cover track from the logical frame, matching the Target marker', async () => {
+    const el = await mount(inverseHass(), inverseDiscovered());
+    const open = el.shadowRoot!.querySelector('.fill') as HTMLElement;
+    const closed = el.shadowRoot!.querySelector('.fill-closed') as HTMLElement;
+    const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
+    expect(open.style.width).toBe('100%');
+    expect(closed.style.width).toBe('0%');
+    // The marker's left is a clamp() expression, so read the raw attribute
+    // (happy-dom does not expose clamp() through style.left).
+    expect(marker.getAttribute('style') ?? '').toContain('left:clamp(1px, 100%, calc(100% - 1px))');
+    expect(el.shadowRoot!.querySelector('.num')!.textContent!.trim()).toBe('100%');
+  });
+
+  it('un-inverts actual_positions when linear_actual_positions is absent', async () => {
+    const el = await mount(inverseHass({ linearActuals: false }), inverseDiscovered());
+    expect((el.shadowRoot!.querySelector('.fill') as HTMLElement).style.width).toBe('100%');
+  });
+
+  it('suppresses the Motor tooltip when the divergence is the inversion itself', async () => {
+    const el = await mount(inverseHass(), inverseDiscovered());
+    const target = el.shadowRoot!.querySelector('.head .target') as HTMLElement;
+    expect(target.getAttribute('data-tooltip')).toBeNull();
+  });
+
+  it('renders verbatim on a legacy entry with neither new field', async () => {
+    const el = await mount(inverseHass({ linearActuals: false }), inverseDiscovered(true));
+    expect((el.shadowRoot!.querySelector('.fill') as HTMLElement).style.width).toBe('0%');
+  });
+});

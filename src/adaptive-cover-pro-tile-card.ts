@@ -42,7 +42,7 @@ import {
   resolveCustomPositionPct,
   resolveActiveMinModeFloor,
 } from './lib/decision-summary';
-import { coverHeldPosition } from './lib/cover-position';
+import { coverHeldPosition, logicalCoverPosition } from './lib/cover-position';
 import {
   buildSolarActiveContext,
   isAutoControlActive,
@@ -364,7 +364,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // not get its `current_position` attribute treated as live truth, but the
     // independently-sourced `calculatedPosition` fallback below still applies,
     // same as any other no-feedback cover (issue #232).
-    const reportedPosition = noLiveData ? null : this._liveCoverPosition(cover);
+    const reportedPosition = noLiveData ? null : this._liveCoverPosition(discovered, cover);
     const livePosition = offline ? null : (reportedPosition ?? calculatedPosition);
     const icon =
       cfg.icon ??
@@ -712,10 +712,16 @@ export class AdaptiveCoverProTileCard extends LitElement {
     return transit?.[cover] ?? null;
   }
 
-  private _liveCoverPosition(cover: string | undefined): number | null {
-    if (!cover) return null;
-    const v = this.hass.states[cover]?.attributes?.current_position;
-    return typeof v === 'number' && !Number.isNaN(v) ? v : null;
+  /** The cover's live position in the **logical** frame — un-inverted at the
+   *  read on an `inverse_state` entry so the fill, readout, glyph, tooltip and
+   *  the ↑/↓ travel-limit gates all share one frame with the
+   *  `coverHeldPosition`-derived target marker (issue #234). Inert (identity)
+   *  on every non-inverse install. */
+  private _liveCoverPosition(
+    discovered: DiscoveredEntities,
+    cover: string | undefined,
+  ): number | null {
+    return logicalCoverPosition(this.hass, discovered, cover);
   }
 
   private _winner(discovered: DiscoveredEntities): string {

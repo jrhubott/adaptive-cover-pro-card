@@ -4,7 +4,12 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import { entityStateChanged } from '../lib/hass-change';
 import type { CoverPositionAttributes, DiscoveredEntities } from '../types';
-import { displayTarget, isOverrideDivergence, coverMotorDivergence } from '../lib/cover-position';
+import {
+  displayTarget,
+  isOverrideDivergence,
+  coverMotorDivergence,
+  coverLogicalActuals,
+} from '../lib/cover-position';
 import { formatPercent } from '../lib/formatters';
 import { AXIS_LABEL_I18N_KEYS } from '../const';
 import { resolveAxes, type ResolvedAxis } from '../lib/axes';
@@ -58,13 +63,14 @@ export class CoverBar extends LitElement {
     if (!id) return { target: null, covers: {} };
     const st = this.hass.states[id];
     if (!st) return { target: null, covers: {} };
-    const attrs = st.attributes as unknown as CoverPositionAttributes;
     return {
       // During a diverging manual override the sensor state is the held value;
       // surface the solar would-be target instead so the label and marker match
       // the compass and reveal the held-vs-target gap (#158).
       target: displayTarget(this.hass, this.discovered),
-      covers: attrs?.actual_positions ?? {},
+      // Logical frame, so the per-cover fills are commensurable with the
+      // linear-preferred target marker on an inverse_state entry (#234).
+      covers: coverLogicalActuals(this.hass, this.discovered),
     };
   }
 

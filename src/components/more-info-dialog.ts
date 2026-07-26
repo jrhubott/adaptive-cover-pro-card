@@ -21,8 +21,8 @@ import {
   selectVisibleBadges,
 } from '../lib/badge-visibility';
 import { coverStateIcon, coverStateColor } from '../lib/icons';
-import { resolveAxes } from '../lib/axes';
-import { coverHeldPosition } from '../lib/cover-position';
+import { resolveAxes, positionAxisInverted } from '../lib/axes';
+import { coverHeldPosition, logicalCoverPosition } from '../lib/cover-position';
 import { startMinuteTimer } from '../lib/minute-timer';
 import type {
   AdaptiveCoverProTileCardConfig,
@@ -106,7 +106,11 @@ export class MoreInfoDialog extends LitElement {
     const key = `${covers.join(',')}|${dayStartMs}`;
     if (key === this._historyKey) return;
     this._historyKey = key;
-    void fetchPositionHistory(this.hass, covers, dayStartMs, now).then((history) => {
+    // The recorder holds the dispatched position; flip it into the logical
+    // frame so the history track and the forecast/target curve it is plotted
+    // against share one frame (#234).
+    const inverted = positionAxisInverted(this.discovered);
+    void fetchPositionHistory(this.hass, covers, dayStartMs, now, inverted).then((history) => {
       // Drop a stale response if the cover-set/day changed while awaiting.
       if (this._historyKey !== key) return;
       this._positionHistory = history;
@@ -152,17 +156,17 @@ export class MoreInfoDialog extends LitElement {
    * Header glyph, derived from the managed cover entity (HA-native icon) with
    * the same fallback chain the tile uses: explicit entity icon → device_class
    * glyph → integration cover_type → generic fallback. Position-aware via the
-   * cover's `current_position`.
+   * cover's `current_position`, normalized to the logical frame so an
+   * `inverse_state` entry doesn't paint the open glyph on a closed cover (#234).
    */
   private _headerIcon(): string {
     const coverId = this.discovered.managed_covers?.[0];
     const stateObj = coverId ? this.hass.states[coverId] : undefined;
-    const pos = stateObj?.attributes?.current_position;
     return coverStateIcon({
       explicitIcon: stateObj?.attributes?.icon as string | undefined,
       deviceClass: stateObj?.attributes?.device_class as string | undefined,
       coverType: this.discovered.cover_type,
-      position: typeof pos === 'number' && !Number.isNaN(pos) ? pos : null,
+      position: logicalCoverPosition(this.hass, this.discovered, coverId),
     });
   }
 

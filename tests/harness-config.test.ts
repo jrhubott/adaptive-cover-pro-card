@@ -15,6 +15,12 @@ import { zonedNowMs, zoneForLongitude } from '../harness/src/zone';
 import { INTEGRATION_DOMAIN } from '../src/const';
 import { buildRegistry } from '../harness/src/mock/registry';
 import { discoverEntities } from '../src/lib/entity-discovery';
+import { positionAxisInverted } from '../src/lib/axes';
+import {
+  coverHeldPosition,
+  coverLogicalActuals,
+  logicalCoverPosition,
+} from '../src/lib/cover-position';
 
 interface CardStageLike extends HTMLElement {
   config: HarnessConfig;
@@ -537,5 +543,65 @@ describe('applyService — adaptive_cover_pro.engage_manual_override (#229)', ()
     );
     expect(applied).toBe(false);
     expect(next).toBe(cfg);
+  });
+});
+
+// ── inverse_state harness scenarios (#234) ───────────────────────────────────
+
+describe('harness inverse_state scenarios (#234)', () => {
+  function discoverFor(scenarioId: string) {
+    const cfg = findScenario(scenarioId)!.build();
+    const entry = cfg.entries[0];
+    const registry = buildRegistry(cfg.entries);
+    const { states } = buildStates(cfg);
+    const hass = { states, devices: {} } as unknown as import('custom-card-helpers').HomeAssistant;
+    const d = discoverEntities(
+      hass,
+      { type: 'custom:adaptive-cover-pro-tile-card', entry_id: entry.entry_id },
+      registry,
+    );
+    return { hass, states, discovered: d! };
+  }
+
+  it('emits the reporter fixture: cover-frame state/actuals, logical linear_*', () => {
+    const { states, discovered } = discoverFor('inverse-state-awning');
+    const sensor = states[discovered.entities.target_position_sensor!];
+    expect(sensor.state).toBe('0');
+    expect(sensor.attributes.linear_position).toBe(100);
+    expect(sensor.attributes.actual_positions).toEqual({ 'cover.patio_awning': 0 });
+    expect(sensor.attributes.linear_actual_positions).toEqual({ 'cover.patio_awning': 100 });
+    // The mock source cover reports backwards while its state still says open —
+    // the exact contradiction the issue was filed against.
+    expect(states['cover.patio_awning'].attributes.current_position).toBe(0);
+    expect(states['cover.patio_awning'].state).toBe('open');
+    expect(states['cover.patio_awning'].attributes.assumed_state).toBe(true);
+  });
+
+  it('carries inverted: true through discovery so the card can normalize', () => {
+    const { hass, discovered } = discoverFor('inverse-state-awning');
+    expect(positionAxisInverted(discovered)).toBe(true);
+    expect(coverLogicalActuals(hass, discovered)).toEqual({ 'cover.patio_awning': 100 });
+    expect(logicalCoverPosition(hass, discovered, 'cover.patio_awning')).toBe(100);
+    expect(coverHeldPosition(hass, discovered)).toBe(100);
+  });
+
+  it('legacy variant publishes neither field, so the card stays in the cover frame', () => {
+    const { hass, states, discovered } = discoverFor('inverse-state-awning-legacy');
+    const sensor = states[discovered.entities.target_position_sensor!];
+    expect(sensor.attributes.linear_actual_positions).toBeUndefined();
+    expect(discovered.discovery).toBeUndefined();
+    expect(positionAxisInverted(discovered)).toBe(false);
+    // The documented pre-#1033 residual: no sound oracle, so no guess.
+    expect(logicalCoverPosition(hass, discovered, 'cover.patio_awning')).toBe(0);
+  });
+
+  it('leaves a non-inverse scenario byte-identical, with an identity actuals map', () => {
+    const { hass, states, discovered } = discoverFor('interpolation-linear-position');
+    const sensor = states[discovered.entities.target_position_sensor!];
+    expect(sensor.state).toBe('31');
+    expect(sensor.attributes.linear_position).toBe(10);
+    expect(positionAxisInverted(discovered)).toBe(false);
+    expect(sensor.attributes.linear_actual_positions).toEqual(sensor.attributes.actual_positions);
+    expect(coverLogicalActuals(hass, discovered)).toEqual(sensor.attributes.actual_positions);
   });
 });
