@@ -103,15 +103,18 @@ export class MoreInfoDialog extends LitElement {
     }
     const now = Date.now();
     const dayStartMs = startOfDay(new Date(now)).getTime();
-    const key = `${covers.join(',')}|${dayStartMs}`;
-    if (key === this._historyKey) return;
-    this._historyKey = key;
     // The recorder holds the dispatched position; flip it into the logical
     // frame so the history track and the forecast/target curve it is plotted
-    // against share one frame (#234).
+    // against share one frame (#234). The frame is part of the key: it can flip
+    // while the dialog is open (control_status unavailable at open, or an
+    // integration reload mid-day), and a cached track in the stale frame plots
+    // upside-down against the curve until the day or the cover set changes.
     const inverted = positionAxisInverted(this.discovered);
+    const key = `${covers.join(',')}|${dayStartMs}|${inverted}`;
+    if (key === this._historyKey) return;
+    this._historyKey = key;
     void fetchPositionHistory(this.hass, covers, dayStartMs, now, inverted).then((history) => {
-      // Drop a stale response if the cover-set/day changed while awaiting.
+      // Drop a stale response if the cover-set/day/frame changed while awaiting.
       if (this._historyKey !== key) return;
       this._positionHistory = history;
     });

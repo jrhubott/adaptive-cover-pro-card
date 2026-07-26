@@ -2689,7 +2689,10 @@ describe('adaptive-cover-pro-tile-card — inverse_state frame normalization (#2
     expect(bar).toBeTruthy();
     const marker = bar.querySelector('.pos-marker') as HTMLElement;
     expect(fillWidth(el)).toContain('width:100%');
-    expect(marker.getAttribute('style') ?? '').toContain('100%');
+    // Bind the marker's own value: the rendered style is
+    // `left:clamp(1px, X%, calc(100% - 1px))`, so a bare `100%` substring matches
+    // for any X via the upper bound. Anchor on the clamp's middle argument.
+    expect(marker.getAttribute('style') ?? '').toContain('left:clamp(1px, 100%,');
   });
 
   it('disables ↑ (open) and keeps ↓ (close) live on a fully-extended awning', async () => {

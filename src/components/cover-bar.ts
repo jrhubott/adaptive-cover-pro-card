@@ -35,9 +35,11 @@ export class CoverBar extends LitElement {
    *  exactly as it does for a plain tap today). */
   @state() private _dragPreview: { entityId: string; pct: number } | null = null;
 
-  // Live positions come from the target sensor's `actual_positions`; mismatches from the
-  // position-mismatch binary. Per-cover friendly names are effectively static, so those
-  // two ids cover everything the bars render — skip unrelated hass ticks.
+  // Live positions come from `coverLogicalActuals`, which reads the target sensor's
+  // `linear_actual_positions` (falling back to `actual_positions`); mismatches from the
+  // position-mismatch binary. Both live on the same two entities, and per-cover friendly
+  // names are effectively static, so those ids cover everything the bars render — skip
+  // unrelated hass ticks.
   protected shouldUpdate(changed: PropertyValues): boolean {
     if (changed.size > 1 || !changed.has('hass')) return true;
     const old = changed.get('hass') as HomeAssistant | undefined;

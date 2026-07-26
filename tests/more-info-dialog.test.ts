@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import '../src/components/more-info-dialog';
 import type { HomeAssistant } from 'custom-card-helpers';
-import type { DiscoveredEntities } from '../src/types';
+import type { DiscoveredEntities, PositionHistorySample } from '../src/types';
 
 interface DialogLike extends HTMLElement {
   updateComplete: Promise<boolean>;
@@ -875,5 +875,85 @@ describe('acp-more-info-dialog: header badge respects control switches', () => {
     expect(badges.length).toBe(1);
     const txt = badges[0].shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
     expect(txt).toBe('Off');
+  });
+});
+
+describe('acp-more-info-dialog: position-history fetch cache (#234)', () => {
+  const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
+
+  function historyHass(callWS: ReturnType<typeof vi.fn>): HomeAssistant {
+    const h = hass();
+    (h as unknown as { callWS: unknown }).callWS = callWS;
+    return h;
+  }
+
+  /** Same entry, but the position axis now reports the inverse frame. */
+  function inverseDiscovered(): DiscoveredEntities {
+    return {
+      ...discovered(),
+      discovery: {
+        cover_type: 'cover_awning',
+        axes: [
+          {
+            id: 'position',
+            label: 'Position',
+            state_attr: 'current_position',
+            supported: true,
+            inverted: true,
+          },
+        ],
+      },
+    };
+  }
+
+  function stripHistory(el: DialogLike): number[] {
+    const strip = el.shadowRoot!.querySelector('acp-forecast-strip') as
+      | (HTMLElement & { history: PositionHistorySample[] })
+      | null;
+    return (strip?.history ?? []).map((s) => s.position);
+  }
+
+  it('refetches when the position axis frame flips while the dialog is open', async () => {
+    // `inverted` is not stable for the life of an open dialog: control_status can
+    // be unavailable at dialog-open and arrive a tick later, or the integration
+    // can reload mid-day. The cache key must carry the frame, or the track stays
+    // in the old frame and plots upside-down against the logical forecast curve.
+    const callWS = vi.fn().mockResolvedValue({
+      'cover.left': [
+        { s: 'open', a: { current_position: 30 }, lu: (Date.now() - 3_600_000) / 1000 },
+      ],
+    });
+    const el = await mount({ hass: historyHass(callWS), discovered: discovered(), open: true });
+    await flush();
+    await el.updateComplete;
+    expect(callWS).toHaveBeenCalledTimes(1);
+    // Sample + forward-filled tail, both in the cover frame (not inverted yet).
+    expect(stripHistory(el)).toEqual([30, 30]);
+
+    el.discovered = inverseDiscovered();
+    await el.updateComplete;
+    await flush();
+    await el.updateComplete;
+    expect(callWS).toHaveBeenCalledTimes(2);
+    expect(stripHistory(el)).toEqual([70, 70]);
+  });
+
+  it('does not refetch when the frame is unchanged', async () => {
+    const callWS = vi.fn().mockResolvedValue({
+      'cover.left': [
+        { s: 'open', a: { current_position: 30 }, lu: (Date.now() - 3_600_000) / 1000 },
+      ],
+    });
+    const el = await mount({ hass: historyHass(callWS), discovered: discovered(), open: true });
+    await flush();
+    await el.updateComplete;
+    expect(callWS).toHaveBeenCalledTimes(1);
+
+    // A fresh-but-equivalent `discovered` (same covers, same frame) must still
+    // hit the cache — the key stays keyed on values, never object identity.
+    el.discovered = discovered();
+    await el.updateComplete;
+    await flush();
+    expect(callWS).toHaveBeenCalledTimes(1);
   });
 });
