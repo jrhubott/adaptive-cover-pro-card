@@ -38,17 +38,20 @@ export class GroupControlsRow extends LitElement {
   protected render(): TemplateResult | typeof nothing {
     if (!this.hass || !this.discovered || !this.snapshot) return nothing;
     const s = this.snapshot;
+    // Each control needs BOTH its config opt-in and a backing entity — without
+    // the entity the write is a no-op, so rendering it would be a lie.
     const clearId = this.showClearOverrides ? s.clearId : undefined;
-    if (!this.showSceneSelect && !this.showLock && !this.showAutomation && !clearId) {
-      return nothing;
-    }
+    const lock = this.showLock && !!s.lockId;
+    const automation = this.showAutomation && !!s.automationId;
+    const scene = this.showSceneSelect && !!this.discovered.entities.group_scene_select;
+    if (!scene && !lock && !automation && !clearId) return nothing;
     // Unknown state must not disable a button whose service would still do work
     // — see hasMemberOverrides for why a locked/weather-held group reads unknown.
     const clearable = hasMemberOverrides(s.memberWinners);
 
     return html`
       <div class="group-row" @click=${this._stop} @pointerdown=${this._stop} @keydown=${this._stop}>
-        ${this.showSceneSelect
+        ${scene
           ? html`<select
               class="scene-select"
               aria-label=${t('group.scene', this.hass)}
@@ -62,7 +65,7 @@ export class GroupControlsRow extends LitElement {
               )}
             </select>`
           : nothing}
-        ${!this.showLock
+        ${!lock
           ? nothing
           : html`<button
               class="ctrl lock-toggle ${s.locked ? 'active' : ''}"
@@ -74,7 +77,7 @@ export class GroupControlsRow extends LitElement {
             >
               <ha-icon icon=${s.locked ? 'mdi:lock' : 'mdi:lock-open-variant'}></ha-icon>
             </button>`}
-        ${!this.showAutomation
+        ${!automation
           ? nothing
           : html`<button
               class="ctrl automation-toggle ${s.automationOn ? 'active' : ''}"

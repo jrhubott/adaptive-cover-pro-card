@@ -3,15 +3,17 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { PropertyValues } from 'lit';
 import type { HomeAssistant } from 'custom-card-helpers';
 
-import { COVER_CLOSE_ICON, COVER_OPEN_ICON, TILE_CARD_NAME } from '../const';
+import { TILE_CARD_NAME } from '../const';
 import { setGroupMemberAxis, stopGroupMember, supportsTilt } from '../lib/services';
 import { resolveCoverEntryId } from '../lib/entity-suggestion';
 import { getCachedRegistry } from '../lib/registry-store';
+import type { EntityRegistryEntry } from '../lib/entity-registry';
 import { isOffline } from '../lib/formatters';
 import type { AdaptiveCoverProTileCardConfig } from '../types';
 import { t } from '../lib/i18n';
 import { tooltip } from '../lib/tooltip';
 
+import './cover-move-buttons';
 import './tilt-bar';
 import './tile-badge';
 
@@ -66,6 +68,19 @@ const CONTAINED_TILE_EVENTS = [
  * Fallback writes route through {@link setGroupMemberAxis} /
  * {@link stopGroupMember}; on the tile-card path the tile owns its own writes.
  */
+/** Stable per-array identity for the registry cache, so the resolve memo can
+ *  tell "same registry" from "registry changed" without deep comparison. */
+let _idSeq = 0;
+const _ids = new WeakMap<object, number>();
+function registryIdentity(registry: EntityRegistryEntry[]): number {
+  let id = _ids.get(registry);
+  if (id === undefined) {
+    id = ++_idSeq;
+    _ids.set(registry, id);
+  }
+  return id;
+}
+
 @customElement('acp-group-member-row')
 export class GroupMemberRow extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
@@ -90,9 +105,14 @@ export class GroupMemberRow extends LitElement {
   private _tile: TileCardElement | null = null;
   private _tileKey: string | null = null;
 
-  /** Which entityId `_entryId` was resolved for, so the O(states) scan runs once
-   *  per member rather than on every hass tick. */
-  private _resolvedFor: string | null = null;
+  /** Memo key for the resolve scan: `entityId` + the identity of the registry
+   *  array it was resolved against. Keeps the O(states) scan to once per member
+   *  instead of once per hass tick, while still re-resolving when the registry
+   *  changes — which is what happens when a member's own ACP entry loads, or a
+   *  user creates one for a cover that was previously a generic member. Keying
+   *  on registry *warmth* instead (the first attempt at this) pinned such a
+   *  member to the generic fallback row permanently. */
+  private _resolveKey: string | null = null;
 
   protected willUpdate(changed: PropertyValues): void {
     if (!this.hass || !this.entityId) return;
@@ -101,20 +121,23 @@ export class GroupMemberRow extends LitElement {
     // member's entry pinned to this cover — its badges and decision state for a
     // cover it doesn't manage, and `set_axes` aimed at a cover with no ACP
     // pipeline. Reset hard, then re-resolve.
-    if (changed.has('entityId') && this._resolvedFor !== this.entityId) {
+    if (changed.has('entityId')) {
       this._entryId = null;
       this._tile = null;
       this._tileKey = null;
-      this._resolvedFor = null;
+      this._resolveKey = null;
     }
-    // Resolve at most once per member. The registry cache can be cold on the
-    // first paint, so keep retrying only while it is — otherwise a generic
-    // member (which never resolves) would rescan every entity, every tick.
-    if (this._resolvedFor === this.entityId) return;
-    const registryWarm = getCachedRegistry() !== null;
+    const registry = getCachedRegistry();
+    // A cold registry cannot resolve anything (`resolveCoverEntryId` short-
+    // circuits), so leave the key unset and retry next tick — that path is O(1).
+    if (!registry) return;
+    const key = `${this.entityId}|${registryIdentity(registry)}`;
+    if (this._resolveKey === key) return;
+    this._resolveKey = key;
     const resolved = resolveCoverEntryId(this.hass, this.entityId);
+    // Never clear a resolved entry on a transient miss — that would tear down a
+    // live tile card. A genuine member change resets it above instead.
     if (resolved) this._entryId = resolved;
-    if (registryWarm) this._resolvedFor = this.entityId;
   }
 
   /* HA never sets `hass` on an imperatively-created card, so the nested tile is
@@ -178,9 +201,11 @@ export class GroupMemberRow extends LitElement {
       <div class="member ${offline ? 'unavailable' : ''}">
         <div class="head">
           <div class="name" ${tooltip(this.entityId)}>${friendly}</div>
-          ${this.winner
-            ? html`<acp-tile-badge .hass=${this.hass} .winner=${this.winner}></acp-tile-badge>`
-            : nothing}
+          ${
+            this.winner
+              ? html`<acp-tile-badge .hass=${this.hass} .winner=${this.winner}></acp-tile-badge>`
+              : nothing
+          }
         </div>
         <div class="body">
           <div class="tracks">
@@ -195,46 +220,29 @@ export class GroupMemberRow extends LitElement {
               .compact=${this.compact}
               @acp-tilt-set=${(e: CustomEvent<number>) => this._set('position', e.detail)}
             ></acp-axis-bar>
-            ${tilt
-              ? html`<acp-axis-bar
-                  layout="cover"
-                  .hass=${this.hass}
-                  .label=${t('covers.tilt_title', this.hass)}
-                  .actual=${liveTilt}
-                  .disabled=${offline}
-                  .compact=${this.compact}
-                  @acp-tilt-set=${(e: CustomEvent<number>) => this._set('tilt', e.detail)}
-                ></acp-axis-bar>`
-              : nothing}
+            ${
+              tilt
+                ? html`<acp-axis-bar
+                    layout="cover"
+                    .hass=${this.hass}
+                    .label=${t('covers.tilt_title', this.hass)}
+                    .actual=${liveTilt}
+                    .disabled=${offline}
+                    .compact=${this.compact}
+                    @acp-tilt-set=${(e: CustomEvent<number>) => this._set('tilt', e.detail)}
+                  ></acp-axis-bar>`
+                : nothing
+            }
           </div>
-          <div class="move-buttons">
-            <button
-              class="up"
-              type="button"
-              aria-label=${t('tile.open', this.hass)}
-              ?disabled=${offline || this.position === 100}
-              @click=${() => this._set('position', 100)}
-            >
-              <ha-icon icon=${COVER_OPEN_ICON}></ha-icon>
-            </button>
-            <button
-              class="stop"
-              type="button"
-              aria-label=${t('tile.stop', this.hass)}
-              ?disabled=${offline}
-              @click=${this._stop}
-            >
-              <ha-icon icon="mdi:stop"></ha-icon>
-            </button>
-            <button
-              class="down"
-              type="button"
-              aria-label=${t('tile.close', this.hass)}
-              ?disabled=${offline || this.position === 0}
-              @click=${() => this._set('position', 0)}
-            >
-              <ha-icon icon=${COVER_CLOSE_ICON}></ha-icon>
-            </button>
+          <acp-cover-move-buttons
+            compact
+            labels="tile"
+            .hass=${this.hass}
+            .position=${this.position}
+            .deviceClass=${state?.attributes?.device_class as string | undefined}
+            .enabled=${!offline}
+            @acp-move=${this._onMove}
+          ></acp-cover-move-buttons>
           </div>
         </div>
       </div>
@@ -245,8 +253,9 @@ export class GroupMemberRow extends LitElement {
     setGroupMemberAxis(this.hass, this.entityId, axisId, value, this.acpManaged);
   }
 
-  private _stop = (): void => {
-    stopGroupMember(this.hass, this.entityId, this.acpManaged);
+  private _onMove = (e: CustomEvent<'open' | 'stop' | 'close'>): void => {
+    if (e.detail === 'stop') stopGroupMember(this.hass, this.entityId, this.acpManaged);
+    else this._set('position', e.detail === 'open' ? 100 : 0);
   };
 
   public static styles = css`

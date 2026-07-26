@@ -125,6 +125,55 @@ describe('acp-group-member-row', () => {
 
     expect(el.shadowRoot!.querySelector(TILE_CARD_NAME)).toBeNull();
     expect(el.shadowRoot!.querySelector('.member')).not.toBeNull();
-    expect(el.shadowRoot!.querySelectorAll('.move-buttons button').length).toBe(3);
+    // The ↑■↓ triple is the shared element, so it lives one shadow root deeper.
+    const buttons = el.shadowRoot!.querySelector('acp-cover-move-buttons') as HTMLElement & {
+      updateComplete: Promise<boolean>;
+    };
+    await buttons.updateComplete;
+    expect(buttons.shadowRoot!.querySelectorAll('.move-buttons button').length).toBe(3);
+  });
+
+  // Audit regression: the resolve memo used to arm on registry warmth, but
+  // resolution needs the member's own ACP sensor in `hass.states` — independent
+  // conditions. A member whose entry loaded a tick later stayed on the fallback
+  // row forever, which on the main-card view never self-heals.
+  it('upgrades to a tile card when the member entry appears later', async () => {
+    _resetRegistryStore();
+    // Registry is warm, but the member's position sensor has not published yet.
+    await loadEntityRegistry({ callWS: async () => [] } as unknown as Parameters<
+      typeof loadEntityRegistry
+    >[0]);
+    const el = document.createElement('acp-group-member-row') as RowLike;
+    el.hass = {
+      states: { [MEMBER]: { state: 'open', attributes: {} } },
+    } as unknown as HomeAssistant;
+    el.entityId = MEMBER;
+    el.position = 40;
+    document.body.appendChild(el);
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector(TILE_CARD_NAME)).toBeNull();
+
+    // The member's ACP entry loads: its entities register and its position
+    // sensor starts publishing. In production the cards' `entity_registry_updated`
+    // subscription refreshes the shared cache with `force`, which is what gives
+    // the roster a new registry array to re-resolve against.
+    await loadEntityRegistry(
+      {
+        callWS: async () => [
+          {
+            entity_id: 'sensor.acp_living_position',
+            unique_id: 'living_Cover_Position',
+            platform: 'adaptive_cover_pro',
+            config_entry_id: 'living_entry',
+            device_id: 'dev1',
+          },
+        ],
+      } as unknown as Parameters<typeof loadEntityRegistry>[0],
+      true,
+    );
+    el.hass = makeHass();
+    await el.updateComplete;
+
+    expect(el.shadowRoot!.querySelector(TILE_CARD_NAME)).not.toBeNull();
   });
 });

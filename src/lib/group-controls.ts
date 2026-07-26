@@ -53,6 +53,12 @@ export interface GroupSnapshot {
   scene: GroupScene;
   locked: boolean;
   automationOn: boolean;
+  /** The lock / automation switch entities, when the integration exposes them.
+   *  A surface must render each toggle only when its id is present: the booleans
+   *  above fall back to sensible defaults, so an absent switch would otherwise
+   *  render a live-looking control whose click is a silent no-op. */
+  lockId: string | undefined;
+  automationId: string | undefined;
   /** The clear-member-overrides button entity, when the integration exposes it. */
   clearId: string | undefined;
   /** Target for the `group_*` services, or undefined when the group exposes no
@@ -110,6 +116,8 @@ export function readGroup(hass: HomeAssistant, discovered: DiscoveredEntities): 
     automationOn: e.group_automation_switch
       ? hass.states[e.group_automation_switch]?.state === 'on'
       : true,
+    lockId: e.group_lock_switch,
+    automationId: e.group_automation_switch,
     clearId: e.group_clear_overrides_button,
     // The `group_*` services resolve the group through the registry from ANY
     // entity of its config entry, so the always-present aggregate-position
