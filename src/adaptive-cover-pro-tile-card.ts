@@ -72,6 +72,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
   @state() public _registry: EntityRegistryEntry[] | null = null;
   @state() private _registryError: string | null = null;
   @state() private _dialogOpen = false;
+  /** Live client-side percent while the position slider is being dragged.
+   *  Drives the fill and readout; the write happens on the gesture's trailing
+   *  click, never mid-drag. Null whenever no drag is in flight. */
+  @state() private _posDrag: number | null = null;
   @state() private _extendOpen = false;
 
   private _unsubRegistry: (() => void) | null = null;
@@ -560,23 +564,45 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // buttons remain the control surface. Detailed layout only, with its own
     // `show_position_bar` toggle independent of the badge master switch.
     const showPositionBar = detailed && cfg.show_position_bar !== false && livePosition !== null;
+    // A drag in flight overrides the server-truth fill and readout. Post-#234
+    // `livePosition` is logical-frame and `set_axes` takes logical values, so
+    // the percentage you drag to is exactly the one that gets sent.
+    const posDragging = this._posDrag !== null;
+    const shownPosition = this._posDrag ?? livePosition;
     const posBarTooltip = showPositionBar
       ? calculatedPosition !== null
-        ? `${formatPercent(livePosition)} · ${t('dialog.target', this.hass)} ${formatPercent(calculatedPosition)}`
-        : formatPercent(livePosition)
+        ? `${formatPercent(shownPosition)} · ${t('dialog.target', this.hass)} ${formatPercent(calculatedPosition)}`
+        : formatPercent(shownPosition)
       : '';
     const posBarTpl = showPositionBar
-      ? html`<div class="pos-bar" ${tooltip(posBarTooltip)}>
-          <div
-            class="pos-fill"
-            style=${`width:${livePosition}%${iconColor ? `;background:${iconColor}` : ''}`}
-          ></div>
-          ${calculatedPosition !== null
-            ? html`<div
-                class="pos-marker"
-                style=${`left:clamp(1px, ${calculatedPosition}%, calc(100% - 1px))`}
-              ></div>`
-            : nothing}
+      ? html`<div
+          class="pos-slider${posDragging ? ' dragging' : ''}"
+          role="slider"
+          tabindex="0"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow=${shownPosition ?? 0}
+          aria-valuetext=${formatPercent(shownPosition)}
+          aria-label=${t('covers.position_slider_label', this.hass)}
+          @click=${(e: MouseEvent) => this._onPosClick(e, cover)}
+          @pointerdown=${this._onPosPointerDown}
+          @pointermove=${this._onPosPointerMove}
+          @pointerup=${this._onPosPointerEnd}
+          @pointercancel=${this._onPosPointerEnd}
+          @keydown=${(e: KeyboardEvent) => this._onPosKeydown(e, cover, livePosition ?? 0)}
+        >
+          <div class="pos-bar" ${tooltip(posBarTooltip)}>
+            <div
+              class="pos-fill"
+              style=${`width:${shownPosition}%${iconColor ? `;background:${iconColor}` : ''}`}
+            ></div>
+            ${calculatedPosition !== null
+              ? html`<div
+                  class="pos-marker"
+                  style=${`left:clamp(1px, ${calculatedPosition}%, calc(100% - 1px))`}
+                ></div>`
+              : nothing}
+          </div>
         </div>`
       : nothing;
     // ACP's own chrome (Auto badge, winner/Manual badge, floor chip) and the
@@ -768,6 +794,76 @@ export class AdaptiveCoverProTileCard extends LitElement {
   private _setCoverPosition(cover: string | undefined, position: number): void {
     if (!cover) return;
     this._setAxis(cover, 'position', position);
+  }
+
+  /** Percent along the position slider from a pointer's clientX. */
+  private _posPctFromEvent(e: { clientX: number }, el: HTMLElement): number {
+    const rect = el.getBoundingClientRect();
+    const pct = Math.round(((e.clientX - rect.left) / rect.width) * 100);
+    return Math.max(0, Math.min(100, pct));
+  }
+
+  /* The tile body is itself a tap target that opens the more-info dialog, so
+     every slider gesture stops propagation, exactly as `.controls` does. No
+     `preventDefault()` on pointerdown: that would also suppress the trailing
+     compatibility `click` the commit rides on. */
+  private _onPosPointerDown = (e: PointerEvent): void => {
+    e.stopPropagation();
+    const el = e.currentTarget as HTMLElement;
+    (el as HTMLElement & { setPointerCapture?: (id: number) => void }).setPointerCapture?.(
+      e.pointerId,
+    );
+    this._posDrag = this._posPctFromEvent(e, el);
+  };
+
+  private _onPosPointerMove = (e: PointerEvent): void => {
+    if (this._posDrag === null) return;
+    e.stopPropagation();
+    this._posDrag = this._posPctFromEvent(e, e.currentTarget as HTMLElement);
+  };
+
+  /** Ends the gesture without writing: on pointerup the trailing `click`
+   *  commits, on pointercancel nothing is sent at all. */
+  private _onPosPointerEnd = (e: PointerEvent): void => {
+    e.stopPropagation();
+    this._posDrag = null;
+  };
+
+  private _onPosClick(e: MouseEvent, cover: string | undefined): void {
+    e.stopPropagation();
+    this._setCoverPosition(cover, this._posPctFromEvent(e, e.currentTarget as HTMLElement));
+  }
+
+  /** Standard WAI-ARIA slider keys: arrows ±1, Page ±10, Home/End to the ends. */
+  private _onPosKeydown(e: KeyboardEvent, cover: string | undefined, current: number): void {
+    let next: number;
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'ArrowUp':
+        next = current + 1;
+        break;
+      case 'ArrowLeft':
+      case 'ArrowDown':
+        next = current - 1;
+        break;
+      case 'PageUp':
+        next = current + 10;
+        break;
+      case 'PageDown':
+        next = current - 10;
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = 100;
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    this._setCoverPosition(cover, Math.max(0, Math.min(100, next)));
   }
 
   private _stopCover(cover: string | undefined): void {
@@ -1079,12 +1175,38 @@ export class AdaptiveCoverProTileCard extends LitElement {
     /* Target-vs-actual mini bar: right-aligned (margin-left:auto) so it fills the
        otherwise-empty space beneath the ↑■↓ buttons. Fill = live openness in the
        state color; the tick marks the auto/solar target. */
-    .chrome-line .pos-bar {
+    /* Interactive wrapper: carries the flex sizing the rail used to own, so the
+       visible 6px rail below is unchanged while the gesture target is bigger. */
+    .chrome-line .pos-slider {
       margin-left: auto;
       align-self: center;
       position: relative;
       flex: 0 1 170px;
       max-width: 55%;
+      cursor: pointer;
+      /* A touch-drag must move the fill, not scroll the dashboard. */
+      touch-action: none;
+    }
+    /* The rail is 6px tall — too thin to grab on a phone. Widen the hit area
+       vertically with an invisible absolute box, which adds no layout height. */
+    .chrome-line .pos-slider::before {
+      content: '';
+      position: absolute;
+      inset: -8px 0;
+    }
+    .chrome-line .pos-slider:focus-visible {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 3px;
+      border-radius: 6px;
+    }
+    /* The 0.3s ease below smooths server-driven updates; mid-drag it would read
+       as the fill lagging behind the finger. */
+    .chrome-line .pos-slider.dragging .pos-fill {
+      transition: none;
+    }
+    .chrome-line .pos-bar {
+      position: relative;
+      width: 100%;
       height: 6px;
       border-radius: 6px;
       background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));

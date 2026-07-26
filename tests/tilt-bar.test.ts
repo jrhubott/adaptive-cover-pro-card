@@ -148,3 +148,176 @@ describe('acp-axis-bar generalization', () => {
     expect(detail).toBe(0);
   });
 });
+
+describe('acp-axis-bar drag slider', () => {
+  const RECT = { left: 0, width: 100, top: 0, bottom: 8, right: 100, height: 8 };
+
+  /** Mount and stub the track rect so clientX maps 1:1 onto track percent. */
+  async function mountWithTrack(
+    props: Partial<TiltBarLike>,
+  ): Promise<{ el: TiltBarLike; track: HTMLElement; fired: number[] }> {
+    const el = await mount(props);
+    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    Object.defineProperty(track, 'getBoundingClientRect', {
+      value: () => RECT,
+      configurable: true,
+    });
+    const fired: number[] = [];
+    el.addEventListener('acp-tilt-set', (e) => fired.push((e as CustomEvent<number>).detail));
+    return { el, track, fired };
+  }
+
+  const down = (x: number): PointerEvent =>
+    new PointerEvent('pointerdown', { bubbles: true, clientX: x, pointerId: 1 });
+  const move = (x: number): PointerEvent =>
+    new PointerEvent('pointermove', { bubbles: true, clientX: x, pointerId: 1 });
+
+  it('exposes WAI-ARIA slider semantics on the track', async () => {
+    const { track } = await mountWithTrack({ actual: 35, target: 70 });
+    expect(track.getAttribute('role')).toBe('slider');
+    expect(track.getAttribute('tabindex')).toBe('0');
+    expect(track.getAttribute('aria-valuemin')).toBe('0');
+    expect(track.getAttribute('aria-valuemax')).toBe('100');
+    expect(track.getAttribute('aria-valuenow')).toBe('35');
+    expect(track.getAttribute('aria-valuetext')).toContain('35');
+    // Accessible name reuses the visible axis label — no separate i18n key.
+    expect(track.getAttribute('aria-label')).toContain('Tilt');
+  });
+
+  it('takes aria-valuemin/max from a non-0-100 axis range', async () => {
+    const { track } = await mountWithTrack({
+      actual: 0,
+      target: 0,
+      min: -90,
+      max: 90,
+      label: 'Slat',
+    });
+    expect(track.getAttribute('aria-valuemin')).toBe('-90');
+    expect(track.getAttribute('aria-valuemax')).toBe('90');
+    expect(track.getAttribute('aria-label')).toContain('Slat');
+  });
+
+  it('previews the dragged value live without committing', async () => {
+    const { el, track, fired } = await mountWithTrack({ actual: 35, target: 70 });
+    track.dispatchEvent(down(20));
+    track.dispatchEvent(move(80));
+    await el.updateComplete;
+    expect((el.shadowRoot!.querySelector('.fill') as HTMLElement).style.width).toBe('80%');
+    expect(el.shadowRoot!.querySelector('.num')!.textContent).toContain('80');
+    expect(track.getAttribute('aria-valuenow')).toBe('80');
+    // Nothing is sent until the gesture completes.
+    expect(fired).toEqual([]);
+  });
+
+  it('commits once on the trailing click after a drag', async () => {
+    const { el, track, fired } = await mountWithTrack({ actual: 35, target: 70 });
+    track.dispatchEvent(down(20));
+    track.dispatchEvent(move(80));
+    track.dispatchEvent(
+      new PointerEvent('pointerup', { bubbles: true, clientX: 80, pointerId: 1 }),
+    );
+    // Real browsers fire a compatibility click at the release point.
+    track.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 80 }));
+    await el.updateComplete;
+    expect(fired).toEqual([80]);
+  });
+
+  it('discards the drag on pointercancel without committing', async () => {
+    const { el, track, fired } = await mountWithTrack({ actual: 35, target: 70 });
+    track.dispatchEvent(down(20));
+    track.dispatchEvent(move(80));
+    track.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 1 }));
+    await el.updateComplete;
+    expect(fired).toEqual([]);
+    expect((el.shadowRoot!.querySelector('.fill') as HTMLElement).style.width).toBe('35%');
+    expect(el.shadowRoot!.querySelector('.num')!.textContent).toContain('35');
+  });
+
+  it('maps the drag preview through min/max on a non-0-100 axis', async () => {
+    const { el, track } = await mountWithTrack({
+      actual: 0,
+      target: 0,
+      min: -90,
+      max: 90,
+      label: 'Slat',
+    });
+    track.dispatchEvent(down(50));
+    track.dispatchEvent(move(75)); // 75% of -90..90 → 45
+    await el.updateComplete;
+    expect(track.getAttribute('aria-valuenow')).toBe('45');
+  });
+
+  it('suppresses the width transition only while dragging', async () => {
+    const { el, track } = await mountWithTrack({ actual: 35, target: 70 });
+    expect(track.classList.contains('dragging')).toBe(false);
+    track.dispatchEvent(down(20));
+    await el.updateComplete;
+    expect(track.classList.contains('dragging')).toBe(true);
+    track.dispatchEvent(
+      new PointerEvent('pointerup', { bubbles: true, clientX: 20, pointerId: 1 }),
+    );
+    await el.updateComplete;
+    expect(track.classList.contains('dragging')).toBe(false);
+  });
+
+  it('declares touch-action: none so a touch drag does not scroll the page', () => {
+    const css = (customElements.get('acp-axis-bar') as unknown as { styles: { cssText: string } })
+      .styles.cssText;
+    expect(css).toContain('touch-action: none');
+    expect(css).toContain('.track.dragging');
+  });
+
+  it.each([
+    ['ArrowRight', 36],
+    ['ArrowUp', 36],
+    ['ArrowLeft', 34],
+    ['ArrowDown', 34],
+    ['PageUp', 45],
+    ['PageDown', 25],
+    ['Home', 0],
+    ['End', 100],
+  ])('commits %s from the keyboard as %i', async (key, expected) => {
+    const { track, fired } = await mountWithTrack({ actual: 35, target: 70 });
+    track.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key }));
+    expect(fired).toEqual([expected]);
+  });
+
+  it('clamps keyboard steps to the axis range', async () => {
+    const { track, fired } = await mountWithTrack({ actual: 97, target: 0 });
+    track.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'PageUp' }));
+    expect(fired).toEqual([100]);
+  });
+
+  it('steps in axis units on a non-0-100 range', async () => {
+    const { track, fired } = await mountWithTrack({
+      actual: 0,
+      target: 0,
+      min: -90,
+      max: 90,
+      label: 'Slat',
+    });
+    track.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Home' }));
+    track.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'End' }));
+    expect(fired).toEqual([-90, 90]);
+  });
+
+  it('ignores unrelated keys', async () => {
+    const { track, fired } = await mountWithTrack({ actual: 35, target: 70 });
+    track.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'a' }));
+    track.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }));
+    expect(fired).toEqual([]);
+  });
+
+  it('is inert when disabled: no focus stop, no drag, no keyboard commit', async () => {
+    const { el, track, fired } = await mountWithTrack({ actual: 35, target: 70, disabled: true });
+    expect(track.getAttribute('tabindex')).toBe('-1');
+    expect(track.getAttribute('aria-disabled')).toBe('true');
+    track.dispatchEvent(down(20));
+    track.dispatchEvent(move(80));
+    await el.updateComplete;
+    // No preview, no commit.
+    expect((el.shadowRoot!.querySelector('.fill') as HTMLElement).style.width).toBe('35%');
+    track.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowRight' }));
+    expect(fired).toEqual([]);
+  });
+});
