@@ -1113,3 +1113,135 @@ describe('acp-cover-bar inverse_state frame normalization (#234)', () => {
     expect((el.shadowRoot!.querySelector('.fill') as HTMLElement).style.width).toBe('0%');
   });
 });
+
+// ── inverse_tilt frame normalization (#236) ──────────────────────────────────
+
+describe('acp-cover-bar inverse_tilt frame normalization (#236)', () => {
+  interface AxisBarLike extends HTMLElement {
+    updateComplete: Promise<boolean>;
+    actual: number | null;
+    target: number | null;
+  }
+
+  /** A venetian on an `inverse_tilt` install: the tilt axis alone is inverted,
+   *  so slats at logical 35 report `current_tilt_position: 65` while the
+   *  position axis stays in the logical frame at 60. */
+  const inverseTiltDiscovered: DiscoveredEntities = {
+    ...baseDiscovered,
+    cover_type: 'cover_venetian',
+    entities: {
+      target_position_sensor: 'sensor.cover_position',
+      target_tilt_sensor: 'sensor.cover_tilt',
+    },
+    discovery: {
+      cover_type: 'cover_venetian',
+      axes: [
+        { id: 'position', state_attr: 'current_position', supported: true, inverted: false },
+        { id: 'tilt', state_attr: 'current_tilt_position', supported: true, inverted: true },
+      ],
+    },
+  };
+
+  /** The `cover_tilt` / `cover_louvered_roof` shape: tilt is the ONLY declared
+   *  axis, so `secondaryAxes` picks it up and the same read applies. */
+  const tiltPrimaryDiscovered: DiscoveredEntities = {
+    ...inverseTiltDiscovered,
+    cover_type: 'cover_tilt',
+    discovery: {
+      cover_type: 'cover_tilt',
+      axes: [{ id: 'tilt', state_attr: 'current_tilt_position', supported: true, inverted: true }],
+    },
+  };
+
+  function inverseTiltHass(callService = vi.fn()): HomeAssistant {
+    return {
+      services: { adaptive_cover_pro: { set_axes: {}, set_position: {}, set_tilt: {} } },
+      states: {
+        'sensor.cover_position': {
+          state: '60',
+          attributes: { actual_positions: { 'cover.a': 60 } },
+        },
+        'sensor.cover_tilt': { state: '70', attributes: {} },
+        'cover.a': {
+          state: 'open',
+          attributes: {
+            friendly_name: 'Cover A',
+            current_position: 60,
+            current_tilt_position: 65,
+          },
+        },
+      },
+      callService,
+    } as unknown as HomeAssistant;
+  }
+
+  async function mount(hass: HomeAssistant, discovered: DiscoveredEntities): Promise<CoverBarLike> {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    document.body.appendChild(el);
+    el.hass = hass;
+    el.discovered = discovered;
+    await el.updateComplete;
+    return el;
+  }
+
+  const tiltBarOf = (el: CoverBarLike): AxisBarLike =>
+    el.shadowRoot!.querySelector('acp-tilt-bar') as AxisBarLike;
+
+  it('hands the tilt bar the logical value, not the cover-frame attribute', async () => {
+    const el = await mount(inverseTiltHass(), inverseTiltDiscovered);
+    const tilt = tiltBarOf(el);
+    expect(tilt.actual).toBe(35);
+    expect(tilt.target).toBe(70);
+  });
+
+  it('draws the tilt fill and readout in the logical frame', async () => {
+    const el = await mount(inverseTiltHass(), inverseTiltDiscovered);
+    const tilt = tiltBarOf(el);
+    await tilt.updateComplete;
+    const open = tilt.shadowRoot!.querySelector('.fill') as HTMLElement;
+    const closed = tilt.shadowRoot!.querySelector('.fill-closed') as HTMLElement;
+    expect(open.style.width).toBe('35%');
+    expect(closed.style.width).toBe('65%');
+    expect(tilt.shadowRoot!.querySelector('.num')!.textContent).toContain('35');
+  });
+
+  it('normalizes each axis independently — the position bar is untouched', async () => {
+    const el = await mount(inverseTiltHass(), inverseTiltDiscovered);
+    // The cover-bar's own `.fill` is the position track; the tilt track lives
+    // inside the nested acp-tilt-bar's shadow root.
+    expect((el.shadowRoot!.querySelector('.fill') as HTMLElement).style.width).toBe('60%');
+    expect(el.shadowRoot!.querySelector('.head .targets')!.textContent).toContain('60');
+  });
+
+  it('writes the un-inverted logical value — the integration applies _to_wire', async () => {
+    const callService = vi.fn();
+    const el = await mount(inverseTiltHass(callService), inverseTiltDiscovered);
+    tiltBarOf(el).dispatchEvent(new CustomEvent('acp-tilt-set', { detail: 80, bubbles: true }));
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { tilt: 80 } },
+      { entity_id: 'cover.a' },
+    );
+  });
+
+  it('steps the keyboard from the logical base (ArrowUp on 35 commits 36, not 66)', async () => {
+    const callService = vi.fn();
+    const el = await mount(inverseTiltHass(callService), inverseTiltDiscovered);
+    const tilt = tiltBarOf(el);
+    await tilt.updateComplete;
+    const track = tilt.shadowRoot!.querySelector('.track') as HTMLElement;
+    track.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowUp' }));
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { tilt: 36 } },
+      { entity_id: 'cover.a' },
+    );
+  });
+
+  it('normalizes a tilt-primary cover whose only declared axis is tilt', async () => {
+    const el = await mount(inverseTiltHass(), tiltPrimaryDiscovered);
+    expect(tiltBarOf(el).actual).toBe(35);
+  });
+});

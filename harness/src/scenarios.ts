@@ -156,6 +156,7 @@ function makeEntry(
       held_position: null,
       linear_position: null,
       inverse_state: false,
+      inverse_tilt: false,
       safety_slot_active: false,
       motion_status: 'idle',
       motion_timeout_minutes_from_now: 1,
@@ -883,6 +884,38 @@ export const SCENARIOS: Scenario[] = [
       const c = SCENARIOS.find((s) => s.id === 'inverse-state-awning')!.build();
       c.scenario = 'inverse-state-awning-legacy';
       c.legacyIntegration = true;
+      return c;
+    },
+  },
+  {
+    id: 'inverse-tilt-venetian',
+    label: 'Inverse tilt — venetian slats (#236)',
+    description:
+      'A venetian with `inverse_tilt` configured on the SLAT axis only. The integration dispatches 100 − 35 = 65, so the mock cover reports current_tilt_position: 65 while the Cover_Tilt sensor still publishes the logical target 70 and the discovery tilt axis carries inverted: true. The card must draw the tilt bar at 35% with the target marker at 70% — a wide, obvious gap — with the readout "35 %" and aria-valuenow="35", while the POSITION bar is untouched at 60%, proving the two axes normalize independently. Drag the tilt track to roughly 80% and the service log must show exactly one set_axes { tilt: 80 } — NOT 20; render frame and write frame have to agree (the integration applies its own _to_wire). ArrowUp on the focused tilt track commits 36, not 66 — pre-fix the bar started stepping from the cover-frame 65 and jumped 31 points.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'inverse-tilt-venetian';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Living Room',
+          cover_type: 'cover_venetian',
+          window_azimuth: 180,
+          color: '#26a69a',
+          target_position: 60,
+          target_tilt: 70,
+          covers: [
+            {
+              entity_id: 'cover.south_window_main',
+              friendly_name: 'Living Room venetian',
+              position: 60,
+              // Logical slat angle. state-gen flips this to the reported 65.
+              tilt: 35,
+            },
+          ],
+        }),
+      ];
+      c.entries[0].flags.inverse_tilt = true;
       return c;
     },
   },

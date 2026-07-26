@@ -1,7 +1,7 @@
 import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { CoverPositionAttributes, DiscoveredEntities } from '../types';
-import { positionAxisInverted } from './axes';
+import { positionAxisInverted, type ResolvedAxis } from './axes';
 import { aggregateActualPosition, overrideDivergenceTarget } from './geometry';
 
 /**
@@ -12,14 +12,17 @@ import { aggregateActualPosition, overrideDivergenceTarget } from './geometry';
  * components one source of truth for held / actual / solar values and the
  * override-divergence decision (issue #158).
  *
- * Frame invariant (issue #234): **the card renders in the logical
+ * Frame invariant (issues #234, #236): **the card renders in the logical
  * (HA-convention) frame, and any value it reads from a cover-frame source is
- * normalized here at the read, never at the render.** On an `inverse_state`
- * install the integration dispatches `100 − logical` to the physical cover, so
- * the cover entity's `current_position` and the sensor's `actual_positions` are
- * the complement of `linear_position` / `raw_calculated_position`. Every
- * actual-side read therefore goes through {@link coverLogicalActuals} or
- * {@link logicalCoverPosition}; nothing downstream un-inverts anything.
+ * normalized here at the read, never at the render.** This holds for every
+ * axis, not just position: on an `inverse_state` install the integration
+ * dispatches `100 − logical` to the physical cover, so the cover entity's
+ * `current_position` and the sensor's `actual_positions` are the complement of
+ * `linear_position` / `raw_calculated_position`, and on an `inverse_tilt`
+ * install the same is true of the slat axis's `current_tilt_position` against
+ * the `Cover_Tilt` target sensor. Every actual-side read therefore goes through
+ * {@link coverLogicalActuals}, {@link logicalCoverPosition} or
+ * {@link logicalAxisValue}; nothing downstream un-inverts anything.
  */
 
 /** Raw `Cover_Position` sensor STATE — the interpolated/motor value actually
@@ -131,6 +134,28 @@ export function logicalCoverPosition(
   const v = hass.states[cover]?.attributes?.current_position;
   if (typeof v !== 'number' || Number.isNaN(v)) return null;
   return positionAxisInverted(d) ? 100 - v : v;
+}
+
+/**
+ * One cover entity's live value for `axis`, in the logical frame — the axis's
+ * own `state_attr`, un-inverted when the integration reports that axis's
+ * `inverted` flag (issues #234, #236). Mirrors the integration's
+ * `inverse_state()`, which is `100 − v` for every axis regardless of the
+ * declared range. Inert on every non-inverse install and on the synthesized
+ * fallback axes, which always carry `inverted: false`.
+ *
+ * Null when the cover, the axis's state attribute, or a finite numeric value
+ * is missing — a valid `0` is never collapsed to null.
+ */
+export function logicalAxisValue(
+  hass: HomeAssistant,
+  axis: ResolvedAxis,
+  cover: string | undefined,
+): number | null {
+  if (!cover || !axis.stateAttr) return null;
+  const v = hass.states[cover]?.attributes?.[axis.stateAttr];
+  if (typeof v !== 'number' || Number.isNaN(v)) return null;
+  return axis.inverted ? 100 - v : v;
 }
 
 /** Mean of the live per-cover positions, in the logical frame. Null when

@@ -9,6 +9,7 @@ import {
   isOverrideDivergence,
   coverMotorDivergence,
   coverLogicalActuals,
+  logicalAxisValue,
 } from '../lib/cover-position';
 import { formatPercent } from '../lib/formatters';
 import { AXIS_LABEL_I18N_KEYS } from '../const';
@@ -122,11 +123,10 @@ export class CoverBar extends LitElement {
     return Number.isNaN(v) ? null : v;
   }
 
-  /** Live value for a secondary axis from the cover's per-axis state attribute. */
+  /** Live value for a secondary axis from the cover's per-axis state attribute,
+   *  normalized to the logical frame (issue #236). */
   private _axisActual(axis: ResolvedAxis, entityId: string): number | null {
-    if (!axis.stateAttr) return null;
-    const v = this.hass.states[entityId]?.attributes?.[axis.stateAttr];
-    return typeof v === 'number' ? v : null;
+    return logicalAxisValue(this.hass, axis, entityId);
   }
 
   /** Motor value to disclose in the Target chip's tooltip — the raw

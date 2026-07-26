@@ -146,6 +146,14 @@ export interface HarnessEntry {
      *  `legacyIntegration` to reproduce the pre-#1033 residual, where the card
      *  has no frame oracle and renders the defect. */
     inverse_state: boolean;
+    /** Simulate an `inverse_tilt` install (issue #236): the venetian second
+     *  axis carries its own inversion option (the integration's
+     *  `CONF_INVERSE_TILT`, `interpolatable=False`, so interpolation never
+     *  suppresses it). The mock reports the cover-frame `current_tilt_position`
+     *  (`100 − logical`) on the source cover and marks the discovery tilt axis
+     *  `inverted: true`, while the Cover_Tilt target sensor stays LOGICAL —
+     *  the integration publishes the pre-`_to_wire` target there. */
+    inverse_tilt: boolean;
     /** When true, the priority-100 safety slot (slot 5) is armed and wins as a
      *  custom_position with bypass_auto_control. Replaces the pre-2.28
      *  standalone Force Override trigger count. */
