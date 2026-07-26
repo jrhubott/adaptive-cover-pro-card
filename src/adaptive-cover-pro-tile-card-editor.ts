@@ -57,6 +57,7 @@ const FORM_DEFAULTS = {
   show_controls: true,
   show_badge: true,
   show_position_bar: true,
+  show_tilt: true,
   show_compass: true,
   show_elevation_chart: true,
   show_solar_calc: true,
@@ -74,6 +75,12 @@ const FORM_DEFAULTS = {
   badge_climate: true,
   badge_glare_zone: true,
   badge_cloud: true,
+  // Cover Group entries only — see the group branch of `_schema()`.
+  show_scene_select: true,
+  show_lock: true,
+  show_automation: true,
+  show_clear_overrides: true,
+  show_member_badges: true,
 } as const;
 
 const LABEL_KEYS: Record<string, string> = {
@@ -88,6 +95,7 @@ const LABEL_KEYS: Record<string, string> = {
   show_controls: 'editor.tile.show_controls',
   show_badge: 'editor.tile.show_badge',
   show_position_bar: 'editor.tile.show_position_bar',
+  show_tilt: 'editor.tile.show_tilt',
   badge_section: 'editor.tile.badge_section',
   badge_auto: 'editor.tile.badge_auto',
   badge_solar: 'editor.tile.badge_solar',
@@ -107,6 +115,11 @@ const LABEL_KEYS: Record<string, string> = {
   tap_action: 'editor.tile.tap_action',
   hold_action: 'editor.tile.hold_action',
   double_tap_action: 'editor.tile.double_tap_action',
+  show_scene_select: 'editor.tile.show_scene_select',
+  show_lock: 'editor.tile.show_lock',
+  show_automation: 'editor.tile.show_automation',
+  show_clear_overrides: 'editor.tile.show_clear_overrides',
+  show_member_badges: 'editor.tile.show_member_badges',
 };
 
 @customElement(TILE_CARD_EDITOR_NAME)
@@ -339,17 +352,57 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     // registry + entry_id. Without those, fall back to any cover.* so the
     // field is still usable.
     let coverSelector: Record<string, unknown> = { entity: { domain: 'cover' } };
+    let isGroup = false;
     if (this._registry && this._config?.entry_id) {
       const discovered = discoverEntities(
         this.hass,
         { type: this._config.type, entry_id: this._config.entry_id },
         this._registry,
       );
-      if (discovered && discovered.managed_covers.length > 0) {
+      isGroup = !!discovered?.is_group;
+      if (discovered && !isGroup && discovered.managed_covers.length > 0) {
         coverSelector = {
           entity: { domain: 'cover', include_entities: discovered.managed_covers },
         };
       }
+    }
+
+    // A Cover Group renders `acp-group-tile`, not the cover tile — so almost
+    // every cover option below is inert for it (no single cover to pick, no
+    // decision summary, no compass/elevation/solar dialog sections, no motion
+    // icon, no per-kind winner badges, no layout variants, and tap always opens
+    // the group dialog). Offering them would be a wall of switches that do
+    // nothing. Show the group's own surface instead.
+    if (isGroup) {
+      return [
+        {
+          name: 'entry_id',
+          required: true,
+          selector: { select: { options: entryOptions, mode: 'dropdown' } },
+        },
+        { name: 'name', selector: { text: {} } },
+        { name: 'icon', selector: { icon: {} } },
+        { name: 'show_controls', selector: { boolean: {} } },
+        { name: 'show_position_bar', selector: { boolean: {} } },
+        { name: 'show_tilt', selector: { boolean: {} } },
+        { name: 'show_member_badges', selector: { boolean: {} } },
+        { name: 'state_color', selector: { boolean: {} } },
+        {
+          type: 'expandable',
+          name: '',
+          title: t('editor.tile.group_row_section', this.hass),
+          icon: 'mdi:window-shutter-cog',
+          schema: [
+            { name: 'show_scene_select', selector: { boolean: {} } },
+            { name: 'show_lock', selector: { boolean: {} } },
+            { name: 'show_automation', selector: { boolean: {} } },
+            { name: 'show_clear_overrides', selector: { boolean: {} } },
+          ],
+        },
+        { name: 'tap_action', selector: { ui_action: {} } },
+        { name: 'hold_action', selector: { ui_action: {} } },
+        { name: 'double_tap_action', selector: { ui_action: {} } },
+      ];
     }
 
     return [

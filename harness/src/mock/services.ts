@@ -1,5 +1,5 @@
 import { INTEGRATION_DOMAIN } from '../../../src/const';
-import type { HarnessConfig, HarnessEntry } from '../types';
+import type { GroupFields, HarnessConfig, HarnessEntry } from '../types';
 import { zonedNowMs, zoneForLongitude } from '../zone';
 
 export interface ServiceCall {
@@ -68,10 +68,50 @@ export function applyService(
     return { next: cfg, applied: false };
   }
 
+  // Cover Group: group-wide move / stop (issue #185 follow-up). Both resolve
+  // the group from ANY entity of its config entry, exactly like the real
+  // services, so the card can target the always-present position sensor.
+  if (key === `${INTEGRATION_DOMAIN}.group_set_position` && typeof entityId === 'string') {
+    const pos = typeof data?.position === 'number' ? data.position : undefined;
+    if (pos === undefined) return { next: cfg, applied: false };
+    const result = setGroupPosition(cfg, entityId, pos);
+    return result ? { next: result, applied: true } : { next: cfg, applied: false };
+  }
+
+  // adaptive_cover_pro.group_stop — no position effect to model, but log it as
+  // applied so the service log distinguishes it from an unrecognized call.
+  if (key === `${INTEGRATION_DOMAIN}.group_stop`) {
+    return { next: cfg, applied: true };
+  }
+
+  // cover.* on a group member — the dialog's per-member controls use the native
+  // services for members with no ACP pipeline behind them.
+  if (key === 'cover.set_cover_position') {
+    const pos = typeof data?.position === 'number' ? data.position : undefined;
+    if (pos === undefined) return { next: cfg, applied: false };
+    const result = setGroupMemberPosition(cfg, entityId, pos);
+    return result ? { next: result, applied: true } : { next: cfg, applied: false };
+  }
+  if (key === 'cover.set_cover_tilt_position') {
+    const tilt = typeof data?.tilt_position === 'number' ? data.tilt_position : undefined;
+    if (tilt === undefined) return { next: cfg, applied: false };
+    const result = setGroupTilt(cfg, entityId, tilt);
+    return result ? { next: result, applied: true } : { next: cfg, applied: false };
+  }
+  if (key === 'cover.stop_cover') {
+    return { next: cfg, applied: true };
+  }
+
   // adaptive_cover_pro.set_position — update target + cover positions
   if (key === `${INTEGRATION_DOMAIN}.set_position`) {
     const pos = typeof data?.position === 'number' ? data.position : undefined;
     if (pos === undefined) return { next: cfg, applied: false };
+    const member = setGroupMemberPosition(
+      cfg,
+      target?.entity_id ?? (data?.entity_id as string),
+      pos,
+    );
+    if (member) return { next: member, applied: true };
     return {
       next: updateTargetForCover(cfg, target?.entity_id ?? (data?.entity_id as string), pos),
       applied: true,
@@ -98,11 +138,15 @@ export function applyService(
     let next = cfg;
     let applied = false;
     if (typeof axes.position === 'number') {
-      next = updateTargetForCover(next, cover, axes.position);
+      // An ACP member of a group lives in `group.member_positions`, not in any
+      // entry's own cover list, so try the group roster first.
+      const member = setGroupMemberPosition(next, cover, axes.position);
+      next = member ?? updateTargetForCover(next, cover, axes.position);
       applied = true;
     }
     if (typeof axes.tilt === 'number') {
-      next = updateTiltForCover(next, cover, axes.tilt);
+      const memberTilt = setGroupTilt(next, cover, axes.tilt);
+      next = memberTilt ?? updateTiltForCover(next, cover, axes.tilt);
       applied = true;
     }
     return { next, applied };
@@ -168,6 +212,16 @@ function pressButton(cfg: HarnessConfig, entityId: string): HarnessConfig | null
   let found = false;
   const entries = cfg.entries.map((e) => {
     if (!entityId.includes(e.entry_id)) return e;
+    // Cover Group: clearing member overrides drops every `manual` winner back
+    // to the group's own driver, which is what the who-won badge counts.
+    if (/group_clear_overrides/i.test(entityId)) {
+      if (!e.is_group || !e.group) return e;
+      found = true;
+      const member_winners = Object.fromEntries(
+        Object.entries(e.group.member_winners).map(([id, w]) => [id, w === 'manual' ? 'solar' : w]),
+      );
+      return { ...e, group: { ...e.group, member_winners } };
+    }
     if (!/reset_manual_override/i.test(entityId)) return e;
     found = true;
     return { ...e, flags: { ...e.flags, manual_override: false } };
@@ -310,6 +364,101 @@ function selectGroupScene(
         active_scene: scene === 'auto' ? ('none' as const) : scene,
       },
     };
+  });
+  return found ? { ...cfg, entries } : null;
+}
+
+/** Recompute a group's aggregate position + open/closed state from its roster.
+ *  Mirrors the integration's own aggregation: average of the known member
+ *  positions, `open`/`closed` only when every member agrees. */
+function reaggregate(group: GroupFields): GroupFields {
+  const values = Object.values(group.member_positions).filter(
+    (v): v is number => typeof v === 'number',
+  );
+  if (values.length === 0) return { ...group, state: 'unknown' };
+  const avg = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+  const state = values.every((v) => v <= 0)
+    ? ('closed' as const)
+    : values.every((v) => v >= 100)
+      ? ('open' as const)
+      : ('mixed' as const);
+  return { ...group, aggregate_position: avg, state };
+}
+
+/** `adaptive_cover_pro.group_set_position` — fan the position out to every
+ *  member of the group the targeted entity belongs to. */
+function setGroupPosition(
+  cfg: HarnessConfig,
+  entityId: string,
+  position: number,
+): HarnessConfig | null {
+  let found = false;
+  const entries = cfg.entries.map((e) => {
+    if (!e.is_group || !e.group || !entityId.includes(e.entry_id)) return e;
+    found = true;
+    const member_positions = Object.fromEntries(
+      Object.keys(e.group.member_positions).map((id) => [id, position]),
+    );
+    return { ...e, group: reaggregate({ ...e.group, member_positions }) };
+  });
+  return found ? { ...cfg, entries } : null;
+}
+
+/** A move addressed at a single group member (`cover.set_cover_position` for a
+ *  generic member, `set_axes`/`set_position` for an ACP one). Group entries own
+ *  no covers of their own, so this is the only path that moves one row. */
+function setGroupMemberPosition(
+  cfg: HarnessConfig,
+  coverEntityId: string | undefined,
+  position: number,
+): HarnessConfig | null {
+  if (!coverEntityId) return null;
+  let found = false;
+  const entries = cfg.entries.map((e) => {
+    if (!e.is_group || !e.group) return e;
+    if (!(coverEntityId in e.group.member_positions)) return e;
+    found = true;
+    return {
+      ...e,
+      group: reaggregate({
+        ...e.group,
+        member_positions: { ...e.group.member_positions, [coverEntityId]: position },
+      }),
+    };
+  });
+  return found ? { ...cfg, entries } : null;
+}
+
+/** `cover.set_cover_tilt_position` on either the group's aggregate cover
+ *  entity (group-wide tilt) or one member (a roster row's tilt track). */
+function setGroupTilt(
+  cfg: HarnessConfig,
+  entityId: string | undefined,
+  tilt: number,
+): HarnessConfig | null {
+  if (!entityId) return null;
+  let found = false;
+  const entries = cfg.entries.map((e) => {
+    if (!e.is_group || !e.group) return e;
+    if (entityId in e.group.member_positions) {
+      found = true;
+      return {
+        ...e,
+        group: {
+          ...e.group,
+          member_tilts: { ...(e.group.member_tilts ?? {}), [entityId]: tilt },
+        },
+      };
+    }
+    // The aggregate cover's entity_id carries the entry id and the role suffix.
+    if (entityId.includes(e.entry_id) && /group_cover/i.test(entityId)) {
+      found = true;
+      const member_tilts = Object.fromEntries(
+        Object.keys(e.group.member_positions).map((id) => [id, tilt]),
+      );
+      return { ...e, group: { ...e.group, tilt, member_tilts } };
+    }
+    return e;
   });
   return found ? { ...cfg, entries } : null;
 }

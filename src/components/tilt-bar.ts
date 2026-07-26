@@ -57,6 +57,17 @@ export class AxisBar extends LitElement {
   /** Axis unit (defaults to the original '%'). Forward-looking; not yet
    *  rendered in the compact label. */
   @property() public unit = '%';
+  /* The two tooltips take i18n KEYS rather than resolved strings (unlike
+     `label`, which may come from a discovery-supplied axis name with no key at
+     all): the marker tooltip interpolates `{pct}`, so the bar has to own the
+     `t()` call. Both default to the tilt strings, the same way `label`/`min`/
+     `max`/`unit` do — an un-parameterized bar is unchanged, while a position
+     axis that forgets to pass them would otherwise tell the user to "set tilt". */
+  /** i18n key for the track tooltip. Null → the tilt hint. */
+  @property({ attribute: false }) public hintKey: string | null = null;
+  /** i18n key for the target-marker tooltip; receives `{pct}`. Null → the tilt
+   *  target hint. */
+  @property({ attribute: false }) public targetHintKey: string | null = null;
 
   /** Live client-side value while a drag is in flight, in axis units. Drives
    *  the fill and the percentage readout; never dispatches on its own. Null
@@ -104,7 +115,7 @@ export class AxisBar extends LitElement {
           @pointerup=${this._onPointerEnd}
           @pointercancel=${this._onPointerEnd}
           @keydown=${this._onKeydown}
-          ${tooltip(t('covers.tilt_click_to_set', this.hass))}
+          ${tooltip(t(this.hintKey ?? 'covers.tilt_click_to_set', this.hass))}
         >
           <div class="fill" style="width:${actualFrac}%"></div>
           <div class="fill-closed" style="width:${100 - actualFrac}%"></div>
@@ -112,7 +123,11 @@ export class AxisBar extends LitElement {
             ? html`<div
                 class="marker"
                 style="left:clamp(1px, ${targetFrac}%, calc(100% - 1px))"
-                ${tooltip(t('covers.tilt_target_tooltip', this.hass, { pct: targetFrac }))}
+                ${tooltip(
+                  t(this.targetHintKey ?? 'covers.tilt_target_tooltip', this.hass, {
+                    pct: targetFrac,
+                  }),
+                )}
               ></div>`
             : nothing}
         </div>

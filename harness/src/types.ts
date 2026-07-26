@@ -29,6 +29,17 @@ export interface GroupFields {
   automation: boolean;
   /** Aggregate climate mode string (group_climate_mode sensor). */
   climate_mode: string;
+  /** Emit the integration's OPT-IN aggregate `cover.…group_cover` entity. It is
+   *  off by default because a real install only gets it when the user enables
+   *  it — the cards must degrade without it. */
+  aggregate_cover?: boolean;
+  /** Aggregate tilt on the group cover. Only meaningful with
+   *  {@link aggregate_cover}; when set, the group cover advertises
+   *  SET_TILT_POSITION (an all-tilt roster) and the group tilt track renders. */
+  tilt?: number | null;
+  /** entity_id → live slat tilt. A member with an entry here advertises
+   *  SET_TILT_POSITION, so its roster row grows a second track. */
+  member_tilts?: Record<string, number | null>;
 }
 
 export type MotionStatusValue = 'idle' | 'motion_detected' | 'timeout_pending';
@@ -248,6 +259,13 @@ export interface SkyCompassCardOptions {
 
 export interface TileCardOptions {
   enabled: boolean;
+  /* Cover Group entries only — the group tile ignores everything else here
+     except show_controls / show_position_bar / show_tilt / state_color. */
+  show_scene_select: boolean;
+  show_lock: boolean;
+  show_automation: boolean;
+  show_clear_overrides: boolean;
+  show_member_badges: boolean;
   show_position: boolean;
   show_state: boolean;
   show_decision_summary: boolean;

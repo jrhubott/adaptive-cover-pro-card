@@ -87,6 +87,11 @@ function defaultTile(): HarnessConfig['tile'] {
     show_badge: true,
     show_position_bar: true,
     show_tilt: true,
+    show_scene_select: true,
+    show_lock: true,
+    show_automation: true,
+    show_clear_overrides: true,
+    show_member_badges: true,
     badges: defaultBadges(),
     show_compass: true,
     show_elevation_chart: true,
@@ -1230,13 +1235,173 @@ export const SCENARIOS: Scenario[] = [
     id: 'group-tile',
     label: 'Cover Group — tile variant (issue #185)',
     description:
-      'A Cover Group entry rendered as the new group tile. The tile shows the aggregate position + state (mixed), the scene select (auto/all open/all closed/privacy), the lock toggle, and the who-won "2/3" badge (2 of 3 members group-driven). Pick a scene → select.select_option fires; toggle the lock → switch.turn_on/off fires, both applied optimistically. Phase 2 wires only the group TILE — the root/decision/compass/solar cards are hidden here; the main-card group view arrives in Phase 3.',
+      'A Cover Group entry rendered as the group tile, now carrying the cover tile\'s full control surface: a position-aware glyph tinted by the aggregate state, the ↑■↓ button row, a drag-to-set aggregate slider, and the group row (scene select, lock, automation, clear overrides) — plus the who-won "2/3" badge. Drag the slider or press ↑/↓ → adaptive_cover_pro.group_set_position fans out to every member; ■ → group_stop; pick a scene → select.select_option; toggle lock/automation → switch.turn_on/off; clear overrides → button.press. Tap the tile body to open the group dialog, where every member row is independently controllable.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'group-tile';
       c.entries = [makeGroupEntry({ entry_id: 'downstairs_group', title: 'Downstairs Group' })];
-      // Only the tile understands a group entry in Phase 2.
+      // The cover-oriented root/decision/compass/solar cards don't apply to a
+      // group entry; the tile (and its dialog) is the whole surface here.
       c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      return c;
+    },
+  },
+  {
+    id: 'group-tile-members',
+    label: 'Cover Group — per-member control in the dialog',
+    description:
+      "The group dialog's reason for existing: a 4-member roster where each row has its own drag slider and ↑■↓ triple. Routing is split by whether the member has an ACP pipeline — `cover.living_left` / `living_right` / `bedroom` appear in member_winners so their moves go through adaptive_cover_pro.set_axes (engaging that member's manual override, exactly like dragging its own tile), while `cover.hall_generic` has a position but no winner, so it takes the native cover.set_cover_position. Watch the service log to see the two paths, and the aggregate readout/slider re-average as individual members move.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-tile-members';
+      c.entries = [
+        makeGroupEntry({
+          entry_id: 'upstairs_group',
+          title: 'Upstairs Group',
+          group: {
+            member_positions: {
+              'cover.living_left': 30,
+              'cover.living_right': 45,
+              'cover.bedroom': 0,
+              'cover.hall_generic': 80,
+            },
+            member_winners: {
+              'cover.living_left': 'solar',
+              'cover.living_right': 'manual',
+              'cover.bedroom': 'group_lock',
+            },
+            aggregate_position: 39,
+            state: 'mixed',
+            active_scene: 'none',
+            scene_option: 'auto',
+            locked: false,
+            automation: true,
+            climate_mode: 'summer_mode',
+          },
+        }),
+      ];
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      return c;
+    },
+  },
+  {
+    id: 'group-member-tiles',
+    label: 'Cover Group — members render as their own tile cards',
+    description:
+      "The roster is literally a stack of tile cards. Two of the members (`cover.backyard_shade`, `cover.side_yard_shade`) are covers of REAL ACP entries in this scenario, so each roster row resolves to that entry and renders its own `adaptive-cover-pro-tile-card` — badges, state coloring, icon, ↑■↓, position slider, and tap-for-more-info are the shipped tile, not a lookalike. The third member is a generic cover with no ACP entry behind it, so it has no tile to render and falls back to the compact row. Side Yard Shade is held under a manual override, so the GROUP tile rolls that up: an orange Manual badge sits beside the 0/2 who-won count, and the clear-overrides button is enabled. Flip that member's winner to `solar` and the badge disappears and the button greys out. Open the group tile to see the roster; tapping a member tile opens that member's own more-info dialog on top of the group dialog, and closing it returns you to the group dialog.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-member-tiles';
+      c.entries = [
+        makeEntry({
+          entry_id: 'backyard',
+          title: 'Backyard Shade',
+          covers: [
+            {
+              entity_id: 'cover.backyard_shade',
+              friendly_name: 'Backyard Shade',
+              position: 100,
+              tilt: 50,
+            },
+          ],
+          target_position: 100,
+        }),
+        makeEntry({
+          entry_id: 'side_yard',
+          title: 'Side Yard Shade',
+          covers: [
+            {
+              entity_id: 'cover.side_yard_shade',
+              friendly_name: 'Side Yard Shade',
+              position: 97,
+              tilt: 50,
+            },
+          ],
+          target_position: 97,
+        }),
+        makeGroupEntry({
+          entry_id: 'family_room',
+          title: 'Family Room',
+          group: {
+            member_positions: {
+              'cover.backyard_shade': 100,
+              'cover.side_yard_shade': 97,
+              'cover.hall_generic': 40,
+            },
+            member_winners: {
+              'cover.backyard_shade': 'solar',
+              'cover.side_yard_shade': 'manual',
+            },
+            aggregate_position: 79,
+            state: 'mixed',
+            active_scene: 'none',
+            scene_option: 'auto',
+            locked: false,
+            automation: true,
+            climate_mode: 'summer_mode',
+          },
+        }),
+      ];
+      // Side Yard is held manually: its own tile shows the orange Manual pill,
+      // and the GROUP tile rolls that up as a Manual badge (see description).
+      c.entries[1].flags.manual_override = true;
+      c.entries[1].flags.manual_override_minutes_from_now = 45;
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      return c;
+    },
+  },
+  {
+    id: 'group-tilt',
+    label: 'Cover Group — aggregate cover + tilt axis',
+    description:
+      "The all-tilt branch. This group has the integration's OPT-IN aggregate cover entity (`cover.…group_cover`) and every member carries a slat axis, so the aggregate cover advertises SET_TILT_POSITION and a Tilt track appears on the tile, in the dialog, and on each member row. Group tilt is deliberately the ONLY path that needs the aggregate cover: there is no `group_set_tilt` service, and `group_set_position` requires a position that would stomp members' own overrides — so drop `aggregate_cover` from this scenario and every Tilt track disappears while position control keeps working. Group tilt writes cover.set_cover_tilt_position on the aggregate; a member's tilt writes set_axes (ACP) or cover.set_cover_tilt_position (generic).",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-tilt';
+      c.entries = [
+        makeGroupEntry({
+          entry_id: 'venetian_group',
+          title: 'Venetian Group',
+          group: {
+            member_positions: {
+              'cover.study_left': 60,
+              'cover.study_right': 60,
+              'cover.study_generic': 40,
+            },
+            member_tilts: {
+              'cover.study_left': 35,
+              'cover.study_right': 35,
+              'cover.study_generic': 70,
+            },
+            member_winners: {
+              'cover.study_left': 'solar',
+              'cover.study_right': 'solar',
+            },
+            aggregate_position: 53,
+            state: 'mixed',
+            active_scene: 'none',
+            scene_option: 'auto',
+            locked: false,
+            automation: true,
+            climate_mode: 'summer_mode',
+            aggregate_cover: true,
+            tilt: 45,
+          },
+        }),
+      ];
+      c.root.enabled = true;
       c.compass.enabled = false;
       c.decision.enabled = false;
       c.solarChart.enabled = false;
@@ -1248,7 +1413,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'cover-group-full',
     label: 'Cover Group — full main-card view (issue #185)',
     description:
-      'A Cover Group entry rendered through the ROOT main card, which routes it to the new group view (no sun/window geometry). The view shows the aggregate position + state, the scene select, the lock / automation toggles, and a clear-overrides button, plus a member roster of 4 covers with mixed winners: solar, group_scene, and group_lock drive three ACP members, while a generic cover shows its position with no who-won badge. The group is locked. Pick a scene → select.select_option; toggle lock/automation → switch.turn_on/off; press clear-overrides → button.press — all applied optimistically.',
+      'A Cover Group entry rendered through the ROOT main card, which routes it to the group view (no sun/window geometry). The view now carries the same control surface as the tile dialog: an aggregate position track, the ↑■↓ row, the scene select, lock / automation toggles, a clear-overrides button, and a member roster of 4 covers where every row is independently controllable. Winners are mixed — solar, group_scene, and group_lock drive three ACP members, while a generic cover shows its position with no who-won badge and takes native cover.* services. The group is locked.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'cover-group-full';

@@ -70,22 +70,34 @@ async function mount(hass: HomeAssistant, discovered: DiscoveredEntities): Promi
   return el;
 }
 
+/** The scene select and lock/automation/clear buttons live in the shared
+ *  `acp-group-controls-row` child, one shadow root deeper. */
+async function controlsRow(el: GroupTileLike): Promise<ShadowRoot> {
+  const row = el.shadowRoot!.querySelector('acp-group-controls-row') as HTMLElement & {
+    updateComplete: Promise<boolean>;
+  };
+  await row.updateComplete;
+  return row.shadowRoot!;
+}
+
 describe('acp-group-tile', () => {
   it('renders the aggregate position from the group_position sensor', async () => {
     const el = await mount(makeHass(), makeDiscovered());
-    expect(el.shadowRoot!.querySelector('.group-position')?.textContent).toContain('50');
+    expect(el.shadowRoot!.querySelector('.state')?.textContent).toContain('50');
   });
 
   it('renders the aggregate state text from the group_state sensor', async () => {
     const el = await mount(makeHass(), makeDiscovered());
-    const text = el.shadowRoot!.querySelector('.group-state')?.textContent?.trim() ?? '';
+    const text = el.shadowRoot!.querySelector('.state')?.textContent?.trim() ?? '';
     expect(text.length).toBeGreaterThan(0);
     expect(text.toLowerCase()).toContain('mixed');
   });
 
   it('renders the scene select with the four scene options and the current option selected', async () => {
     const el = await mount(makeHass(), makeDiscovered());
-    const select = el.shadowRoot!.querySelector('select.scene-select') as HTMLSelectElement;
+    const select = (await controlsRow(el)).querySelector(
+      'select.scene-select',
+    ) as HTMLSelectElement;
     expect(select).toBeTruthy();
     const values = Array.from(select.options).map((o) => o.value);
     expect(values).toEqual(['auto', 'all_open', 'all_closed', 'privacy']);
@@ -94,7 +106,7 @@ describe('acp-group-tile', () => {
 
   it('renders the who-won badge as "N/M" (count over roster size)', async () => {
     const el = await mount(makeHass(), makeDiscovered());
-    const badge = el.shadowRoot!.querySelector('acp-tile-badge') as HTMLElement & {
+    const badge = el.shadowRoot!.querySelector('.chrome-line acp-tile-badge') as HTMLElement & {
       updateComplete: Promise<boolean>;
     };
     expect(badge).toBeTruthy();
@@ -105,7 +117,9 @@ describe('acp-group-tile', () => {
   it('calls select.select_option on the scene-select entity when a scene is chosen', async () => {
     const callService = vi.fn();
     const el = await mount(makeHass({ callService }), makeDiscovered());
-    const select = el.shadowRoot!.querySelector('select.scene-select') as HTMLSelectElement;
+    const select = (await controlsRow(el)).querySelector(
+      'select.scene-select',
+    ) as HTMLSelectElement;
     select.value = 'privacy';
     select.dispatchEvent(new Event('change'));
     expect(callService).toHaveBeenCalledWith(
@@ -119,7 +133,7 @@ describe('acp-group-tile', () => {
   it('toggles the lock via switch.turn_on when currently unlocked', async () => {
     const callService = vi.fn();
     const el = await mount(makeHass({ callService, locked: false }), makeDiscovered());
-    (el.shadowRoot!.querySelector('.lock-toggle') as HTMLElement).click();
+    ((await controlsRow(el)).querySelector('.lock-toggle') as HTMLElement).click();
     expect(callService).toHaveBeenCalledWith(
       'switch',
       'turn_on',
@@ -128,10 +142,57 @@ describe('acp-group-tile', () => {
     );
   });
 
+  // The member roster has a `manual` winner, so the group surfaces it.
+  it('rolls a member override up as a badge beside the who-won count', async () => {
+    const el = await mount(makeHass(), makeDiscovered());
+    const badges = Array.from(
+      el.shadowRoot!.querySelectorAll('.chrome-line acp-tile-badge'),
+    ) as (HTMLElement & { winner?: string; kindOverride?: string })[];
+    expect(badges.filter((b) => !b.kindOverride).map((b) => b.winner)).toEqual(['manual']);
+  });
+
+  it('hides the member badge rollup when showMemberBadges is false', async () => {
+    const el = document.createElement('acp-group-tile') as GroupTileLike & {
+      showMemberBadges: boolean;
+    };
+    el.hass = makeHass();
+    el.discovered = makeDiscovered();
+    el.showMemberBadges = false;
+    document.body.appendChild(el);
+    await el.updateComplete;
+    const badges = Array.from(
+      el.shadowRoot!.querySelectorAll('.chrome-line acp-tile-badge'),
+    ) as (HTMLElement & { winner?: string; kindOverride?: string })[];
+    expect(badges.filter((b) => !b.kindOverride).map((b) => b.winner)).toEqual([]);
+  });
+
+  // Regression: the body keydown handler used to fire for Enter/Space on every
+  // nested control, and its preventDefault() cancelled the control's own
+  // activation — so no group control was reachable by keyboard.
+  it('does not hijack Enter from a nested control', async () => {
+    const el = await mount(makeHass(), makeDiscovered());
+    let opened = 0;
+    el.addEventListener('acp-open-more-info', () => opened++);
+    const lock = (await controlsRow(el)).querySelector('.lock-toggle') as HTMLElement;
+    const ev = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true });
+    lock.dispatchEvent(ev);
+    expect(opened).toBe(0);
+    expect(ev.defaultPrevented).toBe(false);
+  });
+
+  it('still activates from Enter on the tile body itself', async () => {
+    const el = await mount(makeHass(), makeDiscovered());
+    let opened = 0;
+    el.addEventListener('acp-open-more-info', () => opened++);
+    const body = el.shadowRoot!.querySelector('.group-tile') as HTMLElement;
+    body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(opened).toBe(1);
+  });
+
   it('toggles the lock via switch.turn_off when currently locked', async () => {
     const callService = vi.fn();
     const el = await mount(makeHass({ callService, locked: true }), makeDiscovered());
-    (el.shadowRoot!.querySelector('.lock-toggle') as HTMLElement).click();
+    ((await controlsRow(el)).querySelector('.lock-toggle') as HTMLElement).click();
     expect(callService).toHaveBeenCalledWith(
       'switch',
       'turn_off',

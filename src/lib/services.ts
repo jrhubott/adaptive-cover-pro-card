@@ -72,6 +72,27 @@ export function groupSetPosition(
   }) as unknown as Promise<void>;
 }
 
+/** `adaptive_cover_pro.group_stop` — stop every member cover mid-travel.
+ *
+ *  Shipped alongside the group cover entity, so an older integration may not
+ *  have it. Feature-detected like {@link setAxes}: when the service is absent
+ *  the caller's member roster is stopped one-by-one with plain `cover.stop_cover`,
+ *  which every cover platform supports. */
+export function groupStop(
+  hass: HomeAssistant,
+  groupEntityId: string,
+  memberCovers: string[] = [],
+): void {
+  const services = (hass as unknown as { services?: Record<string, Record<string, unknown>> })
+    .services;
+  if (services?.[INTEGRATION_DOMAIN]?.group_stop) {
+    hass.callService(INTEGRATION_DOMAIN, 'group_stop', {}, { entity_id: groupEntityId });
+    return;
+  }
+  if (memberCovers.length === 0) return;
+  hass.callService('cover', 'stop_cover', {}, { entity_id: memberCovers });
+}
+
 /** `adaptive_cover_pro.group_clear_overrides` — clear member overrides (no fields). */
 export function groupClearOverrides(hass: HomeAssistant, groupEntityId: string): Promise<void> {
   return hass.callService(
@@ -98,6 +119,84 @@ export function groupSetAutomation(
       entity_id: groupEntityId,
     },
   ) as unknown as Promise<void>;
+}
+
+/** Tilt the whole group through its aggregate cover entity. Unlike position
+ *  there is no `group_set_tilt` service, and `group_set_position` requires a
+ *  `position` — resending one would stomp members' own position overrides. So
+ *  group tilt is offered ONLY when the optional aggregate cover exists and
+ *  advertises `SET_TILT_POSITION`; see {@link supportsTilt}. */
+export function groupSetTilt(
+  hass: HomeAssistant,
+  groupCoverEntityId: string,
+  tilt: number,
+): Promise<void> {
+  return hass.callService(
+    'cover',
+    'set_cover_tilt_position',
+    { tilt_position: tilt },
+    { entity_id: groupCoverEntityId },
+  ) as unknown as Promise<void>;
+}
+
+// ── Cover Group: per-member writes (dialog + main-card roster) ───────────────
+
+/** `CoverEntityFeature.SET_TILT_POSITION`. */
+const COVER_FEATURE_SET_TILT = 128;
+
+/** Does this cover entity advertise a settable tilt axis? */
+export function supportsTilt(hass: HomeAssistant, entityId: string | undefined): boolean {
+  if (!entityId) return false;
+  const features = hass.states[entityId]?.attributes?.supported_features;
+  return typeof features === 'number' && (features & COVER_FEATURE_SET_TILT) !== 0;
+}
+
+/**
+ * Move one axis of a single group member.
+ *
+ * Routing is split by whether the member has an ACP pipeline behind it
+ * (`acpManaged` — true when it appears in the group's `member_winners`):
+ *
+ * - **ACP member** → {@link setAxes}, which engages that member's own manual
+ *   override exactly like dragging its tile. A raw `cover.*` write here would
+ *   be silently re-driven on the next pipeline run.
+ * - **Generic member** → the native `cover.*` service. It has no ACP pipeline
+ *   to override, and `set_axes` would not resolve it.
+ */
+export function setGroupMemberAxis(
+  hass: HomeAssistant,
+  entityId: string,
+  axisId: 'position' | 'tilt',
+  value: number,
+  acpManaged: boolean,
+): void {
+  if (acpManaged) {
+    setAxes(hass, entityId, { [axisId]: value });
+    return;
+  }
+  if (axisId === 'tilt') {
+    hass.callService(
+      'cover',
+      'set_cover_tilt_position',
+      { tilt_position: value },
+      {
+        entity_id: entityId,
+      },
+    );
+    return;
+  }
+  hass.callService('cover', 'set_cover_position', { position: value }, { entity_id: entityId });
+}
+
+/** Stop a single group member mid-travel. ACP members go through the
+ *  integration's `stop` (same call the cover tile's ■ makes); a generic member
+ *  takes the native service. */
+export function stopGroupMember(hass: HomeAssistant, entityId: string, acpManaged: boolean): void {
+  if (acpManaged) {
+    hass.callService(INTEGRATION_DOMAIN, 'stop', {}, { entity_id: entityId });
+    return;
+  }
+  hass.callService('cover', 'stop_cover', {}, { entity_id: entityId });
 }
 
 // ── Cover Group: entity-driven helpers (optimistic UI, preferred by the tile) ─

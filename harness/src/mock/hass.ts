@@ -59,9 +59,16 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'group.unlock': 'Unlock group',
   'group.automation': 'Automation',
   'group.clear_overrides': 'Clear overrides',
-  'group.who_won': '{count}/{total} group-driven',
+  'group.clear_overrides_none': 'No member overrides to clear',
+  'group.who_won':
+    '{count} of {total} members are group-driven — a group scene or the group lock is currently deciding their position',
   'group.members': 'Members',
   'group.member_placeholder': 'No members reported by the integration.',
+  'group.position': 'Position',
+  'group.open': 'Open group',
+  'group.close': 'Close group',
+  'group.stop': 'Stop group',
+  'group.position_slider_label': 'Group position',
   'decision.outside_schedule': 'Outside schedule — automatic control paused',
   'decision.outside_schedule_tooltip':
     'The configured schedule window is not active, so automatic positioning is paused.',
@@ -218,7 +225,13 @@ export function buildMockHass(
       set_tilt: {},
       stop: {},
       set_custom_position: {},
-      ...(cfg.legacyIntegration ? {} : { set_axes: {}, engage_manual_override: {} }),
+      group_set_position: {},
+      // `group_stop` shipped with the aggregate group cover, so the legacy flag
+      // withholds it too — that's the branch where `groupStop` falls back to a
+      // plain `cover.stop_cover` fan-out over the member roster.
+      ...(cfg.legacyIntegration
+        ? {}
+        : { set_axes: {}, engage_manual_override: {}, group_stop: {} }),
     },
   };
 

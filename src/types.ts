@@ -134,6 +134,26 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   hold_action?: ActionConfig;
   /** Double-tap action. Standard HA `ActionConfig`. */
   double_tap_action?: ActionConfig;
+
+  // ── Cover Group entries only (issue #185) ─────────────────────────────────
+  // A group entry renders `acp-group-tile`, which shares only `name`, `icon`,
+  // `state_color`, `show_controls`, `show_position_bar` and `show_tilt` with the
+  // cover tile — everything else above is cover-specific and the visual editor
+  // hides it. The options below exist only for a group and are hidden for a
+  // cover, so neither editor shows a switch that does nothing.
+
+  /** Render the group's scene `<select>` (default true). */
+  show_scene_select?: boolean;
+  /** Render the group lock toggle (default true). */
+  show_lock?: boolean;
+  /** Render the member-automation toggle (default true). */
+  show_automation?: boolean;
+  /** Render the clear-member-overrides button (default true). Turn it off to
+   *  keep a shared dashboard from clearing everyone's overrides. */
+  show_clear_overrides?: boolean;
+  /** Roll member overrides up onto the group as badges beside the "N/M"
+   *  who-won count (default true). See `memberBadgeWinners`. */
+  show_member_badges?: boolean;
   /** Card-owned floating tooltip behavior. Defaults: enabled, offset [12,16],
    *  delay 400ms. Set `enabled: false` to use native browser tooltips. */
   tooltips?: TooltipsConfig;

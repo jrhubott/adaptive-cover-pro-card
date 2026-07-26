@@ -89,6 +89,40 @@ export function resolveEntryIdForEntity(hass: HassLike, entityId: string): strin
   return null;
 }
 
+/**
+ * Resolve a cover to the ACP **cover** entry that manages it, ignoring any group
+ * entry it also belongs to.
+ *
+ * {@link resolveEntryIdForEntity} accepts either roster, so for a cover that is
+ * both ACP-managed *and* a group member it returns whichever sensor
+ * `Object.entries(hass.states)` happens to reach first — the group's as easily as
+ * the cover's own. That ambiguity is harmless for the card picker but wrong for
+ * the group roster, which renders each member as *its own* tile card: resolving
+ * to the group would render the group's tile N times over.
+ *
+ * So this consults `actual_positions` only (the per-cover roster the group
+ * sensor never publishes), and returns null for a generic cover with no ACP
+ * pipeline — the caller's signal to fall back to a plain controllable row.
+ */
+export function resolveCoverEntryId(hass: HassLike, coverEntityId: string): string | null {
+  if (!coverEntityId.startsWith('cover.')) return null;
+  const registry = getCachedRegistry();
+  if (!registry) return null;
+  const byId = indexRegistry(registry);
+
+  // An ACP-platform cover (the aggregate group cover) is never a managed member.
+  if (byId.get(coverEntityId)?.platform === INTEGRATION_DOMAIN) return null;
+
+  for (const [sid, st] of Object.entries(hass.states)) {
+    const roster = (st?.attributes as CoverRoster | undefined)?.actual_positions;
+    if (!roster || !(coverEntityId in roster)) continue;
+    const owner = byId.get(sid);
+    if (owner?.platform !== INTEGRATION_DOMAIN) continue;
+    return owner.config_entry_id;
+  }
+  return null;
+}
+
 /** The shape HA's picker expects back from `getEntitySuggestion`. */
 export type EntitySuggestion = { label?: string; config: Record<string, unknown> };
 
