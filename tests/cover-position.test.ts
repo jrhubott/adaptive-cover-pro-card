@@ -13,7 +13,9 @@ import {
   coverMotorDivergence,
   coverLogicalActuals,
   logicalCoverPosition,
+  logicalAxisValue,
 } from '../src/lib/cover-position';
+import { resolveAxes, type ResolvedAxis } from '../src/lib/axes';
 
 const baseDiscovered: DiscoveredEntities = {
   entry_id: 'entry1',
@@ -36,6 +38,8 @@ interface Opts {
   linearActuals?: Record<string, number | null>;
   /** `current_position` planted on the `cover.patio_awning` entity (#234). */
   coverPos?: unknown;
+  /** `current_tilt_position` planted on the `cover.patio_awning` entity (#236). */
+  coverTilt?: unknown;
 }
 
 const COVER_ID = 'cover.patio_awning';
@@ -60,6 +64,7 @@ function makeHass(o: Opts): HomeAssistant {
         state: 'open',
         attributes: {
           ...(o.coverPos !== undefined ? { current_position: o.coverPos } : {}),
+          ...(o.coverTilt !== undefined ? { current_tilt_position: o.coverTilt } : {}),
         },
       },
     },
@@ -295,5 +300,77 @@ describe('logical-frame actuals — issue #234', () => {
     // 5 is not 100 − 100, so interpolation (or a stale motor) is in play.
     const hass = makeHass({ state: '5', linear: 100 });
     expect(coverMotorDivergence(hass, invertedDiscovered)).toBe(5);
+  });
+});
+
+describe('logical-frame axis values — issue #236', () => {
+  /** A venetian slat axis on an `inverse_tilt` install: the integration
+   *  dispatches `100 − logical`, so the cover reports the complement. */
+  const invertedTilt: ResolvedAxis = {
+    id: 'tilt',
+    label: 'Tilt',
+    min: 0,
+    max: 100,
+    unit: '%',
+    stateAttr: 'current_tilt_position',
+    inverted: true,
+  };
+  /** The same axis on every non-inverse install — the helper is the identity. */
+  const plainTilt: ResolvedAxis = { ...invertedTilt, inverted: false };
+  /** A discovery payload that declared no `state_attr` for this axis. */
+  const noAttrTilt: ResolvedAxis = { ...invertedTilt, stateAttr: undefined };
+
+  it('un-inverts the axis state attribute when the axis is inverted', () => {
+    // The headline defect: slats at logical 35 report 65 on the cover.
+    expect(logicalAxisValue(makeHass({ coverTilt: 65 }), invertedTilt, COVER_ID)).toBe(35);
+  });
+
+  it('reads the axis state attribute verbatim when the axis is not inverted', () => {
+    expect(logicalAxisValue(makeHass({ coverTilt: 65 }), plainTilt, COVER_ID)).toBe(65);
+  });
+
+  // Zero-trap, mirroring logicalCoverPosition: fully-closed slats are a valid
+  // 0, never null — a truthiness bug here silently blanks the bar.
+  it('returns a valid 0 for an inverted axis reporting 100', () => {
+    expect(logicalAxisValue(makeHass({ coverTilt: 100 }), invertedTilt, COVER_ID)).toBe(0);
+  });
+
+  it('maps an inverted 0 back to 100', () => {
+    expect(logicalAxisValue(makeHass({ coverTilt: 0 }), invertedTilt, COVER_ID)).toBe(100);
+  });
+
+  it('returns null when the attribute is absent', () => {
+    expect(logicalAxisValue(makeHass({}), invertedTilt, COVER_ID)).toBeNull();
+  });
+
+  it('returns null for a non-numeric attribute', () => {
+    expect(logicalAxisValue(makeHass({ coverTilt: 'x' }), invertedTilt, COVER_ID)).toBeNull();
+  });
+
+  it('returns null for a NaN attribute', () => {
+    expect(logicalAxisValue(makeHass({ coverTilt: NaN }), invertedTilt, COVER_ID)).toBeNull();
+  });
+
+  it('returns null for a missing or unknown cover', () => {
+    expect(logicalAxisValue(makeHass({ coverTilt: 65 }), invertedTilt, undefined)).toBeNull();
+    expect(logicalAxisValue(makeHass({ coverTilt: 65 }), invertedTilt, 'cover.gone')).toBeNull();
+  });
+
+  it('returns null when the axis declares no state attribute', () => {
+    expect(logicalAxisValue(makeHass({ coverTilt: 65 }), noAttrTilt, COVER_ID)).toBeNull();
+  });
+
+  it('normalizes an axis resolved straight out of discovery', () => {
+    // Pins the descriptor → resolveAxes → helper wiring end-to-end, so a
+    // dropped `inverted` anywhere in that chain fails here.
+    const [tilt] = resolveAxes({
+      ...baseDiscovered,
+      discovery: {
+        axes: [
+          { id: 'tilt', state_attr: 'current_tilt_position', inverted: true, supported: true },
+        ],
+      },
+    });
+    expect(logicalAxisValue(makeHass({ coverTilt: 65 }), tilt, COVER_ID)).toBe(35);
   });
 });

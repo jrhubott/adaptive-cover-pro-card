@@ -106,12 +106,15 @@ export function buildStates(cfg: HarnessConfig): GeneratedStates {
  * every cover exposes a `position` axis; venetian additionally exposes a `tilt`
  * axis. Emitted on the control_status sensor unless the legacy flag is set.
  *
- * `positionInverted` mirrors the integration's `AxisDescriptor.inverted`
- * (issue #234) — the card's only oracle for un-inverting cover-frame reads.
+ * `positionInverted` / `tiltInverted` mirror the integration's
+ * `AxisDescriptor.inverted`, which is set per axis from that axis's own
+ * inversion option (issues #234, #236) — the card's only oracle for
+ * un-inverting cover-frame reads.
  */
 export function buildCoverDiscovery(
   coverType: CoverType,
   positionInverted = false,
+  tiltInverted = false,
 ): Record<string, unknown> {
   const label = (
     {
@@ -150,6 +153,7 @@ export function buildCoverDiscovery(
       service_attr: 'tilt',
       open_blocks_sun: false,
       supported: true,
+      inverted: tiltInverted,
     });
   }
   return { cover_type: coverType, cover_label: label, axes };
@@ -325,7 +329,9 @@ function addEntryStates(
     // legacy flag so the card exercises its synthesized-axis fallback.
     ...(legacyIntegration
       ? {}
-      : { cover_discovery: buildCoverDiscovery(entry.cover_type, f.inverse_state) }),
+      : {
+          cover_discovery: buildCoverDiscovery(entry.cover_type, f.inverse_state, f.inverse_tilt),
+        }),
     schedule_start: scheduleStart,
     schedule_end: scheduleEnd,
   });
@@ -528,6 +534,10 @@ function addCoverStates(states: Record<string, HassState>, entry: HarnessEntry):
     // Venetian covers carry a live slat angle the card reads directly off the
     // cover entity (the integration does not aggregate tilts into a sensor).
     const tilt = dualAxis ? (c.tilt ?? entry.target_tilt ?? 50) : undefined;
+    // An inverse_tilt entry drives the slat axis with `100 − logical` too, so
+    // the cover reports the complement while the scenario's `tilt` stays
+    // logical — mirroring `reportedPosition` above (issue #236).
+    const reportedTilt = entry.flags.inverse_tilt && tilt !== undefined ? 100 - tilt : tilt;
     // device_class drives the card's HA-native icon + control glyphs. Explicit
     // per-cover config wins; `'none'` suppresses it (fallback-chain proof);
     // otherwise default from the cover_type (venetian → blind, else shade),
@@ -539,7 +549,7 @@ function addCoverStates(states: Record<string, HassState>, entry: HarnessEntry):
       current_position: reportedPosition,
       // Inverse installs in the wild are typically RTS/one-way covers.
       ...(inverse ? { assumed_state: true } : {}),
-      ...(tilt !== undefined ? { current_tilt_position: tilt } : {}),
+      ...(reportedTilt !== undefined ? { current_tilt_position: reportedTilt } : {}),
       // Bit 16 (SET_TILT_POSITION) added for venetian so the cover advertises
       // tilt support alongside the position features (15).
       supported_features: dualAxis ? 143 : 15,

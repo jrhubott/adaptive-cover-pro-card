@@ -15,10 +15,11 @@ import { zonedNowMs, zoneForLongitude } from '../harness/src/zone';
 import { INTEGRATION_DOMAIN } from '../src/const';
 import { buildRegistry } from '../harness/src/mock/registry';
 import { discoverEntities } from '../src/lib/entity-discovery';
-import { positionAxisInverted } from '../src/lib/axes';
+import { positionAxisInverted, resolveAxes } from '../src/lib/axes';
 import {
   coverHeldPosition,
   coverLogicalActuals,
+  logicalAxisValue,
   logicalCoverPosition,
 } from '../src/lib/cover-position';
 
@@ -546,23 +547,25 @@ describe('applyService — adaptive_cover_pro.engage_manual_override (#229)', ()
   });
 });
 
-// ── inverse_state harness scenarios (#234) ───────────────────────────────────
+// ── frame-normalization harness scenarios (#234, #236) ───────────────────────
+
+/** Build a scenario's mock states and run the card's own discovery over them,
+ *  so harness output and card expectations are checked against each other. */
+function discoverFor(scenarioId: string) {
+  const cfg = findScenario(scenarioId)!.build();
+  const entry = cfg.entries[0];
+  const registry = buildRegistry(cfg.entries);
+  const { states } = buildStates(cfg);
+  const hass = { states, devices: {} } as unknown as import('custom-card-helpers').HomeAssistant;
+  const d = discoverEntities(
+    hass,
+    { type: 'custom:adaptive-cover-pro-tile-card', entry_id: entry.entry_id },
+    registry,
+  );
+  return { hass, states, discovered: d! };
+}
 
 describe('harness inverse_state scenarios (#234)', () => {
-  function discoverFor(scenarioId: string) {
-    const cfg = findScenario(scenarioId)!.build();
-    const entry = cfg.entries[0];
-    const registry = buildRegistry(cfg.entries);
-    const { states } = buildStates(cfg);
-    const hass = { states, devices: {} } as unknown as import('custom-card-helpers').HomeAssistant;
-    const d = discoverEntities(
-      hass,
-      { type: 'custom:adaptive-cover-pro-tile-card', entry_id: entry.entry_id },
-      registry,
-    );
-    return { hass, states, discovered: d! };
-  }
-
   it('emits the reporter fixture: cover-frame state/actuals, logical linear_*', () => {
     const { states, discovered } = discoverFor('inverse-state-awning');
     const sensor = states[discovered.entities.target_position_sensor!];
@@ -603,5 +606,37 @@ describe('harness inverse_state scenarios (#234)', () => {
     expect(positionAxisInverted(discovered)).toBe(false);
     expect(sensor.attributes.linear_actual_positions).toEqual(sensor.attributes.actual_positions);
     expect(coverLogicalActuals(hass, discovered)).toEqual(sensor.attributes.actual_positions);
+  });
+});
+
+// ── inverse_tilt harness scenario (#236) ─────────────────────────────────────
+
+describe('harness inverse_tilt scenario (#236)', () => {
+  const VENETIAN = 'cover.south_window_main';
+
+  it('emits the fixture: cover-frame tilt attribute, logical tilt target, untouched position', () => {
+    const { states, discovered } = discoverFor('inverse-tilt-venetian');
+    const cover = states[VENETIAN];
+    // Slats at logical 35 report their complement…
+    expect(cover.attributes.current_tilt_position).toBe(65);
+    // …while the position axis is not inverted, so it stays as configured.
+    expect(cover.attributes.current_position).toBe(60);
+    // The Cover_Tilt sensor is the integration's pre-_to_wire logical target
+    // and must never be flipped by the mock.
+    expect(states[discovered.entities.target_tilt_sensor!].state).toBe('70');
+  });
+
+  it('carries inverted through discovery on the tilt axis only', () => {
+    const { discovered } = discoverFor('inverse-tilt-venetian');
+    const axes = resolveAxes(discovered);
+    expect(axes.map((a) => a.id)).toEqual(['position', 'tilt']);
+    expect(axes.map((a) => a.inverted)).toEqual([false, true]);
+    expect(positionAxisInverted(discovered)).toBe(false);
+  });
+
+  it('lets the card turn the reported 65 back into the logical 35', () => {
+    const { hass, discovered } = discoverFor('inverse-tilt-venetian');
+    const tilt = resolveAxes(discovered).find((a) => a.id === 'tilt')!;
+    expect(logicalAxisValue(hass, tilt, VENETIAN)).toBe(35);
   });
 });

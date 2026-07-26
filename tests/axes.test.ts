@@ -132,6 +132,19 @@ describe('resolveAxes — inverted flag (#234)', () => {
     expect(resolveAxes(d)[0].inverted).toBe(false);
   });
 
+  // The tilt axis carries its own inversion option (CONF_INVERSE_TILT) on the
+  // integration side, so `inverted` must survive per-axis, not just on position
+  // (issue #236).
+  it('carries inverted through on a non-position (tilt) axis', () => {
+    const d = withDiscovery({
+      axes: [
+        { id: 'position', supported: true },
+        { id: 'tilt', inverted: true, supported: true },
+      ],
+    });
+    expect(resolveAxes(d).map((a) => a.inverted)).toEqual([false, true]);
+  });
+
   it('defaults inverted to false on both synthesized fallback axes', () => {
     const d: DiscoveredEntities = {
       ...base,

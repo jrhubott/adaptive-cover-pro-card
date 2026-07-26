@@ -42,7 +42,7 @@ import {
   resolveCustomPositionPct,
   resolveActiveMinModeFloor,
 } from './lib/decision-summary';
-import { coverHeldPosition, logicalCoverPosition } from './lib/cover-position';
+import { coverHeldPosition, logicalAxisValue, logicalCoverPosition } from './lib/cover-position';
 import {
   buildSolarActiveContext,
   isAutoControlActive,
@@ -889,11 +889,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
     return Number.isNaN(v) ? null : v;
   }
 
-  /** Live value for a secondary axis from the cover's per-axis state attribute. */
+  /** Live value for a secondary axis from the cover's per-axis state attribute,
+   *  normalized to the logical frame (issue #236). */
   private _liveAxis(cover: string | undefined, axis: ResolvedAxis): number | null {
-    if (!cover || !axis.stateAttr) return null;
-    const v = this.hass.states[cover]?.attributes?.[axis.stateAttr];
-    return typeof v === 'number' && !Number.isNaN(v) ? v : null;
+    return logicalAxisValue(this.hass, axis, cover);
   }
 
   /** Display label for an axis: card i18n key wins for known ids, else the

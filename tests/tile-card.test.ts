@@ -2902,3 +2902,124 @@ describe('adaptive-cover-pro-tile-card — position bar drag slider', () => {
     expect(el.shadowRoot!.querySelector('.pos-slider')).toBeFalsy();
   });
 });
+
+// ── inverse_tilt frame normalization (#236) ──────────────────────────────────
+
+const TILT_INVERSE_REGISTRY: EntityRegistryEntry[] = [
+  ...REGISTRY,
+  {
+    entity_id: 'sensor.cover_tilt',
+    unique_id: `${ENTRY}_Cover_Tilt`,
+    config_entry_id: ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+  {
+    entity_id: 'sensor.control_status',
+    unique_id: `${ENTRY}_control_status`,
+    config_entry_id: ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+];
+
+/**
+ * A venetian on an `inverse_tilt` install: only the tilt axis carries
+ * `inverted: true`, so the cover reports `current_tilt_position: 65` for slats
+ * at logical 35 while `current_position` stays in the logical frame.
+ */
+function inverseTiltHass(
+  overrides: Partial<{
+    callService: (...args: unknown[]) => unknown;
+    coverLeftState: string;
+    modernServices: boolean;
+  }> = {},
+): HomeAssistant {
+  const h = makeHass({
+    callService: overrides.callService,
+    coverLeftState: overrides.coverLeftState,
+    coverLeftCurrentPosition: 42,
+  });
+  h.states['sensor.cover_tilt'] = { state: '70', attributes: {} } as never;
+  (h.states['cover.left'].attributes as Record<string, unknown>).current_tilt_position = 65;
+  h.states['sensor.control_status'] = {
+    state: 'auto',
+    attributes: {
+      cover_type: 'cover_venetian',
+      cover_discovery: {
+        cover_type: 'cover_venetian',
+        axes: [
+          {
+            id: 'position',
+            label: 'Position',
+            state_attr: 'current_position',
+            supported: true,
+            inverted: false,
+          },
+          {
+            id: 'tilt',
+            label: 'Tilt',
+            state_attr: 'current_tilt_position',
+            supported: true,
+            inverted: true,
+          },
+        ],
+      },
+    },
+  } as never;
+  if (overrides.modernServices) {
+    (h as unknown as { services: unknown }).services = {
+      adaptive_cover_pro: { set_axes: {}, set_position: {}, set_tilt: {} },
+    };
+  }
+  (h as unknown as { callWS: unknown }).callWS = vi.fn().mockResolvedValue(TILT_INVERSE_REGISTRY);
+  return h;
+}
+
+async function mountInverseTilt(hass: HomeAssistant): Promise<CardLike> {
+  const el = makeCard();
+  el.setConfig({ type: TYPE, entry_id: ENTRY });
+  el.hass = hass;
+  document.body.appendChild(el);
+  el._registry = TILT_INVERSE_REGISTRY;
+  await el.updateComplete;
+  return el;
+}
+
+describe('adaptive-cover-pro-tile-card — inverse_tilt frame normalization (#236)', () => {
+  const tiltBarOf = (el: CardLike) =>
+    el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
+      actual: number | null;
+      target: number | null;
+    };
+
+  it('feeds the mini tilt bar the logical value, not the cover-frame attribute', async () => {
+    const el = await mountInverseTilt(inverseTiltHass());
+    const tilt = tiltBarOf(el);
+    expect(tilt).not.toBeNull();
+    expect(tilt.actual).toBe(35);
+    expect(tilt.target).toBe(70);
+  });
+
+  // The `noLiveData` gate runs BEFORE `_liveAxis`, so a suppressed read must
+  // stay null — never `100 − null` (issues #212 / #232 / #239).
+  it.each(['unavailable', 'unknown'])(
+    'keeps the suppressed tilt read null on a %s cover',
+    async (coverLeftState) => {
+      const el = await mountInverseTilt(inverseTiltHass({ coverLeftState }));
+      expect(tiltBarOf(el).actual).toBeNull();
+    },
+  );
+
+  it('writes the un-inverted logical value — the integration applies _to_wire', async () => {
+    const callService = vi.fn();
+    const el = await mountInverseTilt(inverseTiltHass({ callService, modernServices: true }));
+    tiltBarOf(el).dispatchEvent(new CustomEvent('acp-tilt-set', { detail: 80, bubbles: true }));
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { tilt: 80 } },
+      { entity_id: 'cover.left' },
+    );
+  });
+});
