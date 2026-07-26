@@ -65,7 +65,12 @@ export function buildStates(cfg: HarnessConfig): GeneratedStates {
   const decisions = new Map<string, DecisionResult>();
   const samplesByEntry = new Map<string, SunSample[]>();
 
-  for (const entry of cfg.entries) {
+  // Group entries run LAST. A member cover can belong to a real ACP cover entry
+  // in the same scenario (that's what makes the roster render as tile cards), and
+  // `addGroupStates` only stubs members that have no state yet — so the cover
+  // entry must have published its own richer state first.
+  const ordered = [...cfg.entries].sort((a, b) => Number(!!a.is_group) - Number(!!b.is_group));
+  for (const entry of ordered) {
     // Cover Group entries (issue #185) carry no sun geometry, decision pipeline,
     // or per-cover sensors — emit their group_* entities and move on.
     if (entry.is_group) {
@@ -568,7 +573,13 @@ function addGroupStates(states: Record<string, HassState>, entry: HarnessEntry):
   const id = (role: Parameters<typeof entityIdFor>[1]) => entityIdFor(entry, role);
   const g = entry.group;
   if (!g) return;
-  const whoWon = Object.values(g.member_winners).filter((w) => w !== null).length;
+  // Mirrors GroupWhoWonSensor.native_value: the STATE counts only members whose
+  // pipeline a GROUP handler won, while `member_winners` carries every member's
+  // real winner (which is what the card rolls up into group badges).
+  const GROUP_HANDLERS = ['group_scene', 'group_lock'];
+  const whoWon = Object.values(g.member_winners).filter(
+    (w) => w !== null && GROUP_HANDLERS.includes(w),
+  ).length;
 
   states[id('group_position_sensor')] = mkState(
     id('group_position_sensor'),
@@ -618,16 +629,44 @@ function addGroupStates(states: Record<string, HassState>, entry: HarnessEntry):
     states[id(role)] = mkState(id(role), 'unknown', { friendly_name: `${entry.title} ${role}` });
   }
 
+  // The aggregate cover entity is OPT-IN in the integration, so it is emitted
+  // only when the scenario asks for it — that's the branch where the group tilt
+  // track can appear (features 15 = open/close/set_position/stop, +128 =
+  // SET_TILT_POSITION, which the integration adds only for an all-tilt roster).
+  if (g.aggregate_cover) {
+    const hasTilt = g.tilt !== undefined && g.tilt !== null;
+    states[id('group_cover')] = mkState(
+      id('group_cover'),
+      coverPositionState(g.aggregate_position),
+      {
+        friendly_name: `${entry.title} Group Cover`,
+        current_position: g.aggregate_position,
+        ...(hasTilt ? { current_tilt_position: g.tilt } : {}),
+        supported_features: hasTilt ? 143 : 15,
+        device_class: 'shade',
+      },
+    );
+  }
+
   // Member covers are foreign entity_ids in other config entries — the card
   // never discovers them, but the group view reads each member's live
   // friendly_name/position off `hass.states`. Emit a stub cover state per
   // member (ACP-managed AND generic) so the harness main-card group view shows
   // real names + open/closed states instead of bare entity_ids.
   for (const [memberId, pos] of Object.entries(g.member_positions)) {
+    // A member that belongs to a real ACP cover entry in this scenario already
+    // has a full state (device_class, tilt, assumed_state, …) emitted above —
+    // and that entry is what lets the roster render the member's own tile card.
+    // Never clobber it with the stub.
+    if (states[memberId]) continue;
+    const memberTilt = g.member_tilts?.[memberId];
+    const hasTilt = memberTilt !== undefined && memberTilt !== null;
     states[memberId] = mkState(memberId, coverPositionState(pos), {
       friendly_name: memberFriendlyName(memberId),
       current_position: pos ?? undefined,
-      device_class: 'shade',
+      ...(hasTilt ? { current_tilt_position: memberTilt } : {}),
+      supported_features: hasTilt ? 143 : 15,
+      device_class: hasTilt ? 'blind' : 'shade',
     });
   }
 }

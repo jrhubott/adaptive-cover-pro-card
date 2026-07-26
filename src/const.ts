@@ -262,9 +262,12 @@ export const BADGE_TOKENS: Record<BadgeKind, BadgeTokens> = {
   motion: { label: 'Occupancy', bg: 'rgba(255, 235, 59, 0.22)', fg: '#827717' },
   off: { label: 'Off', bg: 'rgba(97, 97, 97, 0.28)', fg: '#212121' },
   off_schedule: { label: 'Off-schedule', bg: 'rgba(96, 125, 139, 0.22)', fg: '#37474f' },
-  // Cover Group who-won count badge (issue #185). Neutral indigo, distinct from
-  // every handler kind; applied via `kindOverride`, never derived from a winner.
-  group: { label: 'Group', bg: 'rgba(63, 81, 181, 0.20)', fg: '#283593' },
+  // Cover Group who-won count badge (issue #185). Shares the `auto` palette:
+  // group-driven IS normal automatic operation from the member's point of view,
+  // so it should read as calm/green rather than as an exception. The label and
+  // icon keep it distinguishable. Applied via `kindOverride` for the "N/M"
+  // count badge, and derived from a winner for a group-driven member.
+  group: { label: 'Group', bg: 'rgba(76, 175, 80, 0.18)', fg: '#2e7d32' },
 };
 
 /**

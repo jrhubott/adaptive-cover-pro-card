@@ -274,3 +274,54 @@ export function buildSolarActiveContext(
     cloudIsWinner: isCloudWinner(winner),
   };
 }
+
+// ── Cover Group: roll member state up onto the group surface (issue #185) ────
+
+/**
+ * Winners a Cover Group does NOT badge, for three distinct reasons:
+ *
+ * - `group_scene` / `group_lock` — the group's own "N/M group-driven" badge
+ *   already states this; a handler badge beside it says the same thing twice.
+ * - `solar` / `default` — routine automatic operation, not an exception.
+ *   Badging it would put a permanent badge on every healthy group.
+ * - `motion` — occupancy timeout is per-cover context. The member's own tile
+ *   carries it (beside its motion icon, which is why the tile suppresses the
+ *   badge there too); a group has no occupancy of its own, so on a group
+ *   summary it is noise.
+ */
+const GROUP_ROLLUP_EXCLUDED: ReadonlySet<string> = new Set([
+  'group_scene',
+  'group_lock',
+  'solar',
+  'default',
+  'motion',
+]);
+
+/**
+ * The distinct member winners a Cover Group should badge, ordered by
+ * `HANDLER_ORDER` so the row is stable as members come and go.
+ *
+ * The group's `member_winners` attribute is the **full** per-member winning-handler
+ * map — the who-won sensor's *state* counts only the group-driven ones, but the
+ * attribute carries every member's real winner. So a member sitting under a
+ * manual override, weather safety, or a custom-position slot is visible here
+ * without the group having to discover each member's own entities.
+ *
+ * **Known gap:** an override that is *active but out-prioritized* (e.g. manual
+ * held while weather safety wins) is not in this map, because only the winner is
+ * published. The member's own tile still shows it; the group cannot.
+ */
+export function memberBadgeWinners(
+  memberWinners: Record<string, string | null> | undefined,
+): string[] {
+  if (!memberWinners) return [];
+  const seen = new Set<string>();
+  for (const raw of Object.values(memberWinners)) {
+    if (!raw) continue;
+    const handler = normalizeHandler(raw);
+    if (GROUP_ROLLUP_EXCLUDED.has(handler)) continue;
+    if (!(handler in BADGE_KINDS_BY_HANDLER)) continue;
+    seen.add(handler);
+  }
+  return HANDLER_ORDER.filter((h) => seen.has(h));
+}

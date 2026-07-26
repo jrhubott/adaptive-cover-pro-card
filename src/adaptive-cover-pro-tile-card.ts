@@ -56,6 +56,7 @@ import { tooltip, setTooltipDefaults } from './lib/tooltip';
 import './components/tile-badge';
 import './components/tilt-bar';
 import './components/group-tile';
+import './components/group-dialog';
 import './components/more-info-dialog';
 import './adaptive-cover-pro-tile-card-editor';
 
@@ -167,6 +168,13 @@ export class AdaptiveCoverProTileCard extends LitElement {
   protected shouldUpdate(changed: PropertyValues): boolean {
     if (changed.size > 1 || !changed.has('hass')) return true;
     if (!this._discovered) return true;
+    // A Cover Group must not gate on its own entities: the roster renders each
+    // member as a nested tile card that HA never feeds directly, so it only sees
+    // a new `hass` when this card re-renders. A member's own ACP sensors belong
+    // to a different config entry and are absent from `discovered.entities`, so
+    // gating would freeze every member badge, countdown and chart until some
+    // group sensor happened to tick.
+    if (this._discovered.is_group) return true;
     const old = changed.get('hass') as HomeAssistant | undefined;
     return entityStateChanged(old, this.hass, Object.values(this._discovered.entities));
   }
@@ -252,11 +260,49 @@ export class AdaptiveCoverProTileCard extends LitElement {
     }
 
     // Cover Group entries (issue #185) route to the group tile variant instead
-    // of the cover tile controls + more-info dialog (both cover-specific).
+    // of the cover tile controls, and to the group dialog instead of the
+    // cover more-info dialog (compass/elevation/decision trace are all
+    // geometry-bound and a group has no geometry).
     if (discovered.is_group) {
-      return html`<ha-card>
-        <acp-group-tile .hass=${this.hass} .discovered=${discovered}></acp-group-tile>
-      </ha-card>`;
+      return html`
+        <ha-card>
+          <acp-group-tile
+            @pointerdown=${this._onPointerDown}
+            @pointerup=${this._onPointerUp}
+            @pointercancel=${this._onPointerCancel}
+            @pointerleave=${this._onPointerCancel}
+            .hass=${this.hass}
+            .discovered=${discovered}
+            .name=${this._config.name}
+            .icon=${this._config.icon}
+            .stateColor=${this._config.state_color !== false}
+            .showControls=${this._config.show_controls !== false}
+            .showPositionBar=${this._config.show_position_bar !== false}
+            .showTilt=${this._config.show_tilt !== false}
+            .showSceneSelect=${this._config.show_scene_select !== false}
+            .showLock=${this._config.show_lock !== false}
+            .showAutomation=${this._config.show_automation !== false}
+            .showClearOverrides=${this._config.show_clear_overrides !== false}
+            .showMemberBadges=${this._config.show_member_badges !== false}
+            @acp-open-more-info=${this._onClick}
+          ></acp-group-tile>
+        </ha-card>
+        <acp-group-dialog
+          .hass=${this.hass}
+          .discovered=${discovered}
+          .open=${this._dialogOpen}
+          .name=${this._config.name}
+          .icon=${this._config.icon}
+          .stateColor=${this._config.state_color !== false}
+          .showTilt=${this._config.show_tilt !== false}
+          .showSceneSelect=${this._config.show_scene_select !== false}
+          .showLock=${this._config.show_lock !== false}
+          .showAutomation=${this._config.show_automation !== false}
+          .showClearOverrides=${this._config.show_clear_overrides !== false}
+          .showMemberBadges=${this._config.show_member_badges !== false}
+          @acp-dialog-close=${this._closeDialog}
+        ></acp-group-dialog>
+      `;
     }
 
     return html`
@@ -984,18 +1030,28 @@ export class AdaptiveCoverProTileCard extends LitElement {
       this.dispatchEvent(new CustomEvent('acp-tile-tap', { bubbles: true, composed: true }));
       return;
     }
-    const cover = this._resolvedCoverFromState();
     handleAction(
       this,
       this.hass,
       {
-        entity: cover,
+        entity: this._actionEntity(),
         tap_action: tap,
         hold_action: this._config.hold_action,
         double_tap_action: this._config.double_tap_action,
       },
       action,
     );
+  }
+
+  /** Entity a configured tap/hold/double-tap action targets. A cover entry uses
+   *  its resolved cover; a Cover Group has none — `managed_covers` holds its
+   *  members, so that would aim a `more-info` at one arbitrary member. Use the
+   *  group's own aggregate cover when the integration exposes it, else the
+   *  always-present group position sensor. */
+  private _actionEntity(): string | undefined {
+    const discovered = this._discovered;
+    if (!discovered?.is_group) return this._resolvedCoverFromState();
+    return discovered.entities.group_cover ?? discovered.entities.group_position_sensor;
   }
 
   private _resolvedCoverFromState(): string | undefined {

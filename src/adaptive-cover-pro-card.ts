@@ -152,6 +152,13 @@ export class AdaptiveCoverProCard extends LitElement {
   protected shouldUpdate(changed: PropertyValues): boolean {
     if (changed.size > 1 || !changed.has('hass')) return true;
     if (!this._discovered) return true;
+    // A Cover Group must not gate on its own entities: the roster renders each
+    // member as a nested tile card that HA never feeds directly, so it only sees
+    // a new `hass` when this card re-renders. A member's own ACP sensors belong
+    // to a different config entry and are absent from `discovered.entities`, so
+    // gating would freeze every member badge, countdown and chart until some
+    // group sensor happened to tick.
+    if (this._discovered.is_group) return true;
     const old = changed.get('hass') as HomeAssistant | undefined;
     return entityStateChanged(old, this.hass, Object.values(this._discovered.entities));
   }
