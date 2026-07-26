@@ -2596,3 +2596,138 @@ describe('adaptive-cover-pro-tile-card — extend manual override (#229)', () =>
     expect(dialog.open).toBe(false);
   });
 });
+
+// ── inverse_state frame normalization (#234) ─────────────────────────────────
+
+const INVERSE_REGISTRY: EntityRegistryEntry[] = [
+  ...REGISTRY,
+  {
+    entity_id: 'sensor.control_status',
+    unique_id: `${ENTRY}_control_status`,
+    config_entry_id: ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+];
+
+const AWNING = 'cover.patio_awning';
+
+/**
+ * The reporter's exact install: a fully-extended awning on an `inverse_state`
+ * entry. Logical position is 100 (extended), but the integration dispatches
+ * `100 − 100 = 0`, so the cover entity AND `actual_positions` both report 0
+ * while `linear_position` / `linear_actual_positions` stay logical at 100.
+ *
+ * `legacy` drops both post-#1033 fields (the accepted residual: the card cannot
+ * detect the frame, so it must render exactly as it does today).
+ * `reportsPosition: false` drops `current_position` to exercise the
+ * `reportedPosition ?? calculatedPosition` fallback.
+ */
+function inverseHass(opts: { legacy?: boolean; reportsPosition?: boolean } = {}): HomeAssistant {
+  const legacy = opts.legacy === true;
+  const h = makeHass({
+    coverPositionSensorAttrs: {
+      actual_positions: { [AWNING]: 0 },
+      ...(legacy ? {} : { linear_actual_positions: { [AWNING]: 100 } }),
+      linear_position: 100,
+      raw_calculated_position: 100,
+      all_at_target: true,
+    },
+  });
+  h.states['sensor.cover_position'].state = '0';
+  h.states['sensor.control_status'] = {
+    state: 'auto',
+    attributes: {
+      cover_type: 'cover_awning',
+      cover_discovery: {
+        cover_type: 'cover_awning',
+        axes: [
+          {
+            id: 'position',
+            label: 'Position',
+            state_attr: 'current_position',
+            supported: true,
+            ...(legacy ? {} : { inverted: true }),
+          },
+        ],
+      },
+    },
+  } as never;
+  h.states[AWNING] = {
+    state: 'open',
+    attributes: {
+      friendly_name: 'Patio Awning',
+      device_class: 'awning',
+      assumed_state: true,
+      ...(opts.reportsPosition === false ? {} : { current_position: 0 }),
+    },
+  } as never;
+  (h as unknown as { callWS: unknown }).callWS = vi.fn().mockResolvedValue(INVERSE_REGISTRY);
+  return h;
+}
+
+async function mountInverse(hass: HomeAssistant): Promise<CardLike> {
+  const el = makeCard();
+  el.setConfig({ type: TYPE, entry_id: ENTRY });
+  el.hass = hass;
+  document.body.appendChild(el);
+  el._registry = INVERSE_REGISTRY;
+  await el.updateComplete;
+  return el;
+}
+
+const fillWidth = (el: CardLike): string =>
+  (el.shadowRoot!.querySelector('.pos-bar .pos-fill') as HTMLElement).getAttribute('style') ?? '';
+
+describe('adaptive-cover-pro-tile-card — inverse_state frame normalization (#234)', () => {
+  it('draws the fill and the target marker from one frame when the cover is at target', async () => {
+    // The whole defect in one assertion: `all_at_target` is true, so an empty
+    // bar with the marker pinned at the far end is a 100-point disagreement
+    // inside a single widget. Both must resolve to the same number.
+    const el = await mountInverse(inverseHass());
+    const bar = el.shadowRoot!.querySelector('.pos-bar') as HTMLElement;
+    expect(bar).toBeTruthy();
+    const marker = bar.querySelector('.pos-marker') as HTMLElement;
+    expect(fillWidth(el)).toContain('width:100%');
+    // Bind the marker's own value: the rendered style is
+    // `left:clamp(1px, X%, calc(100% - 1px))`, so a bare `100%` substring matches
+    // for any X via the upper bound. Anchor on the clamp's middle argument.
+    expect(marker.getAttribute('style') ?? '').toContain('left:clamp(1px, 100%,');
+  });
+
+  it('disables ↑ (open) and keeps ↓ (close) live on a fully-extended awning', async () => {
+    // Pre-fix the raw 0 read as "fully closed", so the tile disabled Close —
+    // the only direction the awning could actually move.
+    const el = await mountInverse(inverseHass());
+    const up = el.shadowRoot!.querySelector('button.up') as HTMLButtonElement;
+    const down = el.shadowRoot!.querySelector('button.down') as HTMLButtonElement;
+    expect(down.disabled).toBe(false);
+    expect(up.disabled).toBe(true);
+  });
+
+  it('shows a readout that agrees with the entity state ("Open · 100%")', async () => {
+    const el = await mountInverse(inverseHass());
+    expect(el.shadowRoot!.querySelector('.state')?.textContent?.trim()).toBe('Open · 100%');
+  });
+
+  it('renders the same frame whether or not the cover reports a position', async () => {
+    // `livePosition = reportedPosition ?? calculatedPosition` must not switch
+    // frames on the presence of `current_position`: a reporting cover and a
+    // no-feedback cover at the same logical position render the same bar.
+    const reporting = await mountInverse(inverseHass());
+    const noFeedback = await mountInverse(inverseHass({ reportsPosition: false }));
+    expect(fillWidth(reporting)).toBe(fillWidth(noFeedback));
+    expect(fillWidth(noFeedback)).toContain('width:100%');
+  });
+
+  it('stays byte-identical to today on a pre-#1033 integration (no new fields)', async () => {
+    // Accepted residual, pinned deliberately: with neither `inverted` nor
+    // `linear_actual_positions` the card has no sound frame oracle, so it must
+    // NOT guess. This guards the normalization against a future "helpful"
+    // inference from the state/linear_position relation.
+    const el = await mountInverse(inverseHass({ legacy: true }));
+    expect(fillWidth(el)).toContain('width:0%');
+    const down = el.shadowRoot!.querySelector('button.down') as HTMLButtonElement;
+    expect(down.disabled).toBe(true);
+  });
+});

@@ -174,3 +174,53 @@ describe('fetchPositionHistory', () => {
     ]);
   });
 });
+
+describe('fetchPositionHistory — inverse_state frame normalization (#234)', () => {
+  const response = {
+    'cover.a': [
+      { s: 'open', a: { current_position: 0 }, lu: T0 / 1000 },
+      { s: 'open', a: { current_position: 30 }, lu: T1 / 1000 },
+    ],
+  };
+
+  it('flips recorded positions into the logical frame when inverted', async () => {
+    // The history track is drawn against the logical forecast/target curve, so
+    // cover-frame samples plot it upside down relative to what it compares to.
+    const out = await fetchPositionHistory(
+      mockHass(() => Promise.resolve(response)),
+      ['cover.a'],
+      T0,
+      T2,
+      true,
+    );
+    expect(out).toEqual([
+      { t: new Date(T0).toISOString(), position: 100 },
+      { t: new Date(T1).toISOString(), position: 70 },
+      // The forward-filled tail point is flipped too.
+      { t: new Date(T2).toISOString(), position: 70 },
+    ]);
+  });
+
+  it('is byte-identical to today when inverted is false or omitted', async () => {
+    const expected = [
+      { t: new Date(T0).toISOString(), position: 0 },
+      { t: new Date(T1).toISOString(), position: 30 },
+      { t: new Date(T2).toISOString(), position: 30 },
+    ];
+    const omitted = await fetchPositionHistory(
+      mockHass(() => Promise.resolve(response)),
+      ['cover.a'],
+      T0,
+      T2,
+    );
+    const explicit = await fetchPositionHistory(
+      mockHass(() => Promise.resolve(response)),
+      ['cover.a'],
+      T0,
+      T2,
+      false,
+    );
+    expect(omitted).toEqual(expected);
+    expect(explicit).toEqual(expected);
+  });
+});

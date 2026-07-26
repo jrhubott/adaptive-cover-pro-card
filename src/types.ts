@@ -218,6 +218,14 @@ export interface AxisDescriptor {
   /** Rolled up across managed covers (ANY member exposes it). Absent/true =
    *  supported; only `=== false` filters the axis out. */
   supported?: boolean;
+  /** True when this axis is *effectively* inverted right now — the integration
+   *  dispatches `100 − logical` to the cover, so every value the card reads
+   *  from a cover-frame source (the cover entity's `current_position`, the
+   *  sensor's `actual_positions`) is the complement of the logical value the
+   *  card renders (issue #234). The integration already accounts for
+   *  interpolation suppressing position inversion, so the card reads this flag
+   *  and must never re-derive it. Absent on older integrations → false. */
+  inverted?: boolean;
 }
 
 /**
@@ -433,6 +441,12 @@ export interface LastSkippedAttributes {
 
 export interface CoverPositionAttributes {
   actual_positions: Record<string, number | null>;
+  /** `actual_positions` re-expressed in the logical (HA-convention) frame — the
+   *  identity map unless the position axis is inverted, in which case each
+   *  entry is `100 − actual` (issue #234). Published unconditionally by new
+   *  enough integrations; absent on older ones, where the card falls back to
+   *  un-inverting `actual_positions` itself via the axis flag. */
+  linear_actual_positions?: Record<string, number | null>;
   /** Per-cover in-transit direction for no-feedback (Somfy-RTS-style) covers,
    *  keyed by cover entity_id. Present only while a cover is mid-move (~45s
    *  window); absent/empty otherwise. Lets the card show motion the way a

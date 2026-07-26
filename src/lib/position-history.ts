@@ -118,12 +118,21 @@ export function mergeCoverHistories(perCover: Record<string, RawPoint[]>): Posit
 /**
  * Fetch recorded actual position for the given entities over `[startMs, endMs]`
  * and return one aggregate series. Never rejects — any failure yields `[]`.
+ *
+ * `inverted` (issue #234): on an `inverse_state` entry the recorder holds the
+ * *dispatched* `current_position`, i.e. `100 − logical`. The forecast strip
+ * plots this track against the logical forecast/target curve, so the samples
+ * are flipped into the logical frame here rather than at the render. The flip
+ * is applied post-merge — the mean of flips equals the flip of the mean, so
+ * {@link mergeCoverHistories} stays pure and untouched. Defaults false, which
+ * makes it inert on every non-inverse install.
  */
 export async function fetchPositionHistory(
   hass: HomeAssistant,
   entityIds: string[],
   startMs: number,
   endMs: number,
+  inverted = false,
 ): Promise<PositionHistorySample[]> {
   if (entityIds.length === 0) return [];
 
@@ -161,5 +170,6 @@ export async function fetchPositionHistory(
       merged.push({ t: new Date(endMs).toISOString(), position: last.position });
     }
   }
-  return merged;
+  if (!inverted) return merged;
+  return merged.map((s) => ({ t: s.t, position: 100 - s.position }));
 }
