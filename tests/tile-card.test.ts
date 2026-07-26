@@ -2731,3 +2731,174 @@ describe('adaptive-cover-pro-tile-card — inverse_state frame normalization (#2
     expect(down.disabled).toBe(true);
   });
 });
+
+describe('adaptive-cover-pro-tile-card — position bar drag slider', () => {
+  const RECT = { left: 0, width: 100, top: 0, bottom: 6, right: 100, height: 6 };
+
+  /** Mount a detailed tile with a live position and a stubbed slider rect, so
+   *  clientX maps 1:1 onto percent. */
+  async function mountSlider(
+    callService = vi.fn(),
+    hassOverrides: Record<string, unknown> = {},
+  ): Promise<{ el: CardLike; slider: HTMLElement; callService: ReturnType<typeof vi.fn> }> {
+    const h = makeHass({ callService, coverLeftCurrentPosition: 60, ...hassOverrides });
+    (h as unknown as { services: unknown }).services = {
+      adaptive_cover_pro: { set_axes: {}, set_position: {} },
+    };
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, h);
+    const slider = el.shadowRoot!.querySelector('.pos-slider') as HTMLElement;
+    if (slider) {
+      Object.defineProperty(slider, 'getBoundingClientRect', {
+        value: () => RECT,
+        configurable: true,
+      });
+    }
+    return { el, slider, callService };
+  }
+
+  const down = (x: number): PointerEvent =>
+    new PointerEvent('pointerdown', { bubbles: true, composed: true, clientX: x, pointerId: 1 });
+  const move = (x: number): PointerEvent =>
+    new PointerEvent('pointermove', { bubbles: true, composed: true, clientX: x, pointerId: 1 });
+  const up = (x: number): PointerEvent =>
+    new PointerEvent('pointerup', { bubbles: true, composed: true, clientX: x, pointerId: 1 });
+
+  const posCall = (
+    cs: ReturnType<typeof vi.fn>,
+  ): [string, string, Record<string, unknown>, Record<string, unknown>] | undefined =>
+    cs.mock.calls.find((c) => c[1] === 'set_axes' || c[1] === 'set_position') as
+      | [string, string, Record<string, unknown>, Record<string, unknown>]
+      | undefined;
+
+  it('wraps the position bar in a slider exposing WAI-ARIA semantics', async () => {
+    const { slider } = await mountSlider();
+    expect(slider).toBeTruthy();
+    expect(slider.getAttribute('role')).toBe('slider');
+    expect(slider.getAttribute('tabindex')).toBe('0');
+    expect(slider.getAttribute('aria-valuemin')).toBe('0');
+    expect(slider.getAttribute('aria-valuemax')).toBe('100');
+    expect(slider.getAttribute('aria-valuenow')).toBe('60');
+    expect(slider.getAttribute('aria-label')).toBeTruthy();
+    // The visible rail stays nested inside, untouched.
+    expect(slider.querySelector('.pos-bar')).toBeTruthy();
+  });
+
+  it('previews the dragged value live without calling a service', async () => {
+    const { el, slider, callService } = await mountSlider();
+    slider.dispatchEvent(down(20));
+    slider.dispatchEvent(move(80));
+    await el.updateComplete;
+    expect(fillWidth(el)).toContain('width:80%');
+    expect(slider.getAttribute('aria-valuenow')).toBe('80');
+    expect(posCall(callService)).toBeUndefined();
+  });
+
+  it('commits once on the trailing click after a drag', async () => {
+    const { el, slider, callService } = await mountSlider();
+    slider.dispatchEvent(down(20));
+    slider.dispatchEvent(move(80));
+    slider.dispatchEvent(up(80));
+    slider.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: 80 }));
+    await el.updateComplete;
+    expect(posCall(callService)).toEqual([
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { position: 80 } },
+      { entity_id: 'cover.left' },
+    ]);
+  });
+
+  it('does not open the more-info dialog when the gesture lands on the slider', async () => {
+    const { el, slider } = await mountSlider();
+    slider.dispatchEvent(down(20));
+    slider.dispatchEvent(move(80));
+    slider.dispatchEvent(up(80));
+    slider.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: 80 }));
+    await el.updateComplete;
+    // The tile's tap target must stay shielded, exactly as .controls is.
+    expect((el as unknown as { _dialogOpen: boolean })._dialogOpen).toBe(false);
+  });
+
+  it('discards the drag on pointercancel without committing', async () => {
+    const { el, slider, callService } = await mountSlider();
+    slider.dispatchEvent(down(20));
+    slider.dispatchEvent(move(80));
+    slider.dispatchEvent(
+      new PointerEvent('pointercancel', { bubbles: true, composed: true, pointerId: 1 }),
+    );
+    await el.updateComplete;
+    expect(posCall(callService)).toBeUndefined();
+    expect(fillWidth(el)).toContain('width:60%');
+  });
+
+  it.each([
+    ['ArrowRight', 61],
+    ['ArrowLeft', 59],
+    ['PageUp', 70],
+    ['PageDown', 50],
+    ['Home', 0],
+    ['End', 100],
+  ])('commits %s from the keyboard as %i', async (key, expected) => {
+    const { slider, callService } = await mountSlider();
+    slider.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, composed: true, key }));
+    expect(posCall(callService)?.[2]).toEqual({ axes: { position: expected } });
+  });
+
+  it('ignores unrelated keys', async () => {
+    const { slider, callService } = await mountSlider();
+    slider.dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, composed: true, key: 'Enter' }),
+    );
+    expect(posCall(callService)).toBeUndefined();
+  });
+
+  it('suppresses the width transition only while dragging', async () => {
+    const { el, slider } = await mountSlider();
+    expect(slider.classList.contains('dragging')).toBe(false);
+    slider.dispatchEvent(down(20));
+    await el.updateComplete;
+    expect(slider.classList.contains('dragging')).toBe(true);
+    slider.dispatchEvent(up(20));
+    await el.updateComplete;
+    expect(slider.classList.contains('dragging')).toBe(false);
+  });
+
+  it('declares an expanded touch target and owns the touch gesture', () => {
+    const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
+    expect(css).toContain('touch-action: none');
+    // The 6px rail is too thin to grab; an invisible ::before widens the hit
+    // area without adding layout height.
+    expect(css).toContain('.pos-slider::before');
+    expect(css).toContain('.pos-slider.dragging');
+  });
+
+  it('writes in the same logical frame it renders on an inverse_state cover (#234)', async () => {
+    // The bar reads logical-frame actuals post-#234 and set_axes takes logical
+    // values, so dragging to 30% must send 30 — not the cover-frame mirror.
+    const callService = vi.fn();
+    const h = inverseHass();
+    (h as unknown as { callService: unknown }).callService = callService;
+    (h as unknown as { services: unknown }).services = {
+      adaptive_cover_pro: { set_axes: {}, set_position: {} },
+    };
+    const el = await mountInverse(h);
+    const slider = el.shadowRoot!.querySelector('.pos-slider') as HTMLElement;
+    Object.defineProperty(slider, 'getBoundingClientRect', {
+      value: () => RECT,
+      configurable: true,
+    });
+    slider.dispatchEvent(down(30));
+    slider.dispatchEvent(up(30));
+    slider.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: 30 }));
+    await el.updateComplete;
+    expect(posCall(callService)?.[2]).toEqual({ axes: { position: 30 } });
+  });
+
+  it('renders no slider when the position bar is turned off', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, show_position_bar: false },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    );
+    expect(el.shadowRoot!.querySelector('.pos-slider')).toBeFalsy();
+  });
+});
