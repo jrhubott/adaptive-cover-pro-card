@@ -328,6 +328,52 @@ describe('discoverEntities (unique_id based)', () => {
   });
 });
 
+describe('discoverEntities — area_name resolution (#247)', () => {
+  it('resolves area_name via hass.devices[device_id].area_id -> hass.areas[area_id].name', () => {
+    const hass = makeHass();
+    (
+      hass as unknown as { devices: Record<string, { area_id?: string }> }
+    ).devices.acp_device_living.area_id = 'area_living_room';
+    (hass as unknown as { areas?: unknown }).areas = {
+      area_living_room: { area_id: 'area_living_room', name: 'Living Room' },
+    };
+    const d = discoverEntities(
+      hass,
+      { type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY_ID },
+      makeRegistry(),
+    );
+    expect(d!.area_name).toBe('Living Room');
+  });
+
+  it('leaves area_name undefined when hass.areas is missing (older HA)', () => {
+    const hass = makeHass();
+    (
+      hass as unknown as { devices: Record<string, { area_id?: string }> }
+    ).devices.acp_device_living.area_id = 'area_living_room';
+    // No hass.areas set at all — simulates an older HA frontend.
+    const d = discoverEntities(
+      hass,
+      { type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY_ID },
+      makeRegistry(),
+    );
+    expect(d!.area_name).toBeUndefined();
+  });
+
+  it('leaves area_name undefined when the device has no area_id', () => {
+    const hass = makeHass();
+    (hass as unknown as { areas?: unknown }).areas = {
+      area_living_room: { area_id: 'area_living_room', name: 'Living Room' },
+    };
+    // The fixture device carries no area_id.
+    const d = discoverEntities(
+      hass,
+      { type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY_ID },
+      makeRegistry(),
+    );
+    expect(d!.area_name).toBeUndefined();
+  });
+});
+
 const GROUP_ENTRY = 'group1';
 
 function makeGroupRegistry(): EntityRegistryEntry[] {
@@ -521,6 +567,37 @@ describe('createDiscoveryMemo', () => {
     const second = memo(hass2, CONFIG, registry);
     expect(second).not.toBe(first);
     expect(second!.cover_type).toBe('cover_awning');
+  });
+
+  // Audit finding #6 (issue #247 fix pass): a device *reassignment* to a
+  // different area replaces `hass.devices` and is already caught above, but a
+  // pure area *rename* (same area_id, new `name`) only replaces `hass.areas`
+  // — the memo must track that reference too, or a composed tile-card `name`
+  // holds the stale area name until some unrelated input happens to
+  // invalidate the memo.
+  it('recomputes and picks up the new value when hass.areas is replaced (an area rename)', () => {
+    const memo = createDiscoveryMemo();
+    const registry = makeRegistry();
+    const hass1 = makeHass() as unknown as {
+      devices: Record<string, { area_id?: string }>;
+      states: Record<string, unknown>;
+      areas?: Record<string, { area_id: string; name: string }>;
+    };
+    hass1.devices.acp_device_living.area_id = 'area_living_room';
+    hass1.areas = { area_living_room: { area_id: 'area_living_room', name: 'Living Room' } };
+    const first = memo(hass1 as unknown as HomeAssistant, CONFIG, registry);
+    expect(first!.area_name).toBe('Living Room');
+
+    // Same area_id, new `name` — a rename, not a reassignment. `hass.devices`
+    // is untouched; only `hass.areas` gets a new reference.
+    const hass2 = {
+      devices: hass1.devices,
+      states: hass1.states,
+      areas: { area_living_room: { area_id: 'area_living_room', name: 'Sunroom' } },
+    } as unknown as HomeAssistant;
+    const second = memo(hass2, CONFIG, registry);
+    expect(second).not.toBe(first);
+    expect(second!.area_name).toBe('Sunroom');
   });
 
   it('calls discoverEntities only once for repeated identical inputs', () => {

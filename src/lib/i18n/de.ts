@@ -451,6 +451,8 @@ export const de: EnDict = {
       double_tap_action: 'Doppeltippen-Aktion',
       cover_blank_hint:
         'Leer lassen, um automatisch die erste verwaltete Beschattung zu verwenden.',
+      name_composed_hint:
+        'In YAML ist ein zusammengesetzter Titel festgelegt. Hier einen neuen Titel eingeben, um ihn durch einfachen Text zu ersetzen.',
       layout_option_one_line: 'Eine Zeile (kompakt)',
       layout_option_detailed: 'Detailliert (Titel, Status, Indikatoren)',
     },

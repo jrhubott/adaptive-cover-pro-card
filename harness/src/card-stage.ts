@@ -373,6 +373,7 @@ export class AcpHarnessCardStage extends LitElement {
     return {
       type: `custom:${TILE_CARD_NAME}`,
       entry_id: entryId,
+      ...(t.name !== undefined ? { name: t.name } : {}),
       show_position: t.show_position,
       show_state: t.show_state,
       show_decision_summary: t.show_decision_summary,

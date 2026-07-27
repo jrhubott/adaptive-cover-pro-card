@@ -209,6 +209,98 @@ describe('adaptive-cover-pro-tile-card setConfig', () => {
     const el = makeCard();
     expect(() => el.setConfig({ type: TYPE, entry_id: ENTRY })).not.toThrow();
   });
+
+  // Audit finding #2 (issue #247 fix pass): a malformed `name` — the natural
+  // typo from omitting the `- ` in a YAML list, e.g. `name: {type: area}`
+  // instead of `name: [{type: area}]` — must throw a readable setConfig error
+  // rather than silently blanking the whole tile at render time.
+  it('throws when name is a bare object instead of an array of parts', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: { type: 'area' } as unknown as AdaptiveCoverProTileCardConfig['name'],
+      }),
+    ).toThrow(/name/);
+  });
+
+  it('throws when name is an array containing a null entry', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: [null] as unknown as AdaptiveCoverProTileCardConfig['name'],
+      }),
+    ).toThrow(/name/);
+  });
+
+  it('throws when name is an array containing an unrecognized part type', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: [{ type: 'bogus' }] as unknown as AdaptiveCoverProTileCardConfig['name'],
+      }),
+    ).toThrow(/name/);
+  });
+
+  // Audit finding #1 (issue #247 fix pass): a YAML `name:` with no value
+  // parses to `null` — the templated-dashboard empty-variable case that issue
+  // #247 was filed for. Pre-#247 `cfg.name ?? entry_title` rendered this fine;
+  // `setConfig` must not hard-error it.
+  it('does not throw when name is null', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: null as unknown as AdaptiveCoverProTileCardConfig['name'],
+      }),
+    ).not.toThrow();
+  });
+
+  // `0` and `false` are literal values pre-#247 (`0 ?? x` is `0`), not shape
+  // errors — must not throw.
+  it('does not throw when name is 0', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: 0 as unknown as AdaptiveCoverProTileCardConfig['name'],
+      }),
+    ).not.toThrow();
+  });
+
+  it('does not throw when name is false', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: false as unknown as AdaptiveCoverProTileCardConfig['name'],
+      }),
+    ).not.toThrow();
+  });
+
+  it('accepts a plain string name unchanged', () => {
+    const el = makeCard();
+    expect(() => el.setConfig({ type: TYPE, entry_id: ENTRY, name: 'Patio Right' })).not.toThrow();
+  });
+
+  it('accepts a well-formed composed name array', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: [{ type: 'area' }, { type: 'entry' }, { type: 'text', text: '–' }],
+      }),
+    ).not.toThrow();
+  });
 });
 
 describe('adaptive-cover-pro-tile-card render', () => {
@@ -833,6 +925,44 @@ describe('adaptive-cover-pro-tile-card group entry (issue #185)', () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
     expect(el.shadowRoot!.querySelector('acp-group-tile')).toBeFalsy();
     expect(el.shadowRoot!.querySelector('button.up')).toBeTruthy();
+  });
+
+  // Audit finding #1 (issue #247 fix pass): a Cover Group entry with a
+  // composed `name` must resolve through resolveTileName() before it reaches
+  // <acp-group-tile>/<acp-group-dialog> — those components only ever declare
+  // `name?: string` and render `${this.name ?? entry_title}`, so a raw
+  // AcpNamePart[] handed to them stringifies to "[object Object]".
+  it('resolves a composed name before handing it to acp-group-tile / acp-group-dialog', async () => {
+    const el = makeCard();
+    el.setConfig({
+      type: TYPE,
+      entry_id: GROUP_ENTRY,
+      name: [
+        { type: 'text', text: 'Composed' },
+        { type: 'text', text: 'Name' },
+      ],
+    });
+    el.hass = makeGroupHass();
+    document.body.appendChild(el);
+    el._registry = GROUP_REGISTRY;
+    await el.updateComplete;
+
+    const groupTile = el.shadowRoot!.querySelector('acp-group-tile') as HTMLElement & {
+      updateComplete: Promise<boolean>;
+      name?: string;
+    };
+    expect(groupTile).toBeTruthy();
+    expect(groupTile.name).toBe('Composed Name');
+    await groupTile.updateComplete;
+    expect(groupTile.shadowRoot!.querySelector('.title')?.textContent?.trim()).toBe(
+      'Composed Name',
+    );
+
+    const groupDialog = el.shadowRoot!.querySelector('acp-group-dialog') as HTMLElement & {
+      name?: string;
+    };
+    expect(groupDialog).toBeTruthy();
+    expect(groupDialog.name).toBe('Composed Name');
   });
 });
 
@@ -3021,5 +3151,160 @@ describe('adaptive-cover-pro-tile-card — inverse_tilt frame normalization (#23
       { axes: { tilt: 80 } },
       { entity_id: 'cover.left' },
     );
+  });
+});
+
+describe('adaptive-cover-pro-tile-card — composite name (#247)', () => {
+  // Same REGISTRY as the rest of this file, but with device_id set so the
+  // area/entry-title lookups below have a device to resolve against.
+  const AREA_REGISTRY: EntityRegistryEntry[] = REGISTRY.map((r) => ({
+    ...r,
+    device_id: 'device_living',
+  }));
+
+  function makeAreaHass(withArea: boolean): HomeAssistant {
+    const hass = makeHass();
+    (hass as unknown as { devices?: unknown }).devices = {
+      device_living: {
+        id: 'device_living',
+        name: 'Blind',
+        config_entries: [ENTRY],
+        ...(withArea ? { area_id: 'area_living' } : {}),
+      },
+    };
+    if (withArea) {
+      (hass as unknown as { areas?: unknown }).areas = {
+        area_living: { area_id: 'area_living', name: 'Living Room' },
+      };
+    }
+    return hass;
+  }
+
+  async function mountWithAreaRegistry(
+    config: AdaptiveCoverProTileCardConfig,
+    hass: HomeAssistant,
+  ): Promise<CardLike> {
+    const el = makeCard();
+    el.setConfig(config);
+    el.hass = hass;
+    document.body.appendChild(el);
+    el._registry = AREA_REGISTRY;
+    await el.updateComplete;
+    return el;
+  }
+
+  it('renders "<Area> <Entry title>" when the device has an area', async () => {
+    const el = await mountWithAreaRegistry(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        name: [{ type: 'area' }, { type: 'entry' }],
+      },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Living Room Blind');
+  });
+
+  it('falls back to just the entry title (no stray leading space) when the device has no area', async () => {
+    const el = await mountWithAreaRegistry(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        name: [{ type: 'area' }, { type: 'entry' }],
+      },
+      makeAreaHass(false),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Blind');
+  });
+
+  it('renders a literal text part verbatim', async () => {
+    const el = await mountWithAreaRegistry(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        name: [{ type: 'text', text: 'Custom' }],
+      },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Custom');
+  });
+
+  it('renders discovered.entry_title unchanged when name is omitted (regression guard)', async () => {
+    const el = await mountWithAreaRegistry(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed' },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Blind');
+  });
+
+  it('keeps a plain-string name working byte-identically (backward compatibility)', async () => {
+    const el = await mountWithAreaRegistry(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', name: 'Centre Gauche' },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Centre Gauche');
+  });
+
+  // Audit finding #1 (issue #247 fix pass): a YAML `name:` with no value
+  // parses to `null` — must render the entry title, not hard-error the tile.
+  it('renders the entry title when name is null (templated-dashboard empty variable)', async () => {
+    const el = await mountWithAreaRegistry(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        name: null as unknown as AdaptiveCoverProTileCardConfig['name'],
+      },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Blind');
+  });
+
+  // The subtle case: `0` and `false` are falsy but valid literal values
+  // pre-#247 (`0 ?? x` is `0`) — must render the literal, not fall back.
+  it('renders "0" verbatim when name is 0, not the entry title', async () => {
+    const el = await mountWithAreaRegistry(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        name: 0 as unknown as AdaptiveCoverProTileCardConfig['name'],
+      },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('0');
+  });
+
+  it('renders "false" verbatim when name is false, not the entry title', async () => {
+    const el = await mountWithAreaRegistry(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        name: false as unknown as AdaptiveCoverProTileCardConfig['name'],
+      },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('false');
+  });
+
+  it('falls back to the entry title when name is an empty array', async () => {
+    const el = await mountWithAreaRegistry(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', name: [] },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Blind');
   });
 });

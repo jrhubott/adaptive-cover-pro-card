@@ -54,11 +54,26 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
   tooltips?: TooltipsConfig;
 }
 
+/**
+ * One part of a composed tile-card `name` (issue #247), modeled after the
+ * native HA tile card / Mushroom's `entity_name` part list, narrowed to what
+ * ACP's discovered entry can actually resolve: `entry` and `area` are ACP's
+ * own already-discovered values (never re-derived), and `text` is a literal.
+ * `floor`/`device`/`entity` are deliberately not modeled — ACP's discovered
+ * entry is not 1:1 with a single HA entity/device (a Cover Group or a
+ * multi-cover entry has no single correct one), and there is no `hass.floors`
+ * access yet.
+ */
+export type AcpNamePart = { type: 'entry' } | { type: 'area' } | { type: 'text'; text: string };
+
 export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   type: string;
   entry_id: string;
-  /** Override the discovered instance title. */
-  name?: string;
+  /** Override the discovered instance title. A plain string is used verbatim
+   *  (unchanged behavior). An array composes a title from typed parts, joined
+   *  with a single space, skipping any part that resolves empty; falls back
+   *  to the discovered entry title if every part resolves empty. */
+  name?: string | AcpNamePart[];
   /** Override the auto-resolved cover icon (mdi:*). */
   icon?: string;
   /** Explicit `cover.*` entity when an entry manages multiple covers
@@ -406,6 +421,11 @@ export interface DiscoveredEntities {
   /** HA device the integration's entities are attached to. Used to deep-link
    *  into `/config/devices/device/<id>` from the more-info dialog. */
   device_id?: string;
+  /** Area the entry's device is assigned to (`hass.devices[device_id].area_id`
+   *  → `hass.areas[area_id].name`), for the tile card's composite `name`
+   *  (issue #247). Undefined when the device has no area, `hass.areas` is
+   *  absent (older HA), or there is no resolvable device. */
+  area_name?: string;
   /** True when this entry is a Cover Group (issue #185). Set when the
    *  always-present `group_active_scene` sensor is discovered. When true the
    *  card routes to the group UI and `managed_covers` is the member roster read

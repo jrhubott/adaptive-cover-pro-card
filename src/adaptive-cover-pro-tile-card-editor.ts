@@ -255,6 +255,15 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     return key ? t(key, this.hass) : schema.name;
   };
 
+  /** True when `_config.name` is a composed part list rather than a plain
+   *  string (issue #247) — the `name` text field is rendered blank (but still
+   *  editable) in that case (see `_schema()`/`render()`), never bound to the
+   *  raw array. Typing a fresh string into the field is an explicit,
+   *  intentional overwrite of the composed name — see `_valueChanged`. */
+  private _nameIsComposed(): boolean {
+    return Array.isArray(this._config?.name);
+  }
+
   private _valueChanged = (e: ValueChangedEvent): void => {
     e.stopPropagation();
     const value = e.detail.value;
@@ -262,6 +271,17 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     // for display). Drop keys that match the default and weren't already in
     // the user's config, so the YAML stays minimal.
     const cleaned: Record<string, unknown> = { ...value };
+
+    // A composed `name` isn't editable through this text field — it's
+    // rendered blank (see `_schema()`/`render()`) so it never stringifies the
+    // array. An untouched blank means the user didn't type into it (this
+    // value-changed fired for some other field), so the existing array must
+    // survive; a non-empty string is a deliberate, explicit overwrite of the
+    // composed name with a plain string.
+    if (this._nameIsComposed() && !cleaned.name) {
+      delete cleaned.name;
+    }
+
     for (const [k, def] of Object.entries(FORM_DEFAULTS)) {
       // The flat badge_* fields don't live on _config (they're nested under
       // `badges`), so treat them purely as default-prunable: drop them whenever
@@ -333,7 +353,17 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     for (const k of BADGE_KINDS) {
       if (badges && badges[k] === false) flatBadges[`badge_${k}`] = false;
     }
-    const data = { ...FORM_DEFAULTS, ...rest, ...flatBadges };
+    const nameIsComposed = this._nameIsComposed();
+    const data = {
+      ...FORM_DEFAULTS,
+      ...rest,
+      // A composed (array) name is never bound to the text field's data —
+      // that would stringify to "[object Object]" on the next render. Blank
+      // it instead; `_valueChanged` preserves the underlying array as long as
+      // the field comes back untouched (issue #247).
+      ...(nameIsComposed ? { name: '' } : {}),
+      ...flatBadges,
+    };
 
     return html`
       <div class="form">
@@ -344,6 +374,9 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
           .computeLabel=${this._computeLabel}
           @value-changed=${this._valueChanged}
         ></ha-form>
+        ${nameIsComposed
+          ? html`<div class="hint">${t('editor.tile.name_composed_hint', this.hass)}</div>`
+          : nothing}
         ${this._managedCovers.length > 1 && !this._config?.cover
           ? html`<div class="hint">${t('editor.tile.cover_blank_hint', this.hass)}</div>`
           : nothing}

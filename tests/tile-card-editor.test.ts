@@ -576,6 +576,107 @@ describe('adaptive-cover-pro-tile-card editor — cover pre-fill', () => {
   });
 });
 
+describe('adaptive-cover-pro-tile-card editor — composite (array) name (#247)', () => {
+  const COMPOSED_NAME = [{ type: 'area' }, { type: 'entry' }];
+
+  // (Audit finding #4, issue #247 fix pass: the former "does not throw when
+  // _config.name is an array" test duplicated this one's setConfig+render
+  // path without adding a distinct assertion — deleted rather than kept.)
+  it('blanks the name field data when name is composed, without disabling the field', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY, name: COMPOSED_NAME as unknown as string });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement & {
+      data?: Record<string, unknown>;
+      schema?: Array<{ name: string; disabled?: boolean }>;
+    };
+    expect(haForm.data!.name).toBe('');
+    // Audit finding #3: the field must stay editable — its hint promises a
+    // "type a new title here" escape hatch, so `disabled` must never be set.
+    const nameField = (haForm.schema ?? []).find((s) => s.name === 'name');
+    expect(nameField?.disabled).toBeFalsy();
+  });
+
+  it('does not corrupt a composed name via an unrelated value-changed event', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY, name: COMPOSED_NAME as unknown as string });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    let emitted: AdaptiveCoverProTileCardConfig | null = null;
+    el.addEventListener('config-changed', (e: Event) => {
+      emitted = (e as CustomEvent).detail.config;
+    });
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement;
+    // Simulates ha-form's full-value-on-every-change contract: toggling an
+    // unrelated field (show_position) still carries the name field's current
+    // (blanked) value alongside it.
+    expect(() => {
+      haForm.dispatchEvent(
+        new CustomEvent('value-changed', {
+          bubbles: true,
+          composed: true,
+          detail: {
+            value: { type: TYPE, entry_id: ENTRY, name: '', show_position: false },
+          },
+        }),
+      );
+    }).not.toThrow();
+
+    expect(emitted).not.toBeNull();
+    expect(emitted!.name).toEqual(COMPOSED_NAME);
+    expect(emitted!.show_position).toBe(false);
+  });
+
+  // Audit finding #4 (issue #247 fix pass): this used to dispatch straight to
+  // `value-changed` without ever checking the schema item was reachable at
+  // all — so it kept passing even while the field was `disabled: true` (a
+  // real `ha-form` would refuse to emit a change from a disabled selector;
+  // the mocked element here doesn't enforce that, so the interaction it
+  // claimed to exercise was actually impossible in production). Assert the
+  // schema item is NOT disabled first, so this fails again if the escape
+  // hatch (finding #3) is ever removed, then drive the same interaction.
+  it('replaces a composed name when the user types a fresh string into the name field', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY, name: COMPOSED_NAME as unknown as string });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement & {
+      schema?: Array<{ name: string; disabled?: boolean }>;
+    };
+    const nameField = (haForm.schema ?? []).find((s) => s.name === 'name');
+    expect(nameField?.disabled).toBeFalsy();
+
+    let emitted: AdaptiveCoverProTileCardConfig | null = null;
+    el.addEventListener('config-changed', (e: Event) => {
+      emitted = (e as CustomEvent).detail.config;
+    });
+
+    haForm.dispatchEvent(
+      new CustomEvent('value-changed', {
+        bubbles: true,
+        composed: true,
+        detail: {
+          value: { type: TYPE, entry_id: ENTRY, name: 'Custom Title' },
+        },
+      }),
+    );
+
+    expect(emitted).not.toBeNull();
+    expect(emitted!.name).toBe('Custom Title');
+  });
+});
+
 describe('adaptive-cover-pro-tile-card editor — schema', () => {
   it('builds an ha-form schema that includes all expected fields', async () => {
     const el = makeEditor();

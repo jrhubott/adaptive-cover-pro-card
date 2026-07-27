@@ -22,6 +22,7 @@ import type {
   MotionStatusValue,
   TooltipMode,
 } from './types';
+import type { AcpNamePart } from '../../src/types';
 
 /** Default Cover Group state for the "Group entry" control-panel toggle. */
 function defaultGroupFields(): GroupFields {
@@ -565,6 +566,9 @@ export class AcpHarnessControlPanel extends LitElement {
               this._patchEntry(idx, { title: (ev.target as HTMLInputElement).value })}
           />
         </label>
+        ${this._textRow('Area (#247)', e.area ?? '', (v) =>
+          this._patchEntry(idx, { area: v || undefined }),
+        )}
         ${this._checkbox('Group entry (Cover Group)', !!e.is_group, (v) =>
           this._patchEntry(
             idx,
@@ -1190,6 +1194,7 @@ export class AcpHarnessControlPanel extends LitElement {
         ${this._checkbox('Enabled', this.config.tile.enabled, (v) =>
           this._emit({ ...this.config, tile: { ...this.config.tile, enabled: v } }),
         )}
+        ${this._renderTileNamePreset()}
         ${(
           [
             'show_position',
@@ -1466,6 +1471,45 @@ export class AcpHarnessControlPanel extends LitElement {
           @change=${(e: Event) => onChange((e.target as HTMLInputElement).value)}
         />
       </label>
+    `;
+  }
+
+  /** Tile card `name` override (issue #247): a preset picker mirroring the
+   *  three shapes the card accepts — omitted (discovered entry title),
+   *  a composed `[{type:'area'},{type:'entry'}]`, or a plain custom string.
+   *  See the "Composite tile name" scenario for an end-to-end example. */
+  private _renderTileNamePreset(): TemplateResult {
+    const name = this.config.tile.name;
+    const preset: 'entry' | 'area_entry' | 'custom' = Array.isArray(name)
+      ? 'area_entry'
+      : typeof name === 'string'
+        ? 'custom'
+        : 'entry';
+    return html`
+      <label class="row">
+        <span>name (#247)</span>
+        <select
+          @change=${(e: Event) => {
+            const v = (e.target as HTMLSelectElement).value;
+            const nextName: string | AcpNamePart[] | undefined =
+              v === 'area_entry'
+                ? [{ type: 'area' }, { type: 'entry' }]
+                : v === 'custom'
+                  ? 'Custom title'
+                  : undefined;
+            this._emit({ ...this.config, tile: { ...this.config.tile, name: nextName } });
+          }}
+        >
+          <option value="entry" ?selected=${preset === 'entry'}>Entry only (default)</option>
+          <option value="area_entry" ?selected=${preset === 'area_entry'}>Area + entry</option>
+          <option value="custom" ?selected=${preset === 'custom'}>Custom text</option>
+        </select>
+      </label>
+      ${preset === 'custom'
+        ? this._textRow('Custom name', typeof name === 'string' ? name : '', (v) =>
+            this._emit({ ...this.config, tile: { ...this.config.tile, name: v } }),
+          )
+        : ''}
     `;
   }
 

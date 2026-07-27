@@ -1,5 +1,5 @@
 import type { HandlerName } from '../../src/const';
-import type { GroupAggregateState, GroupScene } from '../../src/types';
+import type { AcpNamePart, GroupAggregateState, GroupScene } from '../../src/types';
 
 export type CoverType = 'cover_blind' | 'cover_awning' | 'cover_tilt' | 'cover_venetian';
 
@@ -108,6 +108,11 @@ export interface HarnessEntry {
   /** Stable id used both as HA config_entry_id and unique_id prefix. */
   entry_id: string;
   title: string;
+  /** HA area name the entry's mock device is assigned to (issue #247). Wired
+   *  into the mock `hass.devices[…].area_id` / `hass.areas` so the tile
+   *  card's composite `name` `{ type: 'area' }` part has something to
+   *  resolve. Undefined = no area (mirrors an unassigned real device). */
+  area?: string;
   cover_type: CoverType;
   /** Window normal bearing 0..360, 0=N. */
   window_azimuth: number;
@@ -259,6 +264,11 @@ export interface SkyCompassCardOptions {
 
 export interface TileCardOptions {
   enabled: boolean;
+  /** Title override (issue #247). A plain string is used verbatim; an
+   *  {@link AcpNamePart} array composes a title from the entry's discovered
+   *  title / area / literal text parts. Undefined = the discovered entry
+   *  title (today's default). */
+  name?: string | AcpNamePart[];
   /* Cover Group entries only — the group tile ignores everything else here
      except show_controls / show_position_bar / show_tilt / state_color. */
   show_scene_select: boolean;

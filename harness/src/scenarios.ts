@@ -124,6 +124,7 @@ function makeEntry(
 ): HarnessEntry {
   return {
     title: overrides.title ?? 'Living Room',
+    area: overrides.area,
     cover_type: overrides.cover_type ?? 'cover_blind',
     window_azimuth: overrides.window_azimuth ?? 180,
     fov_left: overrides.fov_left ?? 45,
@@ -2528,6 +2529,39 @@ export const SCENARIOS: Scenario[] = [
           ],
         }),
       ];
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
+    id: 'composite-tile-name',
+    label: 'Composite tile name (#247)',
+    description:
+      'Both entries have an area assigned, and the tile card’s `name` is a composed part list (`[{type: "area"}, {type: "entry"}]`) instead of a plain string, so the titles read "Living Room Blind" and "Playroom Group" — the same generator-friendly composition the native HA tile card and Mushroom support, letting one dashboard-YAML template emit "Living Room Blind" on an all-covers view and just "Blind" on an area view. The second entry is a Cover Group, which resolves the same composed name through a separate pair of components (acp-group-tile / acp-group-dialog) rather than the cover tile\'s own title element (audit finding #1, issue #247 fix pass) - both must read "Playroom Group", never "[object Object]".',
+    added: '2026-07-27',
+    build: () => {
+      const c = baseConfig('2026-06-21', 14 * 60);
+      c.scenario = 'composite-tile-name';
+      c.entries = [
+        makeEntry({
+          entry_id: 'living_room_blind',
+          title: 'Blind',
+          area: 'Living Room',
+          window_azimuth: 180,
+        }),
+        // Audit finding #1 (issue #247 fix pass): a Cover Group entry routes
+        // through the separate acp-group-tile/acp-group-dialog components
+        // instead of the cover tile's own title element — both must resolve
+        // the same composed name, never "[object Object]".
+        makeGroupEntry({
+          entry_id: 'playroom_group',
+          title: 'Group',
+          area: 'Playroom',
+        }),
+      ];
+      c.tile.name = [{ type: 'area' }, { type: 'entry' }];
       c.root.enabled = false;
       c.compass.enabled = false;
       c.solarChart.enabled = false;

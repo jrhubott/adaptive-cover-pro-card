@@ -10,8 +10,9 @@ import type { CoverDiscovery, DiscoveredEntities, AdaptiveCoverProCardConfig } f
  *
  * - the **registry-derived base** (entities map + device_id) — memoized on
  *   `(registry, entryId)`, since the entity wiring only moves when the registry does;
- * - the three `hass`-derived references the result depends on: `hass.devices` (title),
- *   the target-position state (managed covers) and the control-status state (cover type).
+ * - the four `hass`-derived references the result depends on: `hass.devices` (title),
+ *   `hass.areas` (composite tile-card name's area part, issue #247), the target-position
+ *   state (managed covers) and the control-status state (cover type).
  *
  * When all of those are reference-equal to the previous call it returns the **same**
  * `DiscoveredEntities` object — so `_discovered` (and the child props derived from it)
@@ -27,6 +28,7 @@ export function createDiscoveryMemo(): (
     entryId: string;
     base: DiscoverBase | null;
     devices: unknown;
+    areas: unknown;
     posState: unknown;
     ctrlState: unknown;
     result: DiscoveredEntities | null;
@@ -47,6 +49,7 @@ export function createDiscoveryMemo(): (
         entryId,
         base: null,
         devices: null,
+        areas: null,
         posState: null,
         ctrlState: null,
         result: null,
@@ -55,6 +58,12 @@ export function createDiscoveryMemo(): (
     }
 
     const devices = (hass as HassWithDevices).devices;
+    // Issue #247 audit finding #6: a device *reassignment* to a different
+    // area replaces `hass.devices` (caught above), but a pure area *rename*
+    // (same area_id, new `name`) only replaces `hass.areas` — track it too so
+    // a composed tile-card `name` picks up the rename instead of holding the
+    // stale area name until some other input happens to invalidate the memo.
+    const areas = (hass as HassWithAreas).areas;
     // For a group entry the roster (managed_covers) is read from the
     // group_position sensor's member_positions; track it so a member move
     // invalidates the memo the same way the cover target sensor does.
@@ -68,6 +77,7 @@ export function createDiscoveryMemo(): (
       last !== null &&
       last.result !== null &&
       last.devices === devices &&
+      last.areas === areas &&
       last.posState === posState &&
       last.ctrlState === ctrlState
     ) {
@@ -75,7 +85,7 @@ export function createDiscoveryMemo(): (
     }
 
     const result = assembleDiscovered(hass, entryId, base);
-    last = { registry, entryId, base, devices, posState, ctrlState, result };
+    last = { registry, entryId, base, devices, areas, posState, ctrlState, result };
     return result;
   };
 }
@@ -145,10 +155,26 @@ interface DeviceDisplay {
   name?: string;
   name_by_user?: string;
   config_entries?: string[];
+  /** HA area registry id the device is assigned to, or null/absent when
+   *  unassigned. Read only for the composite tile-card `name` (issue #247);
+   *  never used for identity. */
+  area_id?: string | null;
 }
 
 type HassWithDevices = HomeAssistant & {
   devices?: Record<string, DeviceDisplay>;
+};
+
+interface AreaDisplay {
+  area_id: string;
+  name?: string;
+}
+
+/** Parallels {@link HassWithDevices}: `hass.areas` is a synchronous,
+ *  already-present-on-tick registry map (same as `hass.devices`), just not
+ *  declared on `custom-card-helpers`' `HomeAssistant` type. */
+type HassWithAreas = HomeAssistant & {
+  areas?: Record<string, AreaDisplay>;
 };
 
 /**
@@ -217,6 +243,15 @@ function assembleDiscovered(
     }
   }
 
+  // Area (issue #247, tile card composite `name`): a direct key lookup off
+  // the already-resolved `deviceId`, cheaper than re-walking `h.devices` the
+  // way the title loop above does (it has no device id to key off yet at that
+  // point). `hass.areas` is undefined on older HA frontends; both reads are
+  // optional-chained so a missing device/area/registry simply resolves to no
+  // area name rather than throwing.
+  const areaId = deviceId ? h.devices?.[deviceId]?.area_id : undefined;
+  const areaName = areaId ? (hass as HassWithAreas).areas?.[areaId]?.name : undefined;
+
   // The always-present group_active_scene sensor is the group-detection marker.
   const isGroup = !!entities.group_active_scene_sensor;
 
@@ -267,6 +302,7 @@ function assembleDiscovered(
     device_id: deviceId,
     is_group: isGroup,
     ...(discovery ? { discovery } : {}),
+    ...(areaName ? { area_name: areaName } : {}),
   };
 }
 
