@@ -53,6 +53,9 @@ export const fr: EnDict = {
     lock: 'Verrouiller le groupe',
     unlock: 'Déverrouiller le groupe',
     automation: 'Automatisation',
+    automation_all: 'Automatisation active pour les {total} membres',
+    automation_some: 'Automatisation active pour {count} membre(s) sur {total}',
+    automation_none: 'Automatisation désactivée pour les {total} membres',
     clear_overrides: 'Effacer les dérogations',
     clear_overrides_none: 'Aucune dérogation de membre à effacer',
     who_won:

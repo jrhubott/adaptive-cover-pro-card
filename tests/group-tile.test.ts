@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import '../src/components/group-tile';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities } from '../src/types';
+import { loadEntityRegistry } from '../src/lib/registry-store';
 
 interface GroupTileLike extends HTMLElement {
   updateComplete: Promise<boolean>;
@@ -31,10 +32,18 @@ function makeDiscovered(): DiscoveredEntities {
 }
 
 function makeHass(
-  overrides: { callService?: (...a: unknown[]) => unknown; locked?: boolean } = {},
+  overrides: {
+    callService?: (...a: unknown[]) => unknown;
+    locked?: boolean;
+    /** Per-member `automatic_control` states, keyed by member entry id. Left
+     *  out by default so the rollup stays `unknown` and every other case in
+     *  this file exercises the pre-rollup fallback rendering. */
+    memberAutomation?: Record<'a' | 'b', boolean>;
+  } = {},
 ): HomeAssistant {
   return {
     states: {
+      ...(overrides.memberAutomation ? memberStates(overrides.memberAutomation) : {}),
       'sensor.group_position': {
         state: '50',
         attributes: {
@@ -59,6 +68,48 @@ function makeHass(
     },
     callService: overrides.callService ?? vi.fn(),
   } as unknown as HomeAssistant;
+}
+
+/** `cover.a` and `cover.b` are members with their own ACP entries (`entry_a` /
+ *  `entry_b`); `cover.generic` has none. Mirrors what {@link memberRegistry}
+ *  registers. */
+function memberStates(auto: Record<'a' | 'b', boolean>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of ['a', 'b'] as const) {
+    out[`sensor.entry_${key}_cover_position`] = {
+      state: '50',
+      attributes: { actual_positions: { [`cover.${key}`]: 50 } },
+    };
+    out[`switch.entry_${key}_automatic_control`] = {
+      state: auto[key] ? 'on' : 'off',
+      attributes: {},
+    };
+  }
+  return out;
+}
+
+/** Warm the shared registry store with the two member entries, so `readGroup`
+ *  can resolve each member cover back to its own Automatic Control switch. */
+async function memberRegistry(): Promise<void> {
+  const rows = (['a', 'b'] as const).flatMap((key) => [
+    {
+      entity_id: `sensor.entry_${key}_cover_position`,
+      unique_id: `entry_${key}_Cover_Position`,
+      platform: 'adaptive_cover_pro',
+      config_entry_id: `entry_${key}`,
+      device_id: `dev_${key}`,
+    },
+    {
+      entity_id: `switch.entry_${key}_automatic_control`,
+      unique_id: `entry_${key}_Automatic Control`,
+      platform: 'adaptive_cover_pro',
+      config_entry_id: `entry_${key}`,
+      device_id: `dev_${key}`,
+    },
+  ]);
+  await loadEntityRegistry({
+    callWS: async () => rows,
+  } as unknown as Parameters<typeof loadEntityRegistry>[0]);
 }
 
 async function mount(hass: HomeAssistant, discovered: DiscoveredEntities): Promise<GroupTileLike> {
@@ -198,6 +249,115 @@ describe('acp-group-tile', () => {
       'turn_off',
       {},
       { entity_id: 'switch.group_lock' },
+    );
+  });
+});
+
+/**
+ * The Automation button's three-color status.
+ *
+ * `switch.group_automation` is a write-only latch the integration defaults to
+ * `on`, so coloring from it claims "everything automated" on a fresh restart and
+ * never moves when a member is toggled at its own tile. These cases pin the
+ * button to the members' real state instead.
+ */
+describe('acp-group-tile — Automation status color', () => {
+  async function automationButton(auto?: Record<'a' | 'b', boolean>): Promise<HTMLElement> {
+    if (auto) await memberRegistry();
+    const el = await mount(makeHass({ memberAutomation: auto }), makeDiscovered());
+    return (await controlsRow(el)).querySelector('.automation-toggle') as HTMLElement;
+  }
+
+  it('is green (all) when every member has automation on', async () => {
+    const btn = await automationButton({ a: true, b: true });
+    expect(btn.classList.contains('auto-all')).toBe(true);
+    expect(btn.querySelector('ha-icon')!.getAttribute('icon')).toBe('mdi:robot');
+    expect(btn.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('is amber (some) when the members disagree', async () => {
+    const btn = await automationButton({ a: true, b: false });
+    expect(btn.classList.contains('auto-some')).toBe(true);
+    expect(btn.querySelector('ha-icon')!.getAttribute('icon')).toBe('mdi:robot-outline');
+    // ARIA's real tri-state toggle value — a screen reader gets what a sighted
+    // user gets from the amber.
+    expect(btn.getAttribute('aria-pressed')).toBe('mixed');
+  });
+
+  it('is grey (none) when no member has automation on', async () => {
+    const btn = await automationButton({ a: false, b: false });
+    expect(btn.classList.contains('auto-none')).toBe(true);
+    expect(btn.querySelector('ha-icon')!.getAttribute('icon')).toBe('mdi:robot-off');
+    expect(btn.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  // The group latch says `on` here. Before the rollup that painted the button
+  // "automated" and sent turn_off — with one member already off, the press
+  // moved the group further from what the icon claimed.
+  it('does not read the group latch as the members’ state', async () => {
+    const btn = await automationButton({ a: false, b: false });
+    expect(btn.classList.contains('active')).toBe(false);
+  });
+
+  it('names the count in its label so the amber state is legible', async () => {
+    const btn = await automationButton({ a: true, b: false });
+    const text = `${btn.getAttribute('aria-label')} ${btn.getAttribute('data-tooltip') ?? ''}`;
+    expect(text).toContain('1');
+    expect(text).toContain('2');
+  });
+
+  it('turns automation on from a mixed roster rather than inverting the latch', async () => {
+    await memberRegistry();
+    const callService = vi.fn();
+    const el = await mount(
+      makeHass({ callService, memberAutomation: { a: true, b: false } }),
+      makeDiscovered(),
+    );
+    ((await controlsRow(el)).querySelector('.automation-toggle') as HTMLElement).click();
+    expect(callService).toHaveBeenCalledWith(
+      'switch',
+      'turn_on',
+      {},
+      { entity_id: 'switch.group_automation' },
+    );
+  });
+
+  it('turns automation off when every member is on', async () => {
+    await memberRegistry();
+    const callService = vi.fn();
+    const el = await mount(
+      makeHass({ callService, memberAutomation: { a: true, b: true } }),
+      makeDiscovered(),
+    );
+    ((await controlsRow(el)).querySelector('.automation-toggle') as HTMLElement).click();
+    expect(callService).toHaveBeenCalledWith(
+      'switch',
+      'turn_off',
+      {},
+      { entity_id: 'switch.group_automation' },
+    );
+  });
+
+  // Regression guard: the registry cache is cold on first paint, and an
+  // all-generic roster never resolves at all. Both must render exactly the
+  // pre-rollup button, driven by the group latch.
+  it('falls back to the group latch when no member resolves', async () => {
+    const btn = await automationButton();
+    expect(btn.classList.contains('active')).toBe(true);
+    expect(btn.className).not.toMatch(/auto-(all|some|none)/);
+    expect(btn.querySelector('ha-icon')!.getAttribute('icon')).toBe('mdi:robot');
+    expect(btn.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('still inverts the latch on the unresolved fallback path', async () => {
+    const callService = vi.fn();
+    const el = await mount(makeHass({ callService }), makeDiscovered());
+    ((await controlsRow(el)).querySelector('.automation-toggle') as HTMLElement).click();
+    expect(callService).toHaveBeenCalledWith(
+      'switch',
+      'turn_off',
+      {},
+      { entity_id: 'switch.group_automation' },
     );
   });
 });

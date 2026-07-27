@@ -2,6 +2,8 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import { normalizeHandler } from './decision-summary';
 import { coverStateIcon } from './icons';
+import { rollupMemberAutomation, type MemberAutomationRollup } from './member-automation';
+import { getCachedRegistry } from './registry-store';
 import {
   groupSelectScene,
   groupSetPosition,
@@ -52,7 +54,14 @@ export interface GroupSnapshot {
   /** Current scene-select option. */
   scene: GroupScene;
   locked: boolean;
+  /** The group's `group_automation` switch — a write-only latch recording the
+   *  last bulk command, NOT a consensus of the members. Use it to decide what a
+   *  press should send, never to describe what the members are doing; that is
+   *  {@link memberAutomation}'s job. */
   automationOn: boolean;
+  /** Live all/some/none rollup of the members' own automation, or `unknown`
+   *  when nothing resolves (cold registry cache, all-generic roster). */
+  memberAutomation: MemberAutomationRollup;
   /** The lock / automation switch entities, when the integration exposes them.
    *  A surface must render each toggle only when its id is present: the booleans
    *  above fall back to sensible defaults, so an absent switch would otherwise
@@ -116,6 +125,11 @@ export function readGroup(hass: HomeAssistant, discovered: DiscoveredEntities): 
     automationOn: e.group_automation_switch
       ? hass.states[e.group_automation_switch]?.state === 'on'
       : true,
+    memberAutomation: rollupMemberAutomation(
+      hass,
+      getCachedRegistry(),
+      Object.keys(memberPositions),
+    ),
     lockId: e.group_lock_switch,
     automationId: e.group_automation_switch,
     clearId: e.group_clear_overrides_button,

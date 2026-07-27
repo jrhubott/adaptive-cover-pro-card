@@ -45,6 +45,9 @@ export const en = {
     lock: 'Lock group',
     unlock: 'Unlock group',
     automation: 'Automation',
+    automation_all: 'Automation on for all {total} members',
+    automation_some: 'Automation on for {count} of {total} members',
+    automation_none: 'Automation off for all {total} members',
     clear_overrides: 'Clear overrides',
     clear_overrides_none: 'No member overrides to clear',
     who_won:

@@ -12,8 +12,31 @@ import {
   toggleLock,
   type GroupSnapshot,
 } from '../lib/group-controls';
+import type { MemberAutomationStatus } from '../lib/member-automation';
 import { t } from '../lib/i18n';
 import { tooltip } from '../lib/tooltip';
+
+/** Glyph per automation status. The shape changes with the color so the state
+ *  survives a colorblind reading and a 20px icon. */
+const AUTOMATION_ICONS: Record<Exclude<MemberAutomationStatus, 'unknown'>, string> = {
+  all: 'mdi:robot',
+  some: 'mdi:robot-outline',
+  none: 'mdi:robot-off',
+};
+
+/** Everything the Automation button renders and writes, derived once.
+ *
+ *  `on` is deliberately one value driving three things — the pill's pressed
+ *  look, `aria-pressed`, and what a press sends — so they cannot disagree. */
+interface AutomationView {
+  /** Status modifier class, or `active`/`''` on the unresolved fallback. */
+  cls: string;
+  icon: string;
+  ariaPressed: 'true' | 'false' | 'mixed';
+  label: string;
+  /** Treated-as-on; `toggleAutomation` sends the inverse. */
+  on: boolean;
+}
 
 /**
  * The group-only control row — scene `<select>`, lock, member automation, and
@@ -77,18 +100,7 @@ export class GroupControlsRow extends LitElement {
             >
               <ha-icon icon=${s.locked ? 'mdi:lock' : 'mdi:lock-open-variant'}></ha-icon>
             </button>`}
-        ${!automation
-          ? nothing
-          : html`<button
-              class="ctrl automation-toggle ${s.automationOn ? 'active' : ''}"
-              type="button"
-              aria-pressed=${s.automationOn ? 'true' : 'false'}
-              aria-label=${t('group.automation', this.hass)}
-              ${tooltip(t('group.automation', this.hass))}
-              @click=${() => toggleAutomation(this.hass, this.discovered, s.automationOn)}
-            >
-              <ha-icon icon=${s.automationOn ? 'mdi:robot' : 'mdi:robot-off'}></ha-icon>
-            </button>`}
+        ${!automation ? nothing : this._automationButton(this._automationView(s))}
         ${clearId
           ? html`<button
               class="ctrl clear-overrides"
@@ -105,6 +117,55 @@ export class GroupControlsRow extends LitElement {
           : nothing}
       </div>
     `;
+  }
+
+  /**
+   * Resolve the Automation button from the members' live state, falling back to
+   * the group's own latch when nothing resolves.
+   *
+   * The latch (`s.automationOn`) records the last bulk command and defaults to
+   * on, so it says "everything automated" after a restart and stays put when a
+   * member is toggled at its own tile. `s.memberAutomation` is the real answer;
+   * `unknown` means the registry cache is still cold or the roster is all
+   * generic covers, and then this reproduces the pre-rollup button exactly.
+   */
+  private _automationView(s: GroupSnapshot): AutomationView {
+    const status = s.memberAutomation.status;
+    if (status === 'unknown') {
+      return {
+        cls: s.automationOn ? 'active' : '',
+        icon: s.automationOn ? AUTOMATION_ICONS.all : AUTOMATION_ICONS.none,
+        ariaPressed: s.automationOn ? 'true' : 'false',
+        label: t('group.automation', this.hass),
+        on: s.automationOn,
+      };
+    }
+    const on = status === 'all';
+    return {
+      cls: `auto-${status}`,
+      icon: AUTOMATION_ICONS[status],
+      // A partly-automated roster is genuinely tri-state, and ARIA has a value
+      // for exactly that.
+      ariaPressed: status === 'some' ? 'mixed' : on ? 'true' : 'false',
+      label: t(`group.automation_${status}`, this.hass, {
+        count: s.memberAutomation.on,
+        total: s.memberAutomation.total,
+      }),
+      on,
+    };
+  }
+
+  private _automationButton(v: AutomationView): TemplateResult {
+    return html`<button
+      class="ctrl automation-toggle ${v.cls}"
+      type="button"
+      aria-pressed=${v.ariaPressed}
+      aria-label=${v.label}
+      ${tooltip(v.label)}
+      @click=${() => toggleAutomation(this.hass, this.discovered, v.on)}
+    >
+      <ha-icon icon=${v.icon}></ha-icon>
+    </button>`;
   }
 
   private _onSceneChange(e: Event): void {
@@ -160,6 +221,26 @@ export class GroupControlsRow extends LitElement {
     .ctrl.active {
       background: rgba(63, 81, 181, 0.2);
       color: #283593;
+    }
+    /* Automation status (3 colors), speaking the same language as the badges
+       sitting inches away on the same tile: green = the pipeline owns this (the
+       auto / group badge), amber = a human has partly taken over (the manual
+       badge), grey = deliberately off, not a fault. Theme tokens rather than the
+       badges' hard-coded hex because this is a 20px glyph on a themed pill —
+       #2e7d32 all but vanishes on a dark one. Red is left alone: it already
+       means force / weather / glare in this card. */
+    .ctrl.auto-all {
+      background: rgba(76, 175, 80, 0.18);
+      color: var(--success-color, #4caf50);
+    }
+    .ctrl.auto-some {
+      background: rgba(255, 152, 0, 0.22);
+      color: var(--warning-color, #ffa600);
+    }
+    /* No tint — off is the resting state, and it should look like the other
+       untinted controls rather than like a fourth kind of highlight. */
+    .ctrl.auto-none {
+      color: var(--secondary-text-color);
     }
     .ctrl:disabled {
       opacity: 0.4;

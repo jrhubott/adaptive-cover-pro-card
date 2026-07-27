@@ -237,6 +237,60 @@ function makeGroupEntry(
   };
 }
 
+/**
+ * A Cover Group whose two ACP members are REAL entries in the scenario, so the
+ * card can resolve each member cover back to its own Automatic Control switch —
+ * which is what the group tile's Automation button colors from.
+ *
+ * `automation: true` on the group is left alone on purpose: that switch is a
+ * write-only latch the integration defaults to on, so any scenario where the
+ * members disagree with it is a scenario the old two-color button got wrong.
+ */
+function automationGroupEntries(auto: [boolean, boolean]): HarnessEntry[] {
+  const backyard = makeEntry({
+    entry_id: 'backyard',
+    title: 'Backyard Shade',
+    covers: [{ entity_id: 'cover.backyard_shade', friendly_name: 'Backyard Shade', position: 100 }],
+    target_position: 100,
+  });
+  const sideYard = makeEntry({
+    entry_id: 'side_yard',
+    title: 'Side Yard Shade',
+    covers: [
+      { entity_id: 'cover.side_yard_shade', friendly_name: 'Side Yard Shade', position: 97 },
+    ],
+    target_position: 97,
+  });
+  backyard.flags.automatic_control = auto[0];
+  sideYard.flags.automatic_control = auto[1];
+  return [
+    backyard,
+    sideYard,
+    makeGroupEntry({
+      entry_id: 'family_room',
+      title: 'Family Room',
+      group: {
+        member_positions: {
+          'cover.backyard_shade': 100,
+          'cover.side_yard_shade': 97,
+          'cover.hall_generic': 40,
+        },
+        member_winners: {
+          'cover.backyard_shade': 'solar',
+          'cover.side_yard_shade': 'solar',
+        },
+        aggregate_position: 79,
+        state: 'open',
+        active_scene: 'none',
+        scene_option: 'auto',
+        locked: false,
+        automation: true,
+        climate_mode: 'summer_mode',
+      },
+    }),
+  ];
+}
+
 function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): HarnessConfig {
   return {
     latitude: lat,
@@ -1252,7 +1306,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'group-tile',
     label: 'Cover Group — tile variant (issue #185)',
     description:
-      'A Cover Group entry rendered as the group tile, now carrying the cover tile\'s full control surface: a position-aware glyph tinted by the aggregate state, the ↑■↓ button row, a drag-to-set aggregate slider, and the group row (scene select, lock, automation, clear overrides) — plus the who-won "2/3" badge. Drag the slider or press ↑/↓ → adaptive_cover_pro.group_set_position fans out to every member; ■ → group_stop; pick a scene → select.select_option; toggle lock/automation → switch.turn_on/off; clear overrides → button.press. Tap the tile body to open the group dialog, where every member row is independently controllable.',
+      "A Cover Group entry rendered as the group tile, now carrying the cover tile's full control surface: a position-aware glyph tinted by the aggregate state, the ↑■↓ button row, a drag-to-set aggregate slider, and the group row (scene select, lock, automation, clear overrides) — plus the who-won \"2/3\" badge. Drag the slider or press ↑/↓ → adaptive_cover_pro.group_set_position fans out to every member; ■ → group_stop; pick a scene → select.select_option; toggle lock/automation → switch.turn_on/off; clear overrides → button.press. Tap the tile body to open the group dialog, where every member row is independently controllable. This group's members are bare cover entity_ids with no ACP entries behind them, so the Automation button has nothing to roll up and holds its pre-rollup look — driven by the group's own switch. That degradation is the point of keeping it here; the three colors live in the group-automation-* scenarios.",
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'group-tile';
@@ -1313,7 +1367,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'group-member-tiles',
     label: 'Cover Group — members render as their own tile cards',
     description:
-      "The roster is literally a stack of tile cards. Two of the members (`cover.backyard_shade`, `cover.side_yard_shade`) are covers of REAL ACP entries in this scenario, so each roster row resolves to that entry and renders its own `adaptive-cover-pro-tile-card` — badges, state coloring, icon, ↑■↓, position slider, and tap-for-more-info are the shipped tile, not a lookalike. The third member is a generic cover with no ACP entry behind it, so it has no tile to render and falls back to the compact row. Side Yard Shade is held under a manual override, so the GROUP tile rolls that up: an orange Manual badge sits beside the 0/2 who-won count, and the clear-overrides button is enabled. Flip that member's winner to `solar` and the badge disappears and the button greys out. Open the group tile to see the roster; tapping a member tile opens that member's own more-info dialog on top of the group dialog, and closing it returns you to the group dialog.",
+      "The roster is literally a stack of tile cards. Two of the members (`cover.backyard_shade`, `cover.side_yard_shade`) are covers of REAL ACP entries in this scenario, so each roster row resolves to that entry and renders its own `adaptive-cover-pro-tile-card` — badges, state coloring, icon, ↑■↓, position slider, and tap-for-more-info are the shipped tile, not a lookalike. The third member is a generic cover with no ACP entry behind it, so it has no tile to render and falls back to the compact row. Side Yard Shade is held under a manual override, so the GROUP tile rolls that up: an orange Manual badge sits beside the 0/2 who-won count, and the clear-overrides button is enabled. Flip that member's winner to `solar` and the badge disappears and the button greys out. Open the group tile to see the roster; tapping a member tile opens that member's own more-info dialog on top of the group dialog, and closing it returns you to the group dialog. Because both ACP members resolve here, the group's Automation button also rolls their real state up — green with both on; untick Automatic control on one member and it goes amber.",
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'group-member-tiles';
@@ -1371,6 +1425,57 @@ export const SCENARIOS: Scenario[] = [
       // and the GROUP tile rolls that up as a Manual badge (see description).
       c.entries[1].flags.manual_override = true;
       c.entries[1].flags.manual_override_minutes_from_now = 45;
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      return c;
+    },
+  },
+  {
+    id: 'group-automation-all',
+    label: 'Cover Group — Automation green (all members on)',
+    description:
+      "The Automation button's first color. Both ACP members have Automatic Control on, so the button is green with the solid mdi:robot glyph and reads “Automation on for all 2 members”. Green is the same signal the Auto and Group badges use — the pipeline owns every cover here, hands off. The generic third member has no pipeline and is simply left out of the count. Untick Automatic control for either member in the entry panel to walk the button through amber and grey; the group's own automation switch stays ON the whole time, which is exactly why the button can no longer be driven from it.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-automation-all';
+      c.entries = automationGroupEntries([true, true]);
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      return c;
+    },
+  },
+  {
+    id: 'group-automation-mixed',
+    label: 'Cover Group — Automation amber (members disagree)',
+    description:
+      'The case the old two-color button lied about. Side Yard Shade has Automatic Control OFF while Backyard Shade has it on, so the button is amber with the outlined mdi:robot-outline glyph and reads “Automation on for 1 of 2 members” — amber being the same color the Manual badge uses, because a human has partly taken over. aria-pressed is "mixed", ARIA\'s real tri-state value. The group automation switch still says ON: before this, that latch painted the button fully automated and a press sent turn_OFF, moving the group further from what the icon claimed. Now a press sends turn_ON and brings the stragglers up.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-automation-mixed';
+      c.entries = automationGroupEntries([true, false]);
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      return c;
+    },
+  },
+  {
+    id: 'group-automation-none',
+    label: 'Cover Group — Automation grey (no member on)',
+    description:
+      'Both ACP members have Automatic Control off, so the button is grey and untinted with the mdi:robot-off glyph, reading “Automation off for all 2 members”. Grey rather than red on purpose: automation off is a state the user chose, not a fault, and red already means force / weather / glare everywhere else in this card. The group automation switch is STILL on — this scenario is the pure form of the bug, since the pre-rollup button showed indigo “automated” with every member idle.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-automation-none';
+      c.entries = automationGroupEntries([false, false]);
       c.root.enabled = false;
       c.compass.enabled = false;
       c.decision.enabled = false;

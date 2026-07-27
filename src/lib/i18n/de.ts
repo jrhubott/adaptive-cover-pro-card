@@ -53,6 +53,9 @@ export const de: EnDict = {
     lock: 'Gruppe sperren',
     unlock: 'Gruppe entsperren',
     automation: 'Automatisierung',
+    automation_all: 'Automatisierung für alle {total} Mitglieder aktiv',
+    automation_some: 'Automatisierung für {count} von {total} Mitgliedern aktiv',
+    automation_none: 'Automatisierung für alle {total} Mitglieder aus',
     clear_overrides: 'Übersteuerungen löschen',
     clear_overrides_none: 'Keine Mitglieder-Übersteuerungen zum Löschen',
     who_won:
