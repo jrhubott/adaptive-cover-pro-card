@@ -569,6 +569,37 @@ describe('createDiscoveryMemo', () => {
     expect(second!.cover_type).toBe('cover_awning');
   });
 
+  // Audit finding #6 (issue #247 fix pass): a device *reassignment* to a
+  // different area replaces `hass.devices` and is already caught above, but a
+  // pure area *rename* (same area_id, new `name`) only replaces `hass.areas`
+  // — the memo must track that reference too, or a composed tile-card `name`
+  // holds the stale area name until some unrelated input happens to
+  // invalidate the memo.
+  it('recomputes and picks up the new value when hass.areas is replaced (an area rename)', () => {
+    const memo = createDiscoveryMemo();
+    const registry = makeRegistry();
+    const hass1 = makeHass() as unknown as {
+      devices: Record<string, { area_id?: string }>;
+      states: Record<string, unknown>;
+      areas?: Record<string, { area_id: string; name: string }>;
+    };
+    hass1.devices.acp_device_living.area_id = 'area_living_room';
+    hass1.areas = { area_living_room: { area_id: 'area_living_room', name: 'Living Room' } };
+    const first = memo(hass1 as unknown as HomeAssistant, CONFIG, registry);
+    expect(first!.area_name).toBe('Living Room');
+
+    // Same area_id, new `name` — a rename, not a reassignment. `hass.devices`
+    // is untouched; only `hass.areas` gets a new reference.
+    const hass2 = {
+      devices: hass1.devices,
+      states: hass1.states,
+      areas: { area_living_room: { area_id: 'area_living_room', name: 'Sunroom' } },
+    } as unknown as HomeAssistant;
+    const second = memo(hass2, CONFIG, registry);
+    expect(second).not.toBe(first);
+    expect(second!.area_name).toBe('Sunroom');
+  });
+
   it('calls discoverEntities only once for repeated identical inputs', () => {
     const spy = vi.spyOn({ discoverEntities }, 'discoverEntities');
     const memo = createDiscoveryMemo();

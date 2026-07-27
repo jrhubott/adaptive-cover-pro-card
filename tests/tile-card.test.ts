@@ -209,6 +209,59 @@ describe('adaptive-cover-pro-tile-card setConfig', () => {
     const el = makeCard();
     expect(() => el.setConfig({ type: TYPE, entry_id: ENTRY })).not.toThrow();
   });
+
+  // Audit finding #2 (issue #247 fix pass): a malformed `name` — the natural
+  // typo from omitting the `- ` in a YAML list, e.g. `name: {type: area}`
+  // instead of `name: [{type: area}]` — must throw a readable setConfig error
+  // rather than silently blanking the whole tile at render time.
+  it('throws when name is a bare object instead of an array of parts', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: { type: 'area' } as unknown as AdaptiveCoverProTileCardConfig['name'],
+      }),
+    ).toThrow(/name/);
+  });
+
+  it('throws when name is an array containing a null entry', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: [null] as unknown as AdaptiveCoverProTileCardConfig['name'],
+      }),
+    ).toThrow(/name/);
+  });
+
+  it('throws when name is an array containing an unrecognized part type', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: [{ type: 'bogus' }] as unknown as AdaptiveCoverProTileCardConfig['name'],
+      }),
+    ).toThrow(/name/);
+  });
+
+  it('accepts a plain string name unchanged', () => {
+    const el = makeCard();
+    expect(() => el.setConfig({ type: TYPE, entry_id: ENTRY, name: 'Patio Right' })).not.toThrow();
+  });
+
+  it('accepts a well-formed composed name array', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: [{ type: 'area' }, { type: 'entry' }, { type: 'text', text: '–' }],
+      }),
+    ).not.toThrow();
+  });
 });
 
 describe('adaptive-cover-pro-tile-card render', () => {
@@ -833,6 +886,44 @@ describe('adaptive-cover-pro-tile-card group entry (issue #185)', () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
     expect(el.shadowRoot!.querySelector('acp-group-tile')).toBeFalsy();
     expect(el.shadowRoot!.querySelector('button.up')).toBeTruthy();
+  });
+
+  // Audit finding #1 (issue #247 fix pass): a Cover Group entry with a
+  // composed `name` must resolve through resolveTileName() before it reaches
+  // <acp-group-tile>/<acp-group-dialog> — those components only ever declare
+  // `name?: string` and render `${this.name ?? entry_title}`, so a raw
+  // AcpNamePart[] handed to them stringifies to "[object Object]".
+  it('resolves a composed name before handing it to acp-group-tile / acp-group-dialog', async () => {
+    const el = makeCard();
+    el.setConfig({
+      type: TYPE,
+      entry_id: GROUP_ENTRY,
+      name: [
+        { type: 'text', text: 'Composed' },
+        { type: 'text', text: 'Name' },
+      ],
+    });
+    el.hass = makeGroupHass();
+    document.body.appendChild(el);
+    el._registry = GROUP_REGISTRY;
+    await el.updateComplete;
+
+    const groupTile = el.shadowRoot!.querySelector('acp-group-tile') as HTMLElement & {
+      updateComplete: Promise<boolean>;
+      name?: string;
+    };
+    expect(groupTile).toBeTruthy();
+    expect(groupTile.name).toBe('Composed Name');
+    await groupTile.updateComplete;
+    expect(groupTile.shadowRoot!.querySelector('.title')?.textContent?.trim()).toBe(
+      'Composed Name',
+    );
+
+    const groupDialog = el.shadowRoot!.querySelector('acp-group-dialog') as HTMLElement & {
+      name?: string;
+    };
+    expect(groupDialog).toBeTruthy();
+    expect(groupDialog.name).toBe('Composed Name');
   });
 });
 

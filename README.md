@@ -69,7 +69,7 @@ When you want everything in one place, the full card stacks the compass, the ele
 
 ## Configuration
 
-Every option is exposed in the visual editor; the YAML below is the equivalent.
+Every option is exposed in the visual editor — except the composed `name` list below, which is YAML-only — and the rest of the YAML is the equivalent.
 
 **Tile card** (stack one per shade):
 ```yaml
@@ -77,6 +77,8 @@ type: custom:adaptive-cover-pro-tile-card
 entry_id: YOUR_CONFIG_ENTRY_ID
 # optional:
 # name: Patio Right
+# name: [{type: entry}]                      # same as omitting name
+# name: [{type: area}, {type: entry}]         # "Living Room Patio Right"
 # icon: mdi:blinds-horizontal
 # cover: cover.patio_right_shade
 # layout: detailed          # 'detailed' | 'one-line'

@@ -30,10 +30,6 @@ interface HaFormSchemaItem {
   expanded?: boolean;
   column_min_width?: string;
   schema?: HaFormSchemaItem[];
-  /** Disables this one field while the rest of the form stays interactive.
-   *  Used for `name` when `_config.name` is a composed (array) value — see
-   *  the composite-name handling in `_schema()`/`_valueChanged` (issue #247). */
-  disabled?: boolean;
 }
 
 // Mirror the runtime defaults applied in adaptive-cover-pro-tile-card.ts so the
@@ -260,8 +256,10 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
   };
 
   /** True when `_config.name` is a composed part list rather than a plain
-   *  string (issue #247) — the `name` text field is rendered disabled/blank
-   *  in that case (see `_schema()`/`render()`), never bound to the raw array. */
+   *  string (issue #247) — the `name` text field is rendered blank (but still
+   *  editable) in that case (see `_schema()`/`render()`), never bound to the
+   *  raw array. Typing a fresh string into the field is an explicit,
+   *  intentional overwrite of the composed name — see `_valueChanged`. */
   private _nameIsComposed(): boolean {
     return Array.isArray(this._config?.name);
   }
@@ -390,12 +388,13 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
   private _schema(): HaFormSchemaItem[] {
     const entryOptions = this._entries?.map((e) => ({ value: e.entry_id, label: e.title })) ?? [];
     // A composed (array) name has no ha-form selector of its own (issue
-    // #247) — the field stays but is disabled/blank rather than binding the
-    // raw array, which would stringify to "[object Object]".
+    // #247) — the field stays enabled (see `name_composed_hint`) but its
+    // *data* is blanked in `render()` rather than binding the raw array,
+    // which would stringify to "[object Object]". Typing into it is a
+    // deliberate escape hatch back to a plain string (`_valueChanged`).
     const nameField: HaFormSchemaItem = {
       name: 'name',
       selector: { text: {} },
-      ...(this._nameIsComposed() ? { disabled: true } : {}),
     };
 
     const layoutOptions = [

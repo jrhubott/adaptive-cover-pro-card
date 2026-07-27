@@ -15,7 +15,7 @@ import {
   COVER_ICON_FALLBACK_UNAVAILABLE,
 } from './const';
 import { createDiscoveryMemo } from './lib/entity-discovery';
-import { resolveTileName } from './lib/name-parts';
+import { resolveTileName, isValidAcpName } from './lib/name-parts';
 import { makeEntitySuggestion } from './lib/entity-suggestion';
 import { resolveAxes, type ResolvedAxis } from './lib/axes';
 import { setAxes, engageManualOverride, hasEngageManualOverride } from './lib/services';
@@ -91,6 +91,16 @@ export class AdaptiveCoverProTileCard extends LitElement {
   public setConfig(config: AdaptiveCoverProTileCardConfig): void {
     if (!config || typeof config.entry_id !== 'string' || config.entry_id.length === 0) {
       throw new Error(`${TILE_CARD_NAME}: \`entry_id\` is required and must be a non-empty string`);
+    }
+    // Issue #247 audit finding #2: reject a malformed `name` here — most
+    // commonly the missing `- ` YAML-list typo (`name: {type: area}` instead
+    // of `name: [{type: area}]`) — rather than letting it reach
+    // `resolveTileName()` and silently blank the tile at render time.
+    if (!isValidAcpName(config.name)) {
+      throw new Error(
+        `${TILE_CARD_NAME}: \`name\` must be a string or an array of ` +
+          `{type: 'entry'|'area'} or {type: 'text', text: string} parts`,
+      );
     }
     let next: AdaptiveCoverProTileCardConfig = { ...config };
     if (typeof next.tap_action === 'string') {
@@ -265,6 +275,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // cover more-info dialog (compass/elevation/decision trace are all
     // geometry-bound and a group has no geometry).
     if (discovered.is_group) {
+      const groupTitle = resolveTileName(this._config.name, discovered);
       return html`
         <ha-card>
           <acp-group-tile
@@ -274,7 +285,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
             @pointerleave=${this._onPointerCancel}
             .hass=${this.hass}
             .discovered=${discovered}
-            .name=${this._config.name}
+            .name=${groupTitle}
             .icon=${this._config.icon}
             .stateColor=${this._config.state_color !== false}
             .showControls=${this._config.show_controls !== false}
@@ -292,7 +303,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
           .hass=${this.hass}
           .discovered=${discovered}
           .open=${this._dialogOpen}
-          .name=${this._config.name}
+          .name=${groupTitle}
           .icon=${this._config.icon}
           .stateColor=${this._config.state_color !== false}
           .showTilt=${this._config.show_tilt !== false}
