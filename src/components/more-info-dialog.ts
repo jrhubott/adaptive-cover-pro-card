@@ -6,6 +6,7 @@ import {
   BADGE_KINDS_BY_HANDLER,
   HANDLER_I18N_KEYS,
   HANDLER_ORDER,
+  HISTORY_ICON,
   INTEGRATION_DOMAIN,
   MANUAL_OVERRIDE_PRIORITY,
   type BadgeKind,
@@ -49,6 +50,7 @@ import './forecast-strip';
 import './sky-compass';
 import './elevation-chart';
 import './solar-calc';
+import './history-dialog';
 
 /**
  * ACP-specific more-info dialog rendered by the card (not HA's built-in
@@ -87,6 +89,11 @@ export class MoreInfoDialog extends LitElement {
   // on every `hass` tick or minute-timer redraw.
   @state() private _positionHistory: PositionHistorySample[] = [];
   private _historyKey: string | null = null;
+
+  /** The full History overlay, opened from the header's timeline button. Kept
+   *  separate from `_positionHistory` above, which is only the forecast strip's
+   *  actual-position line. */
+  @state() private _historyOpen = false;
 
   protected updated(): void {
     this._syncMinuteTimer(this.open);
@@ -203,6 +210,7 @@ export class MoreInfoDialog extends LitElement {
     const configureLabel = t('dialog.configure_integration', this.hass);
     const deviceLabel = t('dialog.open_device_page', this.hass);
     const closeLabel = t('dialog.close', this.hass);
+    const historyLabel = t('history.open', this.hass);
     const headerColor = this._headerColor();
 
     return html`
@@ -244,6 +252,15 @@ export class MoreInfoDialog extends LitElement {
                         ></acp-tile-badge>`,
                     )}
             </div>
+            <button
+              class="icon-btn history-link"
+              type="button"
+              aria-label=${historyLabel}
+              ${tooltip(historyLabel)}
+              @click=${this._openHistory}
+            >
+              <ha-icon icon=${HISTORY_ICON}></ha-icon>
+            </button>
             <button
               class="icon-btn options-link"
               type="button"
@@ -338,8 +355,24 @@ export class MoreInfoDialog extends LitElement {
             : nothing}
         </div>
       </div>
+      <acp-history-dialog
+        .hass=${this.hass}
+        .discovered=${this.discovered}
+        .open=${this._historyOpen}
+        @acp-history-closed=${() => {
+          this._historyOpen = false;
+        }}
+      ></acp-history-dialog>
     `;
   }
+
+  private _openHistory = (e: Event): void => {
+    // The header row sits inside the dialog's click-stop, but the History
+    // overlay renders as a sibling of this dialog — stop here anyway so a stray
+    // bubbling click can't immediately re-close it.
+    e.stopPropagation();
+    this._historyOpen = true;
+  };
 
   private _winner(): string {
     const id = this.discovered.entities.decision_trace_sensor;

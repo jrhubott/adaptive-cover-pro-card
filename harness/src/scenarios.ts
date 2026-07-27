@@ -77,6 +77,22 @@ function defaultSolarChart(): HarnessConfig['solarChart'] {
   };
 }
 
+function defaultHistory(): HarnessConfig['history'] {
+  return {
+    enabled: true,
+    title: 'History',
+    hours: 24,
+    track_position: true,
+    track_who_won: true,
+    track_context: true,
+    track_actions: true,
+    advanced_open: false,
+    hide_advanced: false,
+    noDiagnosticsService: false,
+    eventCount: 24,
+  };
+}
+
 function defaultTile(): HarnessConfig['tile'] {
   return {
     enabled: true,
@@ -240,6 +256,7 @@ function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): Harne
     tile: defaultTile(),
     decision: defaultDecision(),
     solarChart: defaultSolarChart(),
+    history: defaultHistory(),
     tooltips: defaultTooltips(),
     stageHeight: 0,
   };
@@ -2301,6 +2318,117 @@ export const SCENARIOS: Scenario[] = [
       return c;
     },
   },
+  {
+    id: 'history-card',
+    label: 'History card — all tracks + event buffer',
+    description:
+      'The standalone History card over a 24h window. Position (recorder-backed actual cover position), Who won (banded strip of the winning handler, last band pinned to the live winner), the three context tracks (Sun in SAA / Glare / Manual override) and the cover-actions list all render off mocked recorder history. Hover anywhere across the tracks for a shared readout of what every track said at that instant. Expand Advanced to pull the diagnostic event buffer over the mocked `adaptive_cover_pro.get_diagnostics` service call \u2014 24 synthetic events across 8 event types, filterable. Same view opens as an overlay from the tile/root more-info dialog and the decision card header.',
+    added: '2026-07-26',
+    build: () => {
+      const c = baseConfig('2026-06-21', 15 * 60);
+      c.scenario = 'history-card';
+      c.history.advanced_open = true;
+      // The History card is the focus; the other cards are hidden so the stage
+      // is not dominated by geometry views.
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
+    id: 'history-no-diagnostics',
+    label: 'History card — old integration, no event buffer',
+    description:
+      'An integration build that predates `adaptive_cover_pro.get_diagnostics`. The History card feature-detects the missing service and omits the Advanced section entirely rather than rendering a disclosure that would always fail \u2014 every recorder-backed track still works. Compare against "History card \u2014 all tracks + event buffer".',
+    added: '2026-07-26',
+    build: () => {
+      const c = baseConfig('2026-06-21', 15 * 60);
+      c.scenario = 'history-no-diagnostics';
+      c.history.noDiagnosticsService = true;
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
+    id: 'history-empty-buffer',
+    label: 'History card — empty event buffer',
+    description:
+      'The `get_diagnostics` service responds, but the ring buffer holds nothing yet (fresh reload). The integration omits `event_timeline` entirely in that case while still sending `data_window`, so the card must distinguish "no events" from "could not read" \u2014 Advanced opens and reports an empty buffer, not an error.',
+    added: '2026-07-26',
+    build: () => {
+      const c = baseConfig('2026-06-21', 15 * 60);
+      c.scenario = 'history-empty-buffer';
+      c.history.advanced_open = true;
+      c.history.eventCount = 0;
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
+    id: 'history-multi-cover',
+    label: 'History card — per-cover divergence + sun context',
+    description:
+      'A three-cover entry where the covers do NOT agree. The aggregate Actual line only sags a little, while the thin dashed per-cover lines show one cover trailing and one that STALLS at the midpoint and never moves again — the failure the aggregate mean hides. Behind the curves, night is dimmed and the sun-in-SAA spans are highlighted (the latter from the recorded sun_infront_binary, so the shading always agrees with the handler that acted on it). The stats line summarizes moves, travel and time-per-handler for the window.',
+    added: '2026-07-26',
+    build: () => {
+      const c = baseConfig('2026-06-21', 15 * 60);
+      c.scenario = 'history-multi-cover';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_bank',
+          title: 'South Bank',
+          window_azimuth: 180,
+          covers: [
+            { entity_id: 'cover.south_left', friendly_name: 'South Left', position: 60 },
+            { entity_id: 'cover.south_mid', friendly_name: 'South Mid', position: 52 },
+            { entity_id: 'cover.south_right', friendly_name: 'South Right', position: 95 },
+          ],
+        }),
+      ];
+      c.history.advanced_open = false;
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
+    id: 'history-venetian-tilt',
+    label: 'History card — venetian tilt track',
+    description:
+      'A venetian entry, so the History card renders its SECOND axis: a tilt track under the position track, plotting the ACP tilt target against the covers\u2019 recorded current_tilt_position. The tilt axis carries its own inversion option in the integration (inverse_tilt, #236) independent of inverse_state, so the card reads the flag from the tilt axis rather than reusing the position one. A position-only cover shows no tilt track at all rather than an empty one.',
+    added: '2026-07-26',
+    build: () => {
+      const c = baseConfig('2026-06-21', 14 * 60);
+      c.scenario = 'history-venetian-tilt';
+      c.entries = [
+        makeEntry({
+          entry_id: 'venetian_window',
+          title: 'Study Venetian',
+          window_azimuth: 200,
+          cover_type: 'cover_venetian',
+          target_tilt: 45,
+          covers: [
+            {
+              entity_id: 'cover.study_venetian',
+              friendly_name: 'Study Venetian',
+              position: 70,
+              tilt: 40,
+            },
+          ],
+        }),
+      ];
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
 ];
 
 export function findScenario(id: string): Scenario | undefined {
@@ -2329,6 +2457,7 @@ export function normalizeConfig(cfg: HarnessConfig): HarnessConfig {
     },
     decision: { ...defaultDecision(), ...(cfg.decision ?? {}) },
     solarChart: { ...defaultSolarChart(), ...(cfg.solarChart ?? {}) },
+    history: { ...defaultHistory(), ...(cfg.history ?? {}) },
     tooltips: { ...defaultTooltips(), ...(cfg.tooltips ?? {}) },
   };
 }

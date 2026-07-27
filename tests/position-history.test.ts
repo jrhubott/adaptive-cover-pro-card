@@ -1,6 +1,14 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { HomeAssistant } from 'custom-card-helpers';
-import { fetchPositionHistory, mergeCoverHistories } from '../src/lib/position-history';
+import {
+  aggregatePerCover,
+  fetchCoverAxisHistory,
+  fetchPerCoverHistory,
+  fetchPositionHistory,
+  mergeCoverHistories,
+  POSITION_ATTR,
+  TILT_ATTR,
+} from '../src/lib/position-history';
 
 // Timestamps as round epoch-ms for readable assertions.
 const T0 = Date.UTC(2026, 6, 9, 8, 0, 0); // 08:00
@@ -222,5 +230,157 @@ describe('fetchPositionHistory — inverse_state frame normalization (#234)', ()
     );
     expect(omitted).toEqual(expected);
     expect(explicit).toEqual(expected);
+  });
+});
+
+describe('fetchPerCoverHistory', () => {
+  function hassWith(callWS: unknown): HomeAssistant {
+    return { callWS } as unknown as HomeAssistant;
+  }
+
+  it('short-circuits without a call when no ids are given', async () => {
+    const callWS = vi.fn();
+    expect(await fetchPerCoverHistory(hassWith(callWS), [], T0, T2)).toEqual({});
+    expect(callWS).not.toHaveBeenCalled();
+  });
+
+  it('returns {} when the call rejects — never propagates', async () => {
+    const callWS = vi.fn().mockRejectedValue(new Error('recorder down'));
+    await expect(fetchPerCoverHistory(hassWith(callWS), ['cover.a'], T0, T2)).resolves.toEqual({});
+  });
+
+  it('keeps each cover separate instead of averaging them', async () => {
+    // The aggregate hides a single cover that failed to move; this is the view
+    // that makes it visible.
+    const callWS = vi.fn().mockResolvedValue({
+      'cover.a': [{ s: 'open', a: { current_position: 80 }, lu: T0 / 1000 }],
+      'cover.b': [{ s: 'closed', a: { current_position: 0 }, lu: T0 / 1000 }],
+    });
+    const out = await fetchPerCoverHistory(hassWith(callWS), ['cover.a', 'cover.b'], T0, T2);
+    expect(out['cover.a'][0].position).toBe(80);
+    expect(out['cover.b'][0].position).toBe(0);
+  });
+
+  it('omits covers with no retained history', async () => {
+    const callWS = vi.fn().mockResolvedValue({ 'cover.a': [], 'cover.b': null });
+    expect(await fetchPerCoverHistory(hassWith(callWS), ['cover.a', 'cover.b'], T0, T2)).toEqual(
+      {},
+    );
+  });
+
+  it('forward-fills the last sample out to the window end', async () => {
+    const callWS = vi.fn().mockResolvedValue({
+      'cover.a': [{ s: 'open', a: { current_position: 60 }, lu: T0 / 1000 }],
+    });
+    const out = await fetchPerCoverHistory(hassWith(callWS), ['cover.a'], T0, T2);
+    const last = out['cover.a'][out['cover.a'].length - 1];
+    expect(last).toEqual({ t: new Date(T2).toISOString(), position: 60 });
+  });
+
+  it('reads the tilt axis when asked', async () => {
+    const callWS = vi.fn().mockResolvedValue({
+      'cover.a': [
+        { s: 'open', a: { current_position: 80, current_tilt_position: 25 }, lu: T0 / 1000 },
+      ],
+    });
+    const out = await fetchPerCoverHistory(hassWith(callWS), ['cover.a'], T0, T2, {
+      attribute: TILT_ATTR,
+    });
+    expect(out['cover.a'][0].position).toBe(25);
+  });
+
+  it('flips into the logical frame on an inverted axis', async () => {
+    const callWS = vi.fn().mockResolvedValue({
+      'cover.a': [{ s: 'open', a: { current_position: 70 }, lu: T0 / 1000 }],
+    });
+    const out = await fetchPerCoverHistory(hassWith(callWS), ['cover.a'], T0, T2, {
+      inverted: true,
+    });
+    expect(out['cover.a'][0].position).toBe(30);
+  });
+
+  it('defaults to the position attribute', async () => {
+    const callWS = vi.fn().mockResolvedValue({
+      'cover.a': [
+        { s: 'open', a: { current_position: 80, current_tilt_position: 25 }, lu: T0 / 1000 },
+      ],
+    });
+    const out = await fetchPerCoverHistory(hassWith(callWS), ['cover.a'], T0, T2);
+    expect(out['cover.a'][0].position).toBe(80);
+    expect(POSITION_ATTR).toBe('current_position');
+  });
+});
+
+describe('fetchCoverAxisHistory', () => {
+  function hassWith(callWS: unknown): HomeAssistant {
+    return { callWS } as unknown as HomeAssistant;
+  }
+
+  const ROWS = {
+    'cover.a': [
+      { s: 'open', a: { current_position: 70, current_tilt_position: 30 }, lu: T0 / 1000 },
+    ],
+  };
+
+  it('fetches BOTH axes in a single recorder query', async () => {
+    const callWS = vi.fn().mockResolvedValue(ROWS);
+    await fetchCoverAxisHistory(hassWith(callWS), ['cover.a'], T0, T2, { wantTilt: true });
+    // Position and tilt are two attributes of the same rows; a query per axis
+    // asks the recorder for identical data twice.
+    expect(callWS).toHaveBeenCalledTimes(1);
+  });
+
+  it('splits the two axes out of one response', async () => {
+    const callWS = vi.fn().mockResolvedValue(ROWS);
+    const out = await fetchCoverAxisHistory(hassWith(callWS), ['cover.a'], T0, T2, {
+      wantTilt: true,
+    });
+    expect(out.position['cover.a'][0].position).toBe(70);
+    expect(out.tilt['cover.a'][0].position).toBe(30);
+  });
+
+  it('skips the tilt axis when not asked', async () => {
+    const callWS = vi.fn().mockResolvedValue(ROWS);
+    const out = await fetchCoverAxisHistory(hassWith(callWS), ['cover.a'], T0, T2);
+    expect(out.tilt).toEqual({});
+  });
+
+  it('inverts the two axes INDEPENDENTLY', async () => {
+    // `inverse_state` and `inverse_tilt` are separate integration options
+    // (#234 / #236); sharing one flag would flip a mixed install wrongly.
+    const callWS = vi.fn().mockResolvedValue(ROWS);
+    const out = await fetchCoverAxisHistory(hassWith(callWS), ['cover.a'], T0, T2, {
+      wantTilt: true,
+      inverted: true,
+      tiltInverted: false,
+    });
+    expect(out.position['cover.a'][0].position).toBe(30);
+    expect(out.tilt['cover.a'][0].position).toBe(30);
+  });
+
+  it('never rejects', async () => {
+    const callWS = vi.fn().mockRejectedValue(new Error('down'));
+    await expect(fetchCoverAxisHistory(hassWith(callWS), ['cover.a'], T0, T2)).resolves.toEqual({
+      position: {},
+      tilt: {},
+    });
+  });
+});
+
+describe('aggregatePerCover', () => {
+  it('is empty for no covers', () => {
+    expect(aggregatePerCover({})).toEqual([]);
+  });
+
+  it('means the covers, so the aggregate need not cost a second query', () => {
+    const out = aggregatePerCover({
+      'cover.a': [{ t: new Date(T0).toISOString(), position: 100 }],
+      'cover.b': [{ t: new Date(T0).toISOString(), position: 0 }],
+    });
+    expect(out).toEqual([{ t: new Date(T0).toISOString(), position: 50 }]);
+  });
+
+  it('drops samples with an unparseable timestamp', () => {
+    expect(aggregatePerCover({ 'cover.a': [{ t: 'nope', position: 50 }] })).toEqual([]);
   });
 });

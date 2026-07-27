@@ -1,6 +1,11 @@
 import { LitElement, css, html, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { COVER_DEVICE_CLASS_ICONS, HANDLER_ORDER, type HandlerName } from '../../src/const';
+import {
+  COVER_DEVICE_CLASS_ICONS,
+  HANDLER_ORDER,
+  HISTORY_HOUR_CHOICES,
+  type HandlerName,
+} from '../../src/const';
 import { SCENARIOS, scenarioIssue, type Scenario } from './scenarios';
 
 /** Per-cover device_class selector options: the card's known HA classes plus
@@ -1290,6 +1295,63 @@ export class AcpHarnessControlPanel extends LitElement {
         )}
         ${this._checkbox('compact', this.config.solarChart.compact, (v) =>
           this._emit({ ...this.config, solarChart: { ...this.config.solarChart, compact: v } }),
+        )}
+      </fieldset>
+
+      <fieldset class="entry">
+        <legend>History card</legend>
+        ${this._checkbox('Enabled', this.config.history.enabled, (v) =>
+          this._emit({ ...this.config, history: { ...this.config.history, enabled: v } }),
+        )}
+        ${this._textRow('Title', this.config.history.title, (v) =>
+          this._emit({ ...this.config, history: { ...this.config.history, title: v } }),
+        )}
+        <label class="row">
+          <span>Window</span>
+          <select
+            .value=${String(this.config.history.hours)}
+            @change=${(e: Event) =>
+              this._emit({
+                ...this.config,
+                history: {
+                  ...this.config.history,
+                  hours: parseInt((e.target as HTMLSelectElement).value, 10),
+                },
+              })}
+          >
+            ${HISTORY_HOUR_CHOICES.map(
+              (h) =>
+                html`<option value=${h} ?selected=${h === this.config.history.hours}>
+                  ${h}h
+                </option>`,
+            )}
+          </select>
+        </label>
+        ${(
+          [
+            'track_position',
+            'track_who_won',
+            'track_context',
+            'track_actions',
+            'advanced_open',
+            'hide_advanced',
+          ] as const
+        ).map((k) =>
+          this._checkbox(k, this.config.history[k], (v) =>
+            this._emit({ ...this.config, history: { ...this.config.history, [k]: v } }),
+          ),
+        )}
+        ${this._checkbox(
+          'no get_diagnostics service (old integration)',
+          this.config.history.noDiagnosticsService,
+          (v) =>
+            this._emit({
+              ...this.config,
+              history: { ...this.config.history, noDiagnosticsService: v },
+            }),
+        )}
+        ${this._numberSlider('event buffer size', this.config.history.eventCount, 0, 80, 1, (v) =>
+          this._emit({ ...this.config, history: { ...this.config.history, eventCount: v } }),
         )}
       </fieldset>
     `;

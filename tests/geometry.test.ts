@@ -19,6 +19,7 @@ import {
   percentToY,
   ribbonLayout,
   scheduleZones,
+  spanFractionX,
   sunDotPosition,
   wedgePath,
 } from '../src/lib/geometry';
@@ -764,5 +765,37 @@ describe('arrowheadPath', () => {
     // Base corners straddle along ±y by halfWidth (order: +y then −y).
     expect(nums[3]).toBeCloseTo(4, 6);
     expect(nums[5]).toBeCloseTo(-4, 6);
+  });
+});
+
+describe('spanFractionX', () => {
+  const W = 600;
+  const START = Date.UTC(2026, 6, 9, 0, 0, 0);
+  const END = Date.UTC(2026, 6, 10, 0, 0, 0);
+
+  it('maps the window start to 0 and the end to the full width', () => {
+    expect(spanFractionX(START, START, END, W)).toBe(0);
+    expect(spanFractionX(END, START, END, W)).toBe(W);
+  });
+
+  it('maps the midpoint to half the width', () => {
+    expect(spanFractionX((START + END) / 2, START, END, W)).toBeCloseTo(W / 2, 6);
+  });
+
+  it('clamps out-of-window timestamps instead of drawing off-canvas spikes', () => {
+    expect(spanFractionX(START - 86_400_000, START, END, W)).toBe(0);
+    expect(spanFractionX(END + 86_400_000, START, END, W)).toBe(W);
+  });
+
+  it('returns 0 for a degenerate window rather than NaN', () => {
+    // A zero or inverted span has no meaningful position, and NaN would poison
+    // every downstream toFixed().
+    expect(spanFractionX(START, START, START, W)).toBe(0);
+    expect(spanFractionX(START, END, START, W)).toBe(0);
+  });
+
+  it('is independent of window length — a 6h window scales the same', () => {
+    const sixH = START + 6 * 60 * 60 * 1000;
+    expect(spanFractionX(START + 3 * 60 * 60 * 1000, START, sixH, W)).toBeCloseTo(W / 2, 6);
   });
 });

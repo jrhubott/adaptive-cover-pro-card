@@ -61,3 +61,71 @@ export function buildActualHistory(
   }
   return out;
 }
+
+/**
+ * Per-cover divergence for the History card's per-cover lines.
+ *
+ * {@link buildActualHistory} models one cover trailing the forecast. This adds a
+ * per-cover personality on top: cover 0 tracks normally, and every later cover
+ * lags further and (for the last one) STALLS partway through the window. The
+ * stall is the case the per-cover lines exist for — the aggregate mean only
+ * sags a little when one cover of three stops moving, which reads as sluggish
+ * rather than broken.
+ */
+export function buildDivergentHistory(
+  entry: HarnessEntry,
+  cover: ManagedCoverCfg,
+  index: number,
+  samples: SunSample[],
+  nowMs: number,
+): CompressedState[] {
+  const base = buildActualHistory(entry, cover, samples, nowMs);
+  if (index === 0 || base.length === 0) return base;
+
+  // The last cover of a multi-cover entry stops responding at the midpoint.
+  const stalls = index >= 2;
+  const stallAt = base[Math.floor(base.length / 2)]?.lu ?? nowMs / 1000;
+  const offset = index * 8; // each cover sits a little further from the target
+
+  const out: CompressedState[] = [];
+  let frozen: number | null = null;
+  for (const st of base) {
+    if (stalls && st.lu >= stallAt) {
+      if (frozen === null) frozen = st.a.current_position;
+      continue;
+    }
+    out.push({
+      ...st,
+      a: { current_position: Math.max(0, Math.min(100, st.a.current_position - offset)) },
+    });
+  }
+  if (frozen !== null) {
+    out.push({ s: 'open', a: { current_position: frozen }, lu: nowMs / 1000 });
+  }
+  return out;
+}
+
+/**
+ * Synthesize recorded slat tilt for a venetian cover. Tracks the entry's tilt
+ * target with a lag, so the History card's tilt track has both a target line
+ * and an actual line that visibly differ.
+ */
+export function buildTiltHistory(
+  entry: HarnessEntry,
+  cover: ManagedCoverCfg,
+  startMs: number,
+  nowMs: number,
+): CompressedState[] {
+  const target = entry.target_tilt ?? 50;
+  const out: CompressedState[] = [];
+  const STEP_MS = 30 * 60 * 1000;
+  let i = 0;
+  for (let t = startMs; t < nowMs; t += STEP_MS, i++) {
+    const swing = Math.round(20 * Math.sin(i / 4));
+    const tilt = Math.max(0, Math.min(100, target + swing));
+    out.push({ s: 'open', a: { current_tilt_position: tilt } as never, lu: t / 1000 });
+  }
+  const finalTilt = cover.tilt ?? target;
+  out.push({ s: 'open', a: { current_tilt_position: finalTilt } as never, lu: nowMs / 1000 });
+  return out;
+}

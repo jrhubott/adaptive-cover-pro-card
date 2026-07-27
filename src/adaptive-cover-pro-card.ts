@@ -30,10 +30,12 @@ import './components/overrides-panel';
 import './components/climate-panel';
 import './components/solar-calc';
 import './components/more-info-dialog';
+import './components/history-dialog';
 import './adaptive-cover-pro-card-editor';
 import './adaptive-cover-pro-sky-compass-card';
 import './adaptive-cover-pro-decision-card';
 import './adaptive-cover-pro-solar-chart-card';
+import './adaptive-cover-pro-history-card';
 
 const DEFAULT_SECTIONS: CardSection[] = [
   'sky',

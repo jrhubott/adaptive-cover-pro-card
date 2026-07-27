@@ -487,7 +487,7 @@ describe('adaptive-cover-pro-tile-card editor — cover pre-fill', () => {
     return el;
   }
 
-  it('(a) pre-fills cover when single managed cover resolves after registry load', async () => {
+  it('(a) does NOT pre-fill cover when a single managed cover resolves', async () => {
     const el = makeEditorSingleCover();
     el._registry = REGISTRY; // REGISTRY maps sensor.cover_position → target_position_sensor
     el.setConfig({ type: TYPE, entry_id: ENTRY });
@@ -500,10 +500,43 @@ describe('adaptive-cover-pro-tile-card editor — cover pre-fill', () => {
 
     await el.updateComplete;
 
-    // The pre-fill should have fired config-changed with cover set to the single managed cover.
-    const prefilled = emitted.find((c) => c.cover === 'cover.left');
-    expect(prefilled).toBeDefined();
-    expect(prefilled!.cover).toBe('cover.left');
+    // A single-cover entry must leave `cover` OUT of the config: the card's
+    // `_resolvedCover` already falls back to `managed_covers[0]`, so writing it
+    // pins an entity_id that discovery would resolve anyway — against the
+    // "entity binding goes through discovery" rule, and stale the moment the
+    // cover entity is renamed.
+    const prefilled = emitted.find((c) => c.cover !== undefined);
+    expect(prefilled).toBeUndefined();
+  });
+
+  it('(a2) hides the cover picker entirely for a single-cover entry', async () => {
+    const el = makeEditorSingleCover();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement & {
+      schema?: Array<{ name: string }>;
+    };
+    expect((haForm.schema ?? []).map((s) => s.name)).not.toContain('cover');
+  });
+
+  it('(a3) keeps the cover picker when an explicit cover is already configured', async () => {
+    const el = makeEditorSingleCover();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    // A config written before the picker was hidden must stay editable —
+    // and removable — rather than becoming invisible but still in effect.
+    el.setConfig({ type: TYPE, entry_id: ENTRY, cover: 'cover.left' });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement & {
+      schema?: Array<{ name: string }>;
+    };
+    expect((haForm.schema ?? []).map((s) => s.name)).toContain('cover');
   });
 
   it('(b) does NOT pre-fill when managed_covers.length > 1', async () => {

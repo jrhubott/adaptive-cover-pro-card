@@ -2,53 +2,62 @@ import { LitElement, html, css, nothing, type TemplateResult, type PropertyValue
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
-import { DECISION_CARD_EDITOR_NAME, DECISION_CARD_NAME, HISTORY_ICON } from './const';
+import { HISTORY_CARD_EDITOR_NAME, HISTORY_CARD_NAME, HISTORY_DEFAULT_HOURS } from './const';
 import { createDiscoveryMemo } from './lib/entity-discovery';
 import { makeEntitySuggestion } from './lib/entity-suggestion';
-import { entityStateChanged } from './lib/hass-change';
 import { fetchAcpConfigEntries } from './lib/config-entries';
 import { t } from './lib/i18n';
 import { subscribeEntityRegistry, type EntityRegistryEntry } from './lib/entity-registry';
 import { loadEntityRegistry, getCachedRegistry } from './lib/registry-store';
 import { registryCache } from './lib/registry-cache';
 import { filterAcp } from './lib/registry-diff';
-import type { AdaptiveCoverProDecisionCardConfig, DiscoveredEntities } from './types';
+import type { AdaptiveCoverProHistoryCardConfig, DiscoveredEntities } from './types';
 import { setTooltipDefaults } from './lib/tooltip';
 
-import './components/decision-strip';
-import './components/history-dialog';
-import './adaptive-cover-pro-decision-card-editor';
+import './components/history-view';
+import './adaptive-cover-pro-history-card-editor';
 
-@customElement(DECISION_CARD_NAME)
-export class AdaptiveCoverProDecisionCard extends LitElement {
+/**
+ * Standalone History card. Mirrors the decision card's shape (single `entry_id`,
+ * registry-backed discovery, warm-start from the shared registry cache) and
+ * hosts `acp-history-view` — the same element `acp-history-dialog` renders when
+ * the other cards open History as an overlay.
+ *
+ * Unlike the other cards this one does NOT re-render on every `hass` tick: its
+ * content comes from the recorder and the diagnostics service, not from
+ * `hass.states`. The view owns its own refresh cadence (a 5-minute refetch plus
+ * an explicit Refresh button), so a `shouldUpdate` that tracked entity states
+ * would churn the DOM for nothing. `hass` is still forwarded — the view needs it
+ * to make its calls and to localize.
+ */
+@customElement(HISTORY_CARD_NAME)
+export class AdaptiveCoverProHistoryCard extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
 
-  @state() private _config?: AdaptiveCoverProDecisionCardConfig;
-  // _registry is left public-by-convention so tests can inject a registry and
-  // skip the websocket fetch dance (mirrors the tile/sky-compass card pattern).
+  @state() private _config?: AdaptiveCoverProHistoryCardConfig;
+  // Left public-by-convention so tests can inject a registry and skip the
+  // websocket fetch dance (mirrors the decision/tile/sky-compass cards).
   @state() public _registry: EntityRegistryEntry[] | null = null;
   @state() private _registryError: string | null = null;
-  @state() private _historyOpen = false;
 
   private _unsubRegistry: (() => void) | null = null;
   private _fetchInFlight = false;
   private _fetchGen = 0;
 
-  // Memoized discovery → stable `_discovered` reference across ticks, so the
-  // hosted decision strip isn't re-rendered by unrelated state changes.
   private _memo = createDiscoveryMemo();
   private _discovered: DiscoveredEntities | null = null;
 
-  public setConfig(config: AdaptiveCoverProDecisionCardConfig): void {
+  public setConfig(config: AdaptiveCoverProHistoryCardConfig): void {
     if (!config || typeof config.entry_id !== 'string' || config.entry_id.length === 0) {
       throw new Error(
-        `${DECISION_CARD_NAME}: \`entry_id\` is required and must be a non-empty string`,
+        `${HISTORY_CARD_NAME}: \`entry_id\` is required and must be a non-empty string`,
       );
+    }
+    if (config.hours !== undefined && (typeof config.hours !== 'number' || config.hours <= 0)) {
+      throw new Error(`${HISTORY_CARD_NAME}: \`hours\` must be a positive number`);
     }
     this._config = { ...config };
     if (config.tooltips) setTooltipDefaults(config.tooltips);
-    // Warm-start synchronously from the persisted ACP slice so a reload skips the
-    // Loading state; the shared fetch below revalidates.
     if (this._registry === null) {
       const cached = registryCache.get(config.entry_id);
       if (cached) this._registry = cached.entries;
@@ -56,22 +65,21 @@ export class AdaptiveCoverProDecisionCard extends LitElement {
   }
 
   public getCardSize(): number {
-    return 3;
+    return 6;
   }
 
-  // Sections-layout grid sizing. Full section width, content-driven height.
   public getGridOptions() {
     return {
       columns: 12,
       rows: 'auto',
-      min_columns: 4,
+      min_columns: 6,
       max_columns: 12,
     };
   }
 
   public static async getStubConfig(
     hass: HomeAssistant,
-  ): Promise<AdaptiveCoverProDecisionCardConfig> {
+  ): Promise<AdaptiveCoverProHistoryCardConfig> {
     let entry_id = '';
     try {
       const entries = await fetchAcpConfigEntries(hass);
@@ -79,11 +87,11 @@ export class AdaptiveCoverProDecisionCard extends LitElement {
     } catch {
       /* none discoverable — picker falls back to name + description */
     }
-    return { type: `custom:${DECISION_CARD_NAME}`, entry_id };
+    return { type: `custom:${HISTORY_CARD_NAME}`, entry_id, hours: HISTORY_DEFAULT_HOURS };
   }
 
   public static async getConfigElement(): Promise<HTMLElement> {
-    return document.createElement(DECISION_CARD_EDITOR_NAME);
+    return document.createElement(HISTORY_CARD_EDITOR_NAME);
   }
 
   public connectedCallback(): void {
@@ -107,14 +115,6 @@ export class AdaptiveCoverProDecisionCard extends LitElement {
     if (changed.has('hass') && this.hass) this._ensureRegistry();
   }
 
-  // Re-render only on hass ticks that touched one of this entry's entities.
-  protected shouldUpdate(changed: PropertyValues): boolean {
-    if (changed.size > 1 || !changed.has('hass')) return true;
-    if (!this._discovered) return true;
-    const old = changed.get('hass') as HomeAssistant | undefined;
-    return entityStateChanged(old, this.hass, Object.values(this._discovered.entities));
-  }
-
   protected willUpdate(changed: PropertyValues): void {
     if (
       this._config &&
@@ -131,7 +131,6 @@ export class AdaptiveCoverProDecisionCard extends LitElement {
   }
 
   private _ensureRegistry(): void {
-    // Revalidate against the shared registry store — cheap when warm (no websocket call).
     this._fetchRegistry();
     if (!this._unsubRegistry) {
       this._unsubRegistry = subscribeEntityRegistry(this.hass, () => {
@@ -147,7 +146,7 @@ export class AdaptiveCoverProDecisionCard extends LitElement {
     loadEntityRegistry(this.hass, force)
       .then((entries) => {
         if (myGen !== this._fetchGen) return;
-        if (entries === this._registry) return; // unchanged shared cache → O(1) revalidation
+        if (entries === this._registry) return;
         this._registry = entries;
         this._registryError = null;
         if (this._config)
@@ -189,39 +188,18 @@ export class AdaptiveCoverProDecisionCard extends LitElement {
     }
 
     const cfg = this._config;
-    const historyLabel = t('history.open', this.hass);
     return html`
       <ha-card>
-        <div class="card-top">
-          ${cfg.title ? html`<div class="card-header">${cfg.title}</div>` : nothing}
-          <button
-            class="icon-btn"
-            type="button"
-            aria-label=${historyLabel}
-            title=${historyLabel}
-            @click=${() => {
-              this._historyOpen = true;
-            }}
-          >
-            <ha-icon icon=${HISTORY_ICON}></ha-icon>
-          </button>
-        </div>
-        <acp-decision-strip
+        <div class="card-header">${cfg.title ?? t('history.title', this.hass)}</div>
+        <acp-history-view
           .hass=${this.hass}
           .discovered=${discovered}
-          ?compact=${!!cfg.compact}
-          ?hide-inactive=${!!cfg.hide_inactive_handlers || !!cfg.compact}
-          .showSummary=${cfg.show_decision_summary !== false}
-        ></acp-decision-strip>
+          .hours=${cfg.hours ?? HISTORY_DEFAULT_HOURS}
+          .tracks=${cfg.tracks}
+          .advancedOpen=${!!cfg.advanced_open}
+          .hideAdvanced=${!!cfg.hide_advanced}
+        ></acp-history-view>
       </ha-card>
-      <acp-history-dialog
-        .hass=${this.hass}
-        .discovered=${discovered}
-        .open=${this._historyOpen}
-        @acp-history-closed=${() => {
-          this._historyOpen = false;
-        }}
-      ></acp-history-dialog>
     `;
   }
 
@@ -230,39 +208,15 @@ export class AdaptiveCoverProDecisionCard extends LitElement {
       display: block;
     }
     ha-card {
-      padding: 12px 14px 10px;
+      padding: 12px 14px 12px;
       display: flex;
       flex-direction: column;
       gap: 8px;
       box-sizing: border-box;
     }
-    /* Always present so the History button has a home; .card-header inside it
-       stays conditional on the title, as it was before the button existed. */
-    .card-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      min-height: 24px;
-    }
     .card-header {
       font-size: 1.05rem;
       font-weight: 500;
-      color: var(--primary-text-color);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .icon-btn {
-      background: none;
-      border: none;
-      cursor: pointer;
-      color: var(--secondary-text-color);
-      padding: 2px;
-      display: inline-flex;
-      flex: 0 0 auto;
-    }
-    .icon-btn:hover {
       color: var(--primary-text-color);
     }
     .empty {
@@ -293,14 +247,14 @@ declare global {
 }
 
 window.customCards = window.customCards || [];
-if (!window.customCards.some((c) => c.type === DECISION_CARD_NAME)) {
+if (!window.customCards.some((c) => c.type === HISTORY_CARD_NAME)) {
   window.customCards.push({
-    type: DECISION_CARD_NAME,
-    name: 'Adaptive Cover Pro — Decision Strip',
+    type: HISTORY_CARD_NAME,
+    name: 'Adaptive Cover Pro — History',
     description:
-      'Standalone decision strip: all pipeline handlers for one Adaptive Cover Pro instance with the winning row highlighted.',
+      'Recorded position, winning handler, sun/glare/override context and cover actions for one Adaptive Cover Pro instance, plus the diagnostic event buffer.',
     preview: true,
     documentationURL: 'https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card',
-    getEntitySuggestion: makeEntitySuggestion(`custom:${DECISION_CARD_NAME}`, 'entry_id'),
+    getEntitySuggestion: makeEntitySuggestion(`custom:${HISTORY_CARD_NAME}`, 'entry_id'),
   });
 }
