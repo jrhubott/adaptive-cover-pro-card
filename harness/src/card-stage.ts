@@ -4,6 +4,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import {
   CARD_NAME,
   DECISION_CARD_NAME,
+  HISTORY_CARD_NAME,
   SKY_COMPASS_CARD_NAME,
   SOLAR_CHART_CARD_NAME,
   TILE_CARD_NAME,
@@ -27,7 +28,8 @@ export class AcpHarnessCardStage extends LitElement {
     | 'compass'
     | 'tile'
     | 'decision'
-    | 'solarChart';
+    | 'solarChart'
+    | 'history';
   /** Device-preview mode (rendered inside a device-sized iframe): drop the
    *  harness chrome (headings, padding, max-width) and let the card fill the
    *  viewport full-bleed like a real phone, ignoring the tile-width control —
@@ -39,11 +41,14 @@ export class AcpHarnessCardStage extends LitElement {
   private _tileEls: CardElement[] = [];
   private _decisionEl?: CardElement;
   private _solarChartEl?: CardElement;
+  private _historyEl?: CardElement;
   private _entrySig?: string;
 
   /** True when `card` should render — either it's the active card, or no active
    *  card is set (render-all mode for the config tests and capture scripts). */
-  private _shows(card: 'root' | 'compass' | 'tile' | 'decision' | 'solarChart'): boolean {
+  private _shows(
+    card: 'root' | 'compass' | 'tile' | 'decision' | 'solarChart' | 'history',
+  ): boolean {
     return this.activeCard === undefined || this.activeCard === card;
   }
 
@@ -120,6 +125,22 @@ export class AcpHarnessCardStage extends LitElement {
               : html`<p class="disabled">Disabled — toggle in Per-card config.</p>`}
           `
         : ''}
+      ${this._shows('history')
+        ? html`
+            ${this.embed
+              ? ''
+              : html`<h2 class="card-heading">
+                  History card · <code>custom:${HISTORY_CARD_NAME}</code>
+                  <span class="hint"
+                    >(also opens as an overlay from the tile/root more-info dialog and the decision
+                    card header)</span
+                  >
+                </h2>`}
+            ${this.config.history.enabled
+              ? html`<div class="card-host" id="history-host"></div>`
+              : html`<p class="disabled">Disabled — toggle in Per-card config.</p>`}
+          `
+        : ''}
     `;
   }
 
@@ -177,6 +198,8 @@ export class AcpHarnessCardStage extends LitElement {
       this._decisionEl = undefined;
       this._solarChartEl?.remove();
       this._solarChartEl = undefined;
+      this._historyEl?.remove();
+      this._historyEl = undefined;
     }
     this._entrySig = entrySig;
 
@@ -261,6 +284,20 @@ export class AcpHarnessCardStage extends LitElement {
       this._solarChartEl.remove();
       this._solarChartEl = undefined;
     }
+
+    const historyHost = this.renderRoot.querySelector<HTMLElement>('#history-host');
+    if (this.config.history.enabled && historyHost) {
+      if (!this._historyEl) {
+        this._historyEl = document.createElement(HISTORY_CARD_NAME) as CardElement;
+        historyHost.appendChild(this._historyEl);
+      } else if (this._historyEl.parentElement !== historyHost) {
+        historyHost.appendChild(this._historyEl);
+      }
+      this._historyEl.setConfig?.(this._historyConfig());
+    } else if (this._historyEl && !this.config.history.enabled) {
+      this._historyEl.remove();
+      this._historyEl = undefined;
+    }
   }
 
   private _pushHass(): void {
@@ -269,6 +306,7 @@ export class AcpHarnessCardStage extends LitElement {
     for (const t of this._tileEls) t.hass = this.hass;
     if (this._decisionEl) this._decisionEl.hass = this.hass;
     if (this._solarChartEl) this._solarChartEl.hass = this.hass;
+    if (this._historyEl) this._historyEl.hass = this.hass;
   }
 
   private _rootConfig(): Record<string, unknown> {
@@ -379,6 +417,27 @@ export class AcpHarnessCardStage extends LitElement {
       title: s.title,
       compact: s.compact,
       cover_colors: this.config.entries.map((e) => e.color),
+      tooltips: this._tooltipsConfig(),
+    };
+  }
+
+  private _historyConfig(): Record<string, unknown> {
+    const h = this.config.history;
+    // Only `false` tracks are emitted — every track defaults on, matching how
+    // the card's visual editor writes YAML.
+    const tracks: Record<string, boolean> = {};
+    if (!h.track_position) tracks.position = false;
+    if (!h.track_who_won) tracks.who_won = false;
+    if (!h.track_context) tracks.context = false;
+    if (!h.track_actions) tracks.actions = false;
+    return {
+      type: `custom:${HISTORY_CARD_NAME}`,
+      entry_id: this.config.entries[0].entry_id,
+      title: h.title,
+      hours: h.hours,
+      ...(Object.keys(tracks).length > 0 ? { tracks } : {}),
+      advanced_open: h.advanced_open,
+      hide_advanced: h.hide_advanced,
       tooltips: this._tooltipsConfig(),
     };
   }

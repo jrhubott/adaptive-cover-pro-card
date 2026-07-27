@@ -154,7 +154,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       this._ensureRegistry();
     }
     if (changed.has('_registry') && this._registry !== null) {
-      this._maybePrefillCover();
+      this._refreshManagedCovers();
     }
   }
 
@@ -171,7 +171,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
             entry_id: entries[0].entry_id,
           });
         }
-        this._maybePrefillCover();
+        this._refreshManagedCovers();
       })
       .catch((err: Error) => {
         this._entriesError = err?.message ?? 'failed to load config entries';
@@ -187,7 +187,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       fetchEntityRegistry(this.hass)
         .then((entries) => {
           this._registry = entries;
-          this._maybePrefillCover();
+          this._refreshManagedCovers();
         })
         .catch(() => {
           // Cover picker just falls back to the unfiltered cover domain.
@@ -225,17 +225,29 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     );
   }
 
-  private _maybePrefillCover(): void {
-    if (!this._config?.entry_id || this._config?.cover || !this._registry || !this.hass) return;
+  /**
+   * Record the entry's managed covers so the form can decide whether the
+   * `cover` picker is worth offering.
+   *
+   * Deliberately does NOT prefill `cover`. It used to write
+   * `managed_covers[0]` into the config whenever an entry managed exactly one
+   * cover — the one case where the value is pure redundancy, since
+   * `_resolvedCover` already falls back to that same entity. Writing it pinned
+   * an entity_id into YAML against CLAUDE.md's "entity binding goes through
+   * discovery" rule, contradicted the editor's own "leave blank" hint, and left
+   * the config pointing at a dead id if the cover were ever renamed.
+   *
+   * Configs that already carry `cover` are untouched — `_resolvedCover` still
+   * honors an explicit value.
+   */
+  private _refreshManagedCovers(): void {
+    if (!this._config?.entry_id || !this._registry || !this.hass) return;
     const discovered = discoverEntities(
       this.hass,
       { type: this._config.type, entry_id: this._config.entry_id },
       this._registry,
     );
     this._managedCovers = discovered?.managed_covers ?? [];
-    if (discovered?.managed_covers.length === 1) {
-      this._emit({ ...this._config, cover: discovered.managed_covers[0] });
-    }
   }
 
   private _computeLabel = (schema: HaFormSchemaItem): string => {
@@ -353,6 +365,10 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     // field is still usable.
     let coverSelector: Record<string, unknown> = { entity: { domain: 'cover' } };
     let isGroup = false;
+    // Read the cover count from THIS discovery rather than the `_managedCovers`
+    // state field: that field is written from `updated()`, so gating the schema
+    // on it would need a second render cycle before the picker appeared.
+    let managedCount = 0;
     if (this._registry && this._config?.entry_id) {
       const discovered = discoverEntities(
         this.hass,
@@ -360,6 +376,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
         this._registry,
       );
       isGroup = !!discovered?.is_group;
+      managedCount = discovered?.managed_covers.length ?? 0;
       if (discovered && !isGroup && discovered.managed_covers.length > 0) {
         coverSelector = {
           entity: { domain: 'cover', include_entities: discovered.managed_covers },
@@ -413,7 +430,15 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       },
       { name: 'name', selector: { text: {} } },
       { name: 'icon', selector: { icon: {} } },
-      { name: 'cover', selector: coverSelector },
+      // The cover picker only appears when the entry manages MORE THAN ONE
+      // cover. With a single cover it can only ever select the entity
+      // `_resolvedCover` already falls back to, so offering it is a control that
+      // cannot change anything. An existing explicit `cover` keeps the field
+      // visible so a previously-written value stays editable (and removable)
+      // rather than becoming invisible-but-live.
+      ...(managedCount > 1 || this._config?.cover
+        ? [{ name: 'cover', selector: coverSelector }]
+        : []),
       {
         name: 'layout',
         selector: { select: { mode: 'list', options: layoutOptions } },

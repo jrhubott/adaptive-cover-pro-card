@@ -318,6 +318,25 @@ export interface SolarChartCardOptions {
   compact: boolean;
 }
 
+export interface HistoryCardOptions {
+  enabled: boolean;
+  title: string;
+  /** Window length in hours (mirrors HISTORY_HOUR_CHOICES). */
+  hours: number;
+  track_position: boolean;
+  track_who_won: boolean;
+  track_context: boolean;
+  track_actions: boolean;
+  advanced_open: boolean;
+  hide_advanced: boolean;
+  /** Simulate an OLD integration with no `get_diagnostics` service, so the
+   *  card hides the Advanced section instead of rendering a dead affordance. */
+  noDiagnosticsService: boolean;
+  /** How many synthetic events the mock event buffer emits. 0 exercises the
+   *  "buffer present but empty" path. */
+  eventCount: number;
+}
+
 export interface HarnessConfig {
   /** Latitude for solar math. */
   latitude: number;
@@ -359,6 +378,7 @@ export interface HarnessConfig {
   tile: TileCardOptions;
   decision: DecisionCardOptions;
   solarChart: SolarChartCardOptions;
+  history: HistoryCardOptions;
   /** Floating-tooltip behavior, threaded into all three card configs. */
   tooltips: TooltipsOptions;
   /** Fixed stage height in px for the Sky Compass card, mimicking HA's

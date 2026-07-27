@@ -212,6 +212,141 @@ export interface AdaptiveCoverProDecisionCardConfig extends LovelaceCardConfig {
   tooltips?: TooltipsConfig;
 }
 
+/** Which History-card tracks are rendered. Every track defaults on; a user
+ *  turns one off in the visual editor or YAML. */
+export interface HistoryTracksConfig {
+  /** Recorder-backed actual cover position over the window. */
+  position?: boolean;
+  /** Banded strip of the winning pipeline handler over time. */
+  who_won?: boolean;
+  /** Overlay bands for sun-in-FOV, glare-active, and manual-override spans. */
+  context?: boolean;
+  /** Scrollable list of cover actions and skipped actions. */
+  actions?: boolean;
+}
+
+export interface AdaptiveCoverProHistoryCardConfig extends LovelaceCardConfig {
+  type: string;
+  entry_id: string;
+  /** Optional header rendered above the tracks in the card's `ha-card`. */
+  title?: string;
+  /** Hours of history to show, counting back from now. Defaults to 24. */
+  hours?: number;
+  /** Per-track opt-out. Omitted tracks default on. */
+  tracks?: HistoryTracksConfig;
+  /** Start with the Advanced (event buffer) section expanded. Defaults false. */
+  advanced_open?: boolean;
+  /** Hide the Advanced section entirely, even when the integration exposes
+   *  `get_diagnostics`. Defaults false. */
+  hide_advanced?: boolean;
+  /** Card-owned floating tooltip behavior. Defaults: enabled, offset [12,16],
+   *  delay 400ms. Set `enabled: false` to use native browser tooltips. */
+  tooltips?: TooltipsConfig;
+}
+
+/**
+ * One recorded state of any entity, parsed out of HA's
+ * `history/history_during_period` response by `lib/state-history.ts`.
+ * `t` is epoch-ms (not ISO, unlike {@link PositionHistorySample}) because every
+ * consumer does arithmetic on it.
+ */
+export interface StateSample {
+  t: number;
+  state: string;
+  attributes: Record<string, unknown>;
+}
+
+/** A contiguous span during which an entity held one state. Produced by
+ *  `toBands()`; `end` is exclusive and the last band runs to the window end. */
+export interface HistoryBand {
+  start: number;
+  end: number;
+  state: string;
+  attributes: Record<string, unknown>;
+}
+
+/**
+ * One row of HA's logbook, parsed from `logbook/get_events`. Mirrors the field
+ * set in `homeassistant/components/logbook/const.py`, normalized: `t` is epoch
+ * **ms** (the wire format is epoch seconds), and every absent/empty field is
+ * `null` rather than missing.
+ */
+export interface LogbookEntry {
+  t: number;
+  entityId: string | null;
+  /** Friendly name HA resolved for the entity. */
+  name: string;
+  /** New state, for state-change rows. Null on component-described events. */
+  state: string | null;
+  /** Free-form text, for component-described events (null on state changes). */
+  message: string | null;
+  icon: string | null;
+  /** The user who caused it, when HA attributed one. */
+  contextUserId: string | null;
+  /** The automation/script that caused it, already name-resolved by HA. */
+  contextName: string | null;
+  contextDomain: string | null;
+  contextService: string | null;
+}
+
+/**
+ * One row of the History card's Activity list. Unifies two sources that answer
+ * the same question from different angles: HA's logbook (what changed, and who
+ * did it) and ACP's own event buffer (what ACP commanded, and with what
+ * parameters — the logbook records only the resulting state, never the
+ * service-call arguments).
+ */
+export interface ActivityRow {
+  t: number;
+  /** Which source produced the row — drives the icon and accent. */
+  source: 'logbook' | 'command';
+  /** Primary label: the new state, or the ACP event's action. */
+  title: string;
+  /** Entity friendly name, when the row is entity-scoped. */
+  name: string | null;
+  entityId: string | null;
+  /** Rendered service parameters, e.g. `position 45%` — command rows only. */
+  detail: string | null;
+  /** Service the command used, e.g. `cover.set_cover_position`. */
+  service: string | null;
+  /** "Who did it", resolved for display. Null when unattributed. */
+  triggeredBy: string | null;
+  /** True when the row records something ACP declined to do. */
+  skipped: boolean;
+}
+
+/**
+ * One entry from the integration's diagnostic event buffer. `event` is the
+ * discriminator (`pipeline_evaluated`, `cover_command_sent`, …) and every other
+ * key the writer recorded rides in `fields` untouched — the card renders them
+ * generically so a new integration event type needs no card change.
+ */
+export interface AcpEvent {
+  /** Raw ISO-8601 timestamp as recorded. */
+  ts: string;
+  /** `Date.parse(ts)` — epoch ms, guaranteed non-NaN by the parser. */
+  t: number;
+  event: string;
+  fields: Record<string, unknown>;
+}
+
+/** The event buffer plus the metadata that makes a snapshot self-describing. */
+export interface EventTimeline {
+  events: AcpEvent[];
+  /** The buffer's own reported data window (`data_window` in diagnostics).
+   *  Present even when the buffer is empty. */
+  window: { start: string | null; end: string | null; capturedAt: string | null } | null;
+  /** Configured ring-buffer capacity (`debug_event_buffer_size`), when reported. */
+  bufferSize: number | null;
+  /** False when the fetch failed, the service is missing, or the payload was
+   *  unusable — distinguishes "no events" from "could not read". */
+  available: boolean;
+  /** The untouched `get_diagnostics` response, retained so the Advanced section
+   *  can copy the whole dump to the clipboard for a bug report. Null when the
+   *  fetch failed. */
+  raw: unknown;
+}
+
 /**
  * One axis of a discovered cover, mirroring the integration's serialized
  * `AxisDescriptor` (`cover_types/base.py` → `asdict`). Every field is optional

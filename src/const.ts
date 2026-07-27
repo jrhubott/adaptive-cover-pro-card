@@ -9,6 +9,8 @@ export const DECISION_CARD_NAME = 'adaptive-cover-pro-decision-card';
 export const DECISION_CARD_EDITOR_NAME = 'adaptive-cover-pro-decision-card-editor';
 export const SOLAR_CHART_CARD_NAME = 'adaptive-cover-pro-solar-chart-card';
 export const SOLAR_CHART_CARD_EDITOR_NAME = 'adaptive-cover-pro-solar-chart-card-editor';
+export const HISTORY_CARD_NAME = 'adaptive-cover-pro-history-card';
+export const HISTORY_CARD_EDITOR_NAME = 'adaptive-cover-pro-history-card-editor';
 
 export const INTEGRATION_DOMAIN = 'adaptive_cover_pro';
 
@@ -412,6 +414,101 @@ export const AXIS_TARGET_SENSOR_ROLES: Record<string, EntityRole> = {
  */
 export const AXIS_LABEL_I18N_KEYS: Record<string, string> = {
   tilt: 'covers.tilt_title',
+};
+
+/**
+ * Glyph for every History affordance. This is the icon Home Assistant registers
+ * for its own History panel (`homeassistant/components/history/__init__.py`:
+ * `async_register_built_in_panel(hass, "history", "history", "mdi:chart-box")`),
+ * so the card's History button reads as the same concept users already know
+ * from the sidebar and the native more-info dialog. Keep them in lock-step.
+ */
+export const HISTORY_ICON = 'mdi:chart-box';
+
+/** Default History-card window, in hours back from now. One local day. */
+export const HISTORY_DEFAULT_HOURS = 24;
+
+/**
+ * Entities drawn as HA-style labeled state-timeline bars in the History card —
+ * the stacked equivalent of the single-entity History bar in HA's own more-info
+ * dialog. Order is render order: the two master switches first (they gate
+ * everything below), then the conditions ACP reacts to, then the outcome.
+ *
+ * `cls` selects the "on" band color in `history-view.ts`; the "off" band is
+ * always HA's neutral gray, matching the native timeline.
+ */
+/**
+ * i18n keys for the `control_status` sensor's values.
+ *
+ * These are NOT handler names — they are the integration's `ControlStatus` enum
+ * (`const.py` §23), i.e. *why the integration is or isn't commanding the cover*.
+ * The winning handler lives on the `decision_trace` sensor instead. Conflating
+ * the two makes every status render as the generic "Auto" badge, since none of
+ * these strings appear in {@link HANDLER_I18N_KEYS}.
+ *
+ * `force_override_active` is retained for pre-2.28 integrations (Force Override
+ * merged into Custom Positions), matching the note on {@link HANDLER_ORDER}.
+ */
+export const CONTROL_STATUS_I18N_KEYS: Record<string, string> = {
+  active: 'control_status.active',
+  outside_time_window: 'control_status.outside_time_window',
+  position_delta_too_small: 'control_status.position_delta_too_small',
+  time_delta_too_small: 'control_status.time_delta_too_small',
+  manual_override: 'control_status.manual_override',
+  automatic_control_off: 'control_status.automatic_control_off',
+  sun_not_visible: 'control_status.sun_not_visible',
+  force_override_active: 'control_status.force_override_active',
+  weather_override_active: 'control_status.weather_override_active',
+  motion_timeout: 'control_status.motion_timeout',
+};
+
+/** Control-status values that mean "acting normally". Everything else is a
+ *  reason the cover is being left alone, and is colored as such. */
+export const CONTROL_STATUS_ACTIVE = new Set(['active']);
+
+export const STATE_TRACKS: ReadonlyArray<{ role: EntityRole; key: string; cls: string }> = [
+  { role: 'integration_enabled_switch', key: 'history.track_enabled', cls: 'ctx-enabled' },
+  { role: 'automatic_control_switch', key: 'history.track_auto', cls: 'ctx-auto' },
+  { role: 'sun_infront_binary', key: 'history.track_sun', cls: 'ctx-sun' },
+  { role: 'glare_active_binary', key: 'history.track_glare', cls: 'ctx-glare' },
+  { role: 'manual_override_binary', key: 'history.track_manual', cls: 'ctx-manual' },
+  { role: 'position_mismatch_binary', key: 'history.track_mismatch', cls: 'ctx-mismatch' },
+];
+
+/** Selectable History-card windows (hours). Offered by the visual editor. */
+export const HISTORY_HOUR_CHOICES = [6, 12, 24, 48, 72] as const;
+
+/**
+ * How each diagnostic event buffer entry is presented in the Advanced section.
+ *
+ * Sourced from the integration's `_event_buffer.record({... "event": <name>})`
+ * call sites (coordinator.py, pipeline/registry.py, the transit/reconcile
+ * managers). `severity` drives the row's accent color only — it is a display
+ * hint, not a claim about integration behavior.
+ *
+ * Unknown event names are NOT an error: the card renders them with the `info`
+ * severity and a humanized name, so a new integration event type shows up
+ * without a card release. Keep entries here in lock-step when the integration
+ * adds an event worth calling out.
+ */
+export type EventSeverity = 'info' | 'action' | 'warn';
+
+export const EVENT_SEVERITY: Record<string, EventSeverity> = {
+  pipeline_evaluated: 'info',
+  cover_command_sent: 'action',
+  cover_command_skipped: 'warn',
+  end_time_default_sent: 'action',
+  manual_override_gate_closed: 'warn',
+  sun_entered_fov: 'info',
+  sun_left_fov: 'info',
+  sunset_window_opened: 'info',
+  transit_cleared: 'info',
+  transit_optimistic_target_replay: 'info',
+  transit_progress_forward: 'info',
+  transit_startup_delay: 'warn',
+  transit_timeout_cleared: 'warn',
+  reconcile_gave_up: 'warn',
+  reconcile_skipped_in_transit: 'warn',
 };
 
 export const UNIQUE_ID_ROLES: Record<string, EntityRole> = {

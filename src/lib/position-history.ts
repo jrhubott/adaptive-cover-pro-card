@@ -53,20 +53,27 @@ function readTimestamp(st: HistoryState): number | null {
   return null;
 }
 
-/** Extract the numeric `current_position` attribute, or null when absent/non-numeric. */
-function readPosition(st: HistoryState): number | null {
+/** The cover attribute carrying the primary (position) axis. */
+export const POSITION_ATTR = 'current_position';
+/** The cover attribute carrying the secondary (slat tilt) axis, on covers that
+ *  advertise SET_TILT_POSITION. */
+export const TILT_ATTR = 'current_tilt_position';
+
+/** Extract a numeric axis attribute, or null when absent/non-numeric.
+ *  `attr` defaults to `current_position`, so existing callers are unchanged. */
+function readPosition(st: HistoryState, attr: string = POSITION_ATTR): number | null {
   const attrs = st.a ?? st.attributes;
-  const raw = attrs?.current_position;
+  const raw = attrs?.[attr];
   return typeof raw === 'number' && !Number.isNaN(raw) ? raw : null;
 }
 
 /** Walk one entity's state list into forward-filled `{t, position}` points. */
-function parseEntityStates(states: HistoryState[]): RawPoint[] {
+function parseEntityStates(states: HistoryState[], attr: string = POSITION_ATTR): RawPoint[] {
   const points: RawPoint[] = [];
   let last: number | null = null;
   for (const st of states) {
     const t = readTimestamp(st);
-    const pos = readPosition(st);
+    const pos = readPosition(st, attr);
     if (pos !== null) last = pos;
     if (t !== null && last !== null) points.push({ t, position: last });
   }
@@ -172,4 +179,73 @@ export async function fetchPositionHistory(
   }
   if (!inverted) return merged;
   return merged.map((s) => ({ t: s.t, position: 100 - s.position }));
+}
+
+/**
+ * Per-cover recorded history for one axis — the un-aggregated counterpart to
+ * {@link fetchPositionHistory}.
+ *
+ * The aggregate mean is the right default (one line, one story), but it hides
+ * exactly the failure a history view exists to expose: when one cover of several
+ * fails to move, the mean drifts a little and looks merely sluggish. Keeping the
+ * covers separate makes the stuck one obvious.
+ *
+ * `attribute` selects the axis: {@link POSITION_ATTR} (default) or
+ * {@link TILT_ATTR} for the venetian slat axis. `inverted` flips the samples into
+ * the logical frame exactly as {@link fetchPositionHistory} does — note the two
+ * axes carry INDEPENDENT inversion options in the integration (`inverse_state`
+ * vs `inverse_tilt`, issues #234/#236), so callers must pass the flag for the
+ * axis they asked for, not the entry's position flag.
+ *
+ * Never rejects — any failure yields `{}`. Covers with no retained history are
+ * simply absent from the result.
+ */
+export async function fetchPerCoverHistory(
+  hass: HomeAssistant,
+  entityIds: string[],
+  startMs: number,
+  endMs: number,
+  opts: { attribute?: string; inverted?: boolean } = {},
+): Promise<Record<string, PositionHistorySample[]>> {
+  const ids = entityIds.filter((id) => typeof id === 'string' && id.length > 0);
+  if (ids.length === 0) return {};
+  const attribute = opts.attribute ?? POSITION_ATTR;
+
+  let response: Record<string, HistoryState[]> | undefined;
+  try {
+    response = await hass.callWS<Record<string, HistoryState[]>>({
+      type: 'history/history_during_period',
+      start_time: new Date(startMs).toISOString(),
+      end_time: new Date(endMs).toISOString(),
+      entity_ids: ids,
+      minimal_response: false,
+      no_attributes: false,
+      significant_changes_only: false,
+    });
+  } catch {
+    return {};
+  }
+  if (!response || typeof response !== 'object') return {};
+
+  const out: Record<string, PositionHistorySample[]> = {};
+  for (const id of ids) {
+    const states = response[id];
+    if (!Array.isArray(states)) continue;
+    const points = parseEntityStates(states, attribute);
+    if (points.length === 0) continue;
+    const series = points
+      .sort((a, b) => a.t - b.t)
+      .map((p) => ({
+        t: new Date(p.t).toISOString(),
+        position: opts.inverted ? 100 - p.position : p.position,
+      }));
+    // Same forward-fill as the aggregate: the last recorded change may be hours
+    // old, but the cover is still there, so carry it to the window's end.
+    const last = series[series.length - 1];
+    if (Date.parse(last.t) < endMs) {
+      series.push({ t: new Date(endMs).toISOString(), position: last.position });
+    }
+    out[id] = series;
+  }
+  return out;
 }
