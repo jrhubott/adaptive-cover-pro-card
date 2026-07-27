@@ -455,6 +455,8 @@ export const fr: EnDict = {
       hold_action: 'Action au maintien',
       double_tap_action: 'Action au double toucher',
       cover_blank_hint: 'Laisser vide pour utiliser automatiquement le premier store géré.',
+      name_composed_hint:
+        'Un titre composé est défini en YAML. Saisissez un nouveau titre ici pour le remplacer par du texte simple.',
       layout_option_one_line: 'Une ligne (compact)',
       layout_option_detailed: 'Détaillé (titre, état, indicateurs)',
     },

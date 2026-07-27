@@ -436,6 +436,8 @@ export const en = {
       hold_action: 'Hold action',
       double_tap_action: 'Double-tap action',
       cover_blank_hint: 'Leave blank to use the first managed cover automatically.',
+      name_composed_hint:
+        'A composed name is set in YAML. Type a new title here to replace it with plain text.',
       layout_option_one_line: 'One line (compact)',
       layout_option_detailed: 'Detailed (title, state, indicators)',
     },

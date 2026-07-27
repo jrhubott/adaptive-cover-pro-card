@@ -328,6 +328,52 @@ describe('discoverEntities (unique_id based)', () => {
   });
 });
 
+describe('discoverEntities — area_name resolution (#247)', () => {
+  it('resolves area_name via hass.devices[device_id].area_id -> hass.areas[area_id].name', () => {
+    const hass = makeHass();
+    (
+      hass as unknown as { devices: Record<string, { area_id?: string }> }
+    ).devices.acp_device_living.area_id = 'area_living_room';
+    (hass as unknown as { areas?: unknown }).areas = {
+      area_living_room: { area_id: 'area_living_room', name: 'Living Room' },
+    };
+    const d = discoverEntities(
+      hass,
+      { type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY_ID },
+      makeRegistry(),
+    );
+    expect(d!.area_name).toBe('Living Room');
+  });
+
+  it('leaves area_name undefined when hass.areas is missing (older HA)', () => {
+    const hass = makeHass();
+    (
+      hass as unknown as { devices: Record<string, { area_id?: string }> }
+    ).devices.acp_device_living.area_id = 'area_living_room';
+    // No hass.areas set at all — simulates an older HA frontend.
+    const d = discoverEntities(
+      hass,
+      { type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY_ID },
+      makeRegistry(),
+    );
+    expect(d!.area_name).toBeUndefined();
+  });
+
+  it('leaves area_name undefined when the device has no area_id', () => {
+    const hass = makeHass();
+    (hass as unknown as { areas?: unknown }).areas = {
+      area_living_room: { area_id: 'area_living_room', name: 'Living Room' },
+    };
+    // The fixture device carries no area_id.
+    const d = discoverEntities(
+      hass,
+      { type: 'custom:adaptive-cover-pro-card', entry_id: ENTRY_ID },
+      makeRegistry(),
+    );
+    expect(d!.area_name).toBeUndefined();
+  });
+});
+
 const GROUP_ENTRY = 'group1';
 
 function makeGroupRegistry(): EntityRegistryEntry[] {

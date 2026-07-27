@@ -3023,3 +3023,103 @@ describe('adaptive-cover-pro-tile-card — inverse_tilt frame normalization (#23
     );
   });
 });
+
+describe('adaptive-cover-pro-tile-card — composite name (#247)', () => {
+  // Same REGISTRY as the rest of this file, but with device_id set so the
+  // area/entry-title lookups below have a device to resolve against.
+  const AREA_REGISTRY: EntityRegistryEntry[] = REGISTRY.map((r) => ({
+    ...r,
+    device_id: 'device_living',
+  }));
+
+  function makeAreaHass(withArea: boolean): HomeAssistant {
+    const hass = makeHass();
+    (hass as unknown as { devices?: unknown }).devices = {
+      device_living: {
+        id: 'device_living',
+        name: 'Blind',
+        config_entries: [ENTRY],
+        ...(withArea ? { area_id: 'area_living' } : {}),
+      },
+    };
+    if (withArea) {
+      (hass as unknown as { areas?: unknown }).areas = {
+        area_living: { area_id: 'area_living', name: 'Living Room' },
+      };
+    }
+    return hass;
+  }
+
+  async function mountWithAreaRegistry(
+    config: AdaptiveCoverProTileCardConfig,
+    hass: HomeAssistant,
+  ): Promise<CardLike> {
+    const el = makeCard();
+    el.setConfig(config);
+    el.hass = hass;
+    document.body.appendChild(el);
+    el._registry = AREA_REGISTRY;
+    await el.updateComplete;
+    return el;
+  }
+
+  it('renders "<Area> <Entry title>" when the device has an area', async () => {
+    const el = await mountWithAreaRegistry(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        name: [{ type: 'area' }, { type: 'entry' }],
+      },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Living Room Blind');
+  });
+
+  it('falls back to just the entry title (no stray leading space) when the device has no area', async () => {
+    const el = await mountWithAreaRegistry(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        name: [{ type: 'area' }, { type: 'entry' }],
+      },
+      makeAreaHass(false),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Blind');
+  });
+
+  it('renders a literal text part verbatim', async () => {
+    const el = await mountWithAreaRegistry(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        name: [{ type: 'text', text: 'Custom' }],
+      },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Custom');
+  });
+
+  it('renders discovered.entry_title unchanged when name is omitted (regression guard)', async () => {
+    const el = await mountWithAreaRegistry(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed' },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Blind');
+  });
+
+  it('keeps a plain-string name working byte-identically (backward compatibility)', async () => {
+    const el = await mountWithAreaRegistry(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', name: 'Centre Gauche' },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Centre Gauche');
+  });
+});

@@ -30,6 +30,10 @@ interface HaFormSchemaItem {
   expanded?: boolean;
   column_min_width?: string;
   schema?: HaFormSchemaItem[];
+  /** Disables this one field while the rest of the form stays interactive.
+   *  Used for `name` when `_config.name` is a composed (array) value — see
+   *  the composite-name handling in `_schema()`/`_valueChanged` (issue #247). */
+  disabled?: boolean;
 }
 
 // Mirror the runtime defaults applied in adaptive-cover-pro-tile-card.ts so the
@@ -255,6 +259,13 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     return key ? t(key, this.hass) : schema.name;
   };
 
+  /** True when `_config.name` is a composed part list rather than a plain
+   *  string (issue #247) — the `name` text field is rendered disabled/blank
+   *  in that case (see `_schema()`/`render()`), never bound to the raw array. */
+  private _nameIsComposed(): boolean {
+    return Array.isArray(this._config?.name);
+  }
+
   private _valueChanged = (e: ValueChangedEvent): void => {
     e.stopPropagation();
     const value = e.detail.value;
@@ -262,6 +273,17 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     // for display). Drop keys that match the default and weren't already in
     // the user's config, so the YAML stays minimal.
     const cleaned: Record<string, unknown> = { ...value };
+
+    // A composed `name` isn't editable through this text field — it's
+    // rendered blank (see `_schema()`/`render()`) so it never stringifies the
+    // array. An untouched blank means the user didn't type into it (this
+    // value-changed fired for some other field), so the existing array must
+    // survive; a non-empty string is a deliberate, explicit overwrite of the
+    // composed name with a plain string.
+    if (this._nameIsComposed() && !cleaned.name) {
+      delete cleaned.name;
+    }
+
     for (const [k, def] of Object.entries(FORM_DEFAULTS)) {
       // The flat badge_* fields don't live on _config (they're nested under
       // `badges`), so treat them purely as default-prunable: drop them whenever
@@ -333,7 +355,17 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     for (const k of BADGE_KINDS) {
       if (badges && badges[k] === false) flatBadges[`badge_${k}`] = false;
     }
-    const data = { ...FORM_DEFAULTS, ...rest, ...flatBadges };
+    const nameIsComposed = this._nameIsComposed();
+    const data = {
+      ...FORM_DEFAULTS,
+      ...rest,
+      // A composed (array) name is never bound to the text field's data —
+      // that would stringify to "[object Object]" on the next render. Blank
+      // it instead; `_valueChanged` preserves the underlying array as long as
+      // the field comes back untouched (issue #247).
+      ...(nameIsComposed ? { name: '' } : {}),
+      ...flatBadges,
+    };
 
     return html`
       <div class="form">
@@ -344,6 +376,9 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
           .computeLabel=${this._computeLabel}
           @value-changed=${this._valueChanged}
         ></ha-form>
+        ${nameIsComposed
+          ? html`<div class="hint">${t('editor.tile.name_composed_hint', this.hass)}</div>`
+          : nothing}
         ${this._managedCovers.length > 1 && !this._config?.cover
           ? html`<div class="hint">${t('editor.tile.cover_blank_hint', this.hass)}</div>`
           : nothing}
@@ -354,6 +389,14 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
 
   private _schema(): HaFormSchemaItem[] {
     const entryOptions = this._entries?.map((e) => ({ value: e.entry_id, label: e.title })) ?? [];
+    // A composed (array) name has no ha-form selector of its own (issue
+    // #247) — the field stays but is disabled/blank rather than binding the
+    // raw array, which would stringify to "[object Object]".
+    const nameField: HaFormSchemaItem = {
+      name: 'name',
+      selector: { text: {} },
+      ...(this._nameIsComposed() ? { disabled: true } : {}),
+    };
 
     const layoutOptions = [
       { value: 'one-line', label: t('editor.tile.layout_option_one_line', this.hass) },
@@ -397,7 +440,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
           required: true,
           selector: { select: { options: entryOptions, mode: 'dropdown' } },
         },
-        { name: 'name', selector: { text: {} } },
+        nameField,
         { name: 'icon', selector: { icon: {} } },
         { name: 'show_controls', selector: { boolean: {} } },
         { name: 'show_position_bar', selector: { boolean: {} } },
@@ -428,7 +471,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
         required: true,
         selector: { select: { options: entryOptions, mode: 'dropdown' } },
       },
-      { name: 'name', selector: { text: {} } },
+      nameField,
       { name: 'icon', selector: { icon: {} } },
       // The cover picker only appears when the entry manages MORE THAN ONE
       // cover. With a single cover it can only ever select the entity

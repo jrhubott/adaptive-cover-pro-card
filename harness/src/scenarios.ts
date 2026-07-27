@@ -124,6 +124,7 @@ function makeEntry(
 ): HarnessEntry {
   return {
     title: overrides.title ?? 'Living Room',
+    area: overrides.area,
     cover_type: overrides.cover_type ?? 'cover_blind',
     window_azimuth: overrides.window_azimuth ?? 180,
     fov_left: overrides.fov_left ?? 45,
@@ -2423,6 +2424,30 @@ export const SCENARIOS: Scenario[] = [
           ],
         }),
       ];
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
+    id: 'composite-tile-name',
+    label: 'Composite tile name (#247)',
+    description:
+      'The entry has an area assigned, and the tile card’s `name` is a composed part list (`[{type: "area"}, {type: "entry"}]`) instead of a plain string, so the title reads "Living Room Blind" — the same generator-friendly composition the native HA tile card and Mushroom support, letting one dashboard-YAML template emit "Living Room Blind" on an all-covers view and just "Blind" on an area view.',
+    added: '2026-07-27',
+    build: () => {
+      const c = baseConfig('2026-06-21', 14 * 60);
+      c.scenario = 'composite-tile-name';
+      c.entries = [
+        makeEntry({
+          entry_id: 'living_room_blind',
+          title: 'Blind',
+          area: 'Living Room',
+          window_azimuth: 180,
+        }),
+      ];
+      c.tile.name = [{ type: 'area' }, { type: 'entry' }];
       c.root.enabled = false;
       c.compass.enabled = false;
       c.solarChart.enabled = false;

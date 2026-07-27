@@ -145,10 +145,26 @@ interface DeviceDisplay {
   name?: string;
   name_by_user?: string;
   config_entries?: string[];
+  /** HA area registry id the device is assigned to, or null/absent when
+   *  unassigned. Read only for the composite tile-card `name` (issue #247);
+   *  never used for identity. */
+  area_id?: string | null;
 }
 
 type HassWithDevices = HomeAssistant & {
   devices?: Record<string, DeviceDisplay>;
+};
+
+interface AreaDisplay {
+  area_id: string;
+  name?: string;
+}
+
+/** Parallels {@link HassWithDevices}: `hass.areas` is a synchronous,
+ *  already-present-on-tick registry map (same as `hass.devices`), just not
+ *  declared on `custom-card-helpers`' `HomeAssistant` type. */
+type HassWithAreas = HomeAssistant & {
+  areas?: Record<string, AreaDisplay>;
 };
 
 /**
@@ -217,6 +233,15 @@ function assembleDiscovered(
     }
   }
 
+  // Area (issue #247, tile card composite `name`): a direct key lookup off
+  // the already-resolved `deviceId`, cheaper than re-walking `h.devices` the
+  // way the title loop above does (it has no device id to key off yet at that
+  // point). `hass.areas` is undefined on older HA frontends; both reads are
+  // optional-chained so a missing device/area/registry simply resolves to no
+  // area name rather than throwing.
+  const areaId = deviceId ? h.devices?.[deviceId]?.area_id : undefined;
+  const areaName = areaId ? (hass as HassWithAreas).areas?.[areaId]?.name : undefined;
+
   // The always-present group_active_scene sensor is the group-detection marker.
   const isGroup = !!entities.group_active_scene_sensor;
 
@@ -267,6 +292,7 @@ function assembleDiscovered(
     device_id: deviceId,
     is_group: isGroup,
     ...(discovery ? { discovery } : {}),
+    ...(areaName ? { area_name: areaName } : {}),
   };
 }
 

@@ -232,13 +232,25 @@ export function buildMockHass(
 ): MockHassBundle {
   const generated = buildStates(cfg);
   const registry = buildRegistry(cfg.entries);
-  const devices: Record<string, { id: string; name: string; config_entries: string[] }> = {};
+  const devices: Record<
+    string,
+    { id: string; name: string; config_entries: string[]; area_id?: string }
+  > = {};
+  // Mirrors `area_id` per entry into a slugified area registry id, so the
+  // tile card's composite `name` `{ type: 'area' }` part (issue #247) has a
+  // real `hass.devices[…].area_id` -> `hass.areas[…].name` chain to resolve,
+  // same as a real HA install.
+  const areas: Record<string, { area_id: string; name: string }> = {};
+  const areaIdFor = (name: string): string => `area_${name.toLowerCase().replace(/\s+/g, '_')}`;
   for (const e of cfg.entries) {
+    const areaId = e.area ? areaIdFor(e.area) : undefined;
     devices[`device_${e.entry_id}`] = {
       id: `device_${e.entry_id}`,
       name: e.title,
       config_entries: [e.entry_id],
+      ...(areaId ? { area_id: areaId } : {}),
     };
+    if (areaId && e.area) areas[areaId] = { area_id: areaId, name: e.area };
   }
 
   // Cover entity_id -> { entry, cover, index } for mocking recorder position
@@ -431,6 +443,7 @@ export function buildMockHass(
       is_owner: true,
     } as unknown as HomeAssistant['user'],
     devices,
+    areas,
     callService: callService as unknown as HomeAssistant['callService'],
     callWS: callWS as unknown as HomeAssistant['callWS'],
     connection: {

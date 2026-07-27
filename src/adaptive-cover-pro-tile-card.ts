@@ -15,6 +15,7 @@ import {
   COVER_ICON_FALLBACK_UNAVAILABLE,
 } from './const';
 import { createDiscoveryMemo } from './lib/entity-discovery';
+import { resolveTileName } from './lib/name-parts';
 import { makeEntitySuggestion } from './lib/entity-suggestion';
 import { resolveAxes, type ResolvedAxis } from './lib/axes';
 import { setAxes, engageManualOverride, hasEngageManualOverride } from './lib/services';
@@ -381,7 +382,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
   private _renderTile(discovered: DiscoveredEntities): TemplateResult {
     const cfg = this._config!;
-    const title = cfg.name ?? discovered.entry_title;
+    const title = resolveTileName(cfg.name, discovered);
     const cover = this._resolvedCover(discovered);
     // Resolve the icon from the underlying HA cover entity so it matches HA's
     // native tile/more-info glyph: cfg.icon override → explicit entity icon →
