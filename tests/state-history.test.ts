@@ -222,3 +222,29 @@ describe('fetchStateHistory', () => {
     );
   });
 });
+
+describe('valueAt (step-function lookup)', () => {
+  it('returns the last sample AT or BEFORE t, never the next one', async () => {
+    const { valueAt } = await import('../src/components/history-view');
+    const pts = [
+      { t: T0, value: 60 },
+      { t: T2, value: 0 },
+    ];
+    // Just before the 10:00 drop, the value in effect is still 60 — picking the
+    // nearest sample in either direction would read the future and disagree
+    // with the line under the cursor.
+    expect(valueAt(pts, T2 - 60_000)).toBe(60);
+    expect(valueAt(pts, T2)).toBe(0);
+    expect(valueAt(pts, T3)).toBe(0);
+  });
+
+  it('is null before the first sample — nothing is known there', async () => {
+    const { valueAt } = await import('../src/components/history-view');
+    expect(valueAt([{ t: T1, value: 10 }], T0)).toBeNull();
+  });
+
+  it('is null for an empty series', async () => {
+    const { valueAt } = await import('../src/components/history-view');
+    expect(valueAt([], T0)).toBeNull();
+  });
+});

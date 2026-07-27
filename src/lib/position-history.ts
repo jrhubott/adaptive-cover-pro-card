@@ -249,3 +249,107 @@ export async function fetchPerCoverHistory(
   }
   return out;
 }
+
+/** One cover's recorded series for both axes, from a single recorder query. */
+export interface CoverAxisHistory {
+  position: Record<string, PositionHistorySample[]>;
+  tilt: Record<string, PositionHistorySample[]>;
+}
+
+/**
+ * Fetch BOTH axes for the given covers in ONE recorder query.
+ *
+ * The position and tilt series live in the same rows — they are two attributes
+ * of the same cover state — so issuing a query per axis (and a third for the
+ * aggregate) asks the recorder for identical data two or three times. On a
+ * 4-cover venetian entry over 72h that is three full attribute-bearing scans
+ * repeated on every window change and every refresh tick.
+ *
+ * `tiltInverted` is separate from `inverted` on purpose: the integration
+ * carries `inverse_state` and `inverse_tilt` as INDEPENDENT options
+ * (issues #234 / #236), so a mixed install would be flipped wrongly on one axis
+ * if the flags were shared.
+ *
+ * Never rejects — any failure yields empty maps.
+ */
+export async function fetchCoverAxisHistory(
+  hass: HomeAssistant,
+  entityIds: string[],
+  startMs: number,
+  endMs: number,
+  opts: { inverted?: boolean; tiltInverted?: boolean; wantTilt?: boolean } = {},
+): Promise<CoverAxisHistory> {
+  const empty: CoverAxisHistory = { position: {}, tilt: {} };
+  const ids = entityIds.filter((id) => typeof id === 'string' && id.length > 0);
+  if (ids.length === 0) return empty;
+
+  let response: Record<string, HistoryState[]> | undefined;
+  try {
+    response = await hass.callWS<Record<string, HistoryState[]>>({
+      type: 'history/history_during_period',
+      start_time: new Date(startMs).toISOString(),
+      end_time: new Date(endMs).toISOString(),
+      entity_ids: ids,
+      minimal_response: false,
+      no_attributes: false,
+      significant_changes_only: false,
+    });
+  } catch {
+    return empty;
+  }
+  if (!response || typeof response !== 'object') return empty;
+
+  const out: CoverAxisHistory = { position: {}, tilt: {} };
+  for (const id of ids) {
+    const states = response[id];
+    if (!Array.isArray(states)) continue;
+    const pos = seriesFrom(states, POSITION_ATTR, !!opts.inverted, endMs);
+    if (pos) out.position[id] = pos;
+    if (opts.wantTilt) {
+      const tilt = seriesFrom(states, TILT_ATTR, !!opts.tiltInverted, endMs);
+      if (tilt) out.tilt[id] = tilt;
+    }
+  }
+  return out;
+}
+
+/** Parse one axis out of an entity's rows, or null when nothing was recorded. */
+function seriesFrom(
+  states: HistoryState[],
+  attribute: string,
+  inverted: boolean,
+  endMs: number,
+): PositionHistorySample[] | null {
+  const points = parseEntityStates(states, attribute);
+  if (points.length === 0) return null;
+  const series = points
+    .sort((a, b) => a.t - b.t)
+    .map((p) => ({
+      t: new Date(p.t).toISOString(),
+      position: inverted ? 100 - p.position : p.position,
+    }));
+  const last = series[series.length - 1];
+  if (Date.parse(last.t) < endMs) {
+    series.push({ t: new Date(endMs).toISOString(), position: last.position });
+  }
+  return series;
+}
+
+/**
+ * Aggregate per-cover series into the mean series, so the aggregate can be
+ * derived from an already-fetched per-cover result instead of costing a second
+ * identical recorder query. Mirrors {@link mergeCoverHistories}, which works on
+ * the raw pre-ISO points.
+ */
+export function aggregatePerCover(
+  perCover: Record<string, PositionHistorySample[]>,
+): PositionHistorySample[] {
+  const raw: Record<string, RawPoint[]> = {};
+  for (const [id, series] of Object.entries(perCover)) {
+    const points = series
+      .map((s) => ({ t: Date.parse(s.t), position: s.position }))
+      .filter((p) => !Number.isNaN(p.t));
+    if (points.length > 0) raw[id] = points;
+  }
+  return mergeCoverHistories(raw);
+}

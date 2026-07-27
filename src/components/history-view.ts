@@ -19,12 +19,7 @@ import {
   type HandlerName,
 } from '../const';
 import { spanFractionX, percentToY } from '../lib/geometry';
-import {
-  fetchPositionHistory,
-  fetchPerCoverHistory,
-  POSITION_ATTR,
-  TILT_ATTR,
-} from '../lib/position-history';
+import { aggregatePerCover, fetchCoverAxisHistory } from '../lib/position-history';
 import { positionAxisInverted, resolveAxes } from '../lib/axes';
 import { summarize, formatSpan, type HistoryStats } from '../lib/history-stats';
 import { aboveHorizonSegments, sampleDay, startOfDay } from '../lib/sun-model';
@@ -192,8 +187,40 @@ export class HistoryView extends LitElement {
   protected updated(changed: Map<string, unknown>): void {
     if (changed.has('advancedOpen')) this._advanced = this.advancedOpen;
     if (changed.has('_maximized')) this.toggleAttribute('maximized', this._maximized !== null);
+    if (changed.has('active') && !this.active) {
+      // Going inactive ends the session: drop the fetch key so REOPENING
+      // refetches instead of serving a window that stopped moving when the
+      // dialog closed (the minute timer is stopped while closed, so nothing
+      // else would invalidate it), and leave maximized mode so the next open
+      // lands on the normal stacked view.
+      this._fetchKey = null;
+      this._minutesSinceFetch = 0;
+      if (this._maximized !== null) {
+        this._maximized = null;
+        this.dispatchEvent(
+          new CustomEvent('acp-history-expand', {
+            detail: { expanded: false, section: null },
+            bubbles: true,
+            composed: true,
+          }),
+        );
+      }
+    }
     this._syncMinuteTimer();
     this._maybeFetch();
+  }
+
+  /**
+   * This view's content comes from the recorder, the logbook and a service
+   * call — not from `hass.states` — and it owns its own refresh cadence. A
+   * `hass` tick alone therefore changes nothing on screen, while re-rendering
+   * costs every track SVG, a full `summarize()` pass and the day-grouped
+   * activity + event tables. HA replaces `hass` several times a second on a
+   * busy install, so skipping those renders matters. The property is still
+   * assigned, so `this.hass` stays fresh for the next fetch.
+   */
+  protected shouldUpdate(changed: Map<string, unknown>): boolean {
+    return changed.size > 1 || !changed.has('hass');
   }
 
   // ── data ──────────────────────────────────────────────────────────────────
@@ -286,24 +313,18 @@ export class HistoryView extends LitElement {
 
     const wantActivity = this._show('actions');
     const wantPosition = this._show('position') && covers.length > 0;
-    const [actual, perCover, tiltActual, states, logbook, timeline] = await Promise.all([
+    // ONE recorder query for both cover axes — position and tilt are two
+    // attributes of the same rows, so a query per axis asks for identical data
+    // twice, and the aggregate is derived from the per-cover result rather than
+    // fetched a third time.
+    const [axes, states, logbook, timeline] = await Promise.all([
       wantPosition
-        ? fetchPositionHistory(hass, covers, start, now, inverted)
-        : Promise.resolve([] as PositionHistorySample[]),
-      // Only worth the extra query when there is more than one cover to
-      // disambiguate — with a single cover the aggregate IS the per-cover line.
-      wantPosition && covers.length > 1
-        ? fetchPerCoverHistory(hass, covers, start, now, {
-            attribute: POSITION_ATTR,
+        ? fetchCoverAxisHistory(hass, covers, start, now, {
             inverted,
+            tiltInverted,
+            wantTilt: hasTilt,
           })
-        : Promise.resolve({} as Record<string, PositionHistorySample[]>),
-      wantPosition && hasTilt
-        ? fetchPerCoverHistory(hass, covers, start, now, {
-            attribute: TILT_ATTR,
-            inverted: tiltInverted,
-          })
-        : Promise.resolve({} as Record<string, PositionHistorySample[]>),
+        : Promise.resolve({ position: {}, tilt: {} }),
       fetchStateHistory(hass, stateIds, start, now),
       wantActivity
         ? fetchLogbook(hass, logbookIds, start, now)
@@ -320,12 +341,20 @@ export class HistoryView extends LitElement {
     // A newer fetch started while we awaited — drop this response entirely.
     if (this._fetchKey !== key) return;
 
-    this._actual = actual;
-    this._perCover = perCover;
-    this._tiltActual = tiltActual;
+    this._actual = aggregatePerCover(axes.position);
+    // Per-cover lines only earn their ink when there is more than one cover —
+    // with a single cover they would exactly overdraw the aggregate.
+    this._perCover = covers.length > 1 ? axes.position : {};
+    this._tiltActual = axes.tilt;
+    // NOT inverted: the `Cover_Tilt` sensor publishes `pipeline_result.tilt`,
+    // which is already in the pre-inversion canonical frame — `inverse_tilt` is
+    // applied downstream at dispatch, never to the sensor. Flipping here would
+    // draw target and actual as exact mirror images and read as a permanent
+    // tracking failure on every `inverse_tilt` install. (`cover-bar.ts`'s
+    // `_axisTarget` reads it raw for the same reason.)
     this._tiltTarget =
       hasTilt && ent.target_tilt_sensor
-        ? toNumericSeries(states[ent.target_tilt_sensor] ?? [], { inverted: tiltInverted })
+        ? toNumericSeries(states[ent.target_tilt_sensor] ?? [])
         : [];
     this._target = ent.target_position_sensor
       ? toNumericSeries(states[ent.target_position_sensor] ?? [], {
@@ -355,7 +384,13 @@ export class HistoryView extends LitElement {
     this._stateBands = stateBands;
 
     if (timeline) this._timeline = timeline;
-    this._activity = wantActivity ? buildActivity(hass, logbook, timeline?.events ?? []) : [];
+    this._activity = wantActivity
+      ? buildActivity(hass, logbook, timeline?.events ?? [], {
+          startMs: start,
+          endMs: now,
+          inverted,
+        })
+      : [];
 
     this._loading = false;
     this._loaded = true;
@@ -607,10 +642,10 @@ export class HistoryView extends LitElement {
     }
     const parts: string[] = [formatStamp(hoverT)];
 
-    const target = nearestValue(this._target, hoverT);
+    const target = valueAt(this._target, hoverT);
     if (target !== null)
       parts.push(`${t('history.legend_target', this.hass)} ${Math.round(target)}%`);
-    const actual = nearestValue(
+    const actual = valueAt(
       this._actual.map((s) => ({ t: Date.parse(s.t), value: s.position })),
       hoverT,
     );
@@ -1956,18 +1991,22 @@ export function bandAt(bands: HistoryBand[], t: number): HistoryBand | null {
   return null;
 }
 
-/** Value of the sample nearest `t`, or null when the series is empty. */
-export function nearestValue(
-  points: Array<{ t: number; value: number }>,
-  t: number,
-): number | null {
+/**
+ * Value in effect at `t` — the last sample at or BEFORE it.
+ *
+ * These are step functions: the recorder stores transitions, and a value holds
+ * until the next one. Picking the nearest sample in either direction reads the
+ * FUTURE whenever the cursor sits just before a change — hovering at 17:55 on a
+ * target that drops to 0 at 18:00 would report 0%, disagreeing with the very
+ * line under the cursor. Null before the first sample, where nothing is known.
+ */
+export function valueAt(points: Array<{ t: number; value: number }>, t: number): number | null {
   let best: number | null = null;
-  let bestDist = Number.POSITIVE_INFINITY;
+  let bestT = Number.NEGATIVE_INFINITY;
   for (const p of points) {
     if (Number.isNaN(p.t)) continue;
-    const d = Math.abs(p.t - t);
-    if (d < bestDist) {
-      bestDist = d;
+    if (p.t <= t && p.t >= bestT) {
+      bestT = p.t;
       best = p.value;
     }
   }

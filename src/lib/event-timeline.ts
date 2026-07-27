@@ -101,8 +101,13 @@ export function parseTimelineResponse(response: unknown, entryId: string): Event
   const entry = entries[entryId];
   if (!entry || typeof entry !== 'object') return empty;
   const diag = entry.diagnostics;
-  // A resolved-but-errored entry carries `{ error }` in place of the payload.
   if (!diag || typeof diag !== 'object') return empty;
+  // A resolved-but-errored entry carries `{ error }` in place of the payload
+  // (`services/diagnostics_service.py` builds exactly that when
+  // `read_from_coordinator` fails). It is an object, so it would otherwise parse
+  // to an empty-but-`available` timeline and render "0 of 0 events" instead of
+  // the could-not-read notice.
+  if ('error' in (diag as Record<string, unknown>)) return empty;
 
   const rawEvents = Array.isArray(diag.event_timeline) ? diag.event_timeline : [];
   const events: AcpEvent[] = [];

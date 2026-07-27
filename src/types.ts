@@ -274,7 +274,9 @@ export interface HistoryBand {
 export interface LogbookEntry {
   t: number;
   entityId: string | null;
-  /** Friendly name HA resolved for the entity. */
+  /** The raw entity_id. `logbook/get_events` is built with
+   *  `include_entity_name=False`, so the wire never carries a friendly name —
+   *  `activity.ts` resolves one from `hass.states`. */
   name: string;
   /** New state, for state-change rows. Null on component-described events. */
   state: string | null;

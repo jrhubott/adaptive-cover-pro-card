@@ -41,6 +41,17 @@ const COMMAND_EVENTS: Record<string, { skipped: boolean }> = {
 const POSITION_FIELDS = ['position', 'target_position', 'to'] as const;
 
 /**
+ * The buffer records the DISPATCHED position, which is cover-frame on an
+ * `inverse_state` entry (`coordinator.py` applies `inverse_state` before
+ * recording, and `end_time_default_sent` records `inverse_state(effective_pos)`
+ * explicitly). Every other percentage the card shows is logical, so an
+ * unflipped command row would contradict the position track directly above it.
+ */
+function toLogical(value: number, inverted: boolean): number {
+  return inverted ? 100 - value : value;
+}
+
+/**
  * Render an ACP command event's parameters for display, e.g. `position 45%` or
  * `position 45% · delta 2 · threshold 5`. Returns null when the event carried
  * nothing worth showing.
@@ -49,14 +60,17 @@ const POSITION_FIELDS = ['position', 'target_position', 'to'] as const;
  * insertion order. Object/array fields and bookkeeping keys are dropped — the
  * Advanced section is where the raw payload lives.
  */
-export function formatCommandDetail(fields: Record<string, unknown>): string | null {
+export function formatCommandDetail(
+  fields: Record<string, unknown>,
+  inverted = false,
+): string | null {
   const parts: string[] = [];
   const used = new Set<string>(['entity_id', 'service', 'entity_ids']);
 
   for (const key of POSITION_FIELDS) {
     const v = fields[key];
     if (typeof v === 'number' && Number.isFinite(v)) {
-      parts.push(`${key === 'position' ? 'position' : key} ${Math.round(v)}%`);
+      parts.push(`${key} ${Math.round(toLogical(v, inverted))}%`);
       used.add(key);
       break;
     }
@@ -73,7 +87,7 @@ export function formatCommandDetail(fields: Record<string, unknown>): string | n
 }
 
 /** Map one buffer event to an Activity row, or null when it isn't a command. */
-export function commandRow(e: AcpEvent): ActivityRow | null {
+export function commandRow(e: AcpEvent, inverted = false): ActivityRow | null {
   const spec = COMMAND_EVENTS[e.event];
   if (!spec) return null;
   const service = typeof e.fields.service === 'string' ? e.fields.service : null;
@@ -84,20 +98,35 @@ export function commandRow(e: AcpEvent): ActivityRow | null {
     title: service ?? e.event,
     name: null,
     entityId: entityId && entityId.length > 0 ? entityId : null,
-    detail: formatCommandDetail(e.fields),
+    detail: formatCommandDetail(e.fields, inverted),
     service,
     triggeredBy: null,
     skipped: spec.skipped,
   };
 }
 
-/** Map one logbook entry to an Activity row. */
-export function logbookRow(e: LogbookEntry, users: Map<string, string>): ActivityRow {
+/**
+ * Map one logbook entry to an Activity row.
+ *
+ * `logbook/get_events` is built with `include_entity_name=False`, so the wire
+ * never carries a friendly name and `LogbookEntry.name` is always the raw
+ * entity_id. Resolve it from `hass.states` — the same thing HA's own frontend
+ * does — so a row reads "Living Room Blind" rather than
+ * `cover.living_room_blind_left`.
+ */
+export function logbookRow(
+  e: LogbookEntry,
+  users: Map<string, string>,
+  hass: HomeAssistant,
+): ActivityRow {
+  const friendly = e.entityId
+    ? (hass.states?.[e.entityId]?.attributes?.friendly_name as string | undefined)
+    : undefined;
   return {
     t: e.t,
     source: 'logbook',
     title: e.state ?? e.message ?? '',
-    name: e.name || null,
+    name: friendly || e.name || null,
     entityId: e.entityId,
     detail: null,
     service: null,
@@ -119,17 +148,39 @@ export function logbookRow(e: LogbookEntry, users: Map<string, string>): Activit
  */
 const DEDUPE_MS = 5000;
 
+export interface BuildActivityOptions {
+  /** Window the feed covers. The event buffer is a ring buffer with NO time
+   *  bound — it happily holds events from days before the selected window — so
+   *  the commands must be clipped here or the window picker would govern only
+   *  half the feed. */
+  startMs: number;
+  endMs: number;
+  /** True on an `inverse_state` entry; flips recorded command positions into
+   *  the logical frame. */
+  inverted: boolean;
+}
+
 export function buildActivity(
   hass: HomeAssistant,
   logbook: LogbookEntry[],
   events: AcpEvent[],
+  opts: BuildActivityOptions,
 ): ActivityRow[] {
-  const commands = events.map(commandRow).filter((r): r is ActivityRow => r !== null);
+  const commands = events
+    .filter((e) => e.t >= opts.startMs && e.t <= opts.endMs)
+    .map((e) => commandRow(e, opts.inverted))
+    .filter((r): r is ActivityRow => r !== null);
 
+  // Scan candidates OLDEST-first: the acknowledgement of a command is the first
+  // state change after it, not the last. `parseLogbookResponse` sorts newest
+  // first, so scanning in place would suppress the settled state (`open`) and
+  // leave the transient one (`opening`) — the exact double-listing this exists
+  // to prevent.
+  const ascending = [...logbook].sort((a, b) => a.t - b.t);
   const suppressed = new Set<LogbookEntry>();
   for (const cmd of commands) {
     if (!cmd.entityId) continue;
-    for (const lb of logbook) {
+    for (const lb of ascending) {
       if (suppressed.has(lb)) continue;
       if (lb.entityId !== cmd.entityId) continue;
       // Only a change AT or AFTER the command can be its acknowledgement.
@@ -145,7 +196,7 @@ export function buildActivity(
   const users = buildUserNameMap(hass);
   const rows = [
     ...commands,
-    ...logbook.filter((e) => !suppressed.has(e)).map((e) => logbookRow(e, users)),
+    ...logbook.filter((e) => !suppressed.has(e)).map((e) => logbookRow(e, users, hass)),
   ];
   rows.sort((a, b) => b.t - a.t);
   return rows;

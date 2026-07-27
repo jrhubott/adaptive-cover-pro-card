@@ -48,7 +48,13 @@ function str(v: unknown): string | null {
 }
 
 /** Parse one raw row, or null when it carries no usable timestamp.
- *  `when` is epoch **seconds** (a float) on the wire; we normalize to ms. */
+ *  `when` is epoch **seconds** (a float) on the wire; we normalize to ms.
+ *
+ *  `name` is left as the raw entity_id here on purpose: `logbook/get_events`
+ *  builds its processor with `include_entity_name=False`
+ *  (`logbook/websocket_api.py`), so the wire NEVER carries a friendly name.
+ *  Resolving it needs `hass.states`, which this pure parser does not take — see
+ *  `activity.ts`, which does the lookup HA's own frontend does. */
 export function parseLogbookRow(raw: unknown): LogbookEntry | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const row = raw as RawLogbookRow;
