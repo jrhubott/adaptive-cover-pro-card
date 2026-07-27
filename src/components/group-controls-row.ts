@@ -12,8 +12,36 @@ import {
   toggleLock,
   type GroupSnapshot,
 } from '../lib/group-controls';
+import type { MemberAutomationStatus } from '../lib/member-automation';
 import { t } from '../lib/i18n';
 import { tooltip } from '../lib/tooltip';
+
+/** Glyph per automation status. The shape changes with the color so the state
+ *  survives a colorblind reading and a 20px icon. */
+const AUTOMATION_ICONS: Record<Exclude<MemberAutomationStatus, 'unknown'>, string> = {
+  all: 'mdi:robot',
+  some: 'mdi:robot-outline',
+  none: 'mdi:robot-off',
+};
+
+/** Everything the Automation button renders and writes, derived once.
+ *
+ *  `on` is deliberately one value driving three things — the pill's pressed
+ *  look, `aria-pressed`, and what a press sends — so they cannot disagree. */
+interface AutomationView {
+  /** Status modifier class, or `active`/`''` on the unresolved fallback. */
+  cls: string;
+  icon: string;
+  ariaPressed: 'true' | 'false' | 'mixed';
+  /** The full accessible name and tooltip: the control's purpose first, then the
+   *  state. `aria-description` cannot carry the state instead — the tooltip
+   *  directive always sets `aria-describedby`, which takes precedence over it,
+   *  and that IDREF points at a bubble in `document.body` that no IDREF reaches
+   *  across a shadow boundary. So the state goes in the name or nowhere. */
+  label: string;
+  /** Treated-as-on; `toggleAutomation` sends the inverse. */
+  on: boolean;
+}
 
 /**
  * The group-only control row — scene `<select>`, lock, member automation, and
@@ -77,18 +105,7 @@ export class GroupControlsRow extends LitElement {
             >
               <ha-icon icon=${s.locked ? 'mdi:lock' : 'mdi:lock-open-variant'}></ha-icon>
             </button>`}
-        ${!automation
-          ? nothing
-          : html`<button
-              class="ctrl automation-toggle ${s.automationOn ? 'active' : ''}"
-              type="button"
-              aria-pressed=${s.automationOn ? 'true' : 'false'}
-              aria-label=${t('group.automation', this.hass)}
-              ${tooltip(t('group.automation', this.hass))}
-              @click=${() => toggleAutomation(this.hass, this.discovered, s.automationOn)}
-            >
-              <ha-icon icon=${s.automationOn ? 'mdi:robot' : 'mdi:robot-off'}></ha-icon>
-            </button>`}
+        ${!automation ? nothing : this._automationButton(this._automationView(s))}
         ${clearId
           ? html`<button
               class="ctrl clear-overrides"
@@ -105,6 +122,57 @@ export class GroupControlsRow extends LitElement {
           : nothing}
       </div>
     `;
+  }
+
+  /**
+   * Resolve the Automation button from the members' live state, falling back to
+   * the group's own latch when nothing resolves.
+   *
+   * The latch (`s.automationOn`) records the last bulk command and defaults to
+   * on, so it says "everything automated" after a restart and stays put when a
+   * member is toggled at its own tile. `s.memberAutomation` is the real answer;
+   * `unknown` means the registry cache is still cold or the roster is all
+   * generic covers, and then this reproduces the pre-rollup button exactly.
+   */
+  private _automationView(s: GroupSnapshot): AutomationView {
+    const name = t('group.automation', this.hass);
+    const status = s.memberAutomation.status;
+    if (status === 'unknown') {
+      return {
+        cls: s.automationOn ? 'active' : '',
+        icon: s.automationOn ? AUTOMATION_ICONS.all : AUTOMATION_ICONS.none,
+        ariaPressed: s.automationOn ? 'true' : 'false',
+        label: name,
+        on: s.automationOn,
+      };
+    }
+    const on = status === 'all';
+    const count = t('group.automation_count', this.hass, {
+      count: s.memberAutomation.on,
+      total: s.memberAutomation.total,
+    });
+    return {
+      cls: `auto-${status}`,
+      icon: AUTOMATION_ICONS[status],
+      // A partly-automated roster is genuinely tri-state, and ARIA has a value
+      // for exactly that.
+      ariaPressed: status === 'some' ? 'mixed' : on ? 'true' : 'false',
+      label: `${name} — ${count}`,
+      on,
+    };
+  }
+
+  private _automationButton(v: AutomationView): TemplateResult {
+    return html`<button
+      class="ctrl automation-toggle ${v.cls}"
+      type="button"
+      aria-pressed=${v.ariaPressed}
+      aria-label=${v.label}
+      ${tooltip(v.label)}
+      @click=${() => toggleAutomation(this.hass, this.discovered, v.on)}
+    >
+      <ha-icon icon=${v.icon}></ha-icon>
+    </button>`;
   }
 
   private _onSceneChange(e: Event): void {
@@ -160,6 +228,39 @@ export class GroupControlsRow extends LitElement {
     .ctrl.active {
       background: rgba(63, 81, 181, 0.2);
       color: #283593;
+    }
+    /* Automation status (3 colors), speaking the same language as the badges
+       sitting inches away on the same tile: green = the pipeline owns this (the
+       auto / group badge), amber = a human has partly taken over (the manual
+       badge), grey = deliberately off, not a fault. Red is left alone: it already
+       means force / weather / glare in this card.
+
+       The glyph color is mixed toward --primary-text-color rather than used raw.
+       HA's --success-color / --warning-color defaults (#4caf50, #ffa600) sit
+       around 1.7-2.3:1 over these tints — under the 3:1 WCAG 1.4.11 floor for
+       meaningful non-text content, since glyph and backdrop share a hue. Because
+       that token is near-black in a light theme and near-white in a dark one,
+       one rule darkens the glyph on a light pill and lightens it on a dark one:
+       ~4.6:1 and ~3.5:1 over the light tints, higher on dark, and it cannot
+       invert on a theme we have not seen.
+
+       The tints stay. They are what makes an engaged control look engaged — the
+       same job .active does on lock — and dropping them left the all-automated
+       state with no pressed affordance plus a visible un-highlight on every
+       load, since the button paints the tinted unresolved fallback until the
+       registry cache warms. */
+    .ctrl.auto-all {
+      background: rgba(76, 175, 80, 0.18);
+      color: color-mix(in srgb, var(--success-color, #4caf50) 60%, var(--primary-text-color));
+    }
+    .ctrl.auto-some {
+      background: rgba(255, 152, 0, 0.22);
+      color: color-mix(in srgb, var(--warning-color, #ffa600) 60%, var(--primary-text-color));
+    }
+    /* Off is the resting state, so it takes the resting look — and the untinted
+       fallback for a latch that reads off, so that path never flashes either. */
+    .ctrl.auto-none {
+      color: var(--secondary-text-color);
     }
     .ctrl:disabled {
       opacity: 0.4;

@@ -178,20 +178,31 @@ describe('locale-table parity', () => {
         )
       : [[prefix, o]];
 
-  it('every DE value is a non-empty string', () => {
-    for (const [key, value] of leaves(de)) {
+  // Both translations, not just DE: a placeholder typo'd in one locale renders
+  // a literal `{total}` to that locale's users, and key-path parity above does
+  // not catch it — the key is present, only its body is wrong.
+  const TRANSLATIONS: Array<[string, unknown]> = [
+    ['FR', fr],
+    ['DE', de],
+  ];
+
+  it.each(TRANSLATIONS)('every %s value is a non-empty string', (_locale, table) => {
+    for (const [key, value] of leaves(table)) {
       expect(typeof value, key).toBe('string');
       expect((value as string).length, key).toBeGreaterThan(0);
     }
   });
 
-  it('DE placeholder tokens match EN for every interpolated key', () => {
-    const tokens = (s: string): string[] => (s.match(/\{(\w+)\}/g) ?? []).sort();
-    const enLeaves = Object.fromEntries(leaves(en) as Array<[string, string]>);
-    for (const [key, value] of leaves(de) as Array<[string, string]>) {
-      expect(tokens(value), key).toEqual(tokens(enLeaves[key]));
-    }
-  });
+  it.each(TRANSLATIONS)(
+    '%s placeholder tokens match EN for every interpolated key',
+    (_locale, table) => {
+      const tokens = (s: string): string[] => (s.match(/\{(\w+)\}/g) ?? []).sort();
+      const enLeaves = Object.fromEntries(leaves(en) as Array<[string, string]>);
+      for (const [key, value] of leaves(table) as Array<[string, string]>) {
+        expect(tokens(value), key).toEqual(tokens(enLeaves[key]));
+      }
+    },
+  );
 });
 
 describe('cover position i18n (issue #132)', () => {
