@@ -45,12 +45,11 @@ export const en = {
     lock: 'Lock group',
     unlock: 'Unlock group',
     automation: 'Automation',
-    // No count in the all/none forms: `total` is often 1 (a single multi-cover
-    // member entry), and "all 1 members" reads as a bug. `_some` is safe — it
-    // cannot occur below 2.
-    automation_all: 'Automation on for all members',
-    automation_some: 'Automation on for {count} of {total} members',
-    automation_none: 'Automation off for all members',
+    // One form for all three states, and it always names the denominator.
+    // `total` counts only the covers that can report — generic members and
+    // members whose Automatic Control entity is disabled drop out — so an
+    // "all members" phrasing would claim the whole group from a sample of one.
+    automation_count: '{count} of {total} members automating',
     clear_overrides: 'Clear overrides',
     clear_overrides_none: 'No member overrides to clear',
     who_won:

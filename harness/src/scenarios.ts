@@ -1437,7 +1437,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'group-automation-all',
     label: 'Cover Group — Automation green (all members on)',
     description:
-      "The Automation button's first color. Both ACP members have Automatic Control on, so the button is green with the solid mdi:robot glyph and its tooltip reads “Automation on for all members”. Green is the same signal the Auto and Group badges use — the pipeline owns every cover here, hands off. The generic third member has no pipeline, so it sits in the who-won badge's 2/3 denominator but not in the automation count. Untick Automatic control for either member in the entry panel to walk the button through amber and grey; the group's own automation switch stays ON the whole time, which is exactly why the button can no longer be driven from it.",
+      "The Automation button's first color. Both ACP members have Automatic Control on, so the button is green with the solid mdi:robot glyph and reads “Automation — 2 of 2 members automating”. Green is the same signal the Auto and Group badges use — the pipeline owns every cover here, hands off. The denominator is 2, not 3: the generic member has no pipeline to report on, which is why the label always names it rather than claiming “all members”. (The who-won badge reads 0/3 here for a different reason — solar wins on both ACP members, so the group is driving none of them.) Untick Automatic control for either member in the entry panel to walk the button through amber and grey; the group's own automation switch stays ON the whole time, which is exactly why the button can no longer be driven from it.",
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'group-automation-all';
@@ -1454,7 +1454,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'group-automation-mixed',
     label: 'Cover Group — Automation amber (members disagree)',
     description:
-      'The case the old two-color button lied about. Side Yard Shade has Automatic Control OFF while Backyard Shade has it on, so the button is amber with the outlined mdi:robot-outline glyph and its tooltip reads “Automation on for 1 of 2 members” — amber being the same color the Manual badge uses, because a human has partly taken over. aria-pressed is "mixed", ARIA\'s real tri-state value, while the accessible name stays plain "Automation" so a screen reader still says what the button does. The group automation switch still says ON: before this, that latch painted the button fully automated and a press sent turn_OFF, moving the group further from what the icon claimed. Now a press sends turn_ON and brings the stragglers up.',
+      'The case the old two-color button lied about. Side Yard Shade has Automatic Control OFF while Backyard Shade has it on, so the button is amber with the outlined mdi:robot-outline glyph and reads “Automation — 1 of 2 members automating” — amber being the same color the Manual badge uses, because a human has partly taken over. aria-pressed is "mixed", ARIA\'s real tri-state value, and the accessible name leads with the purpose before the state so a screen reader still says what the button does. The group automation switch still says ON: before this, that latch painted the button fully automated and a press sent turn_OFF, moving the group further from what the icon claimed. Now a press sends turn_ON and brings the stragglers up.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'group-automation-mixed';
@@ -1471,7 +1471,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'group-automation-none',
     label: 'Cover Group — Automation grey (no member on)',
     description:
-      'Both ACP members have Automatic Control off, so the button is grey with the mdi:robot-off glyph and a tooltip reading “Automation off for all members”. Grey rather than red on purpose: automation off is a state the user chose, not a fault, and red already means force / weather / glare everywhere else in this card. The group automation switch is STILL on — this scenario is the pure form of the bug, since the pre-rollup button showed indigo “automated” with every member idle.',
+      'Both ACP members have Automatic Control off, so the button is grey and untinted with the mdi:robot-off glyph, reading “Automation — 0 of 2 members automating”. Grey rather than red on purpose: automation off is a state the user chose, not a fault, and red already means force / weather / glare everywhere else in this card. The group automation switch is STILL on — this scenario is the pure form of the bug, since the pre-rollup button showed indigo “automated” with every member idle.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'group-automation-none';

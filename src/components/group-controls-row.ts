@@ -33,11 +33,12 @@ interface AutomationView {
   cls: string;
   icon: string;
   ariaPressed: 'true' | 'false' | 'mixed';
-  /** The state sentence — tooltip and `aria-description`. The accessible *name*
-   *  stays the control's purpose: folding the state into `aria-label` made a
-   *  screen reader announce it twice (name + `aria-pressed`) and never say what
-   *  the button is for. */
-  state: string;
+  /** The full accessible name and tooltip: the control's purpose first, then the
+   *  state. `aria-description` cannot carry the state instead — the tooltip
+   *  directive always sets `aria-describedby`, which takes precedence over it,
+   *  and that IDREF points at a bubble in `document.body` that no IDREF reaches
+   *  across a shadow boundary. So the state goes in the name or nowhere. */
+  label: string;
   /** Treated-as-on; `toggleAutomation` sends the inverse. */
   on: boolean;
 }
@@ -134,27 +135,29 @@ export class GroupControlsRow extends LitElement {
    * generic covers, and then this reproduces the pre-rollup button exactly.
    */
   private _automationView(s: GroupSnapshot): AutomationView {
+    const name = t('group.automation', this.hass);
     const status = s.memberAutomation.status;
     if (status === 'unknown') {
       return {
         cls: s.automationOn ? 'active' : '',
         icon: s.automationOn ? AUTOMATION_ICONS.all : AUTOMATION_ICONS.none,
         ariaPressed: s.automationOn ? 'true' : 'false',
-        state: t('group.automation', this.hass),
+        label: name,
         on: s.automationOn,
       };
     }
     const on = status === 'all';
+    const count = t('group.automation_count', this.hass, {
+      count: s.memberAutomation.on,
+      total: s.memberAutomation.total,
+    });
     return {
       cls: `auto-${status}`,
       icon: AUTOMATION_ICONS[status],
       // A partly-automated roster is genuinely tri-state, and ARIA has a value
       // for exactly that.
       ariaPressed: status === 'some' ? 'mixed' : on ? 'true' : 'false',
-      state: t(`group.automation_${status}`, this.hass, {
-        count: s.memberAutomation.on,
-        total: s.memberAutomation.total,
-      }),
+      label: `${name} — ${count}`,
       on,
     };
   }
@@ -164,9 +167,8 @@ export class GroupControlsRow extends LitElement {
       class="ctrl automation-toggle ${v.cls}"
       type="button"
       aria-pressed=${v.ariaPressed}
-      aria-label=${t('group.automation', this.hass)}
-      aria-description=${v.state}
-      ${tooltip(v.state)}
+      aria-label=${v.label}
+      ${tooltip(v.label)}
       @click=${() => toggleAutomation(this.hass, this.discovered, v.on)}
     >
       <ha-icon icon=${v.icon}></ha-icon>
@@ -233,24 +235,30 @@ export class GroupControlsRow extends LitElement {
        badge), grey = deliberately off, not a fault. Red is left alone: it already
        means force / weather / glare in this card.
 
-       The glyph carries the color; the pill keeps the neutral background every
-       other control has. A matching tint under it read as low as 1.65:1 — below
-       the 3:1 WCAG 1.4.11 floor for meaningful non-text content — because the
-       glyph and its backdrop were the same hue.
+       The glyph color is mixed toward --primary-text-color rather than used raw.
+       HA's --success-color / --warning-color defaults (#4caf50, #ffa600) sit
+       around 1.7-2.3:1 over these tints — under the 3:1 WCAG 1.4.11 floor for
+       meaningful non-text content, since glyph and backdrop share a hue. Because
+       that token is near-black in a light theme and near-white in a dark one,
+       one rule darkens the glyph on a light pill and lightens it on a dark one:
+       ~4.6:1 and ~3.5:1 over the light tints, higher on dark, and it cannot
+       invert on a theme we have not seen.
 
-       Mixed toward --primary-text-color rather than used raw for the same
-       reason: HA's --success-color / --warning-color defaults (#4caf50, #ffa600)
-       sit around 2.3:1 on a light pill. Because that token is near-black in a
-       light theme and near-white in a dark one, one rule darkens the glyph on a
-       light pill and lightens it on a dark one — ~4.5:1 and ~3.4:1 against the
-       light default, and it cannot invert on a theme we have not seen. */
+       The tints stay. They are what makes an engaged control look engaged — the
+       same job .active does on lock — and dropping them left the all-automated
+       state with no pressed affordance plus a visible un-highlight on every
+       load, since the button paints the tinted unresolved fallback until the
+       registry cache warms. */
     .ctrl.auto-all {
+      background: rgba(76, 175, 80, 0.18);
       color: color-mix(in srgb, var(--success-color, #4caf50) 60%, var(--primary-text-color));
     }
     .ctrl.auto-some {
+      background: rgba(255, 152, 0, 0.22);
       color: color-mix(in srgb, var(--warning-color, #ffa600) 60%, var(--primary-text-color));
     }
-    /* Off is the resting state, so it takes the resting color. */
+    /* Off is the resting state, so it takes the resting look — and the untinted
+       fallback for a latch that reads off, so that path never flashes either. */
     .ctrl.auto-none {
       color: var(--secondary-text-color);
     }

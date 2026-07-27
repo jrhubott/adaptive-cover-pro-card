@@ -305,15 +305,34 @@ describe('acp-group-tile — Automation status color', () => {
     expect(btn.classList.contains('active')).toBe(false);
   });
 
-  // The tooltip carries the state; the accessible NAME stays the control's
-  // purpose. Folding the state into aria-label made a screen reader announce it
-  // twice (name + aria-pressed) and never say what the button does.
-  it('puts the count in the tooltip and keeps the plain name in aria-label', async () => {
+  // The name leads with the control's purpose, then carries the state.
+  // `aria-description` cannot do that job here: the tooltip directive always
+  // sets `aria-describedby`, which takes precedence over it — and that IDREF
+  // points at a bubble in document.body, which no IDREF crosses a shadow
+  // boundary to reach. So the state has to live in the name or reach nobody.
+  it('leads the accessible name with the purpose and then the state', async () => {
     const btn = await automationButton({ a: true, b: false });
-    const tip = btn.getAttribute('data-tooltip') ?? '';
-    expect(tip).toContain('1');
-    expect(tip).toContain('2');
-    expect(btn.getAttribute('aria-label')).toBe('Automation');
+    const label = btn.getAttribute('aria-label') ?? '';
+    expect(label.startsWith('Automation')).toBe(true);
+    expect(label).toContain('1');
+    expect(label).toContain('2');
+    expect(btn.getAttribute('aria-description')).toBeNull();
+    expect(btn.getAttribute('data-tooltip') ?? '').toContain('1');
+  });
+
+  // Every state names its denominator. `total` counts only the covers that could
+  // report — generic members and members whose Automatic Control entity is
+  // disabled drop out — so "on for all members" would claim the whole group
+  // from a sample of one.
+  it('names the denominator even when every member is automated', async () => {
+    const btn = await automationButton({ a: true, b: true });
+    const label = btn.getAttribute('aria-label') ?? '';
+    expect(label).toContain('2 of 2');
+  });
+
+  it('names the denominator when no member is automated', async () => {
+    const btn = await automationButton({ a: false, b: false });
+    expect(btn.getAttribute('aria-label') ?? '').toContain('0 of 2');
   });
 
   // Finding from the audit: `member_positions` can list a cover that an ACP
