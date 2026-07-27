@@ -81,7 +81,7 @@ function resolvePart(part: AcpNamePart, discovered: DiscoveredEntities): string 
  * slips past this check, but this is the up-front check that gives the user
  * an actual message for the typo case.
  */
-export function isValidAcpName(name: unknown): name is string | AcpNamePart[] | undefined {
+export function isValidAcpName(name: unknown): boolean {
   if (name == null || typeof name === 'string') return true;
   if (Array.isArray(name)) return name.every(isValidAcpNamePart);
   // A bare object — the missing `- ` YAML-list typo — is the one shape this
