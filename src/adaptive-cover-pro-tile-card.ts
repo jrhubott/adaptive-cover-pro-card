@@ -96,6 +96,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // commonly the missing `- ` YAML-list typo (`name: {type: area}` instead
     // of `name: [{type: area}]`) — rather than letting it reach
     // `resolveTileName()` and silently blank the tile at render time.
+    // `isValidAcpName` accepts `null`/`undefined` and any other scalar
+    // (audit finding #1) so a templated dashboard's empty `name:` (which
+    // parses to `null`) or a literal like `name: 2` still renders instead of
+    // hard-erroring the tile — see the block comment on `isValidAcpName`.
     if (!isValidAcpName(config.name)) {
       throw new Error(
         `${TILE_CARD_NAME}: \`name\` must be a string or an array of ` +

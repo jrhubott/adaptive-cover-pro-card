@@ -387,15 +387,6 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
 
   private _schema(): HaFormSchemaItem[] {
     const entryOptions = this._entries?.map((e) => ({ value: e.entry_id, label: e.title })) ?? [];
-    // A composed (array) name has no ha-form selector of its own (issue
-    // #247) — the field stays enabled (see `name_composed_hint`) but its
-    // *data* is blanked in `render()` rather than binding the raw array,
-    // which would stringify to "[object Object]". Typing into it is a
-    // deliberate escape hatch back to a plain string (`_valueChanged`).
-    const nameField: HaFormSchemaItem = {
-      name: 'name',
-      selector: { text: {} },
-    };
 
     const layoutOptions = [
       { value: 'one-line', label: t('editor.tile.layout_option_one_line', this.hass) },
@@ -439,7 +430,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
           required: true,
           selector: { select: { options: entryOptions, mode: 'dropdown' } },
         },
-        nameField,
+        { name: 'name', selector: { text: {} } },
         { name: 'icon', selector: { icon: {} } },
         { name: 'show_controls', selector: { boolean: {} } },
         { name: 'show_position_bar', selector: { boolean: {} } },
@@ -470,7 +461,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
         required: true,
         selector: { select: { options: entryOptions, mode: 'dropdown' } },
       },
-      nameField,
+      { name: 'name', selector: { text: {} } },
       { name: 'icon', selector: { icon: {} } },
       // The cover picker only appears when the entry manages MORE THAN ONE
       // cover. With a single cover it can only ever select the entity

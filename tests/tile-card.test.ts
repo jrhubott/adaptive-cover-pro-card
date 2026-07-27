@@ -247,6 +247,45 @@ describe('adaptive-cover-pro-tile-card setConfig', () => {
     ).toThrow(/name/);
   });
 
+  // Audit finding #1 (issue #247 fix pass): a YAML `name:` with no value
+  // parses to `null` — the templated-dashboard empty-variable case that issue
+  // #247 was filed for. Pre-#247 `cfg.name ?? entry_title` rendered this fine;
+  // `setConfig` must not hard-error it.
+  it('does not throw when name is null', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: null as unknown as AdaptiveCoverProTileCardConfig['name'],
+      }),
+    ).not.toThrow();
+  });
+
+  // `0` and `false` are literal values pre-#247 (`0 ?? x` is `0`), not shape
+  // errors — must not throw.
+  it('does not throw when name is 0', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: 0 as unknown as AdaptiveCoverProTileCardConfig['name'],
+      }),
+    ).not.toThrow();
+  });
+
+  it('does not throw when name is false', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: false as unknown as AdaptiveCoverProTileCardConfig['name'],
+      }),
+    ).not.toThrow();
+  });
+
   it('accepts a plain string name unchanged', () => {
     const el = makeCard();
     expect(() => el.setConfig({ type: TYPE, entry_id: ENTRY, name: 'Patio Right' })).not.toThrow();
@@ -3212,5 +3251,60 @@ describe('adaptive-cover-pro-tile-card — composite name (#247)', () => {
     );
     const title = el.shadowRoot!.querySelector('.title');
     expect(title!.textContent?.trim()).toBe('Centre Gauche');
+  });
+
+  // Audit finding #1 (issue #247 fix pass): a YAML `name:` with no value
+  // parses to `null` — must render the entry title, not hard-error the tile.
+  it('renders the entry title when name is null (templated-dashboard empty variable)', async () => {
+    const el = await mountWithAreaRegistry(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        name: null as unknown as AdaptiveCoverProTileCardConfig['name'],
+      },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Blind');
+  });
+
+  // The subtle case: `0` and `false` are falsy but valid literal values
+  // pre-#247 (`0 ?? x` is `0`) — must render the literal, not fall back.
+  it('renders "0" verbatim when name is 0, not the entry title', async () => {
+    const el = await mountWithAreaRegistry(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        name: 0 as unknown as AdaptiveCoverProTileCardConfig['name'],
+      },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('0');
+  });
+
+  it('renders "false" verbatim when name is false, not the entry title', async () => {
+    const el = await mountWithAreaRegistry(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        name: false as unknown as AdaptiveCoverProTileCardConfig['name'],
+      },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('false');
+  });
+
+  it('falls back to the entry title when name is an empty array', async () => {
+    const el = await mountWithAreaRegistry(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', name: [] },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Blind');
   });
 });

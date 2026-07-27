@@ -77,8 +77,9 @@ type: custom:adaptive-cover-pro-tile-card
 entry_id: YOUR_CONFIG_ENTRY_ID
 # optional:
 # name: Patio Right
-# name: [{type: entry}]                      # same as omitting name
-# name: [{type: area}, {type: entry}]         # "Living Room Patio Right"
+# name: [{type: entry}]                                           # same as omitting name
+# name: [{type: area}, {type: entry}]                             # "Living Room Patio Right"
+# name: [{type: area}, {type: text, text: "·"}, {type: entry}]    # "Living Room · Patio Right"
 # icon: mdi:blinds-horizontal
 # cover: cover.patio_right_shade
 # layout: detailed          # 'detailed' | 'one-line'
