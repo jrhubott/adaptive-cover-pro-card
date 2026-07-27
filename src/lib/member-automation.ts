@@ -29,11 +29,10 @@ export interface MemberAutomationRollup {
    *  Callers must fall back to their previous behavior on it rather than
    *  rendering a third state, so the rollup can never invent a status. */
   status: MemberAutomationStatus;
-  /** Member entries counted as automated. */
+  /** Member covers counted as automated. */
   on: number;
-  /** Member **entries** resolved — the denominator. One entry can manage
-   *  several covers and owns a single Automatic Control switch, so this is not
-   *  necessarily the roster size. */
+  /** Member covers resolved — the denominator. Smaller than the roster whenever
+   *  it holds generic covers, which have no pipeline to report on. */
   total: number;
 }
 
@@ -95,9 +94,11 @@ function indexEntries(registry: EntityRegistryEntry[]): Map<string, EntryRoles> 
  * the group latch tells. A *missing* Integration Enabled switch (older build) is
  * not evidence of anything, so it reads as enabled.
  *
- * @param memberCoverIds The group's member cover entity_ids — the whole roster
- *   is fine. A generic cover has no ACP pipeline, so it resolves to nothing and
- *   is left out of the denominator rather than dragging the status down.
+ * @param memberCoverIds The group's **ACP** member covers — the `member_winners`
+ *   keys. Do NOT pass the `member_positions` roster: it can also list a cover
+ *   that some *other* ACP entry manages but that this group does not drive, and
+ *   `group_set_automation` never touches such an entry, so counting it strands
+ *   the button in a state no press can clear.
  */
 export function rollupMemberAutomation(
   hass: HomeAssistant,
@@ -120,29 +121,51 @@ export function rollupMemberAutomation(
     for (const coverId of Object.keys(positions)) owner.set(coverId, entryId);
   }
 
-  // Dedupe by entry: a multi-cover entry has one Automatic Control switch, so
-  // counting it per cover would weight it against single-cover members.
-  const entryIds = new Set<string>();
-  for (const coverId of memberCoverIds) {
-    const entryId = owner.get(coverId);
-    if (entryId) entryIds.add(entryId);
-  }
-
+  // Counted in COVERS, not entries: a multi-cover entry shares one Automatic
+  // Control switch, but "3 of my 4 covers stopped tracking" is the actionable
+  // truth, and covers are the unit the roster, the who-won badge and the word
+  // "members" already use everywhere else in the card. The shared switch is
+  // still only read once per entry.
+  const perEntry = new Map<string, boolean | null>();
   let on = 0;
   let total = 0;
-  for (const entryId of entryIds) {
-    const roles = byEntry.get(entryId);
-    // No Automatic Control switch means the entry cannot report — leave it out
-    // rather than counting it as off.
-    if (!roles?.automaticControl) continue;
+  for (const coverId of new Set(memberCoverIds)) {
+    const entryId = owner.get(coverId);
+    if (!entryId) continue;
+    let automated = perEntry.get(entryId);
+    if (automated === undefined) {
+      automated = entryAutomated(hass, byEntry.get(entryId));
+      perEntry.set(entryId, automated);
+    }
+    // null = the entry cannot report; leave it out rather than call it off.
+    if (automated === null) continue;
     total++;
-    const auto = hass.states[roles.automaticControl]?.state === 'on';
-    const enabled = roles.integrationEnabled
-      ? hass.states[roles.integrationEnabled]?.state !== 'off'
-      : true;
-    if (auto && enabled) on++;
+    if (automated) on++;
   }
 
   if (total === 0) return UNKNOWN;
   return { status: on === total ? 'all' : on === 0 ? 'none' : 'some', on, total };
+}
+
+/**
+ * Whether one entry is automating, or `null` when it cannot say.
+ *
+ * A switch the user has DISABLED in HA stays in the entity registry but has no
+ * state at all — an absence of data, not evidence of "off". Reporting a definite
+ * grey "automation off" from it would be the same invention this module exists to
+ * remove, so it returns null and the caller drops the member. An `unavailable`
+ * state is a different thing: the entity is reporting, and what it reports is
+ * not `on`.
+ *
+ * `Integration Enabled` is read leniently by design — a build that never
+ * published it is not evidence of a disabled integration.
+ */
+function entryAutomated(hass: HomeAssistant, roles: EntryRoles | undefined): boolean | null {
+  if (!roles?.automaticControl) return null;
+  const auto = hass.states[roles.automaticControl];
+  if (!auto) return null;
+  const enabled = roles.integrationEnabled
+    ? hass.states[roles.integrationEnabled]?.state !== 'off'
+    : true;
+  return auto.state === 'on' && enabled;
 }

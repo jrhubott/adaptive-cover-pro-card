@@ -39,8 +39,14 @@ function makeHass(
      *  out by default so the rollup stays `unknown` and every other case in
      *  this file exercises the pre-rollup fallback rendering. */
     memberAutomation?: Record<'a' | 'b', boolean>;
+    /** Replace the `member_winners` map, or drop the attribute with `null`. */
+    memberWinners?: Record<string, string> | null;
   } = {},
 ): HomeAssistant {
+  const winners =
+    overrides.memberWinners === undefined
+      ? { 'cover.a': 'solar', 'cover.b': 'manual' }
+      : overrides.memberWinners;
   return {
     states: {
       ...(overrides.memberAutomation ? memberStates(overrides.memberAutomation) : {}),
@@ -54,7 +60,7 @@ function makeHass(
       'sensor.group_active_scene': { state: 'all_open', attributes: {} },
       'sensor.group_who_won': {
         state: '2',
-        attributes: { member_winners: { 'cover.a': 'solar', 'cover.b': 'manual' } },
+        attributes: winners ? { member_winners: winners } : {},
       },
       'select.group_scene': {
         state: 'all_open',
@@ -299,11 +305,45 @@ describe('acp-group-tile — Automation status color', () => {
     expect(btn.classList.contains('active')).toBe(false);
   });
 
-  it('names the count in its label so the amber state is legible', async () => {
+  // The tooltip carries the state; the accessible NAME stays the control's
+  // purpose. Folding the state into aria-label made a screen reader announce it
+  // twice (name + aria-pressed) and never say what the button does.
+  it('puts the count in the tooltip and keeps the plain name in aria-label', async () => {
     const btn = await automationButton({ a: true, b: false });
-    const text = `${btn.getAttribute('aria-label')} ${btn.getAttribute('data-tooltip') ?? ''}`;
-    expect(text).toContain('1');
-    expect(text).toContain('2');
+    const tip = btn.getAttribute('data-tooltip') ?? '';
+    expect(tip).toContain('1');
+    expect(tip).toContain('2');
+    expect(btn.getAttribute('aria-label')).toBe('Automation');
+  });
+
+  // Finding from the audit: `member_positions` can list a cover that an ACP
+  // entry manages but that is NOT a group member (the integration only filters
+  // ACP-owned covers out of area-derived additions, not the static roster).
+  // `group_set_automation` never touches such an entry, so counting it produced
+  // an amber button that no press could ever clear.
+  it('ignores an ACP cover that is not one of the group’s members', async () => {
+    await memberRegistry();
+    // cover.b is ACP-managed with automation OFF, but the group does not list it
+    // as a member — only cover.a is. The button must read the members only.
+    const el = await mount(
+      makeHass({ memberAutomation: { a: true, b: false }, memberWinners: { 'cover.a': 'solar' } }),
+      makeDiscovered(),
+    );
+    const btn = (await controlsRow(el)).querySelector('.automation-toggle') as HTMLElement;
+    expect(btn.classList.contains('auto-all')).toBe(true);
+  });
+
+  // Regression guard: an integration too old to publish `member_winners` has no
+  // way to say which covers are ACP members, so the rollup must not guess.
+  it('falls back when the group publishes no member_winners', async () => {
+    await memberRegistry();
+    const el = await mount(
+      makeHass({ memberAutomation: { a: false, b: false }, memberWinners: null }),
+      makeDiscovered(),
+    );
+    const btn = (await controlsRow(el)).querySelector('.automation-toggle') as HTMLElement;
+    expect(btn.className).not.toMatch(/auto-(all|some|none)/);
+    expect(btn.classList.contains('active')).toBe(true);
   });
 
   it('turns automation on from a mixed roster rather than inverting the latch', async () => {

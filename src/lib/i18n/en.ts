@@ -45,9 +45,12 @@ export const en = {
     lock: 'Lock group',
     unlock: 'Unlock group',
     automation: 'Automation',
-    automation_all: 'Automation on for all {total} members',
+    // No count in the all/none forms: `total` is often 1 (a single multi-cover
+    // member entry), and "all 1 members" reads as a bug. `_some` is safe — it
+    // cannot occur below 2.
+    automation_all: 'Automation on for all members',
     automation_some: 'Automation on for {count} of {total} members',
-    automation_none: 'Automation off for all {total} members',
+    automation_none: 'Automation off for all members',
     clear_overrides: 'Clear overrides',
     clear_overrides_none: 'No member overrides to clear',
     who_won:

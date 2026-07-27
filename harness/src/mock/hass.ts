@@ -141,9 +141,9 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'group.lock': 'Lock group',
   'group.unlock': 'Unlock group',
   'group.automation': 'Automation',
-  'group.automation_all': 'Automation on for all {total} members',
+  'group.automation_all': 'Automation on for all members',
   'group.automation_some': 'Automation on for {count} of {total} members',
-  'group.automation_none': 'Automation off for all {total} members',
+  'group.automation_none': 'Automation off for all members',
   'group.clear_overrides': 'Clear overrides',
   'group.clear_overrides_none': 'No member overrides to clear',
   'group.who_won':

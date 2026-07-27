@@ -33,7 +33,11 @@ interface AutomationView {
   cls: string;
   icon: string;
   ariaPressed: 'true' | 'false' | 'mixed';
-  label: string;
+  /** The state sentence — tooltip and `aria-description`. The accessible *name*
+   *  stays the control's purpose: folding the state into `aria-label` made a
+   *  screen reader announce it twice (name + `aria-pressed`) and never say what
+   *  the button is for. */
+  state: string;
   /** Treated-as-on; `toggleAutomation` sends the inverse. */
   on: boolean;
 }
@@ -136,7 +140,7 @@ export class GroupControlsRow extends LitElement {
         cls: s.automationOn ? 'active' : '',
         icon: s.automationOn ? AUTOMATION_ICONS.all : AUTOMATION_ICONS.none,
         ariaPressed: s.automationOn ? 'true' : 'false',
-        label: t('group.automation', this.hass),
+        state: t('group.automation', this.hass),
         on: s.automationOn,
       };
     }
@@ -147,7 +151,7 @@ export class GroupControlsRow extends LitElement {
       // A partly-automated roster is genuinely tri-state, and ARIA has a value
       // for exactly that.
       ariaPressed: status === 'some' ? 'mixed' : on ? 'true' : 'false',
-      label: t(`group.automation_${status}`, this.hass, {
+      state: t(`group.automation_${status}`, this.hass, {
         count: s.memberAutomation.on,
         total: s.memberAutomation.total,
       }),
@@ -160,8 +164,9 @@ export class GroupControlsRow extends LitElement {
       class="ctrl automation-toggle ${v.cls}"
       type="button"
       aria-pressed=${v.ariaPressed}
-      aria-label=${v.label}
-      ${tooltip(v.label)}
+      aria-label=${t('group.automation', this.hass)}
+      aria-description=${v.state}
+      ${tooltip(v.state)}
       @click=${() => toggleAutomation(this.hass, this.discovered, v.on)}
     >
       <ha-icon icon=${v.icon}></ha-icon>
@@ -225,20 +230,27 @@ export class GroupControlsRow extends LitElement {
     /* Automation status (3 colors), speaking the same language as the badges
        sitting inches away on the same tile: green = the pipeline owns this (the
        auto / group badge), amber = a human has partly taken over (the manual
-       badge), grey = deliberately off, not a fault. Theme tokens rather than the
-       badges' hard-coded hex because this is a 20px glyph on a themed pill —
-       #2e7d32 all but vanishes on a dark one. Red is left alone: it already
-       means force / weather / glare in this card. */
+       badge), grey = deliberately off, not a fault. Red is left alone: it already
+       means force / weather / glare in this card.
+
+       The glyph carries the color; the pill keeps the neutral background every
+       other control has. A matching tint under it read as low as 1.65:1 — below
+       the 3:1 WCAG 1.4.11 floor for meaningful non-text content — because the
+       glyph and its backdrop were the same hue.
+
+       Mixed toward --primary-text-color rather than used raw for the same
+       reason: HA's --success-color / --warning-color defaults (#4caf50, #ffa600)
+       sit around 2.3:1 on a light pill. Because that token is near-black in a
+       light theme and near-white in a dark one, one rule darkens the glyph on a
+       light pill and lightens it on a dark one — ~4.5:1 and ~3.4:1 against the
+       light default, and it cannot invert on a theme we have not seen. */
     .ctrl.auto-all {
-      background: rgba(76, 175, 80, 0.18);
-      color: var(--success-color, #4caf50);
+      color: color-mix(in srgb, var(--success-color, #4caf50) 60%, var(--primary-text-color));
     }
     .ctrl.auto-some {
-      background: rgba(255, 152, 0, 0.22);
-      color: var(--warning-color, #ffa600);
+      color: color-mix(in srgb, var(--warning-color, #ffa600) 60%, var(--primary-text-color));
     }
-    /* No tint — off is the resting state, and it should look like the other
-       untinted controls rather than like a fourth kind of highlight. */
+    /* Off is the resting state, so it takes the resting color. */
     .ctrl.auto-none {
       color: var(--secondary-text-color);
     }

@@ -158,9 +158,11 @@ describe('rollupMemberAutomation', () => {
     });
   });
 
-  // One ACP entry can manage several covers, and the group lists each one. The
-  // entry has a single Automatic Control switch, so it must be counted once.
-  it('counts a multi-cover entry once', () => {
+  // One ACP entry can manage several covers and the group lists each one. The
+  // count is in COVERS — the unit the roster, the who-won badge and the word
+  // "members" use everywhere else in the card — even though the shared switch
+  // behind them is read once.
+  it('counts every cover of a multi-cover entry', () => {
     const registry = entryRows('living');
     const hass = {
       states: {
@@ -174,8 +176,48 @@ describe('rollupMemberAutomation', () => {
     } as unknown as HomeAssistant;
     expect(rollupMemberAutomation(hass, registry, ['cover.left', 'cover.right'])).toEqual({
       status: 'all',
-      on: 1,
-      total: 1,
+      on: 2,
+      total: 2,
+    });
+  });
+
+  // Counting entries instead would report "1 of 2" here and understate how much
+  // of the group has stopped tracking.
+  it('weights a multi-cover entry by its covers', () => {
+    const registry = [...entryRows('living'), ...entryRows('hall')];
+    const hass = {
+      states: {
+        'sensor.living_cover_position': {
+          state: '50',
+          attributes: { actual_positions: { 'cover.left': 50, 'cover.right': 50 } },
+        },
+        'switch.living_automatic_control': { state: 'off', attributes: {} },
+        'switch.living_integration_enabled': { state: 'on', attributes: {} },
+        'sensor.hall_cover_position': {
+          state: '50',
+          attributes: { actual_positions: { 'cover.hall': 50 } },
+        },
+        'switch.hall_automatic_control': { state: 'on', attributes: {} },
+        'switch.hall_integration_enabled': { state: 'on', attributes: {} },
+      },
+    } as unknown as HomeAssistant;
+    expect(
+      rollupMemberAutomation(hass, registry, ['cover.left', 'cover.right', 'cover.hall']),
+    ).toEqual({ status: 'some', on: 1, total: 3 });
+  });
+
+  // A switch the user has DISABLED in HA stays in the entity registry but has no
+  // state at all. That is an absence of data, not evidence of "off" — inventing
+  // a definite grey "automation off" from it is the exact class of claim this
+  // module exists to stop making. (An `unavailable` state is different: the
+  // entity is reporting, and what it reports is not `on`.)
+  it('excludes a member whose Automatic Control switch has no state', () => {
+    const { hass, registry } = makeFixture({ left: { cover: 'cover.left', auto: true } });
+    delete (hass.states as Record<string, unknown>)['switch.left_automatic_control'];
+    expect(rollupMemberAutomation(hass, registry, ['cover.left'])).toEqual({
+      status: 'unknown',
+      on: 0,
+      total: 0,
     });
   });
 

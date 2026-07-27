@@ -125,10 +125,17 @@ export function readGroup(hass: HomeAssistant, discovered: DiscoveredEntities): 
     automationOn: e.group_automation_switch
       ? hass.states[e.group_automation_switch]?.state === 'on'
       : true,
+    // `member_winners` — the ACP members — NOT the `member_positions` roster.
+    // The roster can also list a cover that another ACP entry manages but that
+    // this group does not drive (the integration filters ACP-owned covers out of
+    // area-derived additions only, not the static member list). Counting one of
+    // those would color the button from automation `group_set_automation` cannot
+    // reach, stranding it in a state no press clears. Undefined on an older
+    // integration → an empty roster → `unknown` → the caller's fallback.
     memberAutomation: rollupMemberAutomation(
       hass,
       getCachedRegistry(),
-      Object.keys(memberPositions),
+      Object.keys(memberWinners ?? {}),
     ),
     lockId: e.group_lock_switch,
     automationId: e.group_automation_switch,
