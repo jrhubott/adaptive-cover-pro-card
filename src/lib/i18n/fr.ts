@@ -53,7 +53,9 @@ export const fr: EnDict = {
     lock: 'Verrouiller le groupe',
     unlock: 'Déverrouiller le groupe',
     automation: 'Automatisation',
-    automation_count: '{count} membre(s) sur {total} en automatisation',
+    // "automatisé(s)" rather than "en automatisation": the label composes as
+    // "Automatisation — …", and the longer form echoed the word twice.
+    automation_count: '{count} membre(s) sur {total} automatisé(s)',
     clear_overrides: 'Effacer les dérogations',
     clear_overrides_none: 'Aucune dérogation de membre à effacer',
     who_won:

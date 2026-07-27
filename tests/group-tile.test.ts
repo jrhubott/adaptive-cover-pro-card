@@ -406,6 +406,12 @@ describe('acp-group-tile — Automation status color', () => {
     expect(btn.className).not.toMatch(/auto-(all|some|none)/);
     expect(btn.querySelector('ha-icon')!.getAttribute('icon')).toBe('mdi:robot');
     expect(btn.getAttribute('aria-pressed')).toBe('true');
+    // The name is the one field that carries state on the resolved paths, so it
+    // is the one most easily leaked into this one. Building the count above the
+    // early return would announce "0 of 0 members automating" on every cold
+    // first paint, and nothing else in this test would notice.
+    expect(btn.getAttribute('aria-label')).toBe('Automation');
+    expect(btn.getAttribute('data-tooltip')).toBe('Automation');
   });
 
   it('still inverts the latch on the unresolved fallback path', async () => {
