@@ -55,6 +55,10 @@ export class GroupTile extends LitElement {
   @property({ type: Boolean }) public showMemberBadges = true;
   /** Card config `state_color` — tint the glyph by the aggregate state. */
   @property({ type: Boolean }) public stateColor = true;
+  /** True when `icon_tap_action` names a real action. Gives the glyph its own
+   *  tap target and, exactly as in HA, turns on the tinted pill behind it. The
+   *  host owns the action itself — this element only emits `acp-icon-action`. */
+  @property({ type: Boolean }) public iconInteractive = false;
   /** Card config `name` — overrides the discovered entry title. */
   @property({ attribute: false }) public name?: string;
   /** Card config `icon` — overrides the member-derived glyph. */
@@ -77,13 +81,21 @@ export class GroupTile extends LitElement {
 
     return html`
       <div
-        class="group-tile"
+        class=${`group-tile${this.showControls ? ' has-controls' : ''}`}
         role="button"
         tabindex="0"
         @click=${this._openMoreInfo}
         @keydown=${this._onBodyKeydown}
       >
-        <div class="cover-icon-wrap">
+        <div
+          class=${`cover-icon-wrap${this.iconInteractive ? ' background' : ''}`}
+          role=${this.iconInteractive ? 'button' : nothing}
+          tabindex=${this.iconInteractive ? 0 : nothing}
+          aria-label=${this.iconInteractive ? t('tile.icon_action_label', this.hass) : nothing}
+          style=${iconColor ? `--acp-tile-icon-color: ${iconColor}` : nothing}
+          @click=${this._onIconClick}
+          @keydown=${this._onIconKeydown}
+        >
           <ha-icon
             class="cover-icon"
             icon=${this.icon ?? groupIcon(s, shownPosition)}
@@ -104,6 +116,7 @@ export class GroupTile extends LitElement {
               @keydown=${this._stop}
             >
               <acp-cover-move-buttons
+                fill
                 labels="group"
                 .hass=${this.hass}
                 .position=${s.position}
@@ -194,6 +207,21 @@ export class GroupTile extends LitElement {
 
   private _openMoreInfo = (): void => {
     this.dispatchEvent(new CustomEvent('acp-open-more-info', { bubbles: true, composed: true }));
+  };
+
+  /** The glyph is its own tap target when interactive. Stopping propagation is
+   *  what keeps it from also opening the group dialog via the body handler. */
+  private _onIconClick = (e: Event): void => {
+    if (!this.iconInteractive) return;
+    e.stopPropagation();
+    this.dispatchEvent(new CustomEvent('acp-icon-action', { bubbles: true, composed: true }));
+  };
+
+  private _onIconKeydown = (e: KeyboardEvent): void => {
+    if (!this.iconInteractive) return;
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    this._onIconClick(e);
   };
 
   /* Only the tile body itself activates. Without the target check this handler
@@ -297,11 +325,35 @@ export class GroupTile extends LitElement {
         'tilt tilt tilt'
         'group group group';
       grid-template-columns: 36px minmax(0, 1fr) auto;
-      column-gap: 12px;
+      /* HA's ha-tile-container .content: 10px gap, 56px row floor. */
+      column-gap: 10px;
+      min-height: var(--row-height, 56px);
       row-gap: 2px;
       align-items: center;
       padding: 6px 4px;
       cursor: pointer;
+    }
+    /* Same 50% controls track as the cover tile's detailed grid — HA's inline
+       features block is half the card. Gated so a show_controls: false tile
+       doesn't reserve half its width for an empty area. */
+    .group-tile.has-controls {
+      grid-template-columns: 36px minmax(0, 1fr) calc(50% - 12px);
+    }
+    /* Unlike the cover tile this element has no reflow that moves the controls
+       onto their own row, so the 50% track would keep squeezing the name all
+       the way down. Below the cover tile's own narrow threshold, hand the track
+       back to content and square the buttons off — flex-filling a content-sized
+       track collapses them to the glyph width. The container is the host card's
+       ha-card (container-type: inline-size); container queries resolve across
+       the shadow boundary. */
+    @container (max-width: 340px) {
+      .group-tile.has-controls {
+        grid-template-columns: 36px minmax(0, 1fr) auto;
+      }
+      acp-cover-move-buttons {
+        --acp-move-button-flex: 0 0 auto;
+        --acp-move-button-width: var(--control-button-group-thickness, 36px);
+      }
     }
     .group-tile:focus-visible {
       outline: 2px solid var(--primary-color);
@@ -316,6 +368,32 @@ export class GroupTile extends LitElement {
       width: 36px;
       height: 36px;
     }
+    /* HA's ha-tile-icon shape, opt-in via icon_tap_action — see the matching
+       rule on the cover tile for the upstream trail. */
+    .cover-icon-wrap.background {
+      position: relative;
+      border-radius: var(--ha-border-radius-pill, 9999px);
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .cover-icon-wrap.background::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-color: var(--acp-tile-icon-color, var(--disabled-color, #7f7f7f));
+      opacity: 0.2;
+      transition: opacity 180ms ease-in-out;
+    }
+    .cover-icon-wrap.background:hover::before {
+      opacity: 0.35;
+    }
+    .cover-icon-wrap.background:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--acp-tile-icon-color, var(--primary-text-color));
+    }
+    .cover-icon-wrap.background .cover-icon {
+      position: relative;
+    }
     .cover-icon {
       --mdc-icon-size: 24px;
     }
@@ -325,13 +403,14 @@ export class GroupTile extends LitElement {
       display: flex;
       flex-direction: column;
       justify-content: center;
-      gap: 2px;
     }
-    /* Same theme tokens HA's ha-tile-info uses, matching the cover tile. */
+    /* Same theme tokens HA's ha-tile-info uses, matching the cover tile — see
+       that rule for why the two lines take different line-heights. */
     .title {
       font-size: var(--ha-font-size-m, 0.875rem);
       font-weight: var(--ha-font-weight-medium, 500);
-      line-height: var(--ha-line-height-condensed, 1.375);
+      line-height: var(--ha-line-height-normal, 1.6);
+      letter-spacing: 0.1px;
       color: var(--primary-text-color);
       white-space: nowrap;
       overflow: hidden;
@@ -340,7 +419,8 @@ export class GroupTile extends LitElement {
     .state {
       font-size: var(--ha-font-size-s, 0.75rem);
       font-weight: var(--ha-font-weight-normal, 400);
-      line-height: var(--ha-line-height-condensed, 1.375);
+      line-height: var(--ha-line-height-condensed, 1.2);
+      letter-spacing: 0.4px;
       color: var(--secondary-text-color);
       white-space: nowrap;
       overflow: hidden;

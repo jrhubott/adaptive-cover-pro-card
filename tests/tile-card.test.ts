@@ -2533,8 +2533,13 @@ describe('adaptive-cover-pro-tile-card HA tile layout (detailed)', () => {
 
   it('links detailed controls to HA ha-control-button CSS tokens', () => {
     const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
-    expect(css).toContain('height: var(--control-button-group-thickness, 40px)');
+    // 36px is HA's inline-features thickness (--feature-height: --ha-space-9),
+    // which is what ha-tile-container sets for a features block beside the
+    // info column — not the 42px of a full-width bottom feature row.
+    expect(css).toContain('height: var(--control-button-group-thickness, 36px)');
     expect(css).toContain('border-radius: var(--control-button-border-radius, 12px)');
+    // Buttons flex-fill their track, as HA's ha-control-button-group children do.
+    expect(css).toContain('flex: 1 1 0');
   });
 
   it('detailed: renders the target-vs-actual position bar (fill = live, marker = target)', async () => {
@@ -3306,5 +3311,93 @@ describe('adaptive-cover-pro-tile-card — composite name (#247)', () => {
     );
     const title = el.shadowRoot!.querySelector('.title');
     expect(title!.textContent?.trim()).toBe('Blind');
+  });
+});
+
+// Icon tap behavior (Interactions section). HA draws the tinted pill behind a
+// tile glyph only when the icon is interactive, and its
+// getEntityDefaultTileIconAction returns "none" for the cover domain — so the
+// shape is opt-in here and an upgraded tile must look untouched.
+describe('adaptive-cover-pro-tile-card — icon_tap_action', () => {
+  it('leaves the glyph bare when icon_tap_action is unset (HA cover default)', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY, layout: 'detailed' }, makeHass({}));
+    const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap')!;
+    expect(wrap.classList.contains('background')).toBe(false);
+    expect(wrap.getAttribute('role')).toBeNull();
+    expect(wrap.getAttribute('tabindex')).toBeNull();
+  });
+
+  it('leaves the glyph bare when icon_tap_action is explicitly none', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', icon_tap_action: { action: 'none' } },
+      makeHass({}),
+    );
+    const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap')!;
+    expect(wrap.classList.contains('background')).toBe(false);
+  });
+
+  it('draws the shape and makes the glyph a button when an action is set', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', icon_tap_action: { action: 'more-info' } },
+      makeHass({}),
+    );
+    const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap')!;
+    expect(wrap.classList.contains('background')).toBe(true);
+    expect(wrap.getAttribute('role')).toBe('button');
+    expect(wrap.getAttribute('tabindex')).toBe('0');
+  });
+
+  it('carries the state color into the shape so tint and glyph agree', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', icon_tap_action: { action: 'more-info' } },
+      makeHass({}),
+    );
+    const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap') as HTMLElement;
+    expect(wrap.getAttribute('style')).toContain('--acp-tile-icon-color');
+  });
+
+  it('does not fire the tile body tap when the glyph is tapped', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', icon_tap_action: { action: 'more-info' } },
+      makeHass({}),
+    );
+    const bodyTap = vi.fn();
+    el.addEventListener('acp-tile-tap', bodyTap);
+    const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap') as HTMLElement;
+    wrap.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    await el.updateComplete;
+    expect(bodyTap).not.toHaveBeenCalled();
+  });
+
+  it('still opens the ACP dialog when the body is tapped, shape or not', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', icon_tap_action: { action: 'more-info' } },
+      makeHass({}),
+    );
+    const bodyTap = vi.fn();
+    el.addEventListener('acp-tile-tap', bodyTap);
+    const body = el.shadowRoot!.querySelector('.tile-body') as HTMLElement;
+    body.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    await el.updateComplete;
+    expect(bodyTap).toHaveBeenCalled();
+  });
+
+  it('ignores clicks on the bare glyph when no icon action is configured', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY, layout: 'detailed' }, makeHass({}));
+    const bodyTap = vi.fn();
+    el.addEventListener('acp-tile-tap', bodyTap);
+    const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap') as HTMLElement;
+    // No stopPropagation happens when inert, so the body handler still runs —
+    // the glyph is simply not a separate target.
+    wrap.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    await el.updateComplete;
+    expect(bodyTap).toHaveBeenCalled();
+  });
+
+  it('exposes the pill and 0.2 tint in the stylesheet', () => {
+    const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
+    expect(css).toContain('border-radius: var(--ha-border-radius-pill, 9999px)');
+    expect(css).toContain('opacity: 0.2');
+    expect(css).toContain('opacity: 0.35');
   });
 });

@@ -149,6 +149,17 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   hold_action?: ActionConfig;
   /** Double-tap action. Standard HA `ActionConfig`. */
   double_tap_action?: ActionConfig;
+  /** Tap behavior for the cover glyph itself, independent of the tile body.
+   *  Defaults to `none`, matching HA: its `getEntityDefaultTileIconAction`
+   *  returns `toggle` only for `DOMAINS_TOGGLE` plus button/input_button/scene,
+   *  and `cover` is in neither — which is why a native HA cover tile shows no
+   *  icon shape while a light does.
+   *
+   *  Doubles as the switch for the tinted pill behind the glyph: HA draws that
+   *  background only when the icon is interactive (`ha-tile-icon` applies its
+   *  `background` class on `interactive && !hasImage`), so setting any action
+   *  other than `none` here turns the shape on. */
+  icon_tap_action?: ActionConfig;
 
   // ── Cover Group entries only (issue #185) ─────────────────────────────────
   // A group entry renders `acp-group-tile`, which shares only `name`, `icon`,

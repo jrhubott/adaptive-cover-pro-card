@@ -1265,6 +1265,29 @@ export class AcpHarnessControlPanel extends LitElement {
             )}
           </select>
         </label>
+        <label
+          >icon tap behavior
+          <select
+            @change=${(e: Event) =>
+              this._emit({
+                ...this.config,
+                tile: {
+                  ...this.config.tile,
+                  icon_tap_action: (e.target as HTMLSelectElement).value as
+                    | 'none'
+                    | 'more-info'
+                    | 'toggle',
+                },
+              })}
+          >
+            ${(['none', 'more-info', 'toggle'] as const).map(
+              (v) =>
+                html`<option value=${v} ?selected=${this.config.tile.icon_tap_action === v}>
+                  ${v}
+                </option>`,
+            )}
+          </select>
+        </label>
         ${this._numberSlider(
           'tile width px (0 = auto)',
           this.config.tile.tileWidth,

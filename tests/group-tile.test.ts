@@ -426,3 +426,62 @@ describe('acp-group-tile — Automation status color', () => {
     );
   });
 });
+
+// Mirrors the cover tile's icon_tap_action behavior. The group tile is purely
+// presentational: the host owns the action and only tells it whether the glyph
+// is interactive, so this element's job is the class, the a11y attributes, and
+// emitting acp-icon-action without also triggering the body's more-info.
+describe('acp-group-tile — icon interactivity', () => {
+  async function mountWithIcon(interactive: boolean): Promise<GroupTileLike> {
+    const el = document.createElement('acp-group-tile') as GroupTileLike & {
+      iconInteractive?: boolean;
+    };
+    el.hass = makeHass({});
+    el.discovered = makeDiscovered();
+    el.iconInteractive = interactive;
+    document.body.appendChild(el);
+    await el.updateComplete;
+    return el;
+  }
+
+  it('leaves the glyph bare when not interactive', async () => {
+    const el = await mountWithIcon(false);
+    const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap')!;
+    expect(wrap.classList.contains('background')).toBe(false);
+    expect(wrap.getAttribute('role')).toBeNull();
+  });
+
+  it('draws the shape and exposes a button role when interactive', async () => {
+    const el = await mountWithIcon(true);
+    const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap')!;
+    expect(wrap.classList.contains('background')).toBe(true);
+    expect(wrap.getAttribute('role')).toBe('button');
+    expect(wrap.getAttribute('tabindex')).toBe('0');
+  });
+
+  it('emits acp-icon-action and not acp-open-more-info on a glyph tap', async () => {
+    const el = await mountWithIcon(true);
+    const iconAction = vi.fn();
+    const moreInfo = vi.fn();
+    el.addEventListener('acp-icon-action', iconAction);
+    el.addEventListener('acp-open-more-info', moreInfo);
+    const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap') as HTMLElement;
+    wrap.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    await el.updateComplete;
+    expect(iconAction).toHaveBeenCalled();
+    expect(moreInfo).not.toHaveBeenCalled();
+  });
+
+  it('falls through to the body more-info when the glyph is not interactive', async () => {
+    const el = await mountWithIcon(false);
+    const iconAction = vi.fn();
+    const moreInfo = vi.fn();
+    el.addEventListener('acp-icon-action', iconAction);
+    el.addEventListener('acp-open-more-info', moreInfo);
+    const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap') as HTMLElement;
+    wrap.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    await el.updateComplete;
+    expect(iconAction).not.toHaveBeenCalled();
+    expect(moreInfo).toHaveBeenCalled();
+  });
+});

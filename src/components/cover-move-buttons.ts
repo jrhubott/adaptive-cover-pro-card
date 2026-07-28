@@ -19,7 +19,7 @@ export type MoveAction = 'open' | 'stop' | 'close';
  *
  * Sizing mirrors the cover tile's detailed control row, including the
  * `padding: 0` / `box-sizing` pair its base rule sets — without those a UA's
- * default button padding inflates the fixed 56×40 box.
+ * default button padding inflates the fixed 40×40 box.
  */
 @customElement('acp-cover-move-buttons')
 export class CoverMoveButtons extends LitElement {
@@ -35,6 +35,12 @@ export class CoverMoveButtons extends LitElement {
   @property() public labels: 'group' | 'tile' = 'tile';
   /** Compact variant for the repeated per-member rows in a roster. */
   @property({ type: Boolean, reflect: true }) public compact = false;
+  /** Stretch the trio across the host's full width, flex-filling like HA's
+   *  ha-control-button-group. Opt-in, and only the group TILE wants it: its
+   *  buttons sit in a 50%-wide grid track that mirrors HA's inline-features
+   *  block. The dialog and the main-card group view put this in a full-width
+   *  flex row, where filling would stretch three buttons edge to edge. */
+  @property({ type: Boolean, reflect: true }) public fill = false;
 
   protected render(): TemplateResult {
     const atOpen = this.position !== null && this.position >= 100;
@@ -85,7 +91,11 @@ export class CoverMoveButtons extends LitElement {
     .move-buttons {
       display: inline-flex;
       align-items: center;
+      /* --feature-button-spacing */
       gap: 12px;
+    }
+    :host([fill]) .move-buttons {
+      width: 100%;
     }
     :host([compact]) .move-buttons {
       gap: 6px;
@@ -98,8 +108,11 @@ export class CoverMoveButtons extends LitElement {
       padding: 0;
       font-size: 0.8rem;
       line-height: 1;
-      width: 56px;
-      height: var(--control-button-group-thickness, 40px);
+      /* Square at HA's inline-feature thickness by default, matching the cover
+         tile's detailed control row — see that rule for the upstream token
+         trail. Only [fill] flex-fills; see the property doc for why. */
+      width: var(--control-button-group-thickness, 36px);
+      height: var(--control-button-group-thickness, 36px);
       border-radius: var(--control-button-border-radius, 12px);
       border: none;
       background: color-mix(
@@ -109,13 +122,20 @@ export class CoverMoveButtons extends LitElement {
       );
       cursor: pointer;
     }
+    /* The two overrides let a narrow host opt back out of filling without
+       needing to drop the [fill] attribute reactively — see the group tile's
+       container query. Custom properties inherit through the shadow boundary. */
+    :host([fill]) .move-buttons button {
+      flex: var(--acp-move-button-flex, 1 1 0);
+      width: var(--acp-move-button-width, auto);
+    }
     :host([compact]) .move-buttons button {
       width: 40px;
       height: 32px;
       border-radius: 8px;
     }
     .move-buttons button ha-icon {
-      --mdc-icon-size: 24px;
+      --mdc-icon-size: 20px;
       color: var(--primary-text-color);
       line-height: 0;
     }
