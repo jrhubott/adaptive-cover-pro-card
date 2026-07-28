@@ -258,6 +258,7 @@ export const de: EnDict = {
   tile: {
     motion_pending: 'Anwesenheits-Timeout läuft',
     motion_detected: 'Anwesenheit erkannt',
+    icon_action_label: 'Aktion des Beschattungssymbols',
     open: 'Öffnen',
     stop: 'Stopp',
     close: 'Schließen',
@@ -424,6 +425,9 @@ export const de: EnDict = {
       show_badge: 'Kontextbadge anzeigen',
       show_position_bar: 'Positionsleiste anzeigen',
       show_tilt: 'Neigungsleiste anzeigen',
+      content_section: 'Inhalt',
+      controls_section: 'Bedienelemente',
+      dialog_section: 'Dialogbereiche',
       group_row_section: 'Gruppensteuerung',
       show_scene_select: 'Szenenauswahl anzeigen',
       show_lock: 'Gruppensperre anzeigen',
@@ -446,7 +450,9 @@ export const de: EnDict = {
       show_solar_calc: 'Sonnenberechnung im Dialog anzeigen',
       show_motion_icon: 'Anwesenheitsanzeige einblenden',
       state_color: 'Symbol nach Status einfärben',
+      interactions_section: 'Interaktionen',
       tap_action: 'Tipp-Aktion',
+      icon_tap_action: 'Tipp-Aktion für Symbol',
       hold_action: 'Gedrückthalten-Aktion',
       double_tap_action: 'Doppeltippen-Aktion',
       cover_blank_hint:

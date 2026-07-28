@@ -300,7 +300,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
             .showAutomation=${this._config.show_automation !== false}
             .showClearOverrides=${this._config.show_clear_overrides !== false}
             .showMemberBadges=${this._config.show_member_badges !== false}
+            .iconInteractive=${this._hasIconAction()}
             @acp-open-more-info=${this._onClick}
+            @acp-icon-action=${this._onIconClick}
           ></acp-group-tile>
         </ha-card>
         <acp-group-dialog
@@ -448,6 +450,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
             position: livePosition,
           }));
     const iconColor = cfg.state_color !== false ? coverStateColor(stateObj?.state) : null;
+    // Drives both the icon's own tap target and HA's tinted-pill background,
+    // which upstream gates on exactly this (see `icon_tap_action` in types.ts).
+    const iconInteractive = this._hasIconAction();
     const showPosition = cfg.show_position !== false;
     const showState = cfg.show_state !== false;
     const showControls = cfg.show_controls !== false;
@@ -684,7 +689,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
     return html`
       <div
-        class=${`tile-body${detailed ? ' detailed' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip && !detailed ? ' has-floor-chip' : ''}${showTilt && detailed ? ' has-tilt' : ''}${hasChromeRow ? ' has-chrome-row' : ''}${barOnly ? ' bar-only' : ''}${offline ? ' unavailable' : ''}`}
+        class=${`tile-body${detailed ? ' detailed' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip && !detailed ? ' has-floor-chip' : ''}${showTilt && detailed ? ' has-tilt' : ''}${hasChromeRow ? ' has-chrome-row' : ''}${barOnly ? ' bar-only' : ''}${showControls ? ' has-controls' : ''}${offline ? ' unavailable' : ''}`}
         role=${inert ? 'group' : 'button'}
         tabindex=${inert ? -1 : 0}
         @pointerdown=${this._onPointerDown}
@@ -693,7 +698,15 @@ export class AdaptiveCoverProTileCard extends LitElement {
         @pointerleave=${this._onPointerCancel}
         @click=${this._onClick}
       >
-        <div class="cover-icon-wrap">
+        <div
+          class=${`cover-icon-wrap${iconInteractive ? ' background' : ''}`}
+          role=${iconInteractive ? 'button' : nothing}
+          tabindex=${iconInteractive ? 0 : nothing}
+          aria-label=${iconInteractive ? t('tile.icon_action_label', this.hass) : nothing}
+          style=${iconColor ? `--acp-tile-icon-color: ${iconColor}` : nothing}
+          @click=${this._onIconClick}
+          @keydown=${this._onIconKeydown}
+        >
           <ha-icon
             class="cover-icon"
             icon=${icon}
@@ -1059,6 +1072,35 @@ export class AdaptiveCoverProTileCard extends LitElement {
     );
   }
 
+  /** True when the glyph carries its own tap action, which is also what turns
+   *  on the tinted pill behind it (HA gates that background on the icon being
+   *  interactive — see `icon_tap_action` in types.ts). Unset means `none`, so
+   *  an upgraded tile looks exactly as it did before. */
+  private _hasIconAction(): boolean {
+    return hasAction(this._config?.icon_tap_action);
+  }
+
+  /** Runs the icon's own action. Stops propagation so the glyph never also
+   *  triggers the tile body's tap — they are independent targets, as in HA. */
+  private _onIconClick = (e: Event): void => {
+    if (!this._hasIconAction()) return;
+    e.stopPropagation();
+    if (!this._config || !this.hass) return;
+    handleAction(
+      this,
+      this.hass,
+      { entity: this._actionEntity(), tap_action: this._config.icon_tap_action },
+      'tap',
+    );
+  };
+
+  private _onIconKeydown = (e: KeyboardEvent): void => {
+    if (!this._hasIconAction()) return;
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    this._onIconClick(e);
+  };
+
   /** Entity a configured tap/hold/double-tap action targets. A cover entry uses
    *  its resolved cover; a Cover Group has none — `managed_covers` holds its
    *  members, so that would aim a `more-info` at one arbitrary member. Use the
@@ -1138,11 +1180,21 @@ export class AdaptiveCoverProTileCard extends LitElement {
       grid-template-rows: auto;
       grid-template-areas: 'icon label controls';
       align-items: center;
-      column-gap: 12px;
+      /* HA's ha-tile-container .content uses a 10px gap and a 56px row floor. */
+      column-gap: 10px;
+      min-height: var(--row-height, 56px);
       /* Tight row gap pulls the chrome row (badges + position bar) up snug under
          the name/state so the tile stays as short as possible when badges are
          present (issue #208). */
       row-gap: 2px;
+    }
+    /* HA's inline features block is a hard 50% of the card, not a content-sized
+       or equal-share column — see the .controls rule below. The 12px subtrahend
+       is its --ha-space-3 inline-end padding. Gated on .has-controls: with
+       show_controls false the track is empty, and a 50% track would reserve half
+       the tile for nothing where the auto above collapses to zero. */
+    .tile-body.detailed.has-controls {
+      grid-template-columns: 36px minmax(0, 1fr) calc(50% - 12px);
     }
     /* Row 2 = the chrome row: Auto/winner/floor badges on the left, position bar
        right-aligned. The icon spans both rows (grid-area repeated) so it stays
@@ -1189,27 +1241,33 @@ export class AdaptiveCoverProTileCard extends LitElement {
     .tile-body.detailed.bar-only:not(.has-tilt) .chrome-line {
       align-self: end;
     }
-    /* Name over state, vertically centered against the icon (HA ha-tile-info). */
+    /* Name over state, vertically centered against the icon (HA ha-tile-info).
+       No gap: HA's .info stacks the two lines with no gap and lets the primary
+       line-height (normal, 1.6) do the spacing. */
     .tile-body.detailed .label {
       display: flex;
       flex-direction: column;
       justify-content: center;
-      gap: 2px;
     }
     /* Match HA's ha-tile-info text through the same theme tokens the native
        tile card uses, so ACP inherits any theme font-scaling/recoloring
        instead of drifting with hardcoded values. Fallbacks are HA's own
-       defaults (name 14px/500, state 12px/400). */
+       defaults: name 14px/500 at line-height normal with 0.1px tracking, state
+       12px/400 at condensed with 0.4px. Note the primary and secondary lines
+       use DIFFERENT line-heights upstream — normal for the name, condensed for
+       the state. */
     .tile-body.detailed .title {
       font-size: var(--ha-font-size-m, 0.875rem);
       font-weight: var(--ha-font-weight-medium, 500);
-      line-height: var(--ha-line-height-condensed, 1.375);
+      line-height: var(--ha-line-height-normal, 1.6);
+      letter-spacing: 0.1px;
       color: var(--primary-text-color);
     }
     .tile-body.detailed .state {
       font-size: var(--ha-font-size-s, 0.75rem);
       font-weight: var(--ha-font-weight-normal, 400);
-      line-height: var(--ha-line-height-condensed, 1.375);
+      line-height: var(--ha-line-height-condensed, 1.2);
+      letter-spacing: 0.4px;
       color: var(--secondary-text-color);
       white-space: nowrap;
       overflow: hidden;
@@ -1310,18 +1368,27 @@ export class AdaptiveCoverProTileCard extends LitElement {
     .tile-body.detailed .label .summary {
       font-size: 0.72rem;
     }
-    /* Link to HA's own ha-control-button tokens so height/radius/fill follow the
-       native cover tile (and the theme) instead of hardcoded values. Fallbacks
-       are HA defaults: 40px thickness, 12px radius, disabled-color @ 20% fill,
-       24px glyph. Width is fixed (~56) since this inline row doesn't flex-fill
-       like HA's full-width control-button-group. */
+    /* Mirror HA's tile card in features_position: inline mode, whose spec
+       differs from the bottom feature row. ha-tile-container's
+       .container.horizontal rule for the features slot sets
+       --feature-height: var(--ha-space-9) — 36px, not the 42px of a bottom row —
+       and pins the block to calc(50% - gap/2 - var(--ha-space-3)). Inside it,
+       card-feature-styles maps --feature-height onto
+       --control-button-group-thickness and --feature-border-radius
+       (--ha-border-radius-lg = 12px) onto --control-button-border-radius, while
+       ha-control-button contributes a 20px glyph and a --disabled-color fill at
+       20% opacity. Buttons are flex: 1 inside that block, so they widen with the
+       tile exactly as HA's do. */
     .tile-body.detailed .controls {
       align-self: center;
+      /* --feature-button-spacing */
       gap: 12px;
+      width: 100%;
     }
     .tile-body.detailed .controls button {
-      width: 56px;
-      height: var(--control-button-group-thickness, 40px);
+      flex: 1 1 0;
+      width: auto;
+      height: var(--control-button-group-thickness, 36px);
       border-radius: var(--control-button-border-radius, 12px);
       border: none;
       background: color-mix(
@@ -1331,7 +1398,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       );
     }
     .tile-body.detailed .controls button ha-icon {
-      --mdc-icon-size: 24px;
+      --mdc-icon-size: 20px;
       color: var(--primary-text-color);
     }
     .tile-body.detailed .controls button:hover {
@@ -1341,12 +1408,48 @@ export class AdaptiveCoverProTileCard extends LitElement {
         transparent
       );
     }
-    /* Bare 36px glyph, no background shape — the state color carries the
-       cover's status without a tinted square behind it. */
+    /* Bare 36px glyph by default — the state color carries the cover's status
+       with nothing behind it. HA does the same for covers, though by a
+       different route: its shape is drawn only when the icon is interactive,
+       and getEntityDefaultTileIconAction returns none for the cover domain.
+       Setting icon_tap_action opts into the shape via .background below. */
     .tile-body.detailed .cover-icon-wrap {
       place-self: center;
       width: 36px;
       height: 36px;
+    }
+    /* HA's ha-tile-icon shape: a pill at --ha-border-radius-pill filled with the
+       icon's own color at 0.2 opacity (0.35 on hover), painted as a ::before so
+       the tint never dims the glyph on top of it. --acp-tile-icon-color is set
+       inline from coverStateColor, so shape and glyph always agree. */
+    /* Scoped to .detailed: the one-line layout's glyph box is 24px around a 22px
+       icon, so a pill there would be a hairline of tint around the glyph. The
+       tap action still works in one-line — only the shape is detailed-only. */
+    .tile-body.detailed .cover-icon-wrap.background {
+      position: relative;
+      border-radius: var(--ha-border-radius-pill, 9999px);
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .tile-body.detailed .cover-icon-wrap.background::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-color: var(--acp-tile-icon-color, var(--disabled-color, #7f7f7f));
+      opacity: 0.2;
+      transition: opacity 180ms ease-in-out;
+    }
+    .tile-body.detailed .cover-icon-wrap.background:hover::before {
+      opacity: 0.35;
+    }
+    .cover-icon-wrap.background:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--acp-tile-icon-color, var(--primary-text-color));
+      border-radius: var(--ha-border-radius-pill, 9999px);
+    }
+    /* The glyph must sit above the ::before wash. */
+    .tile-body.detailed .cover-icon-wrap.background .cover-icon {
+      position: relative;
     }
     .tile-body.detailed .cover-icon {
       --mdc-icon-size: 24px;
@@ -1526,6 +1629,12 @@ export class AdaptiveCoverProTileCard extends LitElement {
             'icon label'
             'controls controls';
         }
+        /* The 50% has-controls track is (0,3,0) and a query adds no specificity,
+           so without this it would keep a third column alive here and strand the
+           reflowed full-width controls row beside it. */
+        .tile-body.detailed.has-controls {
+          grid-template-columns: 36px minmax(0, 1fr);
+        }
         .tile-body.detailed.has-chrome-row {
           grid-template-areas:
             'icon label'
@@ -1569,7 +1678,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
         .tile-body.detailed .controls button {
           flex: 1 1 0;
           width: auto;
-          height: 40px;
+          height: var(--control-button-group-thickness, 36px);
         }
       }
     }
@@ -1579,6 +1688,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
         grid-template-areas:
           'icon label'
           'controls controls';
+      }
+      /* Same re-assertion as the 480px block — see the note there. */
+      .tile-body.detailed.has-controls {
+        grid-template-columns: 36px minmax(0, 1fr);
       }
       .tile-body.detailed.has-chrome-row {
         grid-template-areas:
@@ -1621,7 +1734,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       .tile-body.detailed .controls button {
         flex: 1 1 0;
         width: auto;
-        height: 40px;
+        height: var(--control-button-group-thickness, 36px);
       }
     }
     .empty {

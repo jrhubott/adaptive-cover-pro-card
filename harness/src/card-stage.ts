@@ -392,6 +392,7 @@ export class AcpHarnessCardStage extends LitElement {
       show_solar_calc: t.show_solar_calc,
       show_motion_icon: t.show_motion_icon,
       state_color: t.state_color,
+      icon_tap_action: { action: t.icon_tap_action },
       layout: t.layout,
       tooltips: this._tooltipsConfig(),
     };

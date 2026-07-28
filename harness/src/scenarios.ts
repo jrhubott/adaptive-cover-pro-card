@@ -114,6 +114,8 @@ function defaultTile(): HarnessConfig['tile'] {
     show_solar_calc: true,
     show_motion_icon: true,
     state_color: true,
+    // Matches HA's cover default, so the glyph stays bare until opted in.
+    icon_tap_action: 'none',
     layout: 'detailed',
     tileWidth: 0,
   };
@@ -2568,6 +2570,25 @@ export const SCENARIOS: Scenario[] = [
       return c;
     },
   },
+  {
+    id: 'icon-tap-action-shape',
+    label: 'Icon tap behavior — tinted shape',
+    description:
+      'The new Interactions > Icon tap behavior option, which mirrors HA\'s tile card. HA draws the pill-shaped tint behind a tile glyph only when the icon is interactive, and its getEntityDefaultTileIconAction returns "none" for the cover domain — which is why a native HA cover tile shows a bare glyph while a light shows a tinted circle. This scenario sets icon_tap_action to more-info, so BOTH the cover tile and the Cover Group tile draw the pill: the fill is the glyph\'s own state color at 20% opacity, rising to 35% on hover. Check three things. (1) The circle is behind the glyph, never dimming it. (2) Tapping the glyph opens more-info and does NOT also fire the tile body tap — they are independent targets, so the body must not open the ACP dialog on the same click. (3) Tab to the glyph: it takes a focus ring and Enter/Space activate it. Flip the control panel back to "none" and the shape must disappear entirely, restoring the pre-2.15 look.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'icon-tap-action-shape';
+      c.tile.icon_tap_action = 'more-info';
+      c.entries = [
+        makeEntry({ entry_id: 'south_window', title: 'Living Room', window_azimuth: 180 }),
+        makeGroupEntry({ entry_id: 'playroom_group', title: 'Playroom Group' }),
+      ];
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
 ];
 
 export function findScenario(id: string): Scenario | undefined {
@@ -2593,6 +2614,7 @@ export function normalizeConfig(cfg: HarnessConfig): HarnessConfig {
       ...cfg.tile,
       badges: { ...defaultBadges(), ...(cfg.tile?.badges ?? {}) },
       tileWidth: cfg.tile?.tileWidth ?? 0,
+      icon_tap_action: cfg.tile?.icon_tap_action ?? 'none',
     },
     decision: { ...defaultDecision(), ...(cfg.decision ?? {}) },
     solarChart: { ...defaultSolarChart(), ...(cfg.solarChart ?? {}) },

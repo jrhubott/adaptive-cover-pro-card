@@ -113,8 +113,14 @@ const LABEL_KEYS: Record<string, string> = {
   show_motion_icon: 'editor.tile.show_motion_icon',
   state_color: 'editor.tile.state_color',
   tap_action: 'editor.tile.tap_action',
+  icon_tap_action: 'editor.tile.icon_tap_action',
   hold_action: 'editor.tile.hold_action',
   double_tap_action: 'editor.tile.double_tap_action',
+  interactions_section: 'editor.tile.interactions_section',
+  content_section: 'editor.tile.content_section',
+  controls_section: 'editor.tile.controls_section',
+  dialog_section: 'editor.tile.dialog_section',
+  group_row_section: 'editor.tile.group_row_section',
   show_scene_select: 'editor.tile.show_scene_select',
   show_lock: 'editor.tile.show_lock',
   show_automation: 'editor.tile.show_automation',
@@ -430,28 +436,28 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
           required: true,
           selector: { select: { options: entryOptions, mode: 'dropdown' } },
         },
-        { name: 'name', selector: { text: {} } },
-        { name: 'icon', selector: { icon: {} } },
-        { name: 'show_controls', selector: { boolean: {} } },
-        { name: 'show_position_bar', selector: { boolean: {} } },
-        { name: 'show_tilt', selector: { boolean: {} } },
-        { name: 'show_member_badges', selector: { boolean: {} } },
-        { name: 'state_color', selector: { boolean: {} } },
-        {
-          type: 'expandable',
-          name: '',
-          title: t('editor.tile.group_row_section', this.hass),
-          icon: 'mdi:window-shutter-cog',
-          schema: [
+        this._section('content_section', 'mdi:format-text', true, [
+          { name: 'name', selector: { text: {} } },
+          { name: 'icon', selector: { icon: {} } },
+          this._grid([{ name: 'state_color', selector: { boolean: {} } }]),
+        ]),
+        this._section('controls_section', 'mdi:arrow-up-down', false, [
+          this._grid([
+            { name: 'show_controls', selector: { boolean: {} } },
+            { name: 'show_position_bar', selector: { boolean: {} } },
+            { name: 'show_tilt', selector: { boolean: {} } },
+          ]),
+        ]),
+        this._section('group_row_section', 'mdi:window-shutter-cog', false, [
+          this._grid([
             { name: 'show_scene_select', selector: { boolean: {} } },
             { name: 'show_lock', selector: { boolean: {} } },
             { name: 'show_automation', selector: { boolean: {} } },
             { name: 'show_clear_overrides', selector: { boolean: {} } },
-          ],
-        },
-        { name: 'tap_action', selector: { ui_action: {} } },
-        { name: 'hold_action', selector: { ui_action: {} } },
-        { name: 'double_tap_action', selector: { ui_action: {} } },
+            { name: 'show_member_badges', selector: { boolean: {} } },
+          ]),
+        ]),
+        this._interactionsSection(),
       ];
     }
 
@@ -461,54 +467,94 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
         required: true,
         selector: { select: { options: entryOptions, mode: 'dropdown' } },
       },
-      { name: 'name', selector: { text: {} } },
-      { name: 'icon', selector: { icon: {} } },
       // The cover picker only appears when the entry manages MORE THAN ONE
       // cover. With a single cover it can only ever select the entity
       // `_resolvedCover` already falls back to, so offering it is a control that
       // cannot change anything. An existing explicit `cover` keeps the field
       // visible so a previously-written value stays editable (and removable)
-      // rather than becoming invisible-but-live.
+      // rather than becoming invisible-but-live. Sits beside `entry_id` above
+      // the sections because both are entity binding, not presentation.
       ...(managedCount > 1 || this._config?.cover
         ? [{ name: 'cover', selector: coverSelector }]
         : []),
-      {
-        name: 'layout',
-        selector: { select: { mode: 'list', options: layoutOptions } },
-      },
-      { name: 'show_position', selector: { boolean: {} } },
-      { name: 'show_state', selector: { boolean: {} } },
-      { name: 'show_decision_summary', selector: { boolean: {} } },
-      { name: 'show_controls', selector: { boolean: {} } },
-      { name: 'show_badge', selector: { boolean: {} } },
-      {
-        // Layout-only container with an empty name so the badge_<kind> booleans
-        // stay flat in the form value (ha-form does not nest unnamed groups).
-        type: 'expandable',
-        name: '',
-        title: t('editor.tile.badge_section', this.hass),
-        icon: 'mdi:label-multiple-outline',
-        schema: [
-          {
-            type: 'grid',
-            name: '',
-            schema: BADGE_KINDS.map((k) => ({
-              name: `badge_${k}`,
-              selector: { boolean: {} },
-            })),
-          },
-        ],
-      },
-      { name: 'show_position_bar', selector: { boolean: {} } },
-      { name: 'show_motion_icon', selector: { boolean: {} } },
-      { name: 'state_color', selector: { boolean: {} } },
-      { name: 'show_compass', selector: { boolean: {} } },
-      { name: 'show_elevation_chart', selector: { boolean: {} } },
-      { name: 'show_solar_calc', selector: { boolean: {} } },
+      this._section('content_section', 'mdi:format-text', true, [
+        { name: 'name', selector: { text: {} } },
+        { name: 'icon', selector: { icon: {} } },
+        {
+          name: 'layout',
+          selector: { select: { mode: 'list', options: layoutOptions } },
+        },
+        this._grid([
+          { name: 'show_position', selector: { boolean: {} } },
+          { name: 'show_state', selector: { boolean: {} } },
+          { name: 'show_decision_summary', selector: { boolean: {} } },
+          { name: 'state_color', selector: { boolean: {} } },
+          { name: 'show_motion_icon', selector: { boolean: {} } },
+        ]),
+      ]),
+      this._section('controls_section', 'mdi:arrow-up-down', false, [
+        this._grid([
+          { name: 'show_controls', selector: { boolean: {} } },
+          { name: 'show_position_bar', selector: { boolean: {} } },
+          // Cover tiles honor show_tilt (the mini slat-angle bar on a venetian)
+          // but the schema never offered it, so it was YAML-only until now.
+          { name: 'show_tilt', selector: { boolean: {} } },
+        ]),
+      ]),
+      this._section('badge_section', 'mdi:label-multiple-outline', false, [
+        { name: 'show_badge', selector: { boolean: {} } },
+        this._grid(BADGE_KINDS.map((k) => ({ name: `badge_${k}`, selector: { boolean: {} } }))),
+      ]),
+      this._section('dialog_section', 'mdi:card-text-outline', false, [
+        this._grid([
+          { name: 'show_compass', selector: { boolean: {} } },
+          { name: 'show_elevation_chart', selector: { boolean: {} } },
+          { name: 'show_solar_calc', selector: { boolean: {} } },
+        ]),
+      ]),
+      this._interactionsSection(),
+    ];
+  }
+
+  /** A collapsible group. The name MUST stay empty: ha-form does not nest
+   *  unnamed groups, so every field inside stays flat in the form value and the
+   *  emitted YAML keeps its existing top-level keys. Naming these (HA's own
+   *  approach, which pairs a name with `flatten: true`) would nest every value
+   *  and break existing configs. */
+  private _section(
+    titleKey: string,
+    icon: string,
+    expanded: boolean,
+    schema: HaFormSchemaItem[],
+  ): HaFormSchemaItem {
+    return {
+      type: 'expandable',
+      name: '',
+      title: t(`editor.tile.${titleKey}`, this.hass),
+      icon,
+      expanded,
+      schema,
+    };
+  }
+
+  /** Two-column cluster for related booleans, matching how HA grids its own
+   *  icon/color/picture/hide_state row. */
+  private _grid(schema: HaFormSchemaItem[]): HaFormSchemaItem {
+    return { type: 'grid', name: '', schema };
+  }
+
+  /** The Interactions group, shared by both the cover and group schemas so the
+   *  two can't drift. Mirrors HA's own tile editor, which collects tap /
+   *  icon-tap / hold / double-tap under one expandable. `icon_tap_action`
+   *  defaults to `none` — matching HA for the cover domain — and doubles as the
+   *  switch for the tinted pill behind the glyph (see types.ts). */
+  private _interactionsSection() {
+    return this._section('interactions_section', 'mdi:gesture-tap', false, [
       { name: 'tap_action', selector: { ui_action: {} } },
+      { name: 'icon_tap_action', selector: { ui_action: { default_action: 'none' } } },
       { name: 'hold_action', selector: { ui_action: {} } },
       { name: 'double_tap_action', selector: { ui_action: {} } },
-    ];
+    ]);
   }
 
   public static styles = css`
