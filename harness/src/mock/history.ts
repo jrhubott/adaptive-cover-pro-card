@@ -1,5 +1,6 @@
 import type { SunSample } from '../../../src/lib/sun-model';
 import type { HarnessEntry, ManagedCoverCfg } from '../types';
+import { hourInZone } from '../zone';
 import { buildForecast } from './forecast';
 
 /**
@@ -105,11 +106,12 @@ export function buildDivergentHistory(
   return out;
 }
 
-/** A generated hour (0–23, in the environment's local time) falls in the
- *  "slats don't move overnight" span — roughly 10:40 PM to 10:20 AM, rounded to
- *  whole hours since the mock steps in coarse increments. Mirrors
- *  `mock/events.ts`'s `isOvernightHour` (the two mocks have no shared module to
- *  hang a single copy off of, and it is one line). */
+/** A generated hour (0–23, in the harness clock's own configured zone — see
+ *  `zone.ts`'s `hourInZone`) falls in the "slats don't move overnight" span —
+ *  roughly 10:40 PM to 10:20 AM, rounded to whole hours since the mock steps
+ *  in coarse increments. Mirrors `mock/events.ts`'s `isOvernightHour` (the two
+ *  mocks have no shared module to hang a single copy off of, and it is one
+ *  line). */
 function isOvernightHour(hour: number): boolean {
   return hour >= 22 || hour < 10;
 }
@@ -128,6 +130,7 @@ export function buildTiltHistory(
   cover: ManagedCoverCfg,
   startMs: number,
   nowMs: number,
+  tz: string,
 ): CompressedState[] {
   const target = entry.target_tilt ?? 50;
   const out: CompressedState[] = [];
@@ -135,7 +138,7 @@ export function buildTiltHistory(
   let i = 0;
   let last: number | null = null;
   for (let t = startMs; t < nowMs; t += STEP_MS, i++) {
-    if (isOvernightHour(new Date(t).getHours()) && last !== null) continue;
+    if (isOvernightHour(hourInZone(t, tz)) && last !== null) continue;
     const swing = Math.round(20 * Math.sin(i / 4));
     const tilt = Math.max(0, Math.min(100, target + swing));
     if (tilt === last) continue; // recorder only stores transitions

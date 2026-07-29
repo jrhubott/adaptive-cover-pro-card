@@ -1,4 +1,5 @@
 import type { HarnessEntry } from '../types';
+import { hourInZone } from '../zone';
 
 /**
  * Synthetic stand-ins for the integration's diagnostic event buffer and for the
@@ -108,10 +109,10 @@ export function buildBinaryHistory(
   return out;
 }
 
-/** A generated hour (0–23, in the environment's local time) falls in the
- *  "nothing changes overnight" span a real cover schedule actually has —
- *  roughly 10:40 PM to 10:20 AM, rounded to whole hours since the mock steps
- *  in coarse increments. */
+/** A generated hour (0–23, in the harness clock's own configured zone — see
+ *  {@link hourInZone}) falls in the "nothing changes overnight" span a real
+ *  cover schedule actually has — roughly 10:40 PM to 10:20 AM, rounded to
+ *  whole hours since the mock steps in coarse increments. */
 function isOvernightHour(hour: number): boolean {
   return hour >= 22 || hour < 10;
 }
@@ -133,13 +134,14 @@ export function buildTargetHistory(
   entry: HarnessEntry,
   startMs: number,
   nowMs: number,
+  tz: string,
 ): CompressedSensorState[] {
   const out: CompressedSensorState[] = [];
   const STEP_MS = 2 * 60 * 60 * 1000; // candidate change points, a couple hours apart
   let i = 0;
   let last: number | null = null;
   for (let t = startMs; t < nowMs; t += STEP_MS, i++) {
-    if (isOvernightHour(new Date(t).getHours()) && last !== null) continue;
+    if (isOvernightHour(hourInZone(t, tz)) && last !== null) continue;
     // A slow sinusoid around the entry target, clamped to 0..100.
     const swing = Math.round(30 * Math.sin(i / 3));
     const pos = Math.max(0, Math.min(100, entry.target_position + swing));

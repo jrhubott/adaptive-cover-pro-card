@@ -558,11 +558,17 @@ export class HistoryView extends LitElement {
   /**
    * A curve build site's shared tail: step-expand a normalized series out to
    * the window end, then map every vertex through `_x()`/`yAt()` into a
-   * `<polyline points="…">` string. This is render-local — the caller must
-   * pass a fresh array (e.g. via `_isoToPoints`), never `this._target` /
-   * `this._actual` / `this._perCover` / `this._tiltTarget` / `this._tiltActual`
-   * directly-mutated, since `valueAt` and `history-stats.ts` still read those
-   * fields verbatim for the hover readout and the moves/travel stats.
+   * `<polyline points="…">` string. `stepExpand` allocates its own output
+   * array, but the vertices inside it may still be the SAME objects as the
+   * ones in `series` — so this method (and every caller) may only ever READ
+   * `.t`/`.value` off a point, never mutate one. That is what makes this
+   * render-local without needing a defensive copy: `this._target` /
+   * `this._tiltTarget` are passed straight in below, and `this._actual` /
+   * `this._perCover` / `this._tiltActual` only need `_isoToPoints`'s shape
+   * conversion first, not a fresh-array guarantee. Either way, `valueAt` and
+   * `history-stats.ts` keep reading those stored `@state()` fields verbatim
+   * for the hover readout and the moves/travel stats, so nothing synthesized
+   * here ever leaks back into them.
    */
   private _stepPoints(
     series: Array<{ t: number; value: number }>,
@@ -672,10 +678,7 @@ export class HistoryView extends LitElement {
     const target = valueAt(this._target, hoverT);
     if (target !== null)
       parts.push(`${t('history.legend_target', this.hass)} ${Math.round(target)}%`);
-    const actual = valueAt(
-      this._actual.map((s) => ({ t: Date.parse(s.t), value: s.position })),
-      hoverT,
-    );
+    const actual = valueAt(this._isoToPoints(this._actual), hoverT);
     if (actual !== null)
       parts.push(`${t('history.legend_actual', this.hass)} ${Math.round(actual)}%`);
 

@@ -175,8 +175,10 @@ describe('acp-history-view — step-expanded curves (issue #253)', () => {
     const [first, held, dropped, terminator] = points;
     // The held vertex repeats the PRE-DROP y (same as the first vertex) …
     expect(held[1]).toBeCloseTo(first[1], 5);
-    // … at the x of the drop itself, not the hold start.
-    expect(held[0]).toBeCloseTo(dropped[0], 1);
+    // … strictly after the hold-start's x, never collapsed back onto it — a
+    // carry vertex anchored to `prev.t` instead of `cur.t` would land held[0]
+    // exactly on first[0] and fail this.
+    expect(held[0]).toBeGreaterThan(first[0]);
     // And the line does actually reach the dropped value afterwards.
     expect(dropped[1]).not.toBeCloseTo(first[1], 1);
     // The dropped value then holds flat out to the window end rather than the
@@ -199,7 +201,12 @@ describe('acp-history-view — step-expanded curves (issue #253)', () => {
 
     expect(el.shadowRoot!.querySelector('polyline.target-curve')).toBeNull();
     expect(el.shadowRoot!.querySelector('polyline.actual-curve')).toBeNull();
-    expect(el.shadowRoot!.querySelector('.empty-note')).toBeTruthy();
+    // Scoped to the position track specifically: its `.track-plot` is the only
+    // one that pairs an `<svg>` with an `.empty-note` sibling (the who-won and
+    // context tracks lay their own `.empty-note` out inside a `.bar` div with
+    // no `<svg>`), so this can't pass on the strength of a different track's
+    // note while the position track's own note is missing.
+    expect(el.shadowRoot!.querySelector('.track-plot svg ~ .empty-note')).toBeTruthy();
 
     el.remove();
   });

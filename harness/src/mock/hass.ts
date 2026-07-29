@@ -64,16 +64,18 @@ function buildSensorSeries(
   startMs: number,
   nowMs: number,
   generated: GeneratedStates,
+  tz: string,
 ): CompressedSensorState[] {
   const HOUR = 60 * 60 * 1000;
   switch (role) {
     case 'target_position_sensor':
-      return buildTargetHistory(entry, startMs, nowMs);
+      return buildTargetHistory(entry, startMs, nowMs, tz);
     case 'target_tilt_sensor':
       return buildTargetHistory(
         { ...entry, target_position: entry.target_tilt ?? 50 },
         startMs,
         nowMs,
+        tz,
       );
     // Two DIFFERENT axes, deliberately given different values and rhythms:
     // `decision_trace` publishes the winning handler, `control_status` publishes
@@ -232,6 +234,11 @@ export function buildMockHass(
   onServiceCall: (e: ServiceCallEvent) => void,
 ): MockHassBundle {
   const generated = buildStates(cfg);
+  // The zone the harness clock itself is anchored to (see `state-gen.ts`'s
+  // `buildStates`) — the recorder mocks below need this to place their
+  // "overnight" gaps against the harness's configured location rather than
+  // the developer machine's timezone.
+  const tz = zoneForLongitude(cfg.longitude);
   const registry = buildRegistry(cfg.entries);
   const devices: Record<
     string,
@@ -308,15 +315,16 @@ export function buildMockHass(
           // also carry `current_tilt_position` for the History tilt track.
           result[id] =
             cover.entry.cover_type === 'cover_venetian'
-              ? [...position, ...buildTiltHistory(cover.entry, cover.cover, startMs, nowMs)].sort(
-                  (a, b) => a.lu - b.lu,
-                )
+              ? [
+                  ...position,
+                  ...buildTiltHistory(cover.entry, cover.cover, startMs, nowMs, tz),
+                ].sort((a, b) => a.lu - b.lu)
               : position;
           continue;
         }
         const sensor = sensorLookup.get(id);
         if (sensor) {
-          result[id] = buildSensorSeries(sensor.entry, sensor.role, startMs, nowMs, generated);
+          result[id] = buildSensorSeries(sensor.entry, sensor.role, startMs, nowMs, generated, tz);
           continue;
         }
         result[id] = [];
