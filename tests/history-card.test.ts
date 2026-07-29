@@ -1,7 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import '../src/adaptive-cover-pro-history-card';
+import '../src/components/history-view';
 import { HISTORY_CARD_NAME, HISTORY_DEFAULT_HOURS } from '../src/const';
-import type { AdaptiveCoverProHistoryCardConfig } from '../src/types';
+import type { AdaptiveCoverProHistoryCardConfig, DiscoveredEntities } from '../src/types';
+import type { HomeAssistant } from 'custom-card-helpers';
 
 const TYPE = `custom:${HISTORY_CARD_NAME}`;
 const ENTRY = 'entry_abc';
@@ -86,5 +88,112 @@ describe('adaptive-cover-pro-history-card — registration', () => {
     expect(entry.preview).toBe(true);
     expect(entry.documentationURL).toMatch(/^https:\/\//);
     expect(entry.name).toMatch(/History/);
+  });
+});
+
+interface HistoryViewLike extends HTMLElement {
+  hass?: HomeAssistant;
+  discovered?: DiscoveredEntities;
+  hours?: number;
+  tracks?: { actions?: boolean };
+  updateComplete: Promise<boolean>;
+}
+
+const baseDiscovered: DiscoveredEntities = {
+  entry_id: 'entry_position_track',
+  entry_title: 'Position Track Test',
+  cover_type: 'cover_blind',
+  entities: {},
+  managed_covers: [],
+};
+
+/** Wait for the view's fetch-then-render cycle to settle. `_fetch` awaits a
+ *  `Promise.all` before assigning any `@state` field, so the render triggered
+ *  by mounting happens before the data arrives — a single `updateComplete`
+ *  isn't enough. Polling a couple of microtask/macrotask turns is simpler than
+ *  threading a fetch-complete hook through the component for tests alone. */
+async function flush(el: HistoryViewLike, turns = 20): Promise<void> {
+  for (let i = 0; i < turns; i++) {
+    await el.updateComplete;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+}
+
+/** Parse a `<polyline points="...">` string into `[x, y]` vertex pairs. */
+function parsePoints(raw: string): Array<[number, number]> {
+  return raw
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((pair) => pair.split(',').map(Number) as [number, number]);
+}
+
+describe('acp-history-view — step-expanded curves (issue #253)', () => {
+  it('draws a held vertex across a long gap instead of an interpolated diagonal', async () => {
+    // The issue's exact shape: the target sensor holds at 100% for hours, then
+    // drops to 0% at one instant. The recorder only stores those two samples,
+    // so without step-expansion the polyline is a straight two-vertex ramp
+    // from 100% to 0% across the whole gap.
+    const now = Date.UTC(2026, 6, 27, 8, 0, 0);
+    const holdStart = now - 50 * 60_000; // 07:10
+    const drop = now - 5 * 60_000; // 07:55
+
+    const callWS = vi.fn().mockResolvedValue({
+      'sensor.acp_target_position': [
+        { s: '100', lu: holdStart / 1000 },
+        { s: '0', lu: drop / 1000 },
+      ],
+    });
+
+    const el = document.createElement('acp-history-view') as HistoryViewLike;
+    el.hass = { callWS, states: {}, config: {} } as unknown as HomeAssistant;
+    el.discovered = {
+      ...baseDiscovered,
+      entities: { target_position_sensor: 'sensor.acp_target_position' },
+    };
+    el.hours = 1;
+    el.tracks = { actions: false };
+    document.body.appendChild(el);
+
+    await flush(el);
+
+    const polyline = el.shadowRoot!.querySelector('polyline.target-curve');
+    expect(polyline).toBeTruthy();
+    const points = parsePoints(polyline!.getAttribute('points') ?? '');
+
+    // Two real samples, one carried-forward hold vertex at the drop, and one
+    // terminator extending the dropped value out to the window end ("now")
+    // — never a bare two-point diagonal from 100% straight down to 0%.
+    expect(points.length).toBe(4);
+    const [first, held, dropped, terminator] = points;
+    // The held vertex repeats the PRE-DROP y (same as the first vertex) …
+    expect(held[1]).toBeCloseTo(first[1], 5);
+    // … at the x of the drop itself, not the hold start.
+    expect(held[0]).toBeCloseTo(dropped[0], 1);
+    // And the line does actually reach the dropped value afterwards.
+    expect(dropped[1]).not.toBeCloseTo(first[1], 1);
+    // The dropped value then holds flat out to the window end rather than the
+    // polyline simply stopping at the last real sample.
+    expect(terminator[1]).toBeCloseTo(dropped[1], 5);
+    expect(terminator[0]).toBeGreaterThan(dropped[0]);
+
+    el.remove();
+  });
+
+  it('still shows the empty-state note when both series are genuinely empty', async () => {
+    const el = document.createElement('acp-history-view') as HistoryViewLike;
+    el.hass = { callWS: vi.fn(), states: {}, config: {} } as unknown as HomeAssistant;
+    el.discovered = { ...baseDiscovered, entities: {}, managed_covers: [] };
+    el.hours = 1;
+    el.tracks = { actions: false };
+    document.body.appendChild(el);
+
+    await flush(el);
+
+    expect(el.shadowRoot!.querySelector('polyline.target-curve')).toBeNull();
+    expect(el.shadowRoot!.querySelector('polyline.actual-curve')).toBeNull();
+    expect(el.shadowRoot!.querySelector('.empty-note')).toBeTruthy();
+
+    el.remove();
   });
 });

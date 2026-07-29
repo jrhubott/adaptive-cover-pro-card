@@ -23,7 +23,7 @@ import { aggregatePerCover, fetchCoverAxisHistory } from '../lib/position-histor
 import { positionAxisInverted, resolveAxes } from '../lib/axes';
 import { summarize, formatSpan, type HistoryStats } from '../lib/history-stats';
 import { aboveHorizonSegments, sampleDay, startOfDay } from '../lib/sun-model';
-import { fetchStateHistory, toBands, toNumericSeries } from '../lib/state-history';
+import { fetchStateHistory, stepExpand, toBands, toNumericSeries } from '../lib/state-history';
 import { fetchEventTimeline, hasGetDiagnostics } from '../lib/event-timeline';
 import { fetchLogbook, groupByDay, initials } from '../lib/logbook';
 import { buildActivity } from '../lib/activity';
@@ -546,6 +546,33 @@ export class HistoryView extends LitElement {
     return spanFractionX(t, this._start, this._now, HistoryView.VIEW_W);
   }
 
+  /** `PositionHistorySample[]` (ISO `t`) → the `{t, value}` shape `stepExpand`
+   *  and `valueAt` share. Unparseable timestamps are dropped rather than
+   *  plotted at `NaN`. */
+  private _isoToPoints(series: PositionHistorySample[]): Array<{ t: number; value: number }> {
+    return series
+      .map((s) => ({ t: Date.parse(s.t), value: s.position }))
+      .filter((p): p is { t: number; value: number } => !Number.isNaN(p.t));
+  }
+
+  /**
+   * A curve build site's shared tail: step-expand a normalized series out to
+   * the window end, then map every vertex through `_x()`/`yAt()` into a
+   * `<polyline points="…">` string. This is render-local — the caller must
+   * pass a fresh array (e.g. via `_isoToPoints`), never `this._target` /
+   * `this._actual` / `this._perCover` / `this._tiltTarget` / `this._tiltActual`
+   * directly-mutated, since `valueAt` and `history-stats.ts` still read those
+   * fields verbatim for the hover readout and the moves/travel stats.
+   */
+  private _stepPoints(
+    series: Array<{ t: number; value: number }>,
+    yAt: (v: number) => number,
+  ): string {
+    return stepExpand(series, this._now)
+      .map((p) => `${this._x(p.t).toFixed(1)},${yAt(p.value).toFixed(1)}`)
+      .join(' ');
+  }
+
   protected render(): TemplateResult | typeof nothing {
     if (!this.hass || !this.discovered) return nothing;
     if (this._maximized !== null) return this._renderMaximized();
@@ -682,30 +709,14 @@ export class HistoryView extends LitElement {
     const usableH = POS_H - POS_TOP_PAD;
     const yAt = (v: number): number => percentToY(v, POS_TOP_PAD, usableH);
 
-    const targetPts = this._target
-      .map((p) => `${this._x(p.t).toFixed(1)},${yAt(p.value).toFixed(1)}`)
-      .join(' ');
-    const actualPts = this._actual
-      .map((s) => {
-        const ts = Date.parse(s.t);
-        if (Number.isNaN(ts)) return null;
-        return `${this._x(ts).toFixed(1)},${yAt(s.position).toFixed(1)}`;
-      })
-      .filter((p): p is string => p !== null)
-      .join(' ');
+    const targetPts = this._stepPoints(this._target, yAt);
+    const actualPts = this._stepPoints(this._isoToPoints(this._actual), yAt);
 
     // Per-cover companions, drawn UNDER the aggregate so the mean stays the
     // headline while a diverging cover is still visible.
     const perCoverPts = Object.entries(this._perCover).map(([id, series]) => ({
       id,
-      points: series
-        .map((s) => {
-          const ts = Date.parse(s.t);
-          if (Number.isNaN(ts)) return null;
-          return `${this._x(ts).toFixed(1)},${yAt(s.position).toFixed(1)}`;
-        })
-        .filter((p): p is string => p !== null)
-        .join(' '),
+      points: this._stepPoints(this._isoToPoints(series), yAt),
     }));
 
     const empty = !targetPts && !actualPts;
@@ -756,19 +767,8 @@ export class HistoryView extends LitElement {
 
     const usableH = POS_H - POS_TOP_PAD;
     const yAt = (v: number): number => percentToY(v, POS_TOP_PAD, usableH);
-    const targetPts = this._tiltTarget
-      .map((p) => `${this._x(p.t).toFixed(1)},${yAt(p.value).toFixed(1)}`)
-      .join(' ');
-    const actualRuns = covers.map((series) =>
-      series
-        .map((s) => {
-          const ts = Date.parse(s.t);
-          if (Number.isNaN(ts)) return null;
-          return `${this._x(ts).toFixed(1)},${yAt(s.position).toFixed(1)}`;
-        })
-        .filter((p): p is string => p !== null)
-        .join(' '),
-    );
+    const targetPts = this._stepPoints(this._tiltTarget, yAt);
+    const actualRuns = covers.map((series) => this._stepPoints(this._isoToPoints(series), yAt));
 
     return html`
       <div class="track">

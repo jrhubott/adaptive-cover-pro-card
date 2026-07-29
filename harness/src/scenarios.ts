@@ -2538,6 +2538,25 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'history-overnight-hold',
+    label: 'History card — overnight hold then drop (issue #253)',
+    description:
+      'The Position track holds perfectly FLAT overnight (~10:40 PM → ~10:20 AM), then steps to a new value once the day starts — the recorder stores transitions only, so a real install’s target/actual lines have exactly this shape. Confirms the curve draws a held line that STEPS at the transition instant, not a diagonal ramp interpolated straight across the whole night (the bug issue #253 reported: hovering mid-gap read the correctly-held value while the line under the cursor showed a straight ramp to the drop).',
+    added: '2026-07-28',
+    build: () => {
+      const c = baseConfig('2026-06-21', 15 * 60);
+      c.scenario = 'history-overnight-hold';
+      c.history.advanced_open = false;
+      c.history.track_who_won = false;
+      c.history.track_context = false;
+      c.history.track_actions = false;
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
     id: 'composite-tile-name',
     label: 'Composite tile name (#247)',
     description:

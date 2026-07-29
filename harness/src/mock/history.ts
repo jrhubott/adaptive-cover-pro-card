@@ -105,10 +105,23 @@ export function buildDivergentHistory(
   return out;
 }
 
+/** A generated hour (0–23, in the environment's local time) falls in the
+ *  "slats don't move overnight" span — roughly 10:40 PM to 10:20 AM, rounded to
+ *  whole hours since the mock steps in coarse increments. Mirrors
+ *  `mock/events.ts`'s `isOvernightHour` (the two mocks have no shared module to
+ *  hang a single copy off of, and it is one line). */
+function isOvernightHour(hour: number): boolean {
+  return hour >= 22 || hour < 10;
+}
+
 /**
  * Synthesize recorded slat tilt for a venetian cover. Tracks the entry's tilt
- * target with a lag, so the History card's tilt track has both a target line
- * and an actual line that visibly differ.
+ * target with a lag across a HANDFUL of real changes, holding perfectly FLAT
+ * overnight, so the History card's tilt track has both a target line and an
+ * actual line that visibly differ during the day — and a long flat overnight
+ * gap that exercises the same step-vs-interpolated render path as the position
+ * track (issue #253). The original dense 30-minute sinusoid never produced a
+ * gap long enough to tell a stepped line from an interpolated one.
  */
 export function buildTiltHistory(
   entry: HarnessEntry,
@@ -118,12 +131,16 @@ export function buildTiltHistory(
 ): CompressedState[] {
   const target = entry.target_tilt ?? 50;
   const out: CompressedState[] = [];
-  const STEP_MS = 30 * 60 * 1000;
+  const STEP_MS = 90 * 60 * 1000; // candidate change points, a bit over an hour apart
   let i = 0;
+  let last: number | null = null;
   for (let t = startMs; t < nowMs; t += STEP_MS, i++) {
+    if (isOvernightHour(new Date(t).getHours()) && last !== null) continue;
     const swing = Math.round(20 * Math.sin(i / 4));
     const tilt = Math.max(0, Math.min(100, target + swing));
+    if (tilt === last) continue; // recorder only stores transitions
     out.push({ s: 'open', a: { current_tilt_position: tilt } as never, lu: t / 1000 });
+    last = tilt;
   }
   const finalTilt = cover.tilt ?? target;
   out.push({ s: 'open', a: { current_tilt_position: finalTilt } as never, lu: nowMs / 1000 });

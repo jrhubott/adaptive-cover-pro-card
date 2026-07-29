@@ -129,6 +129,46 @@ export function toNumericSeries(
 }
 
 /**
+ * Expand a step-function series into render-ready hold vertices.
+ *
+ * The recorder stores transitions only — a value holds until the next sample —
+ * but SVG's `<polyline>` linearly interpolates between consecutive points. Fed
+ * straight through, a long gap between two real samples draws a diagonal ramp
+ * instead of the flat-then-step shape the data actually represents (issue
+ * #253's overnight-hold-then-drop symptom). This inserts a carry-forward point
+ * immediately before every value change (same time as the new sample, value of
+ * the one it replaces) so the polyline holds flat right up to the step, and
+ * extends the final value out to `endMs` when the last sample is still in
+ * effect there.
+ *
+ * Pure and render-local: apply this to a COPY of a series right before mapping
+ * it into screen coordinates, never to the stored series itself — `valueAt`'s
+ * hold-lookup and `history-stats.ts`'s move-counting both read the raw series
+ * and must not see synthesized points.
+ *
+ * Returns `[]` for an empty series — no terminator point is conjured from
+ * nothing (mirrors {@link toBands}'s empty-input guard).
+ */
+export function stepExpand(
+  points: Array<{ t: number; value: number }>,
+  endMs: number,
+): Array<{ t: number; value: number }> {
+  if (points.length === 0) return [];
+
+  const out: Array<{ t: number; value: number }> = [points[0]];
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1];
+    const cur = points[i];
+    if (cur.value !== prev.value) out.push({ t: cur.t, value: prev.value });
+    out.push(cur);
+  }
+
+  const last = out[out.length - 1];
+  if (last.t < endMs) out.push({ t: endMs, value: last.value });
+  return out;
+}
+
+/**
  * Fetch recorded state for the given entities over `[startMs, endMs]`.
  * Returns one parsed series per entity id. Never rejects — any failure yields
  * an empty map, and an entity with no retained history is simply absent.
