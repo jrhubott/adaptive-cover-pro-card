@@ -134,9 +134,16 @@ describe('acp-history-view — step-expanded curves (issue #253)', () => {
     // drops to 0% at one instant. The recorder only stores those two samples,
     // so without step-expansion the polyline is a straight two-vertex ramp
     // from 100% to 0% across the whole gap.
-    const now = Date.UTC(2026, 6, 27, 8, 0, 0);
-    const holdStart = now - 50 * 60_000; // 07:10
-    const drop = now - 5 * 60_000; // 07:55
+    // `_fetch` derives its window from the real `Date.now()` (`el.hours = 1`
+    // below → a 60-minute window ending now), so the fixture must be anchored
+    // there too — a hardcoded date makes both samples fall outside whatever
+    // window the component actually builds, clamping every vertex to x=0.
+    // 10 min of margin at the start and 5 min at the end comfortably absorbs
+    // the few milliseconds of drift between capturing `now` here and
+    // `_fetch`'s own `Date.now()` call a tick later.
+    const now = Date.now();
+    const holdStart = now - 50 * 60_000; // 50 min ago
+    const drop = now - 5 * 60_000; // 5 min ago
 
     const callWS = vi.fn().mockResolvedValue({
       'sensor.acp_target_position': [
