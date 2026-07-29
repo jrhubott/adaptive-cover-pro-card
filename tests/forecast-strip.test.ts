@@ -30,15 +30,30 @@ async function mount(
   return el;
 }
 
-async function hoverFirst(el: StripLike): Promise<Element | null> {
+/** Hover the strip at a client-x, with the SVG's layout box stubbed to the
+ *  600px viewBox width so client-x and SVG-x are the same number. */
+async function hoverAt(el: StripLike, clientX: number): Promise<Element | null> {
   const svgEl = el.shadowRoot!.querySelector('svg')!;
   Object.defineProperty(svgEl, 'getBoundingClientRect', {
     value: () => ({ left: 0, top: 0, width: 600, height: 80, right: 600, bottom: 80 }),
     configurable: true,
   });
-  svgEl.dispatchEvent(new PointerEvent('pointermove', { clientX: 0, clientY: 5 }));
+  svgEl.dispatchEvent(new PointerEvent('pointermove', { clientX, clientY: 5 }));
   await el.updateComplete;
   return el.shadowRoot!.querySelector('.hover-label');
+}
+
+async function hoverFirst(el: StripLike): Promise<Element | null> {
+  return hoverAt(el, 0);
+}
+
+/** Parse a `<polyline points="...">` string into `[x, y]` vertex pairs. */
+function parsePoints(raw: string): Array<[number, number]> {
+  return raw
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((pair) => pair.split(',').map(Number) as [number, number]);
 }
 
 // All fixtures are anchored to local midnight so tests are timezone-independent.
@@ -95,23 +110,136 @@ describe('acp-forecast-strip', () => {
     const el = await mount(samples, [], NOW, hist);
     const actual = el.shadowRoot!.querySelector('polyline.actual-curve');
     expect(actual).toBeTruthy();
-    expect(actual!.getAttribute('points')!.trim().split(/\s+/).length).toBe(3);
+    // Three real samples + two carry vertices (one per transition) + one
+    // terminator holding the last value out to `now`.
+    expect(actual!.getAttribute('points')!.trim().split(/\s+/).length).toBe(6);
     // The forecast curve still renders alongside it.
     expect(el.shadowRoot!.querySelector('polyline.curve')).toBeTruthy();
     expect(el.shadowRoot!.querySelector('.legend')).toBeTruthy();
   });
 
-  it('drops out-of-day history samples from the actual-curve', async () => {
+  it('drops next-day history samples from the actual-curve', async () => {
     const samples = [sample(6 * 3600_000, 50)];
     const hist = [
       history(6 * 3600_000, 50), // in day
-      history(-3600_000, 40), // before midnight — outside day
       history(26 * 3600_000, 30), // next day — outside day
     ];
     const el = await mount(samples, [], NOW, hist);
     const points =
       el.shadowRoot!.querySelector('polyline.actual-curve')!.getAttribute('points') ?? '';
-    expect(points.trim().split(/\s+/).filter(Boolean).length).toBe(1);
+    const pts = parsePoints(points);
+    // The in-day sample plus a terminator at `now` (12:00 → x=300).
+    expect(pts.length).toBe(2);
+    expect(pts[0]).toEqual([150.0, 45.0]);
+    expect(pts[1]).toEqual([300.0, 45.0]);
+    // A next-day sample must be dropped, never clamped onto the right edge —
+    // that would draw a spurious spike out to x=600.
+    expect(Math.max(...pts.map((p) => p[0]))).toBeLessThan(600);
+  });
+
+  it('renders a hold-then-step across a long recorder gap, not a diagonal ramp (issue #255)', async () => {
+    // The recorder stores transitions only: the cover held at 20% from 01:00
+    // until it moved to 80% at 09:00. Fed raw to a `<polyline>`, SVG linearly
+    // interpolates and draws an eight-hour diagonal ramp that claims positions
+    // the cover was never at — the forecast-strip twin of issue #253.
+    const samples = [sample(0, 0), sample(12 * 3600_000, 100)];
+    const hist = [history(3600_000, 20), history(9 * 3600_000, 80)];
+    const el = await mount(samples, [], NOW, hist);
+    const raw = el.shadowRoot!.querySelector('polyline.actual-curve')!.getAttribute('points') ?? '';
+    const pts = parsePoints(raw);
+
+    // 25.0,66.0 225.0,66.0 225.0,24.0 300.0,24.0
+    expect(pts.length).toBe(4);
+    const [first, held, dropped, terminator] = pts;
+    expect(first).toEqual([25.0, 66.0]);
+    // The carry vertex repeats the PRE-transition value …
+    expect(held[1]).toBeCloseTo(first[1], 5);
+    // … strictly after the first vertex …
+    expect(held[0]).toBeGreaterThan(first[0]);
+    // … and pinned exactly to the transition instant, so the step is vertical.
+    // Two raw vertices (today's output) put `held` at the transition's value
+    // instead and fail this.
+    expect(held[0]).toBeCloseTo(dropped[0], 1);
+    expect(dropped[1]).not.toBeCloseTo(first[1], 1);
+    // The new value then holds flat out to `now` (12:00 → x=300), NOT out to
+    // the day's far edge (24:00 → x=600), where nothing is recorded yet.
+    expect(terminator[1]).toBeCloseTo(dropped[1], 5);
+    expect(terminator[0]).toBeCloseTo(300, 0);
+  });
+
+  it('carries a pre-midnight sample in at the left edge instead of dropping it', async () => {
+    // HA's `history_during_period` answers a window query with the state in
+    // effect as the window opened, carrying its own un-clamped `last_changed`.
+    // Dropping that row erases the entire pre-transition morning.
+    const samples = [sample(0, 0), sample(12 * 3600_000, 100)];
+    const hist = [history(-3600_000, 40), history(9 * 3600_000, 80)];
+    const el = await mount(samples, [], NOW, hist);
+    const pts = parsePoints(
+      el.shadowRoot!.querySelector('polyline.actual-curve')!.getAttribute('points') ?? '',
+    );
+
+    expect(pts.length).toBe(4);
+    // Pinned to midnight, not dropped …
+    expect(pts[0][0]).toBeCloseTo(0, 5);
+    // … and flat from midnight to the 09:00 transition.
+    expect(pts[1][1]).toBeCloseTo(pts[0][1], 5);
+  });
+
+  it('draws a flat line when the only change predates midnight', async () => {
+    // The shape `fetchPositionHistory` really emits for a cover that has not
+    // moved today: one pre-window carry row and one forward-filled tail at the
+    // window end. One surviving vertex would render an invisible line.
+    const samples = [sample(0, 70), sample(12 * 3600_000, 70)];
+    const hist = [history(-3 * 3600_000, 70), history(12 * 3600_000, 70)];
+    const el = await mount(samples, [], NOW, hist);
+    const pts = parsePoints(
+      el.shadowRoot!.querySelector('polyline.actual-curve')!.getAttribute('points') ?? '',
+    );
+
+    expect(pts.length).toBe(2);
+    expect(pts[0]).toEqual([0.0, 31.0]);
+    expect(pts[1]).toEqual([300.0, 31.0]);
+  });
+
+  it('the hover readout reports the value held at the cursor, never the next transition', async () => {
+    // Nearest-by-x-distance reads the FUTURE just before a transition: at
+    // 08:00 the 09:00 sample is an hour away and the 01:00 one is seven, so a
+    // distance lookup reports 80% while the line under the cursor sits at 20%.
+    const samples = [sample(0, 5), sample(8 * 3600_000, 45), sample(10 * 3600_000, 55)];
+    const hist = [history(3600_000, 20), history(9 * 3600_000, 80)];
+    const el = await mount(samples, [], NOW, hist);
+
+    // x=200 → the 08:00 sample, still inside the 20% hold.
+    const before = await hoverAt(el, 200);
+    expect(before).toBeTruthy();
+    expect(before!.textContent ?? '').toContain('20%');
+    expect(before!.textContent ?? '').not.toContain('80%');
+
+    // x=250 → the 10:00 sample, after the transition.
+    const after = await hoverAt(el, 250);
+    expect(after!.textContent ?? '').toContain('80%');
+  });
+
+  it('reports no Actual value past `now`, where the actual curve has ended', async () => {
+    // The actual curve terminates at `now` — nothing is recorded past it. A
+    // hold lookup happily returns the last recorded value for an evening
+    // forecast sample, so hovering 18:00 at noon would read "Actual 80%" with
+    // no actual line anywhere under the cursor: the same "readout disagrees
+    // with the line beneath it" problem the hold lookup exists to prevent.
+    const samples = [sample(8 * 3600_000, 45), sample(18 * 3600_000, 70)];
+    const hist = [history(3600_000, 20), history(9 * 3600_000, 80)];
+    const el = await mount(samples, [], NOW, hist);
+
+    // x=450 → the 18:00 sample, six hours past `now` (12:00).
+    const afterNow = await hoverAt(el, 450);
+    expect(afterNow).toBeTruthy();
+    expect(afterNow!.textContent ?? '').toContain('70%');
+    expect(afterNow!.textContent ?? '').not.toContain('Actual');
+
+    // x=200 → the 08:00 sample, inside recorded time, still reports it.
+    const beforeNow = await hoverAt(el, 200);
+    expect(beforeNow!.textContent ?? '').toContain('Actual');
+    expect(beforeNow!.textContent ?? '').toContain('20%');
   });
 
   it('renders the strip from history alone when there are no forecast samples', async () => {

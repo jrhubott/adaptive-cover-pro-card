@@ -23,7 +23,14 @@ import { aggregatePerCover, fetchCoverAxisHistory } from '../lib/position-histor
 import { positionAxisInverted, resolveAxes } from '../lib/axes';
 import { summarize, formatSpan, type HistoryStats } from '../lib/history-stats';
 import { aboveHorizonSegments, sampleDay, startOfDay } from '../lib/sun-model';
-import { fetchStateHistory, stepExpand, toBands, toNumericSeries } from '../lib/state-history';
+import {
+  fetchStateHistory,
+  isoToPoints,
+  stepExpand,
+  toBands,
+  toNumericSeries,
+  valueAt,
+} from '../lib/state-history';
 import { fetchEventTimeline, hasGetDiagnostics } from '../lib/event-timeline';
 import { fetchLogbook, groupByDay, initials } from '../lib/logbook';
 import { buildActivity } from '../lib/activity';
@@ -546,15 +553,6 @@ export class HistoryView extends LitElement {
     return spanFractionX(t, this._start, this._now, HistoryView.VIEW_W);
   }
 
-  /** `PositionHistorySample[]` (ISO `t`) → the `{t, value}` shape `stepExpand`
-   *  and `valueAt` share. Unparseable timestamps are dropped rather than
-   *  plotted at `NaN`. */
-  private _isoToPoints(series: PositionHistorySample[]): Array<{ t: number; value: number }> {
-    return series
-      .map((s) => ({ t: Date.parse(s.t), value: s.position }))
-      .filter((p): p is { t: number; value: number } => !Number.isNaN(p.t));
-  }
-
   /**
    * A curve build site's shared tail: step-expand a normalized series out to
    * the window end, then map every vertex through `_x()`/`yAt()` into a
@@ -564,7 +562,7 @@ export class HistoryView extends LitElement {
    * `.t`/`.value` off a point, never mutate one. That is what makes this
    * render-local without needing a defensive copy: `this._target` /
    * `this._tiltTarget` are passed straight in below, and `this._actual` /
-   * `this._perCover` / `this._tiltActual` only need `_isoToPoints`'s shape
+   * `this._perCover` / `this._tiltActual` only need `isoToPoints`'s shape
    * conversion first, not a fresh-array guarantee. Either way, `valueAt` and
    * `history-stats.ts` keep reading those stored `@state()` fields verbatim
    * for the hover readout and the moves/travel stats, so nothing synthesized
@@ -678,7 +676,7 @@ export class HistoryView extends LitElement {
     const target = valueAt(this._target, hoverT);
     if (target !== null)
       parts.push(`${t('history.legend_target', this.hass)} ${Math.round(target)}%`);
-    const actual = valueAt(this._isoToPoints(this._actual), hoverT);
+    const actual = valueAt(isoToPoints(this._actual), hoverT);
     if (actual !== null)
       parts.push(`${t('history.legend_actual', this.hass)} ${Math.round(actual)}%`);
 
@@ -713,13 +711,13 @@ export class HistoryView extends LitElement {
     const yAt = (v: number): number => percentToY(v, POS_TOP_PAD, usableH);
 
     const targetPts = this._stepPoints(this._target, yAt);
-    const actualPts = this._stepPoints(this._isoToPoints(this._actual), yAt);
+    const actualPts = this._stepPoints(isoToPoints(this._actual), yAt);
 
     // Per-cover companions, drawn UNDER the aggregate so the mean stays the
     // headline while a diverging cover is still visible.
     const perCoverPts = Object.entries(this._perCover).map(([id, series]) => ({
       id,
-      points: this._stepPoints(this._isoToPoints(series), yAt),
+      points: this._stepPoints(isoToPoints(series), yAt),
     }));
 
     const empty = !targetPts && !actualPts;
@@ -771,7 +769,7 @@ export class HistoryView extends LitElement {
     const usableH = POS_H - POS_TOP_PAD;
     const yAt = (v: number): number => percentToY(v, POS_TOP_PAD, usableH);
     const targetPts = this._stepPoints(this._tiltTarget, yAt);
-    const actualRuns = covers.map((series) => this._stepPoints(this._isoToPoints(series), yAt));
+    const actualRuns = covers.map((series) => this._stepPoints(isoToPoints(series), yAt));
 
     return html`
       <div class="track">
@@ -1992,28 +1990,6 @@ export function bandAt(bands: HistoryBand[], t: number): HistoryBand | null {
     if (t >= b.start && t < b.end) return b;
   }
   return null;
-}
-
-/**
- * Value in effect at `t` — the last sample at or BEFORE it.
- *
- * These are step functions: the recorder stores transitions, and a value holds
- * until the next one. Picking the nearest sample in either direction reads the
- * FUTURE whenever the cursor sits just before a change — hovering at 17:55 on a
- * target that drops to 0 at 18:00 would report 0%, disagreeing with the very
- * line under the cursor. Null before the first sample, where nothing is known.
- */
-export function valueAt(points: Array<{ t: number; value: number }>, t: number): number | null {
-  let best: number | null = null;
-  let bestT = Number.NEGATIVE_INFINITY;
-  for (const p of points) {
-    if (Number.isNaN(p.t)) continue;
-    if (p.t <= t && p.t >= bestT) {
-      bestT = p.t;
-      best = p.value;
-    }
-  }
-  return best;
 }
 
 /** Local wall-clock time, in the viewer's 12/24h convention. */

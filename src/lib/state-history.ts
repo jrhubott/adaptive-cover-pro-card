@@ -1,5 +1,5 @@
 import type { HomeAssistant } from 'custom-card-helpers';
-import type { HistoryBand, StateSample } from '../types';
+import type { HistoryBand, PositionHistorySample, StateSample } from '../types';
 
 /**
  * Generic recorder state history — the counterpart to `position-history.ts`.
@@ -128,6 +128,56 @@ export function toNumericSeries(
   return out;
 }
 
+/** `PositionHistorySample[]` (ISO `t`) → the `{t, value}` shape `stepExpand`
+ *  and `valueAt` share. Unparseable timestamps are dropped rather than
+ *  plotted at `NaN`. */
+export function isoToPoints(series: PositionHistorySample[]): Array<{ t: number; value: number }> {
+  return series
+    .map((s) => ({ t: Date.parse(s.t), value: s.position }))
+    .filter((p): p is { t: number; value: number } => !Number.isNaN(p.t));
+}
+
+/**
+ * Restrict a step-function series to `[startMs, endMs]`, pinning the state in
+ * effect as the window opened to the left edge.
+ *
+ * The recorder answers a window query with that pre-window state as the first
+ * row, carrying its own un-clamped `last_changed` — the same phenomenon
+ * {@link toBands} names and handles with its own `carryIn`. Dropping the row
+ * instead would erase everything up to the first in-window transition; a cover
+ * that last moved yesterday would render nothing at all.
+ *
+ * Samples past `endMs` are dropped outright: the axis mappers in
+ * `lib/geometry.ts` clamp an out-of-window timestamp onto the axis's right
+ * edge, so keeping one would draw a spurious spike there. Note the deliberate
+ * `>` where {@link toBands} uses `>=` — a zero-width band is meaningless, but
+ * a polyline vertex sitting exactly on the right edge is not.
+ *
+ * ORDER RELATIVE TO {@link stepExpand} IS LOAD-BEARING: clamp first, expand
+ * second. Expanding a raw series and filtering the result afterwards drops the
+ * boundary carry-in (it still sits at its true pre-window timestamp), and
+ * filtering the raw series first — without pinning — erases the transition
+ * entirely.
+ *
+ * Pure. Returns `[]` for an empty series or an inverted window.
+ */
+export function clampToWindow(
+  points: Array<{ t: number; value: number }>,
+  startMs: number,
+  endMs: number,
+): Array<{ t: number; value: number }> {
+  if (points.length === 0 || !(endMs > startMs)) return [];
+  const sorted = [...points].sort((a, b) => a.t - b.t);
+  let carryIn: { t: number; value: number } | null = null;
+  const inWindow: Array<{ t: number; value: number }> = [];
+  for (const p of sorted) {
+    if (p.t > endMs) break;
+    if (p.t <= startMs) carryIn = p;
+    else inWindow.push(p);
+  }
+  return carryIn ? [{ t: startMs, value: carryIn.value }, ...inWindow] : inWindow;
+}
+
 /**
  * Expand a step-function series into render-ready hold vertices.
  *
@@ -142,9 +192,9 @@ export function toNumericSeries(
  * effect there.
  *
  * Pure and render-local: apply this to a COPY of a series right before mapping
- * it into screen coordinates, never to the stored series itself — `valueAt`'s
- * hold-lookup and `history-stats.ts`'s move-counting both read the raw series
- * and must not see synthesized points.
+ * it into screen coordinates, never to the stored series itself —
+ * {@link valueAt}'s hold-lookup and `history-stats.ts`'s move-counting both
+ * read the raw series and must not see synthesized points.
  *
  * Returns `[]` for an empty series — no terminator point is conjured from
  * nothing (mirrors {@link toBands}'s empty-input guard).
@@ -166,6 +216,28 @@ export function stepExpand(
   const last = out[out.length - 1];
   if (last.t < endMs) out.push({ t: endMs, value: last.value });
   return out;
+}
+
+/**
+ * Value in effect at `t` — the last sample at or BEFORE it.
+ *
+ * These are step functions: the recorder stores transitions, and a value holds
+ * until the next one. Picking the nearest sample in either direction reads the
+ * FUTURE whenever the cursor sits just before a change — hovering at 17:55 on a
+ * target that drops to 0 at 18:00 would report 0%, disagreeing with the very
+ * line under the cursor. Null before the first sample, where nothing is known.
+ */
+export function valueAt(points: Array<{ t: number; value: number }>, t: number): number | null {
+  let best: number | null = null;
+  let bestT = Number.NEGATIVE_INFINITY;
+  for (const p of points) {
+    if (Number.isNaN(p.t)) continue;
+    if (p.t <= t && p.t >= bestT) {
+      bestT = p.t;
+      best = p.value;
+    }
+  }
+  return best;
 }
 
 /**

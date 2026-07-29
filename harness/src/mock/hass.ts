@@ -304,13 +304,25 @@ export function buildMockHass(
         const cover = coverLookup.get(id);
         if (cover) {
           const samples = generated.samplesByEntry.get(cover.entry.entry_id) ?? [];
-          const position = buildDivergentHistory(
+          const built = buildDivergentHistory(
             cover.entry,
             cover.cover,
             cover.index,
             samples,
             nowMs,
           );
+          // HA's `include_start_time_state`: a window query is answered with
+          // the state in effect as the window OPENED, prepended as an extra row
+          // carrying its own un-clamped `last_changed` rather than one pinned to
+          // `start_time`. Emitting it is the only way the harness exercises the
+          // forecast strip's day-boundary carry-in (#255). Safe for the History
+          // card, which shares this handler: the row repeats the next one's
+          // position, so it adds no transition to `history-stats.ts`'s move
+          // count, and `spanFractionX` clamps it to x=0.
+          const position =
+            msg.start_time && built.length > 0 && built[0].lu * 1000 > startMs
+              ? [{ ...built[0], lu: (startMs - 30 * 60_000) / 1000 }, ...built]
+              : built;
           // A venetian cover advertises a slat axis, so its recorded states must
           // also carry `current_tilt_position` for the History tilt track.
           result[id] =
