@@ -1,6 +1,7 @@
 import type { HomeAssistant } from 'custom-card-helpers';
 
-import type { DiscoveredEntities } from '../types';
+import type { CoverPositionAttributes, DiscoveredEntities } from '../types';
+import { positionAxisInverted, type ResolvedAxis } from './axes';
 import { aggregateActualPosition, overrideDivergenceTarget } from './geometry';
 
 /**
@@ -10,6 +11,18 @@ import { aggregateActualPosition, overrideDivergenceTarget } from './geometry';
  * sensor's `raw_calculated_position` attribute. These helpers give both
  * components one source of truth for held / actual / solar values and the
  * override-divergence decision (issue #158).
+ *
+ * Frame invariant (issues #234, #236): **the card renders in the logical
+ * (HA-convention) frame, and any value it reads from a cover-frame source is
+ * normalized here at the read, never at the render.** This holds for every
+ * axis, not just position: on an `inverse_state` install the integration
+ * dispatches `100 − logical` to the physical cover, so the cover entity's
+ * `current_position` and the sensor's `actual_positions` are the complement of
+ * `linear_position` / `raw_calculated_position`, and on an `inverse_tilt`
+ * install the same is true of the slat axis's `current_tilt_position` against
+ * the `Cover_Tilt` target sensor. Every actual-side read therefore goes through
+ * {@link coverLogicalActuals}, {@link logicalCoverPosition} or
+ * {@link logicalAxisValue}; nothing downstream un-inverts anything.
  */
 
 /** Raw `Cover_Position` sensor STATE — the interpolated/motor value actually
@@ -22,9 +35,10 @@ export function coverMotorPosition(hass: HomeAssistant, d: DiscoveredEntities): 
   return Number.isNaN(val) ? null : val;
 }
 
-/** Pre-interpolation logical position — the sensor's `linear_position`
- *  attribute (issue #219). Null when absent or non-numeric: older
- *  integrations, or interpolation not configured for this axis. */
+/** The sensor's `linear_position` attribute — the position in the **logical**
+ *  frame: pre-interpolation *and* pre-inversion (issues #219, #234). Null when
+ *  absent or non-numeric: older integrations, or interpolation not configured
+ *  for this axis. */
 export function coverLinearPosition(hass: HomeAssistant, d: DiscoveredEntities): number | null {
   const id = d.entities.target_position_sensor;
   if (!id) return null;
@@ -33,12 +47,16 @@ export function coverLinearPosition(hass: HomeAssistant, d: DiscoveredEntities):
   return typeof val === 'number' && Number.isFinite(val) ? val : null;
 }
 
-/** Held position — the value to display as the cover's held/target position.
- *  Prefers the pre-interpolation `linear_position` attribute (issue #219)
- *  when present; falls back to the `Cover_Position` sensor STATE (today's
- *  behavior — and the value the two coincide at when interpolation is off,
- *  or on any integration that doesn't yet expose `linear_position`). Null
- *  when missing/NaN. */
+/** Held position — the value to display as the cover's held/target position,
+ *  in the logical frame. Prefers the `linear_position` attribute (issue #219)
+ *  when present; falls back to the `Cover_Position` sensor STATE, which is the
+ *  dispatched value and therefore only coincides with `linear_position` when
+ *  neither interpolation nor inversion is in play. Null when missing/NaN.
+ *
+ *  Deliberately NOT frame-normalized (issue #234): `linear_position` is already
+ *  logical, and user commands are interpreted as logical, so pre-inverting here
+ *  would double-invert. The *actual* side is what needs normalizing — see
+ *  {@link coverLogicalActuals} and {@link logicalCoverPosition}. */
 export function coverHeldPosition(hass: HomeAssistant, d: DiscoveredEntities): number | null {
   return coverLinearPosition(hass, d) ?? coverMotorPosition(hass, d);
 }
@@ -52,6 +70,11 @@ export function coverMotorDivergence(hass: HomeAssistant, d: DiscoveredEntities)
   const linear = coverLinearPosition(hass, d);
   const motor = coverMotorPosition(hass, d);
   if (linear === null || motor === null || linear === motor) return null;
+  // On an inverse_state install the sensor STATE is the *dispatched* value, so
+  // it differs from `linear_position` by the inversion alone. That is the frame,
+  // not interpolation bending the value, and disclosing `100 − linear` as a
+  // "motor" detail would be pure noise (issue #234).
+  if (positionAxisInverted(d) && motor === 100 - linear) return null;
   return motor;
 }
 
@@ -65,16 +88,80 @@ export function coverSolarTarget(hass: HomeAssistant, d: DiscoveredEntities): nu
   return typeof val === 'number' && Number.isFinite(val) ? val : null;
 }
 
-/** Mean of the live per-cover positions on the sensor's `actual_positions`
- *  attribute. Null when absent, empty, or all-null. */
-export function coverActualPosition(hass: HomeAssistant, d: DiscoveredEntities): number | null {
+/**
+ * Live per-cover positions in the **logical** frame — the map every actual-side
+ * surface renders from (covers bar fills, compass actual ring). Resolution
+ * order (issue #234):
+ *
+ * 1. the sensor's `linear_actual_positions`, published already-normalized;
+ * 2. `actual_positions` un-inverted with the position axis's `inverted` flag,
+ *    for an inverse install on an integration that predates (1);
+ * 3. `actual_positions` verbatim — the identity on every non-inverse install,
+ *    which is why this is inert for everyone else.
+ *
+ * `{}` when the sensor or the attribute is missing.
+ */
+export function coverLogicalActuals(
+  hass: HomeAssistant,
+  d: DiscoveredEntities,
+): Record<string, number | null> {
   const id = d.entities.target_position_sensor;
-  if (!id) return null;
-  const attrs = hass.states[id]?.attributes as
-    | { actual_positions?: Record<string, number | null> }
-    | undefined;
-  if (!attrs?.actual_positions) return null;
-  return aggregateActualPosition(attrs.actual_positions);
+  if (!id) return {};
+  const attrs = hass.states[id]?.attributes as Partial<CoverPositionAttributes> | undefined;
+  const linear = attrs?.linear_actual_positions;
+  if (linear && typeof linear === 'object') return linear;
+  const actual = attrs?.actual_positions;
+  if (!actual) return {};
+  if (!positionAxisInverted(d)) return actual;
+  return Object.fromEntries(
+    Object.entries(actual).map(([k, v]) => [k, typeof v === 'number' ? 100 - v : null]),
+  );
+}
+
+/**
+ * One cover entity's **live** position in the logical frame — the raw
+ * `current_position` attribute, un-inverted when the position axis is inverted
+ * (issue #234). Reads the entity rather than the sensor snapshot so the tile
+ * stays live mid-move. Null when the cover, the attribute, or a numeric value
+ * is missing.
+ */
+export function logicalCoverPosition(
+  hass: HomeAssistant,
+  d: DiscoveredEntities,
+  cover: string | undefined,
+): number | null {
+  if (!cover) return null;
+  const v = hass.states[cover]?.attributes?.current_position;
+  if (typeof v !== 'number' || Number.isNaN(v)) return null;
+  return positionAxisInverted(d) ? 100 - v : v;
+}
+
+/**
+ * One cover entity's live value for `axis`, in the logical frame — the axis's
+ * own `state_attr`, un-inverted when the integration reports that axis's
+ * `inverted` flag (issues #234, #236). Mirrors the integration's
+ * `inverse_state()`, which is `100 − v` for every axis regardless of the
+ * declared range. Inert on every non-inverse install and on the synthesized
+ * fallback axes, which always carry `inverted: false`.
+ *
+ * Null when the cover, the axis's state attribute, or a finite numeric value
+ * is missing — a valid `0` is never collapsed to null.
+ */
+export function logicalAxisValue(
+  hass: HomeAssistant,
+  axis: ResolvedAxis,
+  cover: string | undefined,
+): number | null {
+  if (!cover || !axis.stateAttr) return null;
+  const v = hass.states[cover]?.attributes?.[axis.stateAttr];
+  if (typeof v !== 'number' || Number.isNaN(v)) return null;
+  return axis.inverted ? 100 - v : v;
+}
+
+/** Mean of the live per-cover positions, in the logical frame. Null when
+ *  absent, empty, or all-null. See {@link coverLogicalActuals}. */
+export function coverActualPosition(hass: HomeAssistant, d: DiscoveredEntities): number | null {
+  return aggregateActualPosition(coverLogicalActuals(hass, d));
 }
 
 /** True when the discovered manual-override binary sensor is `on`. */

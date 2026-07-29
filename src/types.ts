@@ -54,11 +54,26 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
   tooltips?: TooltipsConfig;
 }
 
+/**
+ * One part of a composed tile-card `name` (issue #247), modeled after the
+ * native HA tile card / Mushroom's `entity_name` part list, narrowed to what
+ * ACP's discovered entry can actually resolve: `entry` and `area` are ACP's
+ * own already-discovered values (never re-derived), and `text` is a literal.
+ * `floor`/`device`/`entity` are deliberately not modeled — ACP's discovered
+ * entry is not 1:1 with a single HA entity/device (a Cover Group or a
+ * multi-cover entry has no single correct one), and there is no `hass.floors`
+ * access yet.
+ */
+export type AcpNamePart = { type: 'entry' } | { type: 'area' } | { type: 'text'; text: string };
+
 export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   type: string;
   entry_id: string;
-  /** Override the discovered instance title. */
-  name?: string;
+  /** Override the discovered instance title. A plain string is used verbatim
+   *  (unchanged behavior). An array composes a title from typed parts, joined
+   *  with a single space, skipping any part that resolves empty; falls back
+   *  to the discovered entry title if every part resolves empty. */
+  name?: string | AcpNamePart[];
   /** Override the auto-resolved cover icon (mdi:*). */
   icon?: string;
   /** Explicit `cover.*` entity when an entry manages multiple covers
@@ -134,6 +149,37 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   hold_action?: ActionConfig;
   /** Double-tap action. Standard HA `ActionConfig`. */
   double_tap_action?: ActionConfig;
+  /** Tap behavior for the cover glyph itself, independent of the tile body.
+   *  Defaults to `none`, matching HA: its `getEntityDefaultTileIconAction`
+   *  returns `toggle` only for `DOMAINS_TOGGLE` plus button/input_button/scene,
+   *  and `cover` is in neither — which is why a native HA cover tile shows no
+   *  icon shape while a light does.
+   *
+   *  Doubles as the switch for the tinted pill behind the glyph: HA draws that
+   *  background only when the icon is interactive (`ha-tile-icon` applies its
+   *  `background` class on `interactive && !hasImage`), so setting any action
+   *  other than `none` here turns the shape on. */
+  icon_tap_action?: ActionConfig;
+
+  // ── Cover Group entries only (issue #185) ─────────────────────────────────
+  // A group entry renders `acp-group-tile`, which shares only `name`, `icon`,
+  // `state_color`, `show_controls`, `show_position_bar` and `show_tilt` with the
+  // cover tile — everything else above is cover-specific and the visual editor
+  // hides it. The options below exist only for a group and are hidden for a
+  // cover, so neither editor shows a switch that does nothing.
+
+  /** Render the group's scene `<select>` (default true). */
+  show_scene_select?: boolean;
+  /** Render the group lock toggle (default true). */
+  show_lock?: boolean;
+  /** Render the member-automation toggle (default true). */
+  show_automation?: boolean;
+  /** Render the clear-member-overrides button (default true). Turn it off to
+   *  keep a shared dashboard from clearing everyone's overrides. */
+  show_clear_overrides?: boolean;
+  /** Roll member overrides up onto the group as badges beside the "N/M"
+   *  who-won count (default true). See `memberBadgeWinners`. */
+  show_member_badges?: boolean;
   /** Card-owned floating tooltip behavior. Defaults: enabled, offset [12,16],
    *  delay 400ms. Set `enabled: false` to use native browser tooltips. */
   tooltips?: TooltipsConfig;
@@ -192,6 +238,143 @@ export interface AdaptiveCoverProDecisionCardConfig extends LovelaceCardConfig {
   tooltips?: TooltipsConfig;
 }
 
+/** Which History-card tracks are rendered. Every track defaults on; a user
+ *  turns one off in the visual editor or YAML. */
+export interface HistoryTracksConfig {
+  /** Recorder-backed actual cover position over the window. */
+  position?: boolean;
+  /** Banded strip of the winning pipeline handler over time. */
+  who_won?: boolean;
+  /** Overlay bands for sun-in-FOV, glare-active, and manual-override spans. */
+  context?: boolean;
+  /** Scrollable list of cover actions and skipped actions. */
+  actions?: boolean;
+}
+
+export interface AdaptiveCoverProHistoryCardConfig extends LovelaceCardConfig {
+  type: string;
+  entry_id: string;
+  /** Optional header rendered above the tracks in the card's `ha-card`. */
+  title?: string;
+  /** Hours of history to show, counting back from now. Defaults to 24. */
+  hours?: number;
+  /** Per-track opt-out. Omitted tracks default on. */
+  tracks?: HistoryTracksConfig;
+  /** Start with the Advanced (event buffer) section expanded. Defaults false. */
+  advanced_open?: boolean;
+  /** Hide the Advanced section entirely, even when the integration exposes
+   *  `get_diagnostics`. Defaults false. */
+  hide_advanced?: boolean;
+  /** Card-owned floating tooltip behavior. Defaults: enabled, offset [12,16],
+   *  delay 400ms. Set `enabled: false` to use native browser tooltips. */
+  tooltips?: TooltipsConfig;
+}
+
+/**
+ * One recorded state of any entity, parsed out of HA's
+ * `history/history_during_period` response by `lib/state-history.ts`.
+ * `t` is epoch-ms (not ISO, unlike {@link PositionHistorySample}) because every
+ * consumer does arithmetic on it.
+ */
+export interface StateSample {
+  t: number;
+  state: string;
+  attributes: Record<string, unknown>;
+}
+
+/** A contiguous span during which an entity held one state. Produced by
+ *  `toBands()`; `end` is exclusive and the last band runs to the window end. */
+export interface HistoryBand {
+  start: number;
+  end: number;
+  state: string;
+  attributes: Record<string, unknown>;
+}
+
+/**
+ * One row of HA's logbook, parsed from `logbook/get_events`. Mirrors the field
+ * set in `homeassistant/components/logbook/const.py`, normalized: `t` is epoch
+ * **ms** (the wire format is epoch seconds), and every absent/empty field is
+ * `null` rather than missing.
+ */
+export interface LogbookEntry {
+  t: number;
+  entityId: string | null;
+  /** The raw entity_id. `logbook/get_events` is built with
+   *  `include_entity_name=False`, so the wire never carries a friendly name —
+   *  `activity.ts` resolves one from `hass.states`. */
+  name: string;
+  /** New state, for state-change rows. Null on component-described events. */
+  state: string | null;
+  /** Free-form text, for component-described events (null on state changes). */
+  message: string | null;
+  icon: string | null;
+  /** The user who caused it, when HA attributed one. */
+  contextUserId: string | null;
+  /** The automation/script that caused it, already name-resolved by HA. */
+  contextName: string | null;
+  contextDomain: string | null;
+  contextService: string | null;
+}
+
+/**
+ * One row of the History card's Activity list. Unifies two sources that answer
+ * the same question from different angles: HA's logbook (what changed, and who
+ * did it) and ACP's own event buffer (what ACP commanded, and with what
+ * parameters — the logbook records only the resulting state, never the
+ * service-call arguments).
+ */
+export interface ActivityRow {
+  t: number;
+  /** Which source produced the row — drives the icon and accent. */
+  source: 'logbook' | 'command';
+  /** Primary label: the new state, or the ACP event's action. */
+  title: string;
+  /** Entity friendly name, when the row is entity-scoped. */
+  name: string | null;
+  entityId: string | null;
+  /** Rendered service parameters, e.g. `position 45%` — command rows only. */
+  detail: string | null;
+  /** Service the command used, e.g. `cover.set_cover_position`. */
+  service: string | null;
+  /** "Who did it", resolved for display. Null when unattributed. */
+  triggeredBy: string | null;
+  /** True when the row records something ACP declined to do. */
+  skipped: boolean;
+}
+
+/**
+ * One entry from the integration's diagnostic event buffer. `event` is the
+ * discriminator (`pipeline_evaluated`, `cover_command_sent`, …) and every other
+ * key the writer recorded rides in `fields` untouched — the card renders them
+ * generically so a new integration event type needs no card change.
+ */
+export interface AcpEvent {
+  /** Raw ISO-8601 timestamp as recorded. */
+  ts: string;
+  /** `Date.parse(ts)` — epoch ms, guaranteed non-NaN by the parser. */
+  t: number;
+  event: string;
+  fields: Record<string, unknown>;
+}
+
+/** The event buffer plus the metadata that makes a snapshot self-describing. */
+export interface EventTimeline {
+  events: AcpEvent[];
+  /** The buffer's own reported data window (`data_window` in diagnostics).
+   *  Present even when the buffer is empty. */
+  window: { start: string | null; end: string | null; capturedAt: string | null } | null;
+  /** Configured ring-buffer capacity (`debug_event_buffer_size`), when reported. */
+  bufferSize: number | null;
+  /** False when the fetch failed, the service is missing, or the payload was
+   *  unusable — distinguishes "no events" from "could not read". */
+  available: boolean;
+  /** The untouched `get_diagnostics` response, retained so the Advanced section
+   *  can copy the whole dump to the clipboard for a bug report. Null when the
+   *  fetch failed. */
+  raw: unknown;
+}
+
 /**
  * One axis of a discovered cover, mirroring the integration's serialized
  * `AxisDescriptor` (`cover_types/base.py` → `asdict`). Every field is optional
@@ -218,6 +401,14 @@ export interface AxisDescriptor {
   /** Rolled up across managed covers (ANY member exposes it). Absent/true =
    *  supported; only `=== false` filters the axis out. */
   supported?: boolean;
+  /** True when this axis is *effectively* inverted right now — the integration
+   *  dispatches `100 − logical` to the cover, so every value the card reads
+   *  from a cover-frame source (the cover entity's `current_position`, the
+   *  sensor's `actual_positions`) is the complement of the logical value the
+   *  card renders (issue #234). The integration already accounts for
+   *  interpolation suppressing position inversion, so the card reads this flag
+   *  and must never re-derive it. Absent on older integrations → false. */
+  inverted?: boolean;
 }
 
 /**
@@ -241,6 +432,11 @@ export interface DiscoveredEntities {
   /** HA device the integration's entities are attached to. Used to deep-link
    *  into `/config/devices/device/<id>` from the more-info dialog. */
   device_id?: string;
+  /** Area the entry's device is assigned to (`hass.devices[device_id].area_id`
+   *  → `hass.areas[area_id].name`), for the tile card's composite `name`
+   *  (issue #247). Undefined when the device has no area, `hass.areas` is
+   *  absent (older HA), or there is no resolvable device. */
+  area_name?: string;
   /** True when this entry is a Cover Group (issue #185). Set when the
    *  always-present `group_active_scene` sensor is discovered. When true the
    *  card routes to the group UI and `managed_covers` is the member roster read
@@ -433,6 +629,12 @@ export interface LastSkippedAttributes {
 
 export interface CoverPositionAttributes {
   actual_positions: Record<string, number | null>;
+  /** `actual_positions` re-expressed in the logical (HA-convention) frame — the
+   *  identity map unless the position axis is inverted, in which case each
+   *  entry is `100 − actual` (issue #234). Published unconditionally by new
+   *  enough integrations; absent on older ones, where the card falls back to
+   *  un-inverting `actual_positions` itself via the axis flag. */
+  linear_actual_positions?: Record<string, number | null>;
   /** Per-cover in-transit direction for no-feedback (Somfy-RTS-style) covers,
    *  keyed by cover entity_id. Present only while a cover is mid-move (~45s
    *  window); absent/empty otherwise. Lets the card show motion the way a

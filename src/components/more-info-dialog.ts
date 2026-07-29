@@ -6,6 +6,7 @@ import {
   BADGE_KINDS_BY_HANDLER,
   HANDLER_I18N_KEYS,
   HANDLER_ORDER,
+  HISTORY_ICON,
   INTEGRATION_DOMAIN,
   MANUAL_OVERRIDE_PRIORITY,
   type BadgeKind,
@@ -21,8 +22,8 @@ import {
   selectVisibleBadges,
 } from '../lib/badge-visibility';
 import { coverStateIcon, coverStateColor } from '../lib/icons';
-import { resolveAxes } from '../lib/axes';
-import { coverHeldPosition } from '../lib/cover-position';
+import { resolveAxes, positionAxisInverted } from '../lib/axes';
+import { coverHeldPosition, logicalCoverPosition } from '../lib/cover-position';
 import { startMinuteTimer } from '../lib/minute-timer';
 import type {
   AdaptiveCoverProTileCardConfig,
@@ -49,6 +50,7 @@ import './forecast-strip';
 import './sky-compass';
 import './elevation-chart';
 import './solar-calc';
+import './history-dialog';
 
 /**
  * ACP-specific more-info dialog rendered by the card (not HA's built-in
@@ -88,6 +90,11 @@ export class MoreInfoDialog extends LitElement {
   @state() private _positionHistory: PositionHistorySample[] = [];
   private _historyKey: string | null = null;
 
+  /** The full History overlay, opened from the header's timeline button. Kept
+   *  separate from `_positionHistory` above, which is only the forecast strip's
+   *  actual-position line. */
+  @state() private _historyOpen = false;
+
   protected updated(): void {
     this._syncMinuteTimer(this.open);
     this._maybeFetchHistory();
@@ -103,11 +110,18 @@ export class MoreInfoDialog extends LitElement {
     }
     const now = Date.now();
     const dayStartMs = startOfDay(new Date(now)).getTime();
-    const key = `${covers.join(',')}|${dayStartMs}`;
+    // The recorder holds the dispatched position; flip it into the logical
+    // frame so the history track and the forecast/target curve it is plotted
+    // against share one frame (#234). The frame is part of the key: it can flip
+    // while the dialog is open (control_status unavailable at open, or an
+    // integration reload mid-day), and a cached track in the stale frame plots
+    // upside-down against the curve until the day or the cover set changes.
+    const inverted = positionAxisInverted(this.discovered);
+    const key = `${covers.join(',')}|${dayStartMs}|${inverted}`;
     if (key === this._historyKey) return;
     this._historyKey = key;
-    void fetchPositionHistory(this.hass, covers, dayStartMs, now).then((history) => {
-      // Drop a stale response if the cover-set/day changed while awaiting.
+    void fetchPositionHistory(this.hass, covers, dayStartMs, now, inverted).then((history) => {
+      // Drop a stale response if the cover-set/day/frame changed while awaiting.
       if (this._historyKey !== key) return;
       this._positionHistory = history;
     });
@@ -152,17 +166,17 @@ export class MoreInfoDialog extends LitElement {
    * Header glyph, derived from the managed cover entity (HA-native icon) with
    * the same fallback chain the tile uses: explicit entity icon → device_class
    * glyph → integration cover_type → generic fallback. Position-aware via the
-   * cover's `current_position`.
+   * cover's `current_position`, normalized to the logical frame so an
+   * `inverse_state` entry doesn't paint the open glyph on a closed cover (#234).
    */
   private _headerIcon(): string {
     const coverId = this.discovered.managed_covers?.[0];
     const stateObj = coverId ? this.hass.states[coverId] : undefined;
-    const pos = stateObj?.attributes?.current_position;
     return coverStateIcon({
       explicitIcon: stateObj?.attributes?.icon as string | undefined,
       deviceClass: stateObj?.attributes?.device_class as string | undefined,
       coverType: this.discovered.cover_type,
-      position: typeof pos === 'number' && !Number.isNaN(pos) ? pos : null,
+      position: logicalCoverPosition(this.hass, this.discovered, coverId),
     });
   }
 
@@ -196,6 +210,7 @@ export class MoreInfoDialog extends LitElement {
     const configureLabel = t('dialog.configure_integration', this.hass);
     const deviceLabel = t('dialog.open_device_page', this.hass);
     const closeLabel = t('dialog.close', this.hass);
+    const historyLabel = t('history.open', this.hass);
     const headerColor = this._headerColor();
 
     return html`
@@ -237,6 +252,15 @@ export class MoreInfoDialog extends LitElement {
                         ></acp-tile-badge>`,
                     )}
             </div>
+            <button
+              class="icon-btn history-link"
+              type="button"
+              aria-label=${historyLabel}
+              ${tooltip(historyLabel)}
+              @click=${this._openHistory}
+            >
+              <ha-icon icon=${HISTORY_ICON}></ha-icon>
+            </button>
             <button
               class="icon-btn options-link"
               type="button"
@@ -331,8 +355,24 @@ export class MoreInfoDialog extends LitElement {
             : nothing}
         </div>
       </div>
+      <acp-history-dialog
+        .hass=${this.hass}
+        .discovered=${this.discovered}
+        .open=${this._historyOpen}
+        @acp-history-closed=${() => {
+          this._historyOpen = false;
+        }}
+      ></acp-history-dialog>
     `;
   }
+
+  private _openHistory = (e: Event): void => {
+    // The header row sits inside the dialog's click-stop, but the History
+    // overlay renders as a sibling of this dialog — stop here anyway so a stray
+    // bubbling click can't immediately re-close it.
+    e.stopPropagation();
+    this._historyOpen = true;
+  };
 
   private _winner(): string {
     const id = this.discovered.entities.decision_trace_sensor;

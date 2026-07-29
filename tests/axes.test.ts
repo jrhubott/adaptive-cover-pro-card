@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveAxes } from '../src/lib/axes';
+import { resolveAxes, positionAxisInverted } from '../src/lib/axes';
 import type { CoverDiscovery, DiscoveredEntities } from '../src/types';
 
 const base: DiscoveredEntities = {
@@ -114,5 +114,69 @@ describe('resolveAxes — fallback path (no discovery)', () => {
   it('falls back when discovery is present but axes is not an array', () => {
     const d = { ...base, discovery: { axes: undefined } } as DiscoveredEntities;
     expect(resolveAxes(d).map((a) => a.id)).toEqual(['position']);
+  });
+});
+
+// ── Frame inversion (#234) ───────────────────────────────────────────────────
+// `inverted` means "effectively inverted right now" — the integration already
+// accounts for interpolation suppressing position inversion, so the card only
+// ever reads the flag, never re-derives it.
+describe('resolveAxes — inverted flag (#234)', () => {
+  it('carries inverted: true from a discovery axis', () => {
+    const d = withDiscovery({ axes: [{ id: 'position', inverted: true, supported: true }] });
+    expect(resolveAxes(d)[0].inverted).toBe(true);
+  });
+
+  it('defaults inverted to false when the discovery axis omits the field', () => {
+    const d = withDiscovery({ axes: [{ id: 'position', supported: true }] });
+    expect(resolveAxes(d)[0].inverted).toBe(false);
+  });
+
+  // The tilt axis carries its own inversion option (CONF_INVERSE_TILT) on the
+  // integration side, so `inverted` must survive per-axis, not just on position
+  // (issue #236).
+  it('carries inverted through on a non-position (tilt) axis', () => {
+    const d = withDiscovery({
+      axes: [
+        { id: 'position', supported: true },
+        { id: 'tilt', inverted: true, supported: true },
+      ],
+    });
+    expect(resolveAxes(d).map((a) => a.inverted)).toEqual([false, true]);
+  });
+
+  it('defaults inverted to false on both synthesized fallback axes', () => {
+    const d: DiscoveredEntities = {
+      ...base,
+      cover_type: 'cover_venetian',
+      entities: { target_position_sensor: 'sensor.pos', target_tilt_sensor: 'sensor.tilt' },
+    };
+    expect(resolveAxes(d).map((a) => a.inverted)).toEqual([false, false]);
+  });
+});
+
+describe('positionAxisInverted — #234', () => {
+  it('is true when the discovered position axis is inverted', () => {
+    const d = withDiscovery({ axes: [{ id: 'position', inverted: true, supported: true }] });
+    expect(positionAxisInverted(d)).toBe(true);
+  });
+
+  it('is false when the position axis omits the flag', () => {
+    const d = withDiscovery({ axes: [{ id: 'position', supported: true }] });
+    expect(positionAxisInverted(d)).toBe(false);
+  });
+
+  it('is false when only a non-position axis is inverted', () => {
+    const d = withDiscovery({
+      axes: [
+        { id: 'position', supported: true },
+        { id: 'tilt', inverted: true, supported: true },
+      ],
+    });
+    expect(positionAxisInverted(d)).toBe(false);
+  });
+
+  it('is false on a legacy entry with no discovery at all', () => {
+    expect(positionAxisInverted(base)).toBe(false);
   });
 });

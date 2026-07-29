@@ -1,6 +1,11 @@
 import { LitElement, css, html, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { COVER_DEVICE_CLASS_ICONS, HANDLER_ORDER, type HandlerName } from '../../src/const';
+import {
+  COVER_DEVICE_CLASS_ICONS,
+  HANDLER_ORDER,
+  HISTORY_HOUR_CHOICES,
+  type HandlerName,
+} from '../../src/const';
 import { SCENARIOS, scenarioIssue, type Scenario } from './scenarios';
 
 /** Per-cover device_class selector options: the card's known HA classes plus
@@ -17,6 +22,7 @@ import type {
   MotionStatusValue,
   TooltipMode,
 } from './types';
+import type { AcpNamePart } from '../../src/types';
 
 /** Default Cover Group state for the "Group entry" control-panel toggle. */
 function defaultGroupFields(): GroupFields {
@@ -497,6 +503,10 @@ export class AcpHarnessControlPanel extends LitElement {
         manual_override_minutes_from_now: 60,
         held_position: null,
         linear_position: null,
+        // Scenario-driven, matching the linear_position precedent — no
+        // dedicated toggle (#234, #236).
+        inverse_state: false,
+        inverse_tilt: false,
         safety_slot_active: false,
         motion_status: 'idle',
         motion_timeout_minutes_from_now: 1,
@@ -556,6 +566,9 @@ export class AcpHarnessControlPanel extends LitElement {
               this._patchEntry(idx, { title: (ev.target as HTMLInputElement).value })}
           />
         </label>
+        ${this._textRow('Area (#247)', e.area ?? '', (v) =>
+          this._patchEntry(idx, { area: v || undefined }),
+        )}
         ${this._checkbox('Group entry (Cover Group)', !!e.is_group, (v) =>
           this._patchEntry(
             idx,
@@ -1181,6 +1194,7 @@ export class AcpHarnessControlPanel extends LitElement {
         ${this._checkbox('Enabled', this.config.tile.enabled, (v) =>
           this._emit({ ...this.config, tile: { ...this.config.tile, enabled: v } }),
         )}
+        ${this._renderTileNamePreset()}
         ${(
           [
             'show_position',
@@ -1190,6 +1204,11 @@ export class AcpHarnessControlPanel extends LitElement {
             'show_badge',
             'show_position_bar',
             'show_tilt',
+            'show_scene_select',
+            'show_lock',
+            'show_automation',
+            'show_clear_overrides',
+            'show_member_badges',
             'show_compass',
             'show_elevation_chart',
             'show_solar_calc',
@@ -1246,6 +1265,29 @@ export class AcpHarnessControlPanel extends LitElement {
             )}
           </select>
         </label>
+        <label
+          >icon tap behavior
+          <select
+            @change=${(e: Event) =>
+              this._emit({
+                ...this.config,
+                tile: {
+                  ...this.config.tile,
+                  icon_tap_action: (e.target as HTMLSelectElement).value as
+                    | 'none'
+                    | 'more-info'
+                    | 'toggle',
+                },
+              })}
+          >
+            ${(['none', 'more-info', 'toggle'] as const).map(
+              (v) =>
+                html`<option value=${v} ?selected=${this.config.tile.icon_tap_action === v}>
+                  ${v}
+                </option>`,
+            )}
+          </select>
+        </label>
         ${this._numberSlider(
           'tile width px (0 = auto)',
           this.config.tile.tileWidth,
@@ -1281,6 +1323,63 @@ export class AcpHarnessControlPanel extends LitElement {
         )}
         ${this._checkbox('compact', this.config.solarChart.compact, (v) =>
           this._emit({ ...this.config, solarChart: { ...this.config.solarChart, compact: v } }),
+        )}
+      </fieldset>
+
+      <fieldset class="entry">
+        <legend>History card</legend>
+        ${this._checkbox('Enabled', this.config.history.enabled, (v) =>
+          this._emit({ ...this.config, history: { ...this.config.history, enabled: v } }),
+        )}
+        ${this._textRow('Title', this.config.history.title, (v) =>
+          this._emit({ ...this.config, history: { ...this.config.history, title: v } }),
+        )}
+        <label class="row">
+          <span>Window</span>
+          <select
+            .value=${String(this.config.history.hours)}
+            @change=${(e: Event) =>
+              this._emit({
+                ...this.config,
+                history: {
+                  ...this.config.history,
+                  hours: parseInt((e.target as HTMLSelectElement).value, 10),
+                },
+              })}
+          >
+            ${HISTORY_HOUR_CHOICES.map(
+              (h) =>
+                html`<option value=${h} ?selected=${h === this.config.history.hours}>
+                  ${h}h
+                </option>`,
+            )}
+          </select>
+        </label>
+        ${(
+          [
+            'track_position',
+            'track_who_won',
+            'track_context',
+            'track_actions',
+            'advanced_open',
+            'hide_advanced',
+          ] as const
+        ).map((k) =>
+          this._checkbox(k, this.config.history[k], (v) =>
+            this._emit({ ...this.config, history: { ...this.config.history, [k]: v } }),
+          ),
+        )}
+        ${this._checkbox(
+          'no get_diagnostics service (old integration)',
+          this.config.history.noDiagnosticsService,
+          (v) =>
+            this._emit({
+              ...this.config,
+              history: { ...this.config.history, noDiagnosticsService: v },
+            }),
+        )}
+        ${this._numberSlider('event buffer size', this.config.history.eventCount, 0, 80, 1, (v) =>
+          this._emit({ ...this.config, history: { ...this.config.history, eventCount: v } }),
         )}
       </fieldset>
     `;
@@ -1395,6 +1494,45 @@ export class AcpHarnessControlPanel extends LitElement {
           @change=${(e: Event) => onChange((e.target as HTMLInputElement).value)}
         />
       </label>
+    `;
+  }
+
+  /** Tile card `name` override (issue #247): a preset picker mirroring the
+   *  three shapes the card accepts — omitted (discovered entry title),
+   *  a composed `[{type:'area'},{type:'entry'}]`, or a plain custom string.
+   *  See the "Composite tile name" scenario for an end-to-end example. */
+  private _renderTileNamePreset(): TemplateResult {
+    const name = this.config.tile.name;
+    const preset: 'entry' | 'area_entry' | 'custom' = Array.isArray(name)
+      ? 'area_entry'
+      : typeof name === 'string'
+        ? 'custom'
+        : 'entry';
+    return html`
+      <label class="row">
+        <span>name (#247)</span>
+        <select
+          @change=${(e: Event) => {
+            const v = (e.target as HTMLSelectElement).value;
+            const nextName: string | AcpNamePart[] | undefined =
+              v === 'area_entry'
+                ? [{ type: 'area' }, { type: 'entry' }]
+                : v === 'custom'
+                  ? 'Custom title'
+                  : undefined;
+            this._emit({ ...this.config, tile: { ...this.config.tile, name: nextName } });
+          }}
+        >
+          <option value="entry" ?selected=${preset === 'entry'}>Entry only (default)</option>
+          <option value="area_entry" ?selected=${preset === 'area_entry'}>Area + entry</option>
+          <option value="custom" ?selected=${preset === 'custom'}>Custom text</option>
+        </select>
+      </label>
+      ${preset === 'custom'
+        ? this._textRow('Custom name', typeof name === 'string' ? name : '', (v) =>
+            this._emit({ ...this.config, tile: { ...this.config.tile, name: v } }),
+          )
+        : ''}
     `;
   }
 

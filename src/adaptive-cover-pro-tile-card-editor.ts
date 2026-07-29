@@ -57,6 +57,7 @@ const FORM_DEFAULTS = {
   show_controls: true,
   show_badge: true,
   show_position_bar: true,
+  show_tilt: true,
   show_compass: true,
   show_elevation_chart: true,
   show_solar_calc: true,
@@ -74,6 +75,12 @@ const FORM_DEFAULTS = {
   badge_climate: true,
   badge_glare_zone: true,
   badge_cloud: true,
+  // Cover Group entries only — see the group branch of `_schema()`.
+  show_scene_select: true,
+  show_lock: true,
+  show_automation: true,
+  show_clear_overrides: true,
+  show_member_badges: true,
 } as const;
 
 const LABEL_KEYS: Record<string, string> = {
@@ -88,6 +95,7 @@ const LABEL_KEYS: Record<string, string> = {
   show_controls: 'editor.tile.show_controls',
   show_badge: 'editor.tile.show_badge',
   show_position_bar: 'editor.tile.show_position_bar',
+  show_tilt: 'editor.tile.show_tilt',
   badge_section: 'editor.tile.badge_section',
   badge_auto: 'editor.tile.badge_auto',
   badge_solar: 'editor.tile.badge_solar',
@@ -105,8 +113,19 @@ const LABEL_KEYS: Record<string, string> = {
   show_motion_icon: 'editor.tile.show_motion_icon',
   state_color: 'editor.tile.state_color',
   tap_action: 'editor.tile.tap_action',
+  icon_tap_action: 'editor.tile.icon_tap_action',
   hold_action: 'editor.tile.hold_action',
   double_tap_action: 'editor.tile.double_tap_action',
+  interactions_section: 'editor.tile.interactions_section',
+  content_section: 'editor.tile.content_section',
+  controls_section: 'editor.tile.controls_section',
+  dialog_section: 'editor.tile.dialog_section',
+  group_row_section: 'editor.tile.group_row_section',
+  show_scene_select: 'editor.tile.show_scene_select',
+  show_lock: 'editor.tile.show_lock',
+  show_automation: 'editor.tile.show_automation',
+  show_clear_overrides: 'editor.tile.show_clear_overrides',
+  show_member_badges: 'editor.tile.show_member_badges',
 };
 
 @customElement(TILE_CARD_EDITOR_NAME)
@@ -141,7 +160,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       this._ensureRegistry();
     }
     if (changed.has('_registry') && this._registry !== null) {
-      this._maybePrefillCover();
+      this._refreshManagedCovers();
     }
   }
 
@@ -158,7 +177,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
             entry_id: entries[0].entry_id,
           });
         }
-        this._maybePrefillCover();
+        this._refreshManagedCovers();
       })
       .catch((err: Error) => {
         this._entriesError = err?.message ?? 'failed to load config entries';
@@ -174,7 +193,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       fetchEntityRegistry(this.hass)
         .then((entries) => {
           this._registry = entries;
-          this._maybePrefillCover();
+          this._refreshManagedCovers();
         })
         .catch(() => {
           // Cover picker just falls back to the unfiltered cover domain.
@@ -212,23 +231,44 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     );
   }
 
-  private _maybePrefillCover(): void {
-    if (!this._config?.entry_id || this._config?.cover || !this._registry || !this.hass) return;
+  /**
+   * Record the entry's managed covers so the form can decide whether the
+   * `cover` picker is worth offering.
+   *
+   * Deliberately does NOT prefill `cover`. It used to write
+   * `managed_covers[0]` into the config whenever an entry managed exactly one
+   * cover — the one case where the value is pure redundancy, since
+   * `_resolvedCover` already falls back to that same entity. Writing it pinned
+   * an entity_id into YAML against CLAUDE.md's "entity binding goes through
+   * discovery" rule, contradicted the editor's own "leave blank" hint, and left
+   * the config pointing at a dead id if the cover were ever renamed.
+   *
+   * Configs that already carry `cover` are untouched — `_resolvedCover` still
+   * honors an explicit value.
+   */
+  private _refreshManagedCovers(): void {
+    if (!this._config?.entry_id || !this._registry || !this.hass) return;
     const discovered = discoverEntities(
       this.hass,
       { type: this._config.type, entry_id: this._config.entry_id },
       this._registry,
     );
     this._managedCovers = discovered?.managed_covers ?? [];
-    if (discovered?.managed_covers.length === 1) {
-      this._emit({ ...this._config, cover: discovered.managed_covers[0] });
-    }
   }
 
   private _computeLabel = (schema: HaFormSchemaItem): string => {
     const key = LABEL_KEYS[schema.name];
     return key ? t(key, this.hass) : schema.name;
   };
+
+  /** True when `_config.name` is a composed part list rather than a plain
+   *  string (issue #247) — the `name` text field is rendered blank (but still
+   *  editable) in that case (see `_schema()`/`render()`), never bound to the
+   *  raw array. Typing a fresh string into the field is an explicit,
+   *  intentional overwrite of the composed name — see `_valueChanged`. */
+  private _nameIsComposed(): boolean {
+    return Array.isArray(this._config?.name);
+  }
 
   private _valueChanged = (e: ValueChangedEvent): void => {
     e.stopPropagation();
@@ -237,6 +277,17 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     // for display). Drop keys that match the default and weren't already in
     // the user's config, so the YAML stays minimal.
     const cleaned: Record<string, unknown> = { ...value };
+
+    // A composed `name` isn't editable through this text field — it's
+    // rendered blank (see `_schema()`/`render()`) so it never stringifies the
+    // array. An untouched blank means the user didn't type into it (this
+    // value-changed fired for some other field), so the existing array must
+    // survive; a non-empty string is a deliberate, explicit overwrite of the
+    // composed name with a plain string.
+    if (this._nameIsComposed() && !cleaned.name) {
+      delete cleaned.name;
+    }
+
     for (const [k, def] of Object.entries(FORM_DEFAULTS)) {
       // The flat badge_* fields don't live on _config (they're nested under
       // `badges`), so treat them purely as default-prunable: drop them whenever
@@ -308,7 +359,17 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     for (const k of BADGE_KINDS) {
       if (badges && badges[k] === false) flatBadges[`badge_${k}`] = false;
     }
-    const data = { ...FORM_DEFAULTS, ...rest, ...flatBadges };
+    const nameIsComposed = this._nameIsComposed();
+    const data = {
+      ...FORM_DEFAULTS,
+      ...rest,
+      // A composed (array) name is never bound to the text field's data —
+      // that would stringify to "[object Object]" on the next render. Blank
+      // it instead; `_valueChanged` preserves the underlying array as long as
+      // the field comes back untouched (issue #247).
+      ...(nameIsComposed ? { name: '' } : {}),
+      ...flatBadges,
+    };
 
     return html`
       <div class="form">
@@ -319,6 +380,9 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
           .computeLabel=${this._computeLabel}
           @value-changed=${this._valueChanged}
         ></ha-form>
+        ${nameIsComposed
+          ? html`<div class="hint">${t('editor.tile.name_composed_hint', this.hass)}</div>`
+          : nothing}
         ${this._managedCovers.length > 1 && !this._config?.cover
           ? html`<div class="hint">${t('editor.tile.cover_blank_hint', this.hass)}</div>`
           : nothing}
@@ -339,17 +403,62 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     // registry + entry_id. Without those, fall back to any cover.* so the
     // field is still usable.
     let coverSelector: Record<string, unknown> = { entity: { domain: 'cover' } };
+    let isGroup = false;
+    // Read the cover count from THIS discovery rather than the `_managedCovers`
+    // state field: that field is written from `updated()`, so gating the schema
+    // on it would need a second render cycle before the picker appeared.
+    let managedCount = 0;
     if (this._registry && this._config?.entry_id) {
       const discovered = discoverEntities(
         this.hass,
         { type: this._config.type, entry_id: this._config.entry_id },
         this._registry,
       );
-      if (discovered && discovered.managed_covers.length > 0) {
+      isGroup = !!discovered?.is_group;
+      managedCount = discovered?.managed_covers.length ?? 0;
+      if (discovered && !isGroup && discovered.managed_covers.length > 0) {
         coverSelector = {
           entity: { domain: 'cover', include_entities: discovered.managed_covers },
         };
       }
+    }
+
+    // A Cover Group renders `acp-group-tile`, not the cover tile — so almost
+    // every cover option below is inert for it (no single cover to pick, no
+    // decision summary, no compass/elevation/solar dialog sections, no motion
+    // icon, no per-kind winner badges, no layout variants, and tap always opens
+    // the group dialog). Offering them would be a wall of switches that do
+    // nothing. Show the group's own surface instead.
+    if (isGroup) {
+      return [
+        {
+          name: 'entry_id',
+          required: true,
+          selector: { select: { options: entryOptions, mode: 'dropdown' } },
+        },
+        this._section('content_section', 'mdi:format-text', true, [
+          { name: 'name', selector: { text: {} } },
+          { name: 'icon', selector: { icon: {} } },
+          this._grid([{ name: 'state_color', selector: { boolean: {} } }]),
+        ]),
+        this._section('controls_section', 'mdi:arrow-up-down', false, [
+          this._grid([
+            { name: 'show_controls', selector: { boolean: {} } },
+            { name: 'show_position_bar', selector: { boolean: {} } },
+            { name: 'show_tilt', selector: { boolean: {} } },
+          ]),
+        ]),
+        this._section('group_row_section', 'mdi:window-shutter-cog', false, [
+          this._grid([
+            { name: 'show_scene_select', selector: { boolean: {} } },
+            { name: 'show_lock', selector: { boolean: {} } },
+            { name: 'show_automation', selector: { boolean: {} } },
+            { name: 'show_clear_overrides', selector: { boolean: {} } },
+            { name: 'show_member_badges', selector: { boolean: {} } },
+          ]),
+        ]),
+        this._interactionsSection(),
+      ];
     }
 
     return [
@@ -358,46 +467,94 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
         required: true,
         selector: { select: { options: entryOptions, mode: 'dropdown' } },
       },
-      { name: 'name', selector: { text: {} } },
-      { name: 'icon', selector: { icon: {} } },
-      { name: 'cover', selector: coverSelector },
-      {
-        name: 'layout',
-        selector: { select: { mode: 'list', options: layoutOptions } },
-      },
-      { name: 'show_position', selector: { boolean: {} } },
-      { name: 'show_state', selector: { boolean: {} } },
-      { name: 'show_decision_summary', selector: { boolean: {} } },
-      { name: 'show_controls', selector: { boolean: {} } },
-      { name: 'show_badge', selector: { boolean: {} } },
-      {
-        // Layout-only container with an empty name so the badge_<kind> booleans
-        // stay flat in the form value (ha-form does not nest unnamed groups).
-        type: 'expandable',
-        name: '',
-        title: t('editor.tile.badge_section', this.hass),
-        icon: 'mdi:label-multiple-outline',
-        schema: [
-          {
-            type: 'grid',
-            name: '',
-            schema: BADGE_KINDS.map((k) => ({
-              name: `badge_${k}`,
-              selector: { boolean: {} },
-            })),
-          },
-        ],
-      },
-      { name: 'show_position_bar', selector: { boolean: {} } },
-      { name: 'show_motion_icon', selector: { boolean: {} } },
-      { name: 'state_color', selector: { boolean: {} } },
-      { name: 'show_compass', selector: { boolean: {} } },
-      { name: 'show_elevation_chart', selector: { boolean: {} } },
-      { name: 'show_solar_calc', selector: { boolean: {} } },
+      // The cover picker only appears when the entry manages MORE THAN ONE
+      // cover. With a single cover it can only ever select the entity
+      // `_resolvedCover` already falls back to, so offering it is a control that
+      // cannot change anything. An existing explicit `cover` keeps the field
+      // visible so a previously-written value stays editable (and removable)
+      // rather than becoming invisible-but-live. Sits beside `entry_id` above
+      // the sections because both are entity binding, not presentation.
+      ...(managedCount > 1 || this._config?.cover
+        ? [{ name: 'cover', selector: coverSelector }]
+        : []),
+      this._section('content_section', 'mdi:format-text', true, [
+        { name: 'name', selector: { text: {} } },
+        { name: 'icon', selector: { icon: {} } },
+        {
+          name: 'layout',
+          selector: { select: { mode: 'list', options: layoutOptions } },
+        },
+        this._grid([
+          { name: 'show_position', selector: { boolean: {} } },
+          { name: 'show_state', selector: { boolean: {} } },
+          { name: 'show_decision_summary', selector: { boolean: {} } },
+          { name: 'state_color', selector: { boolean: {} } },
+          { name: 'show_motion_icon', selector: { boolean: {} } },
+        ]),
+      ]),
+      this._section('controls_section', 'mdi:arrow-up-down', false, [
+        this._grid([
+          { name: 'show_controls', selector: { boolean: {} } },
+          { name: 'show_position_bar', selector: { boolean: {} } },
+          // Cover tiles honor show_tilt (the mini slat-angle bar on a venetian)
+          // but the schema never offered it, so it was YAML-only until now.
+          { name: 'show_tilt', selector: { boolean: {} } },
+        ]),
+      ]),
+      this._section('badge_section', 'mdi:label-multiple-outline', false, [
+        { name: 'show_badge', selector: { boolean: {} } },
+        this._grid(BADGE_KINDS.map((k) => ({ name: `badge_${k}`, selector: { boolean: {} } }))),
+      ]),
+      this._section('dialog_section', 'mdi:card-text-outline', false, [
+        this._grid([
+          { name: 'show_compass', selector: { boolean: {} } },
+          { name: 'show_elevation_chart', selector: { boolean: {} } },
+          { name: 'show_solar_calc', selector: { boolean: {} } },
+        ]),
+      ]),
+      this._interactionsSection(),
+    ];
+  }
+
+  /** A collapsible group. The name MUST stay empty: ha-form does not nest
+   *  unnamed groups, so every field inside stays flat in the form value and the
+   *  emitted YAML keeps its existing top-level keys. Naming these (HA's own
+   *  approach, which pairs a name with `flatten: true`) would nest every value
+   *  and break existing configs. */
+  private _section(
+    titleKey: string,
+    icon: string,
+    expanded: boolean,
+    schema: HaFormSchemaItem[],
+  ): HaFormSchemaItem {
+    return {
+      type: 'expandable',
+      name: '',
+      title: t(`editor.tile.${titleKey}`, this.hass),
+      icon,
+      expanded,
+      schema,
+    };
+  }
+
+  /** Two-column cluster for related booleans, matching how HA grids its own
+   *  icon/color/picture/hide_state row. */
+  private _grid(schema: HaFormSchemaItem[]): HaFormSchemaItem {
+    return { type: 'grid', name: '', schema };
+  }
+
+  /** The Interactions group, shared by both the cover and group schemas so the
+   *  two can't drift. Mirrors HA's own tile editor, which collects tap /
+   *  icon-tap / hold / double-tap under one expandable. `icon_tap_action`
+   *  defaults to `none` — matching HA for the cover domain — and doubles as the
+   *  switch for the tinted pill behind the glyph (see types.ts). */
+  private _interactionsSection() {
+    return this._section('interactions_section', 'mdi:gesture-tap', false, [
       { name: 'tap_action', selector: { ui_action: {} } },
+      { name: 'icon_tap_action', selector: { ui_action: { default_action: 'none' } } },
       { name: 'hold_action', selector: { ui_action: {} } },
       { name: 'double_tap_action', selector: { ui_action: {} } },
-    ];
+    ]);
   }
 
   public static styles = css`

@@ -209,6 +209,98 @@ describe('adaptive-cover-pro-tile-card setConfig', () => {
     const el = makeCard();
     expect(() => el.setConfig({ type: TYPE, entry_id: ENTRY })).not.toThrow();
   });
+
+  // Audit finding #2 (issue #247 fix pass): a malformed `name` — the natural
+  // typo from omitting the `- ` in a YAML list, e.g. `name: {type: area}`
+  // instead of `name: [{type: area}]` — must throw a readable setConfig error
+  // rather than silently blanking the whole tile at render time.
+  it('throws when name is a bare object instead of an array of parts', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: { type: 'area' } as unknown as AdaptiveCoverProTileCardConfig['name'],
+      }),
+    ).toThrow(/name/);
+  });
+
+  it('throws when name is an array containing a null entry', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: [null] as unknown as AdaptiveCoverProTileCardConfig['name'],
+      }),
+    ).toThrow(/name/);
+  });
+
+  it('throws when name is an array containing an unrecognized part type', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: [{ type: 'bogus' }] as unknown as AdaptiveCoverProTileCardConfig['name'],
+      }),
+    ).toThrow(/name/);
+  });
+
+  // Audit finding #1 (issue #247 fix pass): a YAML `name:` with no value
+  // parses to `null` — the templated-dashboard empty-variable case that issue
+  // #247 was filed for. Pre-#247 `cfg.name ?? entry_title` rendered this fine;
+  // `setConfig` must not hard-error it.
+  it('does not throw when name is null', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: null as unknown as AdaptiveCoverProTileCardConfig['name'],
+      }),
+    ).not.toThrow();
+  });
+
+  // `0` and `false` are literal values pre-#247 (`0 ?? x` is `0`), not shape
+  // errors — must not throw.
+  it('does not throw when name is 0', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: 0 as unknown as AdaptiveCoverProTileCardConfig['name'],
+      }),
+    ).not.toThrow();
+  });
+
+  it('does not throw when name is false', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: false as unknown as AdaptiveCoverProTileCardConfig['name'],
+      }),
+    ).not.toThrow();
+  });
+
+  it('accepts a plain string name unchanged', () => {
+    const el = makeCard();
+    expect(() => el.setConfig({ type: TYPE, entry_id: ENTRY, name: 'Patio Right' })).not.toThrow();
+  });
+
+  it('accepts a well-formed composed name array', () => {
+    const el = makeCard();
+    expect(() =>
+      el.setConfig({
+        type: TYPE,
+        entry_id: ENTRY,
+        name: [{ type: 'area' }, { type: 'entry' }, { type: 'text', text: '–' }],
+      }),
+    ).not.toThrow();
+  });
 });
 
 describe('adaptive-cover-pro-tile-card render', () => {
@@ -833,6 +925,44 @@ describe('adaptive-cover-pro-tile-card group entry (issue #185)', () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeHass());
     expect(el.shadowRoot!.querySelector('acp-group-tile')).toBeFalsy();
     expect(el.shadowRoot!.querySelector('button.up')).toBeTruthy();
+  });
+
+  // Audit finding #1 (issue #247 fix pass): a Cover Group entry with a
+  // composed `name` must resolve through resolveTileName() before it reaches
+  // <acp-group-tile>/<acp-group-dialog> — those components only ever declare
+  // `name?: string` and render `${this.name ?? entry_title}`, so a raw
+  // AcpNamePart[] handed to them stringifies to "[object Object]".
+  it('resolves a composed name before handing it to acp-group-tile / acp-group-dialog', async () => {
+    const el = makeCard();
+    el.setConfig({
+      type: TYPE,
+      entry_id: GROUP_ENTRY,
+      name: [
+        { type: 'text', text: 'Composed' },
+        { type: 'text', text: 'Name' },
+      ],
+    });
+    el.hass = makeGroupHass();
+    document.body.appendChild(el);
+    el._registry = GROUP_REGISTRY;
+    await el.updateComplete;
+
+    const groupTile = el.shadowRoot!.querySelector('acp-group-tile') as HTMLElement & {
+      updateComplete: Promise<boolean>;
+      name?: string;
+    };
+    expect(groupTile).toBeTruthy();
+    expect(groupTile.name).toBe('Composed Name');
+    await groupTile.updateComplete;
+    expect(groupTile.shadowRoot!.querySelector('.title')?.textContent?.trim()).toBe(
+      'Composed Name',
+    );
+
+    const groupDialog = el.shadowRoot!.querySelector('acp-group-dialog') as HTMLElement & {
+      name?: string;
+    };
+    expect(groupDialog).toBeTruthy();
+    expect(groupDialog.name).toBe('Composed Name');
   });
 });
 
@@ -2403,8 +2533,13 @@ describe('adaptive-cover-pro-tile-card HA tile layout (detailed)', () => {
 
   it('links detailed controls to HA ha-control-button CSS tokens', () => {
     const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
-    expect(css).toContain('height: var(--control-button-group-thickness, 40px)');
+    // 36px is HA's inline-features thickness (--feature-height: --ha-space-9),
+    // which is what ha-tile-container sets for a features block beside the
+    // info column — not the 42px of a full-width bottom feature row.
+    expect(css).toContain('height: var(--control-button-group-thickness, 36px)');
     expect(css).toContain('border-radius: var(--control-button-border-radius, 12px)');
+    // Buttons flex-fill their track, as HA's ha-control-button-group children do.
+    expect(css).toContain('flex: 1 1 0');
   });
 
   it('detailed: renders the target-vs-actual position bar (fill = live, marker = target)', async () => {
@@ -2594,5 +2729,675 @@ describe('adaptive-cover-pro-tile-card — extend manual override (#229)', () =>
     );
     await el.updateComplete;
     expect(dialog.open).toBe(false);
+  });
+});
+
+// ── inverse_state frame normalization (#234) ─────────────────────────────────
+
+const INVERSE_REGISTRY: EntityRegistryEntry[] = [
+  ...REGISTRY,
+  {
+    entity_id: 'sensor.control_status',
+    unique_id: `${ENTRY}_control_status`,
+    config_entry_id: ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+];
+
+const AWNING = 'cover.patio_awning';
+
+/**
+ * The reporter's exact install: a fully-extended awning on an `inverse_state`
+ * entry. Logical position is 100 (extended), but the integration dispatches
+ * `100 − 100 = 0`, so the cover entity AND `actual_positions` both report 0
+ * while `linear_position` / `linear_actual_positions` stay logical at 100.
+ *
+ * `legacy` drops both post-#1033 fields (the accepted residual: the card cannot
+ * detect the frame, so it must render exactly as it does today).
+ * `reportsPosition: false` drops `current_position` to exercise the
+ * `reportedPosition ?? calculatedPosition` fallback.
+ */
+function inverseHass(opts: { legacy?: boolean; reportsPosition?: boolean } = {}): HomeAssistant {
+  const legacy = opts.legacy === true;
+  const h = makeHass({
+    coverPositionSensorAttrs: {
+      actual_positions: { [AWNING]: 0 },
+      ...(legacy ? {} : { linear_actual_positions: { [AWNING]: 100 } }),
+      linear_position: 100,
+      raw_calculated_position: 100,
+      all_at_target: true,
+    },
+  });
+  h.states['sensor.cover_position'].state = '0';
+  h.states['sensor.control_status'] = {
+    state: 'auto',
+    attributes: {
+      cover_type: 'cover_awning',
+      cover_discovery: {
+        cover_type: 'cover_awning',
+        axes: [
+          {
+            id: 'position',
+            label: 'Position',
+            state_attr: 'current_position',
+            supported: true,
+            ...(legacy ? {} : { inverted: true }),
+          },
+        ],
+      },
+    },
+  } as never;
+  h.states[AWNING] = {
+    state: 'open',
+    attributes: {
+      friendly_name: 'Patio Awning',
+      device_class: 'awning',
+      assumed_state: true,
+      ...(opts.reportsPosition === false ? {} : { current_position: 0 }),
+    },
+  } as never;
+  (h as unknown as { callWS: unknown }).callWS = vi.fn().mockResolvedValue(INVERSE_REGISTRY);
+  return h;
+}
+
+async function mountInverse(hass: HomeAssistant): Promise<CardLike> {
+  const el = makeCard();
+  el.setConfig({ type: TYPE, entry_id: ENTRY });
+  el.hass = hass;
+  document.body.appendChild(el);
+  el._registry = INVERSE_REGISTRY;
+  await el.updateComplete;
+  return el;
+}
+
+const fillWidth = (el: CardLike): string =>
+  (el.shadowRoot!.querySelector('.pos-bar .pos-fill') as HTMLElement).getAttribute('style') ?? '';
+
+describe('adaptive-cover-pro-tile-card — inverse_state frame normalization (#234)', () => {
+  it('draws the fill and the target marker from one frame when the cover is at target', async () => {
+    // The whole defect in one assertion: `all_at_target` is true, so an empty
+    // bar with the marker pinned at the far end is a 100-point disagreement
+    // inside a single widget. Both must resolve to the same number.
+    const el = await mountInverse(inverseHass());
+    const bar = el.shadowRoot!.querySelector('.pos-bar') as HTMLElement;
+    expect(bar).toBeTruthy();
+    const marker = bar.querySelector('.pos-marker') as HTMLElement;
+    expect(fillWidth(el)).toContain('width:100%');
+    // Bind the marker's own value: the rendered style is
+    // `left:clamp(1px, X%, calc(100% - 1px))`, so a bare `100%` substring matches
+    // for any X via the upper bound. Anchor on the clamp's middle argument.
+    expect(marker.getAttribute('style') ?? '').toContain('left:clamp(1px, 100%,');
+  });
+
+  it('disables ↑ (open) and keeps ↓ (close) live on a fully-extended awning', async () => {
+    // Pre-fix the raw 0 read as "fully closed", so the tile disabled Close —
+    // the only direction the awning could actually move.
+    const el = await mountInverse(inverseHass());
+    const up = el.shadowRoot!.querySelector('button.up') as HTMLButtonElement;
+    const down = el.shadowRoot!.querySelector('button.down') as HTMLButtonElement;
+    expect(down.disabled).toBe(false);
+    expect(up.disabled).toBe(true);
+  });
+
+  it('shows a readout that agrees with the entity state ("Open · 100%")', async () => {
+    const el = await mountInverse(inverseHass());
+    expect(el.shadowRoot!.querySelector('.state')?.textContent?.trim()).toBe('Open · 100%');
+  });
+
+  it('renders the same frame whether or not the cover reports a position', async () => {
+    // `livePosition = reportedPosition ?? calculatedPosition` must not switch
+    // frames on the presence of `current_position`: a reporting cover and a
+    // no-feedback cover at the same logical position render the same bar.
+    const reporting = await mountInverse(inverseHass());
+    const noFeedback = await mountInverse(inverseHass({ reportsPosition: false }));
+    expect(fillWidth(reporting)).toBe(fillWidth(noFeedback));
+    expect(fillWidth(noFeedback)).toContain('width:100%');
+  });
+
+  it('stays byte-identical to today on a pre-#1033 integration (no new fields)', async () => {
+    // Accepted residual, pinned deliberately: with neither `inverted` nor
+    // `linear_actual_positions` the card has no sound frame oracle, so it must
+    // NOT guess. This guards the normalization against a future "helpful"
+    // inference from the state/linear_position relation.
+    const el = await mountInverse(inverseHass({ legacy: true }));
+    expect(fillWidth(el)).toContain('width:0%');
+    const down = el.shadowRoot!.querySelector('button.down') as HTMLButtonElement;
+    expect(down.disabled).toBe(true);
+  });
+});
+
+describe('adaptive-cover-pro-tile-card — position bar drag slider', () => {
+  const RECT = { left: 0, width: 100, top: 0, bottom: 6, right: 100, height: 6 };
+
+  /** Mount a detailed tile with a live position and a stubbed slider rect, so
+   *  clientX maps 1:1 onto percent. */
+  async function mountSlider(
+    callService = vi.fn(),
+    hassOverrides: Record<string, unknown> = {},
+  ): Promise<{ el: CardLike; slider: HTMLElement; callService: ReturnType<typeof vi.fn> }> {
+    const h = makeHass({ callService, coverLeftCurrentPosition: 60, ...hassOverrides });
+    (h as unknown as { services: unknown }).services = {
+      adaptive_cover_pro: { set_axes: {}, set_position: {} },
+    };
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, h);
+    const slider = el.shadowRoot!.querySelector('.pos-slider') as HTMLElement;
+    if (slider) {
+      Object.defineProperty(slider, 'getBoundingClientRect', {
+        value: () => RECT,
+        configurable: true,
+      });
+    }
+    return { el, slider, callService };
+  }
+
+  const down = (x: number): PointerEvent =>
+    new PointerEvent('pointerdown', { bubbles: true, composed: true, clientX: x, pointerId: 1 });
+  const move = (x: number): PointerEvent =>
+    new PointerEvent('pointermove', { bubbles: true, composed: true, clientX: x, pointerId: 1 });
+  const up = (x: number): PointerEvent =>
+    new PointerEvent('pointerup', { bubbles: true, composed: true, clientX: x, pointerId: 1 });
+
+  const posCall = (
+    cs: ReturnType<typeof vi.fn>,
+  ): [string, string, Record<string, unknown>, Record<string, unknown>] | undefined =>
+    cs.mock.calls.find((c) => c[1] === 'set_axes' || c[1] === 'set_position') as
+      | [string, string, Record<string, unknown>, Record<string, unknown>]
+      | undefined;
+
+  it('wraps the position bar in a slider exposing WAI-ARIA semantics', async () => {
+    const { slider } = await mountSlider();
+    expect(slider).toBeTruthy();
+    expect(slider.getAttribute('role')).toBe('slider');
+    expect(slider.getAttribute('tabindex')).toBe('0');
+    expect(slider.getAttribute('aria-valuemin')).toBe('0');
+    expect(slider.getAttribute('aria-valuemax')).toBe('100');
+    expect(slider.getAttribute('aria-valuenow')).toBe('60');
+    expect(slider.getAttribute('aria-label')).toBeTruthy();
+    // The visible rail stays nested inside, untouched.
+    expect(slider.querySelector('.pos-bar')).toBeTruthy();
+  });
+
+  it('previews the dragged value live without calling a service', async () => {
+    const { el, slider, callService } = await mountSlider();
+    slider.dispatchEvent(down(20));
+    slider.dispatchEvent(move(80));
+    await el.updateComplete;
+    expect(fillWidth(el)).toContain('width:80%');
+    expect(slider.getAttribute('aria-valuenow')).toBe('80');
+    expect(posCall(callService)).toBeUndefined();
+  });
+
+  it('commits once on the trailing click after a drag', async () => {
+    const { el, slider, callService } = await mountSlider();
+    slider.dispatchEvent(down(20));
+    slider.dispatchEvent(move(80));
+    slider.dispatchEvent(up(80));
+    slider.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: 80 }));
+    await el.updateComplete;
+    expect(posCall(callService)).toEqual([
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { position: 80 } },
+      { entity_id: 'cover.left' },
+    ]);
+  });
+
+  it('does not open the more-info dialog when the gesture lands on the slider', async () => {
+    const { el, slider } = await mountSlider();
+    slider.dispatchEvent(down(20));
+    slider.dispatchEvent(move(80));
+    slider.dispatchEvent(up(80));
+    slider.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: 80 }));
+    await el.updateComplete;
+    // The tile's tap target must stay shielded, exactly as .controls is.
+    expect((el as unknown as { _dialogOpen: boolean })._dialogOpen).toBe(false);
+  });
+
+  it('discards the drag on pointercancel without committing', async () => {
+    const { el, slider, callService } = await mountSlider();
+    slider.dispatchEvent(down(20));
+    slider.dispatchEvent(move(80));
+    slider.dispatchEvent(
+      new PointerEvent('pointercancel', { bubbles: true, composed: true, pointerId: 1 }),
+    );
+    await el.updateComplete;
+    expect(posCall(callService)).toBeUndefined();
+    expect(fillWidth(el)).toContain('width:60%');
+  });
+
+  it.each([
+    ['ArrowRight', 61],
+    ['ArrowLeft', 59],
+    ['PageUp', 70],
+    ['PageDown', 50],
+    ['Home', 0],
+    ['End', 100],
+  ])('commits %s from the keyboard as %i', async (key, expected) => {
+    const { slider, callService } = await mountSlider();
+    slider.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, composed: true, key }));
+    expect(posCall(callService)?.[2]).toEqual({ axes: { position: expected } });
+  });
+
+  it('ignores unrelated keys', async () => {
+    const { slider, callService } = await mountSlider();
+    slider.dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, composed: true, key: 'Enter' }),
+    );
+    expect(posCall(callService)).toBeUndefined();
+  });
+
+  it('suppresses the width transition only while dragging', async () => {
+    const { el, slider } = await mountSlider();
+    expect(slider.classList.contains('dragging')).toBe(false);
+    slider.dispatchEvent(down(20));
+    await el.updateComplete;
+    expect(slider.classList.contains('dragging')).toBe(true);
+    slider.dispatchEvent(up(20));
+    await el.updateComplete;
+    expect(slider.classList.contains('dragging')).toBe(false);
+  });
+
+  it('declares an expanded touch target and owns the touch gesture', () => {
+    const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
+    expect(css).toContain('touch-action: none');
+    // The 6px rail is too thin to grab; an invisible ::before widens the hit
+    // area without adding layout height.
+    expect(css).toContain('.pos-slider::before');
+    expect(css).toContain('.pos-slider.dragging');
+  });
+
+  it('writes in the same logical frame it renders on an inverse_state cover (#234)', async () => {
+    // The bar reads logical-frame actuals post-#234 and set_axes takes logical
+    // values, so dragging to 30% must send 30 — not the cover-frame mirror.
+    const callService = vi.fn();
+    const h = inverseHass();
+    (h as unknown as { callService: unknown }).callService = callService;
+    (h as unknown as { services: unknown }).services = {
+      adaptive_cover_pro: { set_axes: {}, set_position: {} },
+    };
+    const el = await mountInverse(h);
+    const slider = el.shadowRoot!.querySelector('.pos-slider') as HTMLElement;
+    Object.defineProperty(slider, 'getBoundingClientRect', {
+      value: () => RECT,
+      configurable: true,
+    });
+    slider.dispatchEvent(down(30));
+    slider.dispatchEvent(up(30));
+    slider.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: 30 }));
+    await el.updateComplete;
+    expect(posCall(callService)?.[2]).toEqual({ axes: { position: 30 } });
+  });
+
+  it('renders no slider when the position bar is turned off', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, show_position_bar: false },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    );
+    expect(el.shadowRoot!.querySelector('.pos-slider')).toBeFalsy();
+  });
+});
+
+// ── inverse_tilt frame normalization (#236) ──────────────────────────────────
+
+const TILT_INVERSE_REGISTRY: EntityRegistryEntry[] = [
+  ...REGISTRY,
+  {
+    entity_id: 'sensor.cover_tilt',
+    unique_id: `${ENTRY}_Cover_Tilt`,
+    config_entry_id: ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+  {
+    entity_id: 'sensor.control_status',
+    unique_id: `${ENTRY}_control_status`,
+    config_entry_id: ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+];
+
+/**
+ * A venetian on an `inverse_tilt` install: only the tilt axis carries
+ * `inverted: true`, so the cover reports `current_tilt_position: 65` for slats
+ * at logical 35 while `current_position` stays in the logical frame.
+ */
+function inverseTiltHass(
+  overrides: Partial<{
+    callService: (...args: unknown[]) => unknown;
+    coverLeftState: string;
+    modernServices: boolean;
+  }> = {},
+): HomeAssistant {
+  const h = makeHass({
+    callService: overrides.callService,
+    coverLeftState: overrides.coverLeftState,
+    coverLeftCurrentPosition: 42,
+  });
+  h.states['sensor.cover_tilt'] = { state: '70', attributes: {} } as never;
+  (h.states['cover.left'].attributes as Record<string, unknown>).current_tilt_position = 65;
+  h.states['sensor.control_status'] = {
+    state: 'auto',
+    attributes: {
+      cover_type: 'cover_venetian',
+      cover_discovery: {
+        cover_type: 'cover_venetian',
+        axes: [
+          {
+            id: 'position',
+            label: 'Position',
+            state_attr: 'current_position',
+            supported: true,
+            inverted: false,
+          },
+          {
+            id: 'tilt',
+            label: 'Tilt',
+            state_attr: 'current_tilt_position',
+            supported: true,
+            inverted: true,
+          },
+        ],
+      },
+    },
+  } as never;
+  if (overrides.modernServices) {
+    (h as unknown as { services: unknown }).services = {
+      adaptive_cover_pro: { set_axes: {}, set_position: {}, set_tilt: {} },
+    };
+  }
+  (h as unknown as { callWS: unknown }).callWS = vi.fn().mockResolvedValue(TILT_INVERSE_REGISTRY);
+  return h;
+}
+
+async function mountInverseTilt(hass: HomeAssistant): Promise<CardLike> {
+  const el = makeCard();
+  el.setConfig({ type: TYPE, entry_id: ENTRY });
+  el.hass = hass;
+  document.body.appendChild(el);
+  el._registry = TILT_INVERSE_REGISTRY;
+  await el.updateComplete;
+  return el;
+}
+
+describe('adaptive-cover-pro-tile-card — inverse_tilt frame normalization (#236)', () => {
+  const tiltBarOf = (el: CardLike) =>
+    el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
+      actual: number | null;
+      target: number | null;
+    };
+
+  it('feeds the mini tilt bar the logical value, not the cover-frame attribute', async () => {
+    const el = await mountInverseTilt(inverseTiltHass());
+    const tilt = tiltBarOf(el);
+    expect(tilt).not.toBeNull();
+    expect(tilt.actual).toBe(35);
+    expect(tilt.target).toBe(70);
+  });
+
+  // The `noLiveData` gate runs BEFORE `_liveAxis`, so a suppressed read must
+  // stay null — never `100 − null` (issues #212 / #232 / #239).
+  it.each(['unavailable', 'unknown'])(
+    'keeps the suppressed tilt read null on a %s cover',
+    async (coverLeftState) => {
+      const el = await mountInverseTilt(inverseTiltHass({ coverLeftState }));
+      expect(tiltBarOf(el).actual).toBeNull();
+    },
+  );
+
+  it('writes the un-inverted logical value — the integration applies _to_wire', async () => {
+    const callService = vi.fn();
+    const el = await mountInverseTilt(inverseTiltHass({ callService, modernServices: true }));
+    tiltBarOf(el).dispatchEvent(new CustomEvent('acp-tilt-set', { detail: 80, bubbles: true }));
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { tilt: 80 } },
+      { entity_id: 'cover.left' },
+    );
+  });
+});
+
+describe('adaptive-cover-pro-tile-card — composite name (#247)', () => {
+  // Same REGISTRY as the rest of this file, but with device_id set so the
+  // area/entry-title lookups below have a device to resolve against.
+  const AREA_REGISTRY: EntityRegistryEntry[] = REGISTRY.map((r) => ({
+    ...r,
+    device_id: 'device_living',
+  }));
+
+  function makeAreaHass(withArea: boolean): HomeAssistant {
+    const hass = makeHass();
+    (hass as unknown as { devices?: unknown }).devices = {
+      device_living: {
+        id: 'device_living',
+        name: 'Blind',
+        config_entries: [ENTRY],
+        ...(withArea ? { area_id: 'area_living' } : {}),
+      },
+    };
+    if (withArea) {
+      (hass as unknown as { areas?: unknown }).areas = {
+        area_living: { area_id: 'area_living', name: 'Living Room' },
+      };
+    }
+    return hass;
+  }
+
+  async function mountWithAreaRegistry(
+    config: AdaptiveCoverProTileCardConfig,
+    hass: HomeAssistant,
+  ): Promise<CardLike> {
+    const el = makeCard();
+    el.setConfig(config);
+    el.hass = hass;
+    document.body.appendChild(el);
+    el._registry = AREA_REGISTRY;
+    await el.updateComplete;
+    return el;
+  }
+
+  it('renders "<Area> <Entry title>" when the device has an area', async () => {
+    const el = await mountWithAreaRegistry(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        name: [{ type: 'area' }, { type: 'entry' }],
+      },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Living Room Blind');
+  });
+
+  it('falls back to just the entry title (no stray leading space) when the device has no area', async () => {
+    const el = await mountWithAreaRegistry(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        name: [{ type: 'area' }, { type: 'entry' }],
+      },
+      makeAreaHass(false),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Blind');
+  });
+
+  it('renders a literal text part verbatim', async () => {
+    const el = await mountWithAreaRegistry(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        name: [{ type: 'text', text: 'Custom' }],
+      },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Custom');
+  });
+
+  it('renders discovered.entry_title unchanged when name is omitted (regression guard)', async () => {
+    const el = await mountWithAreaRegistry(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed' },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Blind');
+  });
+
+  it('keeps a plain-string name working byte-identically (backward compatibility)', async () => {
+    const el = await mountWithAreaRegistry(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', name: 'Centre Gauche' },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Centre Gauche');
+  });
+
+  // Audit finding #1 (issue #247 fix pass): a YAML `name:` with no value
+  // parses to `null` — must render the entry title, not hard-error the tile.
+  it('renders the entry title when name is null (templated-dashboard empty variable)', async () => {
+    const el = await mountWithAreaRegistry(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        name: null as unknown as AdaptiveCoverProTileCardConfig['name'],
+      },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Blind');
+  });
+
+  // The subtle case: `0` and `false` are falsy but valid literal values
+  // pre-#247 (`0 ?? x` is `0`) — must render the literal, not fall back.
+  it('renders "0" verbatim when name is 0, not the entry title', async () => {
+    const el = await mountWithAreaRegistry(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        name: 0 as unknown as AdaptiveCoverProTileCardConfig['name'],
+      },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('0');
+  });
+
+  it('renders "false" verbatim when name is false, not the entry title', async () => {
+    const el = await mountWithAreaRegistry(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        name: false as unknown as AdaptiveCoverProTileCardConfig['name'],
+      },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('false');
+  });
+
+  it('falls back to the entry title when name is an empty array', async () => {
+    const el = await mountWithAreaRegistry(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', name: [] },
+      makeAreaHass(true),
+    );
+    const title = el.shadowRoot!.querySelector('.title');
+    expect(title!.textContent?.trim()).toBe('Blind');
+  });
+});
+
+// Icon tap behavior (Interactions section). HA draws the tinted pill behind a
+// tile glyph only when the icon is interactive, and its
+// getEntityDefaultTileIconAction returns "none" for the cover domain — so the
+// shape is opt-in here and an upgraded tile must look untouched.
+describe('adaptive-cover-pro-tile-card — icon_tap_action', () => {
+  it('leaves the glyph bare when icon_tap_action is unset (HA cover default)', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY, layout: 'detailed' }, makeHass({}));
+    const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap')!;
+    expect(wrap.classList.contains('background')).toBe(false);
+    expect(wrap.getAttribute('role')).toBeNull();
+    expect(wrap.getAttribute('tabindex')).toBeNull();
+  });
+
+  it('leaves the glyph bare when icon_tap_action is explicitly none', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', icon_tap_action: { action: 'none' } },
+      makeHass({}),
+    );
+    const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap')!;
+    expect(wrap.classList.contains('background')).toBe(false);
+  });
+
+  it('draws the shape and makes the glyph a button when an action is set', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', icon_tap_action: { action: 'more-info' } },
+      makeHass({}),
+    );
+    const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap')!;
+    expect(wrap.classList.contains('background')).toBe(true);
+    expect(wrap.getAttribute('role')).toBe('button');
+    expect(wrap.getAttribute('tabindex')).toBe('0');
+  });
+
+  it('carries the state color into the shape so tint and glyph agree', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', icon_tap_action: { action: 'more-info' } },
+      makeHass({}),
+    );
+    const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap') as HTMLElement;
+    expect(wrap.getAttribute('style')).toContain('--acp-tile-icon-color');
+  });
+
+  it('does not fire the tile body tap when the glyph is tapped', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', icon_tap_action: { action: 'more-info' } },
+      makeHass({}),
+    );
+    const bodyTap = vi.fn();
+    el.addEventListener('acp-tile-tap', bodyTap);
+    const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap') as HTMLElement;
+    wrap.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    await el.updateComplete;
+    expect(bodyTap).not.toHaveBeenCalled();
+  });
+
+  it('still opens the ACP dialog when the body is tapped, shape or not', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'detailed', icon_tap_action: { action: 'more-info' } },
+      makeHass({}),
+    );
+    const bodyTap = vi.fn();
+    el.addEventListener('acp-tile-tap', bodyTap);
+    const body = el.shadowRoot!.querySelector('.tile-body') as HTMLElement;
+    body.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    await el.updateComplete;
+    expect(bodyTap).toHaveBeenCalled();
+  });
+
+  it('ignores clicks on the bare glyph when no icon action is configured', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY, layout: 'detailed' }, makeHass({}));
+    const bodyTap = vi.fn();
+    el.addEventListener('acp-tile-tap', bodyTap);
+    const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap') as HTMLElement;
+    // No stopPropagation happens when inert, so the body handler still runs —
+    // the glyph is simply not a separate target.
+    wrap.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    await el.updateComplete;
+    expect(bodyTap).toHaveBeenCalled();
+  });
+
+  it('exposes the pill and 0.2 tint in the stylesheet', () => {
+    const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
+    expect(css).toContain('border-radius: var(--ha-border-radius-pill, 9999px)');
+    expect(css).toContain('opacity: 0.2');
+    expect(css).toContain('opacity: 0.35');
   });
 });

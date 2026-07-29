@@ -65,7 +65,12 @@ export function buildStates(cfg: HarnessConfig): GeneratedStates {
   const decisions = new Map<string, DecisionResult>();
   const samplesByEntry = new Map<string, SunSample[]>();
 
-  for (const entry of cfg.entries) {
+  // Group entries run LAST. A member cover can belong to a real ACP cover entry
+  // in the same scenario (that's what makes the roster render as tile cards), and
+  // `addGroupStates` only stubs members that have no state yet — so the cover
+  // entry must have published its own richer state first.
+  const ordered = [...cfg.entries].sort((a, b) => Number(!!a.is_group) - Number(!!b.is_group));
+  for (const entry of ordered) {
     // Cover Group entries (issue #185) carry no sun geometry, decision pipeline,
     // or per-cover sensors — emit their group_* entities and move on.
     if (entry.is_group) {
@@ -105,8 +110,17 @@ export function buildStates(cfg: HarnessConfig): GeneratedStates {
  * cover type. Mirrors the serialized `CoverDescriptor`/`AxisDescriptor` shape:
  * every cover exposes a `position` axis; venetian additionally exposes a `tilt`
  * axis. Emitted on the control_status sensor unless the legacy flag is set.
+ *
+ * `positionInverted` / `tiltInverted` mirror the integration's
+ * `AxisDescriptor.inverted`, which is set per axis from that axis's own
+ * inversion option (issues #234, #236) — the card's only oracle for
+ * un-inverting cover-frame reads.
  */
-export function buildCoverDiscovery(coverType: CoverType): Record<string, unknown> {
+export function buildCoverDiscovery(
+  coverType: CoverType,
+  positionInverted = false,
+  tiltInverted = false,
+): Record<string, unknown> {
   const label = (
     {
       cover_blind: 'Vertical Blind',
@@ -128,6 +142,7 @@ export function buildCoverDiscovery(coverType: CoverType): Record<string, unknow
       service_attr: 'position',
       open_blocks_sun: coverType === 'cover_awning',
       supported: true,
+      inverted: positionInverted,
     },
   ];
   if (coverType === 'cover_venetian') {
@@ -143,6 +158,7 @@ export function buildCoverDiscovery(coverType: CoverType): Record<string, unknow
       service_attr: 'tilt',
       open_blocks_sun: false,
       supported: true,
+      inverted: tiltInverted,
     });
   }
   return { cover_type: coverType, cover_label: label, axes };
@@ -171,19 +187,39 @@ function addEntryStates(
   const held = f.manual_override && f.held_position !== null ? f.held_position : null;
   const coverState = held !== null ? held : entry.target_position;
 
-  const actualPositions: Record<string, number | null> = {};
+  // An inverse_state entry dispatches `100 − logical`, so everything the
+  // integration reports FROM the cover is in the cover frame while
+  // `linear_*` stays logical (issue #234).
+  const inverse = f.inverse_state;
+  const flip = (v: number | null): number | null => (typeof v === 'number' ? 100 - v : v);
+
+  const logicalActuals: Record<string, number | null> = {};
   for (const c of entry.covers) {
     // Covers physically sit at the held position during a divergent override.
-    actualPositions[c.entity_id] = held !== null ? held : c.position;
+    logicalActuals[c.entity_id] = held !== null ? held : c.position;
   }
+  const actualPositions: Record<string, number | null> = inverse
+    ? Object.fromEntries(Object.entries(logicalActuals).map(([k, v]) => [k, flip(v)]))
+    : logicalActuals;
   const allAtTarget = entry.covers.every(
     (c) => c.position !== null && Math.abs(c.position - entry.target_position) <= 1,
   );
+
+  // On an inverse entry the sensor STATE is the dispatched value, and
+  // `linear_position` carries the logical one the card must display — unless a
+  // scenario pins linear_position explicitly (interpolation), which still wins.
+  const linearPosition =
+    f.linear_position !== null ? f.linear_position : inverse ? coverState : null;
 
   const coverPositionAttrs: Record<string, unknown> = {
     friendly_name: `${entry.title} Cover Position`,
     unit_of_measurement: '%',
     actual_positions: actualPositions,
+    // Published unconditionally by a post-#1033 integration — the identity map
+    // unless the position axis is inverted (issue #234). Omitted under the
+    // legacy flag so the card exercises its axis-flag fallback and, with no
+    // flag either, the accepted pre-#1033 residual.
+    ...(legacyIntegration ? {} : { linear_actual_positions: logicalActuals }),
     all_at_target: allAtTarget,
     control_method: decision.winner,
     reason: decision.reason,
@@ -191,7 +227,7 @@ function addEntryStates(
     // Pre-interpolation logical position (issue #219). Spread conditionally so
     // "absent" is actually absent (not null), matching a real HA state object
     // and exercising the card's `typeof val === 'number'` guard honestly.
-    ...(f.linear_position !== null ? { linear_position: f.linear_position } : {}),
+    ...(linearPosition !== null ? { linear_position: linearPosition } : {}),
   };
   // No-feedback covers publish an in-transit direction while mid-move; mirror it
   // so the tile renders the localized "Opening"/"Closing" state text.
@@ -202,7 +238,7 @@ function addEntryStates(
   }
   states[id('target_position_sensor')] = mkState(
     id('target_position_sensor'),
-    String(coverState),
+    String(inverse ? 100 - coverState : coverState),
     coverPositionAttrs,
   );
 
@@ -296,7 +332,11 @@ function addEntryStates(
     cover_type: entry.cover_type,
     // Multi-axis self-discovery descriptor (issue #180). Omitted under the
     // legacy flag so the card exercises its synthesized-axis fallback.
-    ...(legacyIntegration ? {} : { cover_discovery: buildCoverDiscovery(entry.cover_type) }),
+    ...(legacyIntegration
+      ? {}
+      : {
+          cover_discovery: buildCoverDiscovery(entry.cover_type, f.inverse_state, f.inverse_tilt),
+        }),
     schedule_start: scheduleStart,
     schedule_end: scheduleEnd,
   });
@@ -483,12 +523,26 @@ function addEntryStates(
 
 function addCoverStates(states: Record<string, HassState>, entry: HarnessEntry): void {
   const dualAxis = entry.cover_type === 'cover_venetian';
+  // On an inverse_state entry the physical cover is driven with `100 − logical`,
+  // so it REPORTS backwards: a fully-extended awning (logical 100) sits at
+  // `current_position: 0` while its HA state is still `open` — the exact
+  // contradiction issue #234 was reported against. Mocking the source cover
+  // this way means the harness reproduces the bug, not just the fix.
+  const inverse = entry.flags.inverse_state;
   for (const c of entry.covers) {
     const pos = c.position ?? entry.target_position;
+    // Derived from the LOGICAL position, so it disagrees with the reported
+    // attribute exactly the way the real integration leaves it.
     const state = c.state ?? (pos === 0 ? 'closed' : pos === 100 ? 'open' : 'open');
+    const reportedPosition =
+      inverse && typeof c.position === 'number' ? 100 - c.position : c.position;
     // Venetian covers carry a live slat angle the card reads directly off the
     // cover entity (the integration does not aggregate tilts into a sensor).
     const tilt = dualAxis ? (c.tilt ?? entry.target_tilt ?? 50) : undefined;
+    // An inverse_tilt entry drives the slat axis with `100 − logical` too, so
+    // the cover reports the complement while the scenario's `tilt` stays
+    // logical — mirroring `reportedPosition` above (issue #236).
+    const reportedTilt = entry.flags.inverse_tilt && tilt !== undefined ? 100 - tilt : tilt;
     // device_class drives the card's HA-native icon + control glyphs. Explicit
     // per-cover config wins; `'none'` suppresses it (fallback-chain proof);
     // otherwise default from the cover_type (venetian → blind, else shade),
@@ -497,8 +551,10 @@ function addCoverStates(states: Record<string, HassState>, entry: HarnessEntry):
       c.device_class === 'none' ? undefined : (c.device_class ?? (dualAxis ? 'blind' : 'shade'));
     states[c.entity_id] = mkState(c.entity_id, state, {
       friendly_name: c.friendly_name,
-      current_position: c.position,
-      ...(tilt !== undefined ? { current_tilt_position: tilt } : {}),
+      current_position: reportedPosition,
+      // Inverse installs in the wild are typically RTS/one-way covers.
+      ...(inverse ? { assumed_state: true } : {}),
+      ...(reportedTilt !== undefined ? { current_tilt_position: reportedTilt } : {}),
       // Bit 16 (SET_TILT_POSITION) added for venetian so the cover advertises
       // tilt support alongside the position features (15).
       supported_features: dualAxis ? 143 : 15,
@@ -517,7 +573,13 @@ function addGroupStates(states: Record<string, HassState>, entry: HarnessEntry):
   const id = (role: Parameters<typeof entityIdFor>[1]) => entityIdFor(entry, role);
   const g = entry.group;
   if (!g) return;
-  const whoWon = Object.values(g.member_winners).filter((w) => w !== null).length;
+  // Mirrors GroupWhoWonSensor.native_value: the STATE counts only members whose
+  // pipeline a GROUP handler won, while `member_winners` carries every member's
+  // real winner (which is what the card rolls up into group badges).
+  const GROUP_HANDLERS = ['group_scene', 'group_lock'];
+  const whoWon = Object.values(g.member_winners).filter(
+    (w) => w !== null && GROUP_HANDLERS.includes(w),
+  ).length;
 
   states[id('group_position_sensor')] = mkState(
     id('group_position_sensor'),
@@ -567,16 +629,44 @@ function addGroupStates(states: Record<string, HassState>, entry: HarnessEntry):
     states[id(role)] = mkState(id(role), 'unknown', { friendly_name: `${entry.title} ${role}` });
   }
 
+  // The aggregate cover entity is OPT-IN in the integration, so it is emitted
+  // only when the scenario asks for it — that's the branch where the group tilt
+  // track can appear (features 15 = open/close/set_position/stop, +128 =
+  // SET_TILT_POSITION, which the integration adds only for an all-tilt roster).
+  if (g.aggregate_cover) {
+    const hasTilt = g.tilt !== undefined && g.tilt !== null;
+    states[id('group_cover')] = mkState(
+      id('group_cover'),
+      coverPositionState(g.aggregate_position),
+      {
+        friendly_name: `${entry.title} Group Cover`,
+        current_position: g.aggregate_position,
+        ...(hasTilt ? { current_tilt_position: g.tilt } : {}),
+        supported_features: hasTilt ? 143 : 15,
+        device_class: 'shade',
+      },
+    );
+  }
+
   // Member covers are foreign entity_ids in other config entries — the card
   // never discovers them, but the group view reads each member's live
   // friendly_name/position off `hass.states`. Emit a stub cover state per
   // member (ACP-managed AND generic) so the harness main-card group view shows
   // real names + open/closed states instead of bare entity_ids.
   for (const [memberId, pos] of Object.entries(g.member_positions)) {
+    // A member that belongs to a real ACP cover entry in this scenario already
+    // has a full state (device_class, tilt, assumed_state, …) emitted above —
+    // and that entry is what lets the roster render the member's own tile card.
+    // Never clobber it with the stub.
+    if (states[memberId]) continue;
+    const memberTilt = g.member_tilts?.[memberId];
+    const hasTilt = memberTilt !== undefined && memberTilt !== null;
     states[memberId] = mkState(memberId, coverPositionState(pos), {
       friendly_name: memberFriendlyName(memberId),
       current_position: pos ?? undefined,
-      device_class: 'shade',
+      ...(hasTilt ? { current_tilt_position: memberTilt } : {}),
+      supported_features: hasTilt ? 143 : 15,
+      device_class: hasTilt ? 'blind' : 'shade',
     });
   }
 }

@@ -1,5 +1,5 @@
 import type { HandlerName } from '../../src/const';
-import type { GroupAggregateState, GroupScene } from '../../src/types';
+import type { AcpNamePart, GroupAggregateState, GroupScene } from '../../src/types';
 
 export type CoverType = 'cover_blind' | 'cover_awning' | 'cover_tilt' | 'cover_venetian';
 
@@ -29,6 +29,17 @@ export interface GroupFields {
   automation: boolean;
   /** Aggregate climate mode string (group_climate_mode sensor). */
   climate_mode: string;
+  /** Emit the integration's OPT-IN aggregate `cover.…group_cover` entity. It is
+   *  off by default because a real install only gets it when the user enables
+   *  it — the cards must degrade without it. */
+  aggregate_cover?: boolean;
+  /** Aggregate tilt on the group cover. Only meaningful with
+   *  {@link aggregate_cover}; when set, the group cover advertises
+   *  SET_TILT_POSITION (an all-tilt roster) and the group tilt track renders. */
+  tilt?: number | null;
+  /** entity_id → live slat tilt. A member with an entry here advertises
+   *  SET_TILT_POSITION, so its roster row grows a second track. */
+  member_tilts?: Record<string, number | null>;
 }
 
 export type MotionStatusValue = 'idle' | 'motion_detected' | 'timeout_pending';
@@ -97,6 +108,11 @@ export interface HarnessEntry {
   /** Stable id used both as HA config_entry_id and unique_id prefix. */
   entry_id: string;
   title: string;
+  /** HA area name the entry's mock device is assigned to (issue #247). Wired
+   *  into the mock `hass.devices[…].area_id` / `hass.areas` so the tile
+   *  card's composite `name` `{ type: 'area' }` part has something to
+   *  resolve. Undefined = no area (mirrors an unassigned real device). */
+  area?: string;
   cover_type: CoverType;
   /** Window normal bearing 0..360, 0=N. */
   window_azimuth: number;
@@ -138,6 +154,22 @@ export interface HarnessEntry {
      *  absent — simulates an older integration or interpolation not configured
      *  for this axis; the card falls back to `state` (today's behavior). */
     linear_position: number | null;
+    /** Simulate an `inverse_state` install (issue #234): the integration
+     *  dispatches `100 − logical`, so the Cover_Position sensor STATE, its
+     *  `actual_positions` and the mock source cover entity all go cover-frame,
+     *  while `linear_position` / `linear_actual_positions` stay logical and the
+     *  discovery position axis carries `inverted: true`. Combine with
+     *  `legacyIntegration` to reproduce the pre-#1033 residual, where the card
+     *  has no frame oracle and renders the defect. */
+    inverse_state: boolean;
+    /** Simulate an `inverse_tilt` install (issue #236): the venetian second
+     *  axis carries its own inversion option (the integration's
+     *  `CONF_INVERSE_TILT`, `interpolatable=False`, so interpolation never
+     *  suppresses it). The mock reports the cover-frame `current_tilt_position`
+     *  (`100 − logical`) on the source cover and marks the discovery tilt axis
+     *  `inverted: true`, while the Cover_Tilt target sensor stays LOGICAL —
+     *  the integration publishes the pre-`_to_wire` target there. */
+    inverse_tilt: boolean;
     /** When true, the priority-100 safety slot (slot 5) is armed and wins as a
      *  custom_position with bypass_auto_control. Replaces the pre-2.28
      *  standalone Force Override trigger count. */
@@ -232,6 +264,18 @@ export interface SkyCompassCardOptions {
 
 export interface TileCardOptions {
   enabled: boolean;
+  /** Title override (issue #247). A plain string is used verbatim; an
+   *  {@link AcpNamePart} array composes a title from the entry's discovered
+   *  title / area / literal text parts. Undefined = the discovered entry
+   *  title (today's default). */
+  name?: string | AcpNamePart[];
+  /* Cover Group entries only — the group tile ignores everything else here
+     except show_controls / show_position_bar / show_tilt / state_color. */
+  show_scene_select: boolean;
+  show_lock: boolean;
+  show_automation: boolean;
+  show_clear_overrides: boolean;
+  show_member_badges: boolean;
   show_position: boolean;
   show_state: boolean;
   show_decision_summary: boolean;
@@ -262,6 +306,10 @@ export interface TileCardOptions {
   /** Color the cover state icon by state (open/opening/closing = active tier,
    *  closed = inactive tier, unavailable = unavailable tier). Default true. */
   state_color: boolean;
+  /** Card config `icon_tap_action`. `none` (the default, matching HA for the
+   *  cover domain) leaves the glyph bare; anything else gives it its own tap
+   *  target AND turns on HA's tinted pill behind it. */
+  icon_tap_action: 'none' | 'more-info' | 'toggle';
   layout: 'one-line' | 'detailed';
   /** Simulated tile width in px, mimicking a narrow HA "Sections" column.
    *  0 = auto (the stage grid sizes tiles normally, ≥360px wide). A positive
@@ -282,6 +330,25 @@ export interface SolarChartCardOptions {
   enabled: boolean;
   title: string;
   compact: boolean;
+}
+
+export interface HistoryCardOptions {
+  enabled: boolean;
+  title: string;
+  /** Window length in hours (mirrors HISTORY_HOUR_CHOICES). */
+  hours: number;
+  track_position: boolean;
+  track_who_won: boolean;
+  track_context: boolean;
+  track_actions: boolean;
+  advanced_open: boolean;
+  hide_advanced: boolean;
+  /** Simulate an OLD integration with no `get_diagnostics` service, so the
+   *  card hides the Advanced section instead of rendering a dead affordance. */
+  noDiagnosticsService: boolean;
+  /** How many synthetic events the mock event buffer emits. 0 exercises the
+   *  "buffer present but empty" path. */
+  eventCount: number;
 }
 
 export interface HarnessConfig {
@@ -325,6 +392,7 @@ export interface HarnessConfig {
   tile: TileCardOptions;
   decision: DecisionCardOptions;
   solarChart: SolarChartCardOptions;
+  history: HistoryCardOptions;
   /** Floating-tooltip behavior, threaded into all three card configs. */
   tooltips: TooltipsOptions;
   /** Fixed stage height in px for the Sky Compass card, mimicking HA's

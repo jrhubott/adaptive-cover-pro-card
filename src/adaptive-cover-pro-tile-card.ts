@@ -15,6 +15,7 @@ import {
   COVER_ICON_FALLBACK_UNAVAILABLE,
 } from './const';
 import { createDiscoveryMemo } from './lib/entity-discovery';
+import { resolveTileName, isValidAcpName } from './lib/name-parts';
 import { makeEntitySuggestion } from './lib/entity-suggestion';
 import { resolveAxes, type ResolvedAxis } from './lib/axes';
 import { setAxes, engageManualOverride, hasEngageManualOverride } from './lib/services';
@@ -42,7 +43,7 @@ import {
   resolveCustomPositionPct,
   resolveActiveMinModeFloor,
 } from './lib/decision-summary';
-import { coverHeldPosition } from './lib/cover-position';
+import { coverHeldPosition, logicalAxisValue, logicalCoverPosition } from './lib/cover-position';
 import {
   buildSolarActiveContext,
   isAutoControlActive,
@@ -56,6 +57,7 @@ import { tooltip, setTooltipDefaults } from './lib/tooltip';
 import './components/tile-badge';
 import './components/tilt-bar';
 import './components/group-tile';
+import './components/group-dialog';
 import './components/more-info-dialog';
 import './adaptive-cover-pro-tile-card-editor';
 
@@ -72,6 +74,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
   @state() public _registry: EntityRegistryEntry[] | null = null;
   @state() private _registryError: string | null = null;
   @state() private _dialogOpen = false;
+  /** Live client-side percent while the position slider is being dragged.
+   *  Drives the fill and readout; the write happens on the gesture's trailing
+   *  click, never mid-drag. Null whenever no drag is in flight. */
+  @state() private _posDrag: number | null = null;
   @state() private _extendOpen = false;
 
   private _unsubRegistry: (() => void) | null = null;
@@ -85,6 +91,20 @@ export class AdaptiveCoverProTileCard extends LitElement {
   public setConfig(config: AdaptiveCoverProTileCardConfig): void {
     if (!config || typeof config.entry_id !== 'string' || config.entry_id.length === 0) {
       throw new Error(`${TILE_CARD_NAME}: \`entry_id\` is required and must be a non-empty string`);
+    }
+    // Issue #247 audit finding #2: reject a malformed `name` here — most
+    // commonly the missing `- ` YAML-list typo (`name: {type: area}` instead
+    // of `name: [{type: area}]`) — rather than letting it reach
+    // `resolveTileName()` and silently blank the tile at render time.
+    // `isValidAcpName` accepts `null`/`undefined` and any other scalar
+    // (audit finding #1) so a templated dashboard's empty `name:` (which
+    // parses to `null`) or a literal like `name: 2` still renders instead of
+    // hard-erroring the tile — see the block comment on `isValidAcpName`.
+    if (!isValidAcpName(config.name)) {
+      throw new Error(
+        `${TILE_CARD_NAME}: \`name\` must be a string or an array of ` +
+          `{type: 'entry'|'area'} or {type: 'text', text: string} parts`,
+      );
     }
     let next: AdaptiveCoverProTileCardConfig = { ...config };
     if (typeof next.tap_action === 'string') {
@@ -163,6 +183,13 @@ export class AdaptiveCoverProTileCard extends LitElement {
   protected shouldUpdate(changed: PropertyValues): boolean {
     if (changed.size > 1 || !changed.has('hass')) return true;
     if (!this._discovered) return true;
+    // A Cover Group must not gate on its own entities: the roster renders each
+    // member as a nested tile card that HA never feeds directly, so it only sees
+    // a new `hass` when this card re-renders. A member's own ACP sensors belong
+    // to a different config entry and are absent from `discovered.entities`, so
+    // gating would freeze every member badge, countdown and chart until some
+    // group sensor happened to tick.
+    if (this._discovered.is_group) return true;
     const old = changed.get('hass') as HomeAssistant | undefined;
     return entityStateChanged(old, this.hass, Object.values(this._discovered.entities));
   }
@@ -248,11 +275,52 @@ export class AdaptiveCoverProTileCard extends LitElement {
     }
 
     // Cover Group entries (issue #185) route to the group tile variant instead
-    // of the cover tile controls + more-info dialog (both cover-specific).
+    // of the cover tile controls, and to the group dialog instead of the
+    // cover more-info dialog (compass/elevation/decision trace are all
+    // geometry-bound and a group has no geometry).
     if (discovered.is_group) {
-      return html`<ha-card>
-        <acp-group-tile .hass=${this.hass} .discovered=${discovered}></acp-group-tile>
-      </ha-card>`;
+      const groupTitle = resolveTileName(this._config.name, discovered);
+      return html`
+        <ha-card>
+          <acp-group-tile
+            @pointerdown=${this._onPointerDown}
+            @pointerup=${this._onPointerUp}
+            @pointercancel=${this._onPointerCancel}
+            @pointerleave=${this._onPointerCancel}
+            .hass=${this.hass}
+            .discovered=${discovered}
+            .name=${groupTitle}
+            .icon=${this._config.icon}
+            .stateColor=${this._config.state_color !== false}
+            .showControls=${this._config.show_controls !== false}
+            .showPositionBar=${this._config.show_position_bar !== false}
+            .showTilt=${this._config.show_tilt !== false}
+            .showSceneSelect=${this._config.show_scene_select !== false}
+            .showLock=${this._config.show_lock !== false}
+            .showAutomation=${this._config.show_automation !== false}
+            .showClearOverrides=${this._config.show_clear_overrides !== false}
+            .showMemberBadges=${this._config.show_member_badges !== false}
+            .iconInteractive=${this._hasIconAction()}
+            @acp-open-more-info=${this._onClick}
+            @acp-icon-action=${this._onIconClick}
+          ></acp-group-tile>
+        </ha-card>
+        <acp-group-dialog
+          .hass=${this.hass}
+          .discovered=${discovered}
+          .open=${this._dialogOpen}
+          .name=${groupTitle}
+          .icon=${this._config.icon}
+          .stateColor=${this._config.state_color !== false}
+          .showTilt=${this._config.show_tilt !== false}
+          .showSceneSelect=${this._config.show_scene_select !== false}
+          .showLock=${this._config.show_lock !== false}
+          .showAutomation=${this._config.show_automation !== false}
+          .showClearOverrides=${this._config.show_clear_overrides !== false}
+          .showMemberBadges=${this._config.show_member_badges !== false}
+          @acp-dialog-close=${this._closeDialog}
+        ></acp-group-dialog>
+      `;
     }
 
     return html`
@@ -331,7 +399,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
   private _renderTile(discovered: DiscoveredEntities): TemplateResult {
     const cfg = this._config!;
-    const title = cfg.name ?? discovered.entry_title;
+    const title = resolveTileName(cfg.name, discovered);
     const cover = this._resolvedCover(discovered);
     // Resolve the icon from the underlying HA cover entity so it matches HA's
     // native tile/more-info glyph: cfg.icon override → explicit entity icon →
@@ -364,7 +432,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // not get its `current_position` attribute treated as live truth, but the
     // independently-sourced `calculatedPosition` fallback below still applies,
     // same as any other no-feedback cover (issue #232).
-    const reportedPosition = noLiveData ? null : this._liveCoverPosition(cover);
+    const reportedPosition = noLiveData ? null : this._liveCoverPosition(discovered, cover);
     const livePosition = offline ? null : (reportedPosition ?? calculatedPosition);
     const icon =
       cfg.icon ??
@@ -382,6 +450,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
             position: livePosition,
           }));
     const iconColor = cfg.state_color !== false ? coverStateColor(stateObj?.state) : null;
+    // Drives both the icon's own tap target and HA's tinted-pill background,
+    // which upstream gates on exactly this (see `icon_tap_action` in types.ts).
+    const iconInteractive = this._hasIconAction();
     const showPosition = cfg.show_position !== false;
     const showState = cfg.show_state !== false;
     const showControls = cfg.show_controls !== false;
@@ -560,23 +631,45 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // buttons remain the control surface. Detailed layout only, with its own
     // `show_position_bar` toggle independent of the badge master switch.
     const showPositionBar = detailed && cfg.show_position_bar !== false && livePosition !== null;
+    // A drag in flight overrides the server-truth fill and readout. Post-#234
+    // `livePosition` is logical-frame and `set_axes` takes logical values, so
+    // the percentage you drag to is exactly the one that gets sent.
+    const posDragging = this._posDrag !== null;
+    const shownPosition = this._posDrag ?? livePosition;
     const posBarTooltip = showPositionBar
       ? calculatedPosition !== null
-        ? `${formatPercent(livePosition)} · ${t('dialog.target', this.hass)} ${formatPercent(calculatedPosition)}`
-        : formatPercent(livePosition)
+        ? `${formatPercent(shownPosition)} · ${t('dialog.target', this.hass)} ${formatPercent(calculatedPosition)}`
+        : formatPercent(shownPosition)
       : '';
     const posBarTpl = showPositionBar
-      ? html`<div class="pos-bar" ${tooltip(posBarTooltip)}>
-          <div
-            class="pos-fill"
-            style=${`width:${livePosition}%${iconColor ? `;background:${iconColor}` : ''}`}
-          ></div>
-          ${calculatedPosition !== null
-            ? html`<div
-                class="pos-marker"
-                style=${`left:clamp(1px, ${calculatedPosition}%, calc(100% - 1px))`}
-              ></div>`
-            : nothing}
+      ? html`<div
+          class="pos-slider${posDragging ? ' dragging' : ''}"
+          role="slider"
+          tabindex="0"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow=${shownPosition ?? 0}
+          aria-valuetext=${formatPercent(shownPosition)}
+          aria-label=${t('covers.position_slider_label', this.hass)}
+          @click=${(e: MouseEvent) => this._onPosClick(e, cover)}
+          @pointerdown=${this._onPosPointerDown}
+          @pointermove=${this._onPosPointerMove}
+          @pointerup=${this._onPosPointerEnd}
+          @pointercancel=${this._onPosPointerEnd}
+          @keydown=${(e: KeyboardEvent) => this._onPosKeydown(e, cover, livePosition ?? 0)}
+        >
+          <div class="pos-bar" ${tooltip(posBarTooltip)}>
+            <div
+              class="pos-fill"
+              style=${`width:${shownPosition}%${iconColor ? `;background:${iconColor}` : ''}`}
+            ></div>
+            ${calculatedPosition !== null
+              ? html`<div
+                  class="pos-marker"
+                  style=${`left:clamp(1px, ${calculatedPosition}%, calc(100% - 1px))`}
+                ></div>`
+              : nothing}
+          </div>
         </div>`
       : nothing;
     // ACP's own chrome (Auto badge, winner/Manual badge, floor chip) and the
@@ -596,7 +689,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
     return html`
       <div
-        class=${`tile-body${detailed ? ' detailed' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip && !detailed ? ' has-floor-chip' : ''}${showTilt && detailed ? ' has-tilt' : ''}${hasChromeRow ? ' has-chrome-row' : ''}${barOnly ? ' bar-only' : ''}${offline ? ' unavailable' : ''}`}
+        class=${`tile-body${detailed ? ' detailed' : ''}${hasStateLabel ? ' has-state-label' : ''}${showFloorChip && !detailed ? ' has-floor-chip' : ''}${showTilt && detailed ? ' has-tilt' : ''}${hasChromeRow ? ' has-chrome-row' : ''}${barOnly ? ' bar-only' : ''}${showControls ? ' has-controls' : ''}${offline ? ' unavailable' : ''}`}
         role=${inert ? 'group' : 'button'}
         tabindex=${inert ? -1 : 0}
         @pointerdown=${this._onPointerDown}
@@ -605,7 +698,15 @@ export class AdaptiveCoverProTileCard extends LitElement {
         @pointerleave=${this._onPointerCancel}
         @click=${this._onClick}
       >
-        <div class="cover-icon-wrap">
+        <div
+          class=${`cover-icon-wrap${iconInteractive ? ' background' : ''}`}
+          role=${iconInteractive ? 'button' : nothing}
+          tabindex=${iconInteractive ? 0 : nothing}
+          aria-label=${iconInteractive ? t('tile.icon_action_label', this.hass) : nothing}
+          style=${iconColor ? `--acp-tile-icon-color: ${iconColor}` : nothing}
+          @click=${this._onIconClick}
+          @keydown=${this._onIconKeydown}
+        >
           <ha-icon
             class="cover-icon"
             icon=${icon}
@@ -712,10 +813,16 @@ export class AdaptiveCoverProTileCard extends LitElement {
     return transit?.[cover] ?? null;
   }
 
-  private _liveCoverPosition(cover: string | undefined): number | null {
-    if (!cover) return null;
-    const v = this.hass.states[cover]?.attributes?.current_position;
-    return typeof v === 'number' && !Number.isNaN(v) ? v : null;
+  /** The cover's live position in the **logical** frame — un-inverted at the
+   *  read on an `inverse_state` entry so the fill, readout, glyph, tooltip and
+   *  the ↑/↓ travel-limit gates all share one frame with the
+   *  `coverHeldPosition`-derived target marker (issue #234). Inert (identity)
+   *  on every non-inverse install. */
+  private _liveCoverPosition(
+    discovered: DiscoveredEntities,
+    cover: string | undefined,
+  ): number | null {
+    return logicalCoverPosition(this.hass, discovered, cover);
   }
 
   private _winner(discovered: DiscoveredEntities): string {
@@ -764,6 +871,76 @@ export class AdaptiveCoverProTileCard extends LitElement {
     this._setAxis(cover, 'position', position);
   }
 
+  /** Percent along the position slider from a pointer's clientX. */
+  private _posPctFromEvent(e: { clientX: number }, el: HTMLElement): number {
+    const rect = el.getBoundingClientRect();
+    const pct = Math.round(((e.clientX - rect.left) / rect.width) * 100);
+    return Math.max(0, Math.min(100, pct));
+  }
+
+  /* The tile body is itself a tap target that opens the more-info dialog, so
+     every slider gesture stops propagation, exactly as `.controls` does. No
+     `preventDefault()` on pointerdown: that would also suppress the trailing
+     compatibility `click` the commit rides on. */
+  private _onPosPointerDown = (e: PointerEvent): void => {
+    e.stopPropagation();
+    const el = e.currentTarget as HTMLElement;
+    (el as HTMLElement & { setPointerCapture?: (id: number) => void }).setPointerCapture?.(
+      e.pointerId,
+    );
+    this._posDrag = this._posPctFromEvent(e, el);
+  };
+
+  private _onPosPointerMove = (e: PointerEvent): void => {
+    if (this._posDrag === null) return;
+    e.stopPropagation();
+    this._posDrag = this._posPctFromEvent(e, e.currentTarget as HTMLElement);
+  };
+
+  /** Ends the gesture without writing: on pointerup the trailing `click`
+   *  commits, on pointercancel nothing is sent at all. */
+  private _onPosPointerEnd = (e: PointerEvent): void => {
+    e.stopPropagation();
+    this._posDrag = null;
+  };
+
+  private _onPosClick(e: MouseEvent, cover: string | undefined): void {
+    e.stopPropagation();
+    this._setCoverPosition(cover, this._posPctFromEvent(e, e.currentTarget as HTMLElement));
+  }
+
+  /** Standard WAI-ARIA slider keys: arrows ±1, Page ±10, Home/End to the ends. */
+  private _onPosKeydown(e: KeyboardEvent, cover: string | undefined, current: number): void {
+    let next: number;
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'ArrowUp':
+        next = current + 1;
+        break;
+      case 'ArrowLeft':
+      case 'ArrowDown':
+        next = current - 1;
+        break;
+      case 'PageUp':
+        next = current + 10;
+        break;
+      case 'PageDown':
+        next = current - 10;
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = 100;
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    this._setCoverPosition(cover, Math.max(0, Math.min(100, next)));
+  }
+
   private _stopCover(cover: string | undefined): void {
     if (!cover) return;
     this.hass.callService(INTEGRATION_DOMAIN, 'stop', {}, { entity_id: cover });
@@ -787,11 +964,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
     return Number.isNaN(v) ? null : v;
   }
 
-  /** Live value for a secondary axis from the cover's per-axis state attribute. */
+  /** Live value for a secondary axis from the cover's per-axis state attribute,
+   *  normalized to the logical frame (issue #236). */
   private _liveAxis(cover: string | undefined, axis: ResolvedAxis): number | null {
-    if (!cover || !axis.stateAttr) return null;
-    const v = this.hass.states[cover]?.attributes?.[axis.stateAttr];
-    return typeof v === 'number' && !Number.isNaN(v) ? v : null;
+    return logicalAxisValue(this.hass, axis, cover);
   }
 
   /** Display label for an axis: card i18n key wins for known ids, else the
@@ -883,18 +1059,57 @@ export class AdaptiveCoverProTileCard extends LitElement {
       this.dispatchEvent(new CustomEvent('acp-tile-tap', { bubbles: true, composed: true }));
       return;
     }
-    const cover = this._resolvedCoverFromState();
     handleAction(
       this,
       this.hass,
       {
-        entity: cover,
+        entity: this._actionEntity(),
         tap_action: tap,
         hold_action: this._config.hold_action,
         double_tap_action: this._config.double_tap_action,
       },
       action,
     );
+  }
+
+  /** True when the glyph carries its own tap action, which is also what turns
+   *  on the tinted pill behind it (HA gates that background on the icon being
+   *  interactive — see `icon_tap_action` in types.ts). Unset means `none`, so
+   *  an upgraded tile looks exactly as it did before. */
+  private _hasIconAction(): boolean {
+    return hasAction(this._config?.icon_tap_action);
+  }
+
+  /** Runs the icon's own action. Stops propagation so the glyph never also
+   *  triggers the tile body's tap — they are independent targets, as in HA. */
+  private _onIconClick = (e: Event): void => {
+    if (!this._hasIconAction()) return;
+    e.stopPropagation();
+    if (!this._config || !this.hass) return;
+    handleAction(
+      this,
+      this.hass,
+      { entity: this._actionEntity(), tap_action: this._config.icon_tap_action },
+      'tap',
+    );
+  };
+
+  private _onIconKeydown = (e: KeyboardEvent): void => {
+    if (!this._hasIconAction()) return;
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    this._onIconClick(e);
+  };
+
+  /** Entity a configured tap/hold/double-tap action targets. A cover entry uses
+   *  its resolved cover; a Cover Group has none — `managed_covers` holds its
+   *  members, so that would aim a `more-info` at one arbitrary member. Use the
+   *  group's own aggregate cover when the integration exposes it, else the
+   *  always-present group position sensor. */
+  private _actionEntity(): string | undefined {
+    const discovered = this._discovered;
+    if (!discovered?.is_group) return this._resolvedCoverFromState();
+    return discovered.entities.group_cover ?? discovered.entities.group_position_sensor;
   }
 
   private _resolvedCoverFromState(): string | undefined {
@@ -965,11 +1180,21 @@ export class AdaptiveCoverProTileCard extends LitElement {
       grid-template-rows: auto;
       grid-template-areas: 'icon label controls';
       align-items: center;
-      column-gap: 12px;
+      /* HA's ha-tile-container .content uses a 10px gap and a 56px row floor. */
+      column-gap: 10px;
+      min-height: var(--row-height, 56px);
       /* Tight row gap pulls the chrome row (badges + position bar) up snug under
          the name/state so the tile stays as short as possible when badges are
          present (issue #208). */
       row-gap: 2px;
+    }
+    /* HA's inline features block is a hard 50% of the card, not a content-sized
+       or equal-share column — see the .controls rule below. The 12px subtrahend
+       is its --ha-space-3 inline-end padding. Gated on .has-controls: with
+       show_controls false the track is empty, and a 50% track would reserve half
+       the tile for nothing where the auto above collapses to zero. */
+    .tile-body.detailed.has-controls {
+      grid-template-columns: 36px minmax(0, 1fr) calc(50% - 12px);
     }
     /* Row 2 = the chrome row: Auto/winner/floor badges on the left, position bar
        right-aligned. The icon spans both rows (grid-area repeated) so it stays
@@ -1016,27 +1241,33 @@ export class AdaptiveCoverProTileCard extends LitElement {
     .tile-body.detailed.bar-only:not(.has-tilt) .chrome-line {
       align-self: end;
     }
-    /* Name over state, vertically centered against the icon (HA ha-tile-info). */
+    /* Name over state, vertically centered against the icon (HA ha-tile-info).
+       No gap: HA's .info stacks the two lines with no gap and lets the primary
+       line-height (normal, 1.6) do the spacing. */
     .tile-body.detailed .label {
       display: flex;
       flex-direction: column;
       justify-content: center;
-      gap: 2px;
     }
     /* Match HA's ha-tile-info text through the same theme tokens the native
        tile card uses, so ACP inherits any theme font-scaling/recoloring
        instead of drifting with hardcoded values. Fallbacks are HA's own
-       defaults (name 14px/500, state 12px/400). */
+       defaults: name 14px/500 at line-height normal with 0.1px tracking, state
+       12px/400 at condensed with 0.4px. Note the primary and secondary lines
+       use DIFFERENT line-heights upstream — normal for the name, condensed for
+       the state. */
     .tile-body.detailed .title {
       font-size: var(--ha-font-size-m, 0.875rem);
       font-weight: var(--ha-font-weight-medium, 500);
-      line-height: var(--ha-line-height-condensed, 1.375);
+      line-height: var(--ha-line-height-normal, 1.6);
+      letter-spacing: 0.1px;
       color: var(--primary-text-color);
     }
     .tile-body.detailed .state {
       font-size: var(--ha-font-size-s, 0.75rem);
       font-weight: var(--ha-font-weight-normal, 400);
-      line-height: var(--ha-line-height-condensed, 1.375);
+      line-height: var(--ha-line-height-condensed, 1.2);
+      letter-spacing: 0.4px;
       color: var(--secondary-text-color);
       white-space: nowrap;
       overflow: hidden;
@@ -1073,12 +1304,38 @@ export class AdaptiveCoverProTileCard extends LitElement {
     /* Target-vs-actual mini bar: right-aligned (margin-left:auto) so it fills the
        otherwise-empty space beneath the ↑■↓ buttons. Fill = live openness in the
        state color; the tick marks the auto/solar target. */
-    .chrome-line .pos-bar {
+    /* Interactive wrapper: carries the flex sizing the rail used to own, so the
+       visible 6px rail below is unchanged while the gesture target is bigger. */
+    .chrome-line .pos-slider {
       margin-left: auto;
       align-self: center;
       position: relative;
       flex: 0 1 170px;
       max-width: 55%;
+      cursor: pointer;
+      /* A touch-drag must move the fill, not scroll the dashboard. */
+      touch-action: none;
+    }
+    /* The rail is 6px tall — too thin to grab on a phone. Widen the hit area
+       vertically with an invisible absolute box, which adds no layout height. */
+    .chrome-line .pos-slider::before {
+      content: '';
+      position: absolute;
+      inset: -8px 0;
+    }
+    .chrome-line .pos-slider:focus-visible {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 3px;
+      border-radius: 6px;
+    }
+    /* The 0.3s ease below smooths server-driven updates; mid-drag it would read
+       as the fill lagging behind the finger. */
+    .chrome-line .pos-slider.dragging .pos-fill {
+      transition: none;
+    }
+    .chrome-line .pos-bar {
+      position: relative;
+      width: 100%;
       height: 6px;
       border-radius: 6px;
       background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
@@ -1111,18 +1368,27 @@ export class AdaptiveCoverProTileCard extends LitElement {
     .tile-body.detailed .label .summary {
       font-size: 0.72rem;
     }
-    /* Link to HA's own ha-control-button tokens so height/radius/fill follow the
-       native cover tile (and the theme) instead of hardcoded values. Fallbacks
-       are HA defaults: 40px thickness, 12px radius, disabled-color @ 20% fill,
-       24px glyph. Width is fixed (~56) since this inline row doesn't flex-fill
-       like HA's full-width control-button-group. */
+    /* Mirror HA's tile card in features_position: inline mode, whose spec
+       differs from the bottom feature row. ha-tile-container's
+       .container.horizontal rule for the features slot sets
+       --feature-height: var(--ha-space-9) — 36px, not the 42px of a bottom row —
+       and pins the block to calc(50% - gap/2 - var(--ha-space-3)). Inside it,
+       card-feature-styles maps --feature-height onto
+       --control-button-group-thickness and --feature-border-radius
+       (--ha-border-radius-lg = 12px) onto --control-button-border-radius, while
+       ha-control-button contributes a 20px glyph and a --disabled-color fill at
+       20% opacity. Buttons are flex: 1 inside that block, so they widen with the
+       tile exactly as HA's do. */
     .tile-body.detailed .controls {
       align-self: center;
+      /* --feature-button-spacing */
       gap: 12px;
+      width: 100%;
     }
     .tile-body.detailed .controls button {
-      width: 56px;
-      height: var(--control-button-group-thickness, 40px);
+      flex: 1 1 0;
+      width: auto;
+      height: var(--control-button-group-thickness, 36px);
       border-radius: var(--control-button-border-radius, 12px);
       border: none;
       background: color-mix(
@@ -1132,7 +1398,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       );
     }
     .tile-body.detailed .controls button ha-icon {
-      --mdc-icon-size: 24px;
+      --mdc-icon-size: 20px;
       color: var(--primary-text-color);
     }
     .tile-body.detailed .controls button:hover {
@@ -1142,12 +1408,48 @@ export class AdaptiveCoverProTileCard extends LitElement {
         transparent
       );
     }
-    /* Bare 36px glyph, no background shape — the state color carries the
-       cover's status without a tinted square behind it. */
+    /* Bare 36px glyph by default — the state color carries the cover's status
+       with nothing behind it. HA does the same for covers, though by a
+       different route: its shape is drawn only when the icon is interactive,
+       and getEntityDefaultTileIconAction returns none for the cover domain.
+       Setting icon_tap_action opts into the shape via .background below. */
     .tile-body.detailed .cover-icon-wrap {
       place-self: center;
       width: 36px;
       height: 36px;
+    }
+    /* HA's ha-tile-icon shape: a pill at --ha-border-radius-pill filled with the
+       icon's own color at 0.2 opacity (0.35 on hover), painted as a ::before so
+       the tint never dims the glyph on top of it. --acp-tile-icon-color is set
+       inline from coverStateColor, so shape and glyph always agree. */
+    /* Scoped to .detailed: the one-line layout's glyph box is 24px around a 22px
+       icon, so a pill there would be a hairline of tint around the glyph. The
+       tap action still works in one-line — only the shape is detailed-only. */
+    .tile-body.detailed .cover-icon-wrap.background {
+      position: relative;
+      border-radius: var(--ha-border-radius-pill, 9999px);
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .tile-body.detailed .cover-icon-wrap.background::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-color: var(--acp-tile-icon-color, var(--disabled-color, #7f7f7f));
+      opacity: 0.2;
+      transition: opacity 180ms ease-in-out;
+    }
+    .tile-body.detailed .cover-icon-wrap.background:hover::before {
+      opacity: 0.35;
+    }
+    .cover-icon-wrap.background:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--acp-tile-icon-color, var(--primary-text-color));
+      border-radius: var(--ha-border-radius-pill, 9999px);
+    }
+    /* The glyph must sit above the ::before wash. */
+    .tile-body.detailed .cover-icon-wrap.background .cover-icon {
+      position: relative;
     }
     .tile-body.detailed .cover-icon {
       --mdc-icon-size: 24px;
@@ -1327,6 +1629,12 @@ export class AdaptiveCoverProTileCard extends LitElement {
             'icon label'
             'controls controls';
         }
+        /* The 50% has-controls track is (0,3,0) and a query adds no specificity,
+           so without this it would keep a third column alive here and strand the
+           reflowed full-width controls row beside it. */
+        .tile-body.detailed.has-controls {
+          grid-template-columns: 36px minmax(0, 1fr);
+        }
         .tile-body.detailed.has-chrome-row {
           grid-template-areas:
             'icon label'
@@ -1370,7 +1678,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
         .tile-body.detailed .controls button {
           flex: 1 1 0;
           width: auto;
-          height: 40px;
+          height: var(--control-button-group-thickness, 36px);
         }
       }
     }
@@ -1380,6 +1688,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
         grid-template-areas:
           'icon label'
           'controls controls';
+      }
+      /* Same re-assertion as the 480px block — see the note there. */
+      .tile-body.detailed.has-controls {
+        grid-template-columns: 36px minmax(0, 1fr);
       }
       .tile-body.detailed.has-chrome-row {
         grid-template-areas:
@@ -1422,7 +1734,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       .tile-body.detailed .controls button {
         flex: 1 1 0;
         width: auto;
-        height: 40px;
+        height: var(--control-button-group-thickness, 36px);
       }
     }
     .empty {

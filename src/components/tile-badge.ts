@@ -164,12 +164,25 @@ export class TileBadge extends LitElement {
         ${inner}
       </button>`;
     }
+    const groupHint = this._groupHint(kind);
     return html`<span
       class="badge kind-${kind}"
       style="background:${tokens.bg};color:${tokens.fg};"
       part="badge"
+      ${groupHint ? tooltip(groupHint) : nothing}
       >${inner}</span
     >`;
+  }
+
+  /** Explanatory tooltip for the Cover Group count badge, whose "N/M" label is
+   *  the one badge that doesn't state its own meaning. Every other kind carries
+   *  it in the label text, so they get no tooltip. */
+  private _groupHint(kind: BadgeKind): string | null {
+    if (kind !== 'group') return null;
+    if (this.groupCount === undefined || this.groupTotal === undefined) return null;
+    // No `hass` guard: `t()` resolves to English for an undefined hass, so an
+    // isolated render still gets the hint — same fallback the label relies on.
+    return t('group.who_won', this.hass, { count: this.groupCount, total: this.groupTotal });
   }
 
   private _stop(e: Event): void {

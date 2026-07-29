@@ -7,8 +7,21 @@ import {
 } from '../../../src/const';
 import type { HarnessConfig, HarnessEntry, ManagedCoverCfg } from '../types';
 import { zoneForLongitude } from '../zone';
-import { buildRegistry } from './registry';
-import { buildActualHistory, type CompressedState } from './history';
+import { buildRegistry, entityIdFor } from './registry';
+import { buildDivergentHistory, buildTiltHistory, type CompressedState } from './history';
+import {
+  buildActionHistory,
+  buildBinaryHistory,
+  buildControlStatusHistory,
+  buildDiagnosticsResponse,
+  buildLogbook,
+  buildTargetHistory,
+  buildSkippedHistory,
+  buildWinnerHistory,
+  MOCK_USER_ID,
+  type CompressedSensorState,
+  type LogbookRow,
+} from './events';
 import { buildStates, type GeneratedStates } from './state-gen';
 
 export interface ServiceCallEvent {
@@ -22,6 +35,78 @@ export interface ServiceCallEvent {
 export interface MockHassBundle {
   hass: HomeAssistant;
   generated: GeneratedStates;
+}
+
+/** The non-cover roles the History card reads recorder history for. Mirrors
+ *  the card's own STATE_TRACKS plus the target/status/action sensors. */
+const HISTORY_ROLES = [
+  'target_position_sensor',
+  'target_tilt_sensor',
+  'control_status_sensor',
+  'decision_trace_sensor',
+  'last_action_sensor',
+  'last_skipped_sensor',
+  'integration_enabled_switch',
+  'automatic_control_switch',
+  'sun_infront_binary',
+  'glare_active_binary',
+  'manual_override_binary',
+  'position_mismatch_binary',
+] as const;
+
+type HistoryRole = (typeof HISTORY_ROLES)[number];
+
+/** Synthesize the recorder series for one History-card role. Each role gets a
+ *  distinct rhythm so the stacked tracks don't all change at the same instants. */
+function buildSensorSeries(
+  entry: HarnessEntry,
+  role: HistoryRole,
+  startMs: number,
+  nowMs: number,
+  generated: GeneratedStates,
+  tz: string,
+): CompressedSensorState[] {
+  const HOUR = 60 * 60 * 1000;
+  switch (role) {
+    case 'target_position_sensor':
+      return buildTargetHistory(entry, startMs, nowMs, tz);
+    case 'target_tilt_sensor':
+      return buildTargetHistory(
+        { ...entry, target_position: entry.target_tilt ?? 50 },
+        startMs,
+        nowMs,
+        tz,
+      );
+    // Two DIFFERENT axes, deliberately given different values and rhythms:
+    // `decision_trace` publishes the winning handler, `control_status` publishes
+    // the ControlStatus enum. The mock previously fed handler names to
+    // `control_status`, which hid the card reading the wrong sensor.
+    case 'decision_trace_sensor': {
+      const live = generated.decisions.get(entry.entry_id)?.winner ?? 'default';
+      return buildWinnerHistory(live, startMs, nowMs);
+    }
+    case 'control_status_sensor':
+      return buildControlStatusHistory(startMs, nowMs);
+    case 'last_action_sensor':
+      return buildActionHistory(startMs, nowMs);
+    case 'last_skipped_sensor':
+      return buildSkippedHistory(startMs, nowMs);
+    // The two master switches sit "on" for almost the whole window, with one
+    // short off span — the shape a real install shows, and the case the card's
+    // narrow-band label suppression has to handle.
+    case 'integration_enabled_switch':
+      return buildBinaryHistory(startMs, nowMs, 24 * HOUR, 0.96);
+    case 'automatic_control_switch':
+      return buildBinaryHistory(startMs, nowMs, 14 * HOUR, 0.85);
+    case 'sun_infront_binary':
+      return buildBinaryHistory(startMs, nowMs, 8 * HOUR, 0.45);
+    case 'glare_active_binary':
+      return buildBinaryHistory(startMs, nowMs, 6 * HOUR, 0.2);
+    case 'manual_override_binary':
+      return buildBinaryHistory(startMs, nowMs, 11 * HOUR, 0.15);
+    case 'position_mismatch_binary':
+      return buildBinaryHistory(startMs, nowMs, 9 * HOUR, 0.08);
+  }
 }
 
 const FALLBACK_LOCALIZATIONS: Record<string, string> = {
@@ -58,10 +143,18 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'group.lock': 'Lock group',
   'group.unlock': 'Unlock group',
   'group.automation': 'Automation',
+  'group.automation_count': '{count} of {total} members automating',
   'group.clear_overrides': 'Clear overrides',
-  'group.who_won': '{count}/{total} group-driven',
+  'group.clear_overrides_none': 'No member overrides to clear',
+  'group.who_won':
+    '{count} of {total} members are group-driven — a group scene or the group lock is currently deciding their position',
   'group.members': 'Members',
   'group.member_placeholder': 'No members reported by the integration.',
+  'group.position': 'Position',
+  'group.open': 'Open group',
+  'group.close': 'Close group',
+  'group.stop': 'Stop group',
+  'group.position_slider_label': 'Group position',
   'decision.outside_schedule': 'Outside schedule — automatic control paused',
   'decision.outside_schedule_tooltip':
     'The configured schedule window is not active, so automatic positioning is paused.',
@@ -91,6 +184,8 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'covers.target_tooltip_override':
     'Would-be solar target {pct}% — cover is held by manual override',
   'covers.click_to_set': 'Click to set position',
+  // Accessible name for the Position track's role="slider" (issue #231).
+  'covers.position_slider_label': 'Cover position slider',
   'covers.placeholder': 'No covers reported by the integration.',
   'root.loading_registry': 'Loading entity registry…',
   'root.no_entities_title': 'No matching entities',
@@ -139,41 +234,123 @@ export function buildMockHass(
   onServiceCall: (e: ServiceCallEvent) => void,
 ): MockHassBundle {
   const generated = buildStates(cfg);
+  // The zone the harness clock itself is anchored to (see `state-gen.ts`'s
+  // `buildStates`) — the recorder mocks below need this to place their
+  // "overnight" gaps against the harness's configured location rather than
+  // the developer machine's timezone.
+  const tz = zoneForLongitude(cfg.longitude);
   const registry = buildRegistry(cfg.entries);
-  const devices: Record<string, { id: string; name: string; config_entries: string[] }> = {};
+  const devices: Record<
+    string,
+    { id: string; name: string; config_entries: string[]; area_id?: string }
+  > = {};
+  // Mirrors `area_id` per entry into a slugified area registry id, so the
+  // tile card's composite `name` `{ type: 'area' }` part (issue #247) has a
+  // real `hass.devices[…].area_id` -> `hass.areas[…].name` chain to resolve,
+  // same as a real HA install.
+  const areas: Record<string, { area_id: string; name: string }> = {};
+  const areaIdFor = (name: string): string => `area_${name.toLowerCase().replace(/\s+/g, '_')}`;
   for (const e of cfg.entries) {
+    const areaId = e.area ? areaIdFor(e.area) : undefined;
     devices[`device_${e.entry_id}`] = {
       id: `device_${e.entry_id}`,
       name: e.title,
       config_entries: [e.entry_id],
+      ...(areaId ? { area_id: areaId } : {}),
     };
+    if (areaId && e.area) areas[areaId] = { area_id: areaId, name: e.area };
   }
 
-  // Cover entity_id -> { entry, cover } for mocking recorder position history.
-  const coverLookup = new Map<string, { entry: HarnessEntry; cover: ManagedCoverCfg }>();
+  // Cover entity_id -> { entry, cover, index } for mocking recorder position
+  // history. `index` lets the mock give each cover of a multi-cover entry its
+  // own trajectory, so the History card's per-cover lines have something to
+  // separate (see buildDivergentHistory).
+  const coverLookup = new Map<
+    string,
+    { entry: HarnessEntry; cover: ManagedCoverCfg; index: number }
+  >();
   for (const e of cfg.entries) {
-    for (const c of e.covers) coverLookup.set(c.entity_id, { entry: e, cover: c });
+    e.covers.forEach((c, index) => coverLookup.set(c.entity_id, { entry: e, cover: c, index }));
+  }
+
+  // Non-cover entity_id -> { entry, role } for mocking the History card's
+  // recorder reads (who-won, actions, and the context binary sensors). The
+  // cover lookup above only covers physical `cover.*` entities.
+  const sensorLookup = new Map<string, { entry: HarnessEntry; role: HistoryRole }>();
+  for (const e of cfg.entries) {
+    for (const role of HISTORY_ROLES) {
+      sensorLookup.set(entityIdFor(e, role), { entry: e, role });
+    }
   }
 
   // hass.callWS handles the entity-registry list, config-entries, and
   // recorder-history calls.
-  const callWS = async <T>(msg: { type: string; entity_ids?: string[] }): Promise<T> => {
+  const callWS = async <T>(msg: {
+    type: string;
+    entity_ids?: string[];
+    start_time?: string;
+  }): Promise<T> => {
     if (msg.type === 'config/entity_registry/list') {
       return registry as unknown as T;
     }
     if (msg.type === 'history/history_during_period') {
       const nowMs = generated.now.getTime();
-      const result: Record<string, CompressedState[]> = {};
+      // The History card asks for an N-hour window ending now; the more-info
+      // dialog asks for midnight→now. Honor whatever start the caller sent so
+      // both windows render correctly against the same mock.
+      const startMs = msg.start_time ? Date.parse(msg.start_time) : nowMs - 24 * 60 * 60 * 1000;
+      const result: Record<string, CompressedState[] | CompressedSensorState[]> = {};
       for (const id of msg.entity_ids ?? []) {
-        const found = coverLookup.get(id);
-        if (!found) {
-          result[id] = [];
+        const cover = coverLookup.get(id);
+        if (cover) {
+          const samples = generated.samplesByEntry.get(cover.entry.entry_id) ?? [];
+          const built = buildDivergentHistory(
+            cover.entry,
+            cover.cover,
+            cover.index,
+            samples,
+            nowMs,
+          );
+          // HA's `include_start_time_state`: a window query is answered with
+          // the state in effect as the window OPENED, prepended as an extra row
+          // carrying its own un-clamped `last_changed` rather than one pinned to
+          // `start_time`. Emitting it is the only way the harness exercises the
+          // forecast strip's day-boundary carry-in (#255). Safe for the History
+          // card, which shares this handler: the row repeats the next one's
+          // position, so it adds no transition to `history-stats.ts`'s move
+          // count, and `spanFractionX` clamps it to x=0.
+          const position =
+            msg.start_time && built.length > 0 && built[0].lu * 1000 > startMs
+              ? [{ ...built[0], lu: (startMs - 30 * 60_000) / 1000 }, ...built]
+              : built;
+          // A venetian cover advertises a slat axis, so its recorded states must
+          // also carry `current_tilt_position` for the History tilt track.
+          result[id] =
+            cover.entry.cover_type === 'cover_venetian'
+              ? [
+                  ...position,
+                  ...buildTiltHistory(cover.entry, cover.cover, startMs, nowMs, tz),
+                ].sort((a, b) => a.lu - b.lu)
+              : position;
           continue;
         }
-        const samples = generated.samplesByEntry.get(found.entry.entry_id) ?? [];
-        result[id] = buildActualHistory(found.entry, found.cover, samples, nowMs);
+        const sensor = sensorLookup.get(id);
+        if (sensor) {
+          result[id] = buildSensorSeries(sensor.entry, sensor.role, startMs, nowMs, generated, tz);
+          continue;
+        }
+        result[id] = [];
       }
       return result as unknown as T;
+    }
+    if (msg.type === 'logbook/get_events') {
+      // HA's Activity feed. The card asks for the ACP switches/binary sensors
+      // plus the physical covers; the mock answers for the first entry, which
+      // is the one the History card is pointed at.
+      const nowMs = generated.now.getTime();
+      const startMs = msg.start_time ? Date.parse(msg.start_time) : nowMs - 24 * 60 * 60 * 1000;
+      const rows: LogbookRow[] = cfg.entries[0] ? buildLogbook(cfg.entries[0], startMs, nowMs) : [];
+      return rows as unknown as T;
     }
     if (msg.type === 'config_entries/get') {
       // Return the harness entries as simulated cover-profile config entries so
@@ -201,8 +378,25 @@ export function buildMockHass(
     service: string,
     data?: Record<string, unknown>,
     target?: { entity_id?: string },
-  ): Promise<void> => {
+    _notifyOnError?: boolean,
+    returnResponse?: boolean,
+  ): Promise<void | { response: unknown }> => {
     onServiceCall({ ts: Date.now(), domain, service, data, target });
+    // `get_diagnostics` is SupportsResponse.ONLY — the History card's Advanced
+    // section reads the event buffer out of its response (see
+    // src/lib/event-timeline.ts). Reproduce HA's `{ response }` envelope.
+    if (domain === INTEGRATION_DOMAIN && service === 'get_diagnostics' && returnResponse) {
+      const requested = (data?.config_entry_id as string[] | undefined) ?? [];
+      const entry = cfg.entries.find((e) => requested.includes(e.entry_id)) ?? cfg.entries[0];
+      return Promise.resolve({
+        response: buildDiagnosticsResponse(
+          entry,
+          generated.now.getTime(),
+          cfg.history.eventCount,
+          50,
+        ),
+      });
+    }
     return Promise.resolve();
   };
 
@@ -216,12 +410,37 @@ export function buildMockHass(
       set_tilt: {},
       stop: {},
       set_custom_position: {},
-      ...(cfg.legacyIntegration ? {} : { set_axes: {}, engage_manual_override: {} }),
+      group_set_position: {},
+      // `group_stop` shipped with the aggregate group cover, so the legacy flag
+      // withholds it too — that's the branch where `groupStop` falls back to a
+      // plain `cover.stop_cover` fan-out over the member roster.
+      ...(cfg.legacyIntegration
+        ? {}
+        : { set_axes: {}, engage_manual_override: {}, group_stop: {} }),
+      // The History card feature-detects this before rendering its Advanced
+      // section; the toggle simulates an integration that predates it.
+      ...(cfg.history.noDiagnosticsService ? {} : { get_diagnostics: {} }),
+    },
+  };
+
+  // A `person` entity carrying `user_id` — the card resolves logbook attribution
+  // through these rather than the admin-only user list, so a non-admin viewer
+  // still sees who moved a cover (see `resolveTriggeredBy`). The harness must
+  // carry one or that path is never exercised.
+  const states: Record<string, unknown> = {
+    ...generated.states,
+    'person.harness_user': {
+      entity_id: 'person.harness_user',
+      state: 'home',
+      attributes: { friendly_name: 'Harness User', user_id: MOCK_USER_ID },
+      last_changed: generated.now.toISOString(),
+      last_updated: generated.now.toISOString(),
+      context: { id: 'person' },
     },
   };
 
   const hass = {
-    states: generated.states,
+    states: states as unknown as HomeAssistant['states'],
     services,
     config: {
       latitude: cfg.latitude,
@@ -239,11 +458,13 @@ export function buildMockHass(
     } as unknown as HomeAssistant['locale'],
     themes: { darkMode: cfg.theme === 'dark' } as unknown as HomeAssistant['themes'],
     user: {
+      id: MOCK_USER_ID,
       name: 'Harness User',
       is_admin: true,
       is_owner: true,
     } as unknown as HomeAssistant['user'],
     devices,
+    areas,
     callService: callService as unknown as HomeAssistant['callService'],
     callWS: callWS as unknown as HomeAssistant['callWS'],
     connection: {

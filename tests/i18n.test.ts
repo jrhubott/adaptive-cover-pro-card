@@ -178,20 +178,31 @@ describe('locale-table parity', () => {
         )
       : [[prefix, o]];
 
-  it('every DE value is a non-empty string', () => {
-    for (const [key, value] of leaves(de)) {
+  // Both translations, not just DE: a placeholder typo'd in one locale renders
+  // a literal `{total}` to that locale's users, and key-path parity above does
+  // not catch it — the key is present, only its body is wrong.
+  const TRANSLATIONS: Array<[string, unknown]> = [
+    ['FR', fr],
+    ['DE', de],
+  ];
+
+  it.each(TRANSLATIONS)('every %s value is a non-empty string', (_locale, table) => {
+    for (const [key, value] of leaves(table)) {
       expect(typeof value, key).toBe('string');
       expect((value as string).length, key).toBeGreaterThan(0);
     }
   });
 
-  it('DE placeholder tokens match EN for every interpolated key', () => {
-    const tokens = (s: string): string[] => (s.match(/\{(\w+)\}/g) ?? []).sort();
-    const enLeaves = Object.fromEntries(leaves(en) as Array<[string, string]>);
-    for (const [key, value] of leaves(de) as Array<[string, string]>) {
-      expect(tokens(value), key).toEqual(tokens(enLeaves[key]));
-    }
-  });
+  it.each(TRANSLATIONS)(
+    '%s placeholder tokens match EN for every interpolated key',
+    (_locale, table) => {
+      const tokens = (s: string): string[] => (s.match(/\{(\w+)\}/g) ?? []).sort();
+      const enLeaves = Object.fromEntries(leaves(en) as Array<[string, string]>);
+      for (const [key, value] of leaves(table) as Array<[string, string]>) {
+        expect(tokens(value), key).toEqual(tokens(enLeaves[key]));
+      }
+    },
+  );
 });
 
 describe('cover position i18n (issue #132)', () => {
@@ -334,5 +345,71 @@ describe('tile card editor i18n — show_controls arrow consistency (issue #217)
     const value = table.editor.tile.show_controls;
     expect(value).toContain('↓');
     expect(value).not.toContain('▼');
+  });
+});
+
+describe('History card i18n', () => {
+  // Every key the History card renders, enumerated from the EN table so a newly
+  // added key is covered without touching this list.
+  const historyKeys = Object.keys(en.history).map((k) => `history.${k}`);
+  const statusKeys = Object.keys(en.control_status).map((k) => `control_status.${k}`);
+  const editorKeys = Object.keys(en.editor.history).map((k) => `editor.history.${k}`);
+  const allKeys = [...historyKeys, ...statusKeys, ...editorKeys];
+
+  it('defines a non-trivial number of keys (guards an accidental block deletion)', () => {
+    expect(historyKeys.length).toBeGreaterThan(30);
+    expect(statusKeys.length).toBeGreaterThan(5);
+  });
+
+  for (const locale of ['en', 'fr', 'de'] as const) {
+    it(`every key resolves to a non-empty, non-key string in ${locale.toUpperCase()}`, () => {
+      const hass = { locale: { language: locale } };
+      for (const key of allKeys) {
+        const value = t(key, hass);
+        // `t()` echoes the key when the lookup misses.
+        expect(value, `${key} missing in ${locale}`).not.toBe(key);
+        expect(value.trim(), `${key} empty in ${locale}`).not.toBe('');
+      }
+    });
+  }
+
+  it('FR and DE carry the same placeholder tokens as EN for every History key', () => {
+    // A dropped {hours} / {shown} / {from} would render a literal brace to the
+    // user, and TypeScript cannot catch it — the type is just `string`.
+    const tokens = (s: string): string[] => (s.match(/\{(\w+)\}/g) ?? []).sort();
+    for (const key of allKeys) {
+      const enValue = t(key, { locale: { language: 'en' } });
+      for (const locale of ['fr', 'de'] as const) {
+        const value = t(key, { locale: { language: locale } });
+        expect(tokens(value), `${key} placeholders differ in ${locale}`).toEqual(tokens(enValue));
+      }
+    }
+  });
+
+  it('control_status values cover the integration ControlStatus enum', () => {
+    // Mirrors `ControlStatus` in the integration's const.py §23. A value the
+    // card cannot name falls back to a humanized raw string, which is legible
+    // but untranslated — so drift here is worth catching.
+    for (const value of [
+      'active',
+      'outside_time_window',
+      'position_delta_too_small',
+      'time_delta_too_small',
+      'manual_override',
+      'automatic_control_off',
+      'sun_not_visible',
+      'force_override_active',
+      'weather_override_active',
+      'motion_timeout',
+    ]) {
+      expect(Object.keys(en.control_status)).toContain(value);
+    }
+  });
+
+  it('the interpolated History keys actually substitute', () => {
+    expect(t('history.window_hours', undefined, { hours: 24 })).toContain('24');
+    expect(t('history.events_count', undefined, { shown: 3, total: 9 })).toContain('3');
+    expect(t('history.buffer_size', undefined, { size: 50 })).toContain('50');
+    expect(t('history.data_window', undefined, { from: 'A', to: 'B' })).toContain('A');
   });
 });

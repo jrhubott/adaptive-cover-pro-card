@@ -77,6 +77,22 @@ function defaultSolarChart(): HarnessConfig['solarChart'] {
   };
 }
 
+function defaultHistory(): HarnessConfig['history'] {
+  return {
+    enabled: true,
+    title: 'History',
+    hours: 24,
+    track_position: true,
+    track_who_won: true,
+    track_context: true,
+    track_actions: true,
+    advanced_open: false,
+    hide_advanced: false,
+    noDiagnosticsService: false,
+    eventCount: 24,
+  };
+}
+
 function defaultTile(): HarnessConfig['tile'] {
   return {
     enabled: true,
@@ -87,12 +103,19 @@ function defaultTile(): HarnessConfig['tile'] {
     show_badge: true,
     show_position_bar: true,
     show_tilt: true,
+    show_scene_select: true,
+    show_lock: true,
+    show_automation: true,
+    show_clear_overrides: true,
+    show_member_badges: true,
     badges: defaultBadges(),
     show_compass: true,
     show_elevation_chart: true,
     show_solar_calc: true,
     show_motion_icon: true,
     state_color: true,
+    // Matches HA's cover default, so the glyph stays bare until opted in.
+    icon_tap_action: 'none',
     layout: 'detailed',
     tileWidth: 0,
   };
@@ -103,6 +126,7 @@ function makeEntry(
 ): HarnessEntry {
   return {
     title: overrides.title ?? 'Living Room',
+    area: overrides.area,
     cover_type: overrides.cover_type ?? 'cover_blind',
     window_azimuth: overrides.window_azimuth ?? 180,
     fov_left: overrides.fov_left ?? 45,
@@ -155,6 +179,8 @@ function makeEntry(
       manual_override_minutes_from_now: 60,
       held_position: null,
       linear_position: null,
+      inverse_state: false,
+      inverse_tilt: false,
       safety_slot_active: false,
       motion_status: 'idle',
       motion_timeout_minutes_from_now: 1,
@@ -214,6 +240,60 @@ function makeGroupEntry(
   };
 }
 
+/**
+ * A Cover Group whose two ACP members are REAL entries in the scenario, so the
+ * card can resolve each member cover back to its own Automatic Control switch —
+ * which is what the group tile's Automation button colors from.
+ *
+ * `automation: true` on the group is left alone on purpose: that switch is a
+ * write-only latch the integration defaults to on, so any scenario where the
+ * members disagree with it is a scenario the old two-color button got wrong.
+ */
+function automationGroupEntries(auto: [boolean, boolean]): HarnessEntry[] {
+  const backyard = makeEntry({
+    entry_id: 'backyard',
+    title: 'Backyard Shade',
+    covers: [{ entity_id: 'cover.backyard_shade', friendly_name: 'Backyard Shade', position: 100 }],
+    target_position: 100,
+  });
+  const sideYard = makeEntry({
+    entry_id: 'side_yard',
+    title: 'Side Yard Shade',
+    covers: [
+      { entity_id: 'cover.side_yard_shade', friendly_name: 'Side Yard Shade', position: 97 },
+    ],
+    target_position: 97,
+  });
+  backyard.flags.automatic_control = auto[0];
+  sideYard.flags.automatic_control = auto[1];
+  return [
+    backyard,
+    sideYard,
+    makeGroupEntry({
+      entry_id: 'family_room',
+      title: 'Family Room',
+      group: {
+        member_positions: {
+          'cover.backyard_shade': 100,
+          'cover.side_yard_shade': 97,
+          'cover.hall_generic': 40,
+        },
+        member_winners: {
+          'cover.backyard_shade': 'solar',
+          'cover.side_yard_shade': 'solar',
+        },
+        aggregate_position: 79,
+        state: 'open',
+        active_scene: 'none',
+        scene_option: 'auto',
+        locked: false,
+        automation: true,
+        climate_mode: 'summer_mode',
+      },
+    }),
+  ];
+}
+
 function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): HarnessConfig {
   return {
     latitude: lat,
@@ -233,6 +313,7 @@ function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): Harne
     tile: defaultTile(),
     decision: defaultDecision(),
     solarChart: defaultSolarChart(),
+    history: defaultHistory(),
     tooltips: defaultTooltips(),
     stageHeight: 0,
   };
@@ -274,7 +355,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'summer-noon-south',
     label: 'Summer noon — south window',
     description:
-      'High elevation, sun in FOV, solar handler tracking. Issue #200: the Root card header (icon + entry title) AND each cover name in the COVERS section are tap targets — click either to open the same acp-more-info-dialog the Tile card opens on tap. The cover-bar track still drives click-to-set-position, and clicking a header pill (Enabled/Auto) or anywhere else in the body must NOT open the dialog.',
+      'High elevation, sun in FOV, solar handler tracking. Issue #200: the Root card header (icon + entry title) AND each cover name in the COVERS section are tap targets — click either to open the same acp-more-info-dialog the Tile card opens on tap. Issue #231: the cover-bar Position track is now a drag-to-set slider — press and drag to preview a live percentage on the fill/readout, release to commit; it is also keyboard-operable (Tab to focus, Arrow keys ±1, Page Up/Down ±10, Home/End to the extremes). Clicking a header pill (Enabled/Auto) or anywhere else in the body must NOT open the dialog.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'summer-noon-south';
@@ -285,7 +366,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'forecast-actual-history',
     label: 'Forecast strip — actual vs. predicted',
     description:
-      "Open the more-info dialog (tap the tile) and look at Today's forecast strip. Two lines now overlay: the predicted position curve (primary color, full day) and the recorded ACTUAL position (blue, 00:00 → now) fetched from the recorder. The actual line moves in discrete ~5% steps and trails the forecast slightly, so predicted-vs-reality reads at a glance; the legend names both. Set mid-afternoon so there is a full morning of actual history. The manual-override-divergence scenarios show the other case — actual held flat while the forecast keeps moving.",
+      "Open the more-info dialog (tap the tile) and look at Today's forecast strip. Two lines now overlay: the predicted position curve (primary color, full day) and the recorded ACTUAL position (blue, 00:00 → now) fetched from the recorder. The actual line is a STEP function (issue #255, the forecast-strip twin of #253): it holds perfectly flat across the overnight gap and then steps VERTICALLY at the first morning move — never a diagonal ramp sloping from midnight up to sunrise, which would claim positions the cover was never at. It also now starts hard against the left edge at the position held from before midnight, rather than beginning partway across at the first in-day transition; the mock recorder returns that pre-window row the way HA's `include_start_time_state` does. The line stops at the `now` cursor, not at 24:00 — nothing is recorded past now. Hovering reports the value HELD at the cursor, so a hover just before a step reads the old value, matching the line underneath. Hover PAST the now cursor and the Actual segment drops out of the readout entirely — the actual line has ended there, so there is no recorded value to report and the label falls back to the forecast alone. Set mid-afternoon so there is a full morning of actual history. The manual-override-divergence scenarios show the other case — actual held flat while the forecast keeps moving.",
     build: () => {
       const c = baseConfig('2026-06-21', 15 * 60);
       c.scenario = 'forecast-actual-history';
@@ -296,7 +377,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'venetian-dual-axis',
     label: 'Venetian — dual-axis (position + tilt)',
     description:
-      'A venetian blind exposing the tilt (slat) axis, now driven from the integration self-discovery surface (issue #180): the control_status sensor publishes a cover_discovery descriptor with position + tilt axes, and the card renders one bar per discovered axis. The cover bar shows a second Tilt bar under Position, and the tile card shows the mini tilt bar. Actual tilt (35%) diverges from the solar tilt target (70%) so the marker is offset from the fill. The more-info dialog forecast strip also plots a dashed secondary tilt track alongside the position curve. Drag either tilt track → the combined adaptive_cover_pro.set_axes service fires (watch the service log). Flip the "Legacy integration" control off/on, or use the Legacy Venetian scenario, to confirm graceful fallback to set_tilt/set_position.',
+      'A venetian blind exposing the tilt (slat) axis, now driven from the integration self-discovery surface (issue #180): the control_status sensor publishes a cover_discovery descriptor with position + tilt axes, and the card renders one bar per discovered axis. The cover bar shows a second Tilt bar under Position, and the tile card shows the mini tilt bar. Actual tilt (35%) diverges from the solar tilt target (70%) so the marker is offset from the fill. The more-info dialog forecast strip also plots a dashed secondary tilt track alongside the position curve. Either tilt track is a real drag-to-set slider: press and drag and the fill plus the percentage readout follow live with nothing sent mid-gesture, then release to fire the combined adaptive_cover_pro.set_axes service once (watch the service log). It is keyboard-operable too — Tab to a track, arrows step 1 axis unit, Page Up/Down step 10, Home/End jump to the range ends — and on the tile card the drag must NOT open the more-info dialog. Flip the "Legacy integration" control off/on, or use the Legacy Venetian scenario, to confirm graceful fallback to set_tilt/set_position.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'venetian-dual-axis';
@@ -326,7 +407,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'legacy-integration-venetian',
     label: 'Legacy integration — venetian (no discovery / set_axes)',
     description:
-      'The same venetian dual-axis cover, but simulating an OLD integration that predates issue #180: the control_status sensor omits cover_discovery and the mock hass omits the set_axes service. The card must degrade gracefully — it synthesizes the position + tilt axes from the Cover_Tilt sensor (byte-identical to the pre-discovery rendering) and routes drags to the legacy per-axis set_position / set_tilt services (watch the service log — no set_axes call). Proves the load-bearing fallback path that ships before the integration release.',
+      'The same venetian dual-axis cover, but simulating an OLD integration that predates issue #180: the control_status sensor omits cover_discovery and the mock hass omits the set_axes service. The card must degrade gracefully — it synthesizes the position + tilt axes from the Cover_Tilt sensor (byte-identical to the pre-discovery rendering) and routes drag-to-set on either track to the legacy per-axis set_position / set_tilt services, still committing once on release (watch the service log — no set_axes call). Proves the load-bearing fallback path that ships before the integration release.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'legacy-integration-venetian';
@@ -843,6 +924,81 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'inverse-state-awning',
+    label: 'Inverse state — extended awning (#234)',
+    description:
+      'An `inverse_state` awning, fully extended and on target. The integration dispatches 100 − 100 = 0, so the Cover_Position sensor STATE, its actual_positions and the physical cover entity all read 0, while linear_position / linear_actual_positions stay at the logical 100 and the discovery position axis carries inverted: true. The card must render entirely in the logical frame: a FULL position bar with the target marker on top of it (not an empty bar with the marker pinned at the far end), the readout "Open · 100%" agreeing with the entity state, the open glyph, ↑ (open) disabled and ↓ (close) live, the compass actual ring on the target wedge, the forecast history track the same way up as the forecast curve, and no spurious "Motor: 0%" tooltip on the COVERS Target chip. This is also the frame check for the position slider: drag the tile bar to roughly a third and the set_axes call in the service log must carry that same logical value (~33), not its cover-frame mirror (~67) — render frame and write frame have to agree.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 14 * 60);
+      c.scenario = 'inverse-state-awning';
+      c.entries = [
+        makeEntry({
+          entry_id: 'patio',
+          title: 'Patio Awning',
+          cover_type: 'cover_awning',
+          window_azimuth: 180,
+          color: '#ff7043',
+          target_position: 100,
+          covers: [
+            {
+              entity_id: 'cover.patio_awning',
+              friendly_name: 'Patio awning',
+              // Logical: fully extended. state-gen flips this to the reported 0.
+              position: 100,
+              device_class: 'awning',
+            },
+          ],
+        }),
+      ];
+      c.entries[0].flags.inverse_state = true;
+      return c;
+    },
+  },
+  {
+    id: 'inverse-state-awning-legacy',
+    label: 'Inverse state — pre-#1033 integration (#234 residual)',
+    description:
+      'The same extended awning on an integration too old to publish either frame field: no linear_actual_positions and no cover_discovery (so no inverted flag). Every card-only way to infer the frame is unsound, so the card deliberately does NOT guess — this scenario intentionally shows the BROKEN rendering (empty bar, marker at 100%, "Open · 0%", ↓ close disabled). It is the documented residual and the guard against a future "helpful" inference; the fix requires the integration upgrade.',
+    build: () => {
+      const c = SCENARIOS.find((s) => s.id === 'inverse-state-awning')!.build();
+      c.scenario = 'inverse-state-awning-legacy';
+      c.legacyIntegration = true;
+      return c;
+    },
+  },
+  {
+    id: 'inverse-tilt-venetian',
+    label: 'Inverse tilt — venetian slats (#236)',
+    description:
+      'A venetian with `inverse_tilt` configured on the SLAT axis only. The integration dispatches 100 − 35 = 65, so the mock cover reports current_tilt_position: 65 while the Cover_Tilt sensor still publishes the logical target 70 and the discovery tilt axis carries inverted: true. The card must draw the tilt bar at 35% with the target marker at 70% — a wide, obvious gap — with the readout "35 %" and aria-valuenow="35", while the POSITION bar is untouched at 60%, proving the two axes normalize independently. Drag the tilt track to roughly 80% and the service log must show exactly one set_axes { tilt: 80 } — NOT 20; render frame and write frame have to agree (the integration applies its own _to_wire). ArrowUp on the focused tilt track commits 36, not 66 — pre-fix the bar started stepping from the cover-frame 65 and jumped 31 points.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'inverse-tilt-venetian';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Living Room',
+          cover_type: 'cover_venetian',
+          window_azimuth: 180,
+          color: '#26a69a',
+          target_position: 60,
+          target_tilt: 70,
+          covers: [
+            {
+              entity_id: 'cover.south_window_main',
+              friendly_name: 'Living Room venetian',
+              position: 60,
+              // Logical slat angle. state-gen flips this to the reported 65.
+              tilt: 35,
+            },
+          ],
+        }),
+      ];
+      c.entries[0].flags.inverse_tilt = true;
+      return c;
+    },
+  },
+  {
     id: 'safety-slot',
     label: 'Safety slot (priority 100)',
     description:
@@ -1153,13 +1309,224 @@ export const SCENARIOS: Scenario[] = [
     id: 'group-tile',
     label: 'Cover Group — tile variant (issue #185)',
     description:
-      'A Cover Group entry rendered as the new group tile. The tile shows the aggregate position + state (mixed), the scene select (auto/all open/all closed/privacy), the lock toggle, and the who-won "2/3" badge (2 of 3 members group-driven). Pick a scene → select.select_option fires; toggle the lock → switch.turn_on/off fires, both applied optimistically. Phase 2 wires only the group TILE — the root/decision/compass/solar cards are hidden here; the main-card group view arrives in Phase 3.',
+      "A Cover Group entry rendered as the group tile, now carrying the cover tile's full control surface: a position-aware glyph tinted by the aggregate state, the ↑■↓ button row, a drag-to-set aggregate slider, and the group row (scene select, lock, automation, clear overrides) — plus the who-won \"2/3\" badge. Drag the slider or press ↑/↓ → adaptive_cover_pro.group_set_position fans out to every member; ■ → group_stop; pick a scene → select.select_option; toggle lock/automation → switch.turn_on/off; clear overrides → button.press. Tap the tile body to open the group dialog, where every member row is independently controllable. This group's members are bare cover entity_ids with no ACP entries behind them, so the Automation button has nothing to roll up and holds its pre-rollup look — driven by the group's own switch. That degradation is the point of keeping it here; the three colors live in the group-automation-* scenarios.",
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'group-tile';
       c.entries = [makeGroupEntry({ entry_id: 'downstairs_group', title: 'Downstairs Group' })];
-      // Only the tile understands a group entry in Phase 2.
+      // The cover-oriented root/decision/compass/solar cards don't apply to a
+      // group entry; the tile (and its dialog) is the whole surface here.
       c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      return c;
+    },
+  },
+  {
+    id: 'group-tile-members',
+    label: 'Cover Group — per-member control in the dialog',
+    description:
+      "The group dialog's reason for existing: a 4-member roster where each row has its own drag slider and ↑■↓ triple. Routing is split by whether the member has an ACP pipeline — `cover.living_left` / `living_right` / `bedroom` appear in member_winners so their moves go through adaptive_cover_pro.set_axes (engaging that member's manual override, exactly like dragging its own tile), while `cover.hall_generic` has a position but no winner, so it takes the native cover.set_cover_position. Watch the service log to see the two paths, and the aggregate readout/slider re-average as individual members move.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-tile-members';
+      c.entries = [
+        makeGroupEntry({
+          entry_id: 'upstairs_group',
+          title: 'Upstairs Group',
+          group: {
+            member_positions: {
+              'cover.living_left': 30,
+              'cover.living_right': 45,
+              'cover.bedroom': 0,
+              'cover.hall_generic': 80,
+            },
+            member_winners: {
+              'cover.living_left': 'solar',
+              'cover.living_right': 'manual',
+              'cover.bedroom': 'group_lock',
+            },
+            aggregate_position: 39,
+            state: 'mixed',
+            active_scene: 'none',
+            scene_option: 'auto',
+            locked: false,
+            automation: true,
+            climate_mode: 'summer_mode',
+          },
+        }),
+      ];
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      return c;
+    },
+  },
+  {
+    id: 'group-member-tiles',
+    label: 'Cover Group — members render as their own tile cards',
+    description:
+      "The roster is literally a stack of tile cards. Two of the members (`cover.backyard_shade`, `cover.side_yard_shade`) are covers of REAL ACP entries in this scenario, so each roster row resolves to that entry and renders its own `adaptive-cover-pro-tile-card` — badges, state coloring, icon, ↑■↓, position slider, and tap-for-more-info are the shipped tile, not a lookalike. The third member is a generic cover with no ACP entry behind it, so it has no tile to render and falls back to the compact row. Side Yard Shade is held under a manual override, so the GROUP tile rolls that up: an orange Manual badge sits beside the 0/2 who-won count, and the clear-overrides button is enabled. Flip that member's winner to `solar` and the badge disappears and the button greys out. Open the group tile to see the roster; tapping a member tile opens that member's own more-info dialog on top of the group dialog, and closing it returns you to the group dialog. Because both ACP members resolve here, the group's Automation button also rolls their real state up — green with both on; untick Automatic control on one member and it goes amber.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-member-tiles';
+      c.entries = [
+        makeEntry({
+          entry_id: 'backyard',
+          title: 'Backyard Shade',
+          covers: [
+            {
+              entity_id: 'cover.backyard_shade',
+              friendly_name: 'Backyard Shade',
+              position: 100,
+              tilt: 50,
+            },
+          ],
+          target_position: 100,
+        }),
+        makeEntry({
+          entry_id: 'side_yard',
+          title: 'Side Yard Shade',
+          covers: [
+            {
+              entity_id: 'cover.side_yard_shade',
+              friendly_name: 'Side Yard Shade',
+              position: 97,
+              tilt: 50,
+            },
+          ],
+          target_position: 97,
+        }),
+        makeGroupEntry({
+          entry_id: 'family_room',
+          title: 'Family Room',
+          group: {
+            member_positions: {
+              'cover.backyard_shade': 100,
+              'cover.side_yard_shade': 97,
+              'cover.hall_generic': 40,
+            },
+            member_winners: {
+              'cover.backyard_shade': 'solar',
+              'cover.side_yard_shade': 'manual',
+            },
+            aggregate_position: 79,
+            state: 'mixed',
+            active_scene: 'none',
+            scene_option: 'auto',
+            locked: false,
+            automation: true,
+            climate_mode: 'summer_mode',
+          },
+        }),
+      ];
+      // Side Yard is held manually: its own tile shows the orange Manual pill,
+      // and the GROUP tile rolls that up as a Manual badge (see description).
+      c.entries[1].flags.manual_override = true;
+      c.entries[1].flags.manual_override_minutes_from_now = 45;
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      return c;
+    },
+  },
+  {
+    id: 'group-automation-all',
+    label: 'Cover Group — Automation green (all members on)',
+    description:
+      "The Automation button's first color. Both ACP members have Automatic Control on, so the button is green with the solid mdi:robot glyph and reads “Automation — 2 of 2 members automating”. Green is the same signal the Auto and Group badges use — the pipeline owns every cover here, hands off. The denominator is 2, not 3: the generic member has no pipeline to report on, which is why the label always names it rather than claiming “all members”. (The who-won badge reads 0/3 here for a different reason — solar wins on both ACP members, so the group is driving none of them.) Untick Automatic control for either member in the entry panel to walk the button through amber and grey; the group's own automation switch stays ON the whole time, which is exactly why the button can no longer be driven from it.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-automation-all';
+      c.entries = automationGroupEntries([true, true]);
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      return c;
+    },
+  },
+  {
+    id: 'group-automation-mixed',
+    label: 'Cover Group — Automation amber (members disagree)',
+    description:
+      'The case the old two-color button lied about. Side Yard Shade has Automatic Control OFF while Backyard Shade has it on, so the button is amber with the outlined mdi:robot-outline glyph and reads “Automation — 1 of 2 members automating” — amber being the same color the Manual badge uses, because a human has partly taken over. aria-pressed is "mixed", ARIA\'s real tri-state value, and the accessible name leads with the purpose before the state so a screen reader still says what the button does. The group automation switch still says ON: before this, that latch painted the button fully automated and a press sent turn_OFF, moving the group further from what the icon claimed. Now a press sends turn_ON and brings the stragglers up.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-automation-mixed';
+      c.entries = automationGroupEntries([true, false]);
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      return c;
+    },
+  },
+  {
+    id: 'group-automation-none',
+    label: 'Cover Group — Automation grey (no member on)',
+    description:
+      'Both ACP members have Automatic Control off, so the button is grey and untinted with the mdi:robot-off glyph, reading “Automation — 0 of 2 members automating”. Grey rather than red on purpose: automation off is a state the user chose, not a fault, and red already means force / weather / glare everywhere else in this card. The group automation switch is STILL on — this scenario is the pure form of the bug, since the pre-rollup button showed indigo “automated” with every member idle.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-automation-none';
+      c.entries = automationGroupEntries([false, false]);
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      return c;
+    },
+  },
+  {
+    id: 'group-tilt',
+    label: 'Cover Group — aggregate cover + tilt axis',
+    description:
+      "The all-tilt branch. This group has the integration's OPT-IN aggregate cover entity (`cover.…group_cover`) and every member carries a slat axis, so the aggregate cover advertises SET_TILT_POSITION and a Tilt track appears on the tile, in the dialog, and on each member row. Group tilt is deliberately the ONLY path that needs the aggregate cover: there is no `group_set_tilt` service, and `group_set_position` requires a position that would stomp members' own overrides — so drop `aggregate_cover` from this scenario and every Tilt track disappears while position control keeps working. Group tilt writes cover.set_cover_tilt_position on the aggregate; a member's tilt writes set_axes (ACP) or cover.set_cover_tilt_position (generic).",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-tilt';
+      c.entries = [
+        makeGroupEntry({
+          entry_id: 'venetian_group',
+          title: 'Venetian Group',
+          group: {
+            member_positions: {
+              'cover.study_left': 60,
+              'cover.study_right': 60,
+              'cover.study_generic': 40,
+            },
+            member_tilts: {
+              'cover.study_left': 35,
+              'cover.study_right': 35,
+              'cover.study_generic': 70,
+            },
+            member_winners: {
+              'cover.study_left': 'solar',
+              'cover.study_right': 'solar',
+            },
+            aggregate_position: 53,
+            state: 'mixed',
+            active_scene: 'none',
+            scene_option: 'auto',
+            locked: false,
+            automation: true,
+            climate_mode: 'summer_mode',
+            aggregate_cover: true,
+            tilt: 45,
+          },
+        }),
+      ];
+      c.root.enabled = true;
       c.compass.enabled = false;
       c.decision.enabled = false;
       c.solarChart.enabled = false;
@@ -1171,7 +1538,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'cover-group-full',
     label: 'Cover Group — full main-card view (issue #185)',
     description:
-      'A Cover Group entry rendered through the ROOT main card, which routes it to the new group view (no sun/window geometry). The view shows the aggregate position + state, the scene select, the lock / automation toggles, and a clear-overrides button, plus a member roster of 4 covers with mixed winners: solar, group_scene, and group_lock drive three ACP members, while a generic cover shows its position with no who-won badge. The group is locked. Pick a scene → select.select_option; toggle lock/automation → switch.turn_on/off; press clear-overrides → button.press — all applied optimistically.',
+      'A Cover Group entry rendered through the ROOT main card, which routes it to the group view (no sun/window geometry). The view now carries the same control surface as the tile dialog: an aggregate position track, the ↑■↓ row, the scene select, lock / automation toggles, a clear-overrides button, and a member roster of 4 covers where every row is independently controllable. Winners are mixed — solar, group_scene, and group_lock drive three ACP members, while a generic cover shows its position with no who-won badge and takes native cover.* services. The group is locked.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'cover-group-full';
@@ -1897,7 +2264,7 @@ export const SCENARIOS: Scenario[] = [
     added: '2026-07-13',
     issue: 208,
     description:
-      "The bar-only detailed tile (commit that centers name/state, #208): integration enabled but AUTOMATIC control OFF, no manual override and no floor slot, so NO chrome badges render — only the position bar. The name/state must sit VERTICALLY CENTERED across the tile height (not pinned to the top), with the bar hugging the bottom and reserving the badge-height so this tile is the same height as a badged one. Two entries: one at ~65% open, one fully open. Verify the responsive fix: drag the tile-width control DOWN below ~340px — the ↑■↓ controls must drop to their own full-width row (they previously stayed inline for bar-only tiles because the wide grid out-specified the reflow). Toggle 'show_position_bar' off in Per-card config to confirm the chrome row collapses entirely (single-row tile).",
+      "The bar-only detailed tile (commit that centers name/state, #208): integration enabled but AUTOMATIC control OFF, no manual override and no floor slot, so NO chrome badges render — only the position bar. The name/state must sit VERTICALLY CENTERED across the tile height (not pinned to the top), with the bar hugging the bottom and reserving the badge-height so this tile is the same height as a badged one. Two entries: one at ~65% open, one fully open. Verify the responsive fix: drag the tile-width control DOWN below ~340px — the ↑■↓ controls must drop to their own full-width row (they previously stayed inline for bar-only tiles because the wide grid out-specified the reflow). Toggle 'show_position_bar' off in Per-card config to confirm the chrome row collapses entirely (single-row tile) and that no slider remains. The bar is also the tile's position slider: press and drag it and the fill plus the tooltip readout follow live with no service call until release, then exactly one set_axes fires (watch the service log). The gesture must NOT open the more-info dialog, though a tap anywhere else on the tile still must. Its grab area extends about 8px above and below the 6px rail without changing the tile's height, and Tab reaches it for arrow (±1), Page Up/Down (±10) and Home/End control.",
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'bar-only-tile';
@@ -2059,6 +2426,188 @@ export const SCENARIOS: Scenario[] = [
       return c;
     },
   },
+  {
+    id: 'history-card',
+    label: 'History card — all tracks + event buffer',
+    description:
+      'The standalone History card over a 24h window. Position (recorder-backed actual cover position), Who won (banded strip of the winning handler, last band pinned to the live winner), the three context tracks (Sun in SAA / Glare / Manual override) and the cover-actions list all render off mocked recorder history. Hover anywhere across the tracks for a shared readout of what every track said at that instant. Expand Advanced to pull the diagnostic event buffer over the mocked `adaptive_cover_pro.get_diagnostics` service call \u2014 24 synthetic events across 8 event types, filterable. Same view opens as an overlay from the tile/root more-info dialog and the decision card header.',
+    added: '2026-07-26',
+    build: () => {
+      const c = baseConfig('2026-06-21', 15 * 60);
+      c.scenario = 'history-card';
+      c.history.advanced_open = true;
+      // The History card is the focus; the other cards are hidden so the stage
+      // is not dominated by geometry views.
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
+    id: 'history-no-diagnostics',
+    label: 'History card — old integration, no event buffer',
+    description:
+      'An integration build that predates `adaptive_cover_pro.get_diagnostics`. The History card feature-detects the missing service and omits the Advanced section entirely rather than rendering a disclosure that would always fail \u2014 every recorder-backed track still works. Compare against "History card \u2014 all tracks + event buffer".',
+    added: '2026-07-26',
+    build: () => {
+      const c = baseConfig('2026-06-21', 15 * 60);
+      c.scenario = 'history-no-diagnostics';
+      c.history.noDiagnosticsService = true;
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
+    id: 'history-empty-buffer',
+    label: 'History card — empty event buffer',
+    description:
+      'The `get_diagnostics` service responds, but the ring buffer holds nothing yet (fresh reload). The integration omits `event_timeline` entirely in that case while still sending `data_window`, so the card must distinguish "no events" from "could not read" \u2014 Advanced opens and reports an empty buffer, not an error.',
+    added: '2026-07-26',
+    build: () => {
+      const c = baseConfig('2026-06-21', 15 * 60);
+      c.scenario = 'history-empty-buffer';
+      c.history.advanced_open = true;
+      c.history.eventCount = 0;
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
+    id: 'history-multi-cover',
+    label: 'History card — per-cover divergence + sun context',
+    description:
+      'A three-cover entry where the covers do NOT agree. The aggregate Actual line only sags a little, while the thin dashed per-cover lines show one cover trailing and one that STALLS at the midpoint and never moves again — the failure the aggregate mean hides. Behind the curves, night is dimmed and the sun-in-SAA spans are highlighted (the latter from the recorded sun_infront_binary, so the shading always agrees with the handler that acted on it). The stats line summarizes moves, travel and time-per-handler for the window.',
+    added: '2026-07-26',
+    build: () => {
+      const c = baseConfig('2026-06-21', 15 * 60);
+      c.scenario = 'history-multi-cover';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_bank',
+          title: 'South Bank',
+          window_azimuth: 180,
+          covers: [
+            { entity_id: 'cover.south_left', friendly_name: 'South Left', position: 60 },
+            { entity_id: 'cover.south_mid', friendly_name: 'South Mid', position: 52 },
+            { entity_id: 'cover.south_right', friendly_name: 'South Right', position: 95 },
+          ],
+        }),
+      ];
+      c.history.advanced_open = false;
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
+    id: 'history-venetian-tilt',
+    label: 'History card — venetian tilt track',
+    description:
+      'A venetian entry, so the History card renders its SECOND axis: a tilt track under the position track, plotting the ACP tilt target against the covers\u2019 recorded current_tilt_position. The tilt axis carries its own inversion option in the integration (inverse_tilt, #236) independent of inverse_state, so the card reads the flag from the tilt axis rather than reusing the position one. A position-only cover shows no tilt track at all rather than an empty one.',
+    added: '2026-07-26',
+    build: () => {
+      const c = baseConfig('2026-06-21', 14 * 60);
+      c.scenario = 'history-venetian-tilt';
+      c.entries = [
+        makeEntry({
+          entry_id: 'venetian_window',
+          title: 'Study Venetian',
+          window_azimuth: 200,
+          cover_type: 'cover_venetian',
+          target_tilt: 45,
+          covers: [
+            {
+              entity_id: 'cover.study_venetian',
+              friendly_name: 'Study Venetian',
+              position: 70,
+              tilt: 40,
+            },
+          ],
+        }),
+      ];
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
+    id: 'history-overnight-hold',
+    label: 'History card — overnight hold then drop (issue #253)',
+    description:
+      'The Position track holds perfectly FLAT overnight (21:00 → 11:00, 14 hours), then steps to a new value once the day starts — the recorder stores transitions only, so a real install’s target/actual lines have exactly this shape. The hold runs wider than `isOvernightHour`’s raw 22:00–09:59 band because `buildTargetHistory` only evaluates it at 2-hour candidate points phased off this scenario’s 15:00 anchor, so the last pre-band candidate falls at 21:00 and the first post-band one at 11:00. Confirms the curve draws a held line that STEPS at the transition instant, not a diagonal ramp interpolated straight across the whole night (the bug issue #253 reported: hovering mid-gap read the correctly-held value while the line under the cursor showed a straight ramp to the drop).',
+    added: '2026-07-28',
+    build: () => {
+      const c = baseConfig('2026-06-21', 15 * 60);
+      c.scenario = 'history-overnight-hold';
+      c.history.advanced_open = false;
+      c.history.track_who_won = false;
+      c.history.track_context = false;
+      c.history.track_actions = false;
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
+    id: 'composite-tile-name',
+    label: 'Composite tile name (#247)',
+    description:
+      'Both entries have an area assigned, and the tile card’s `name` is a composed part list (`[{type: "area"}, {type: "entry"}]`) instead of a plain string, so the titles read "Living Room Blind" and "Playroom Group" — the same generator-friendly composition the native HA tile card and Mushroom support, letting one dashboard-YAML template emit "Living Room Blind" on an all-covers view and just "Blind" on an area view. The second entry is a Cover Group, which resolves the same composed name through a separate pair of components (acp-group-tile / acp-group-dialog) rather than the cover tile\'s own title element (audit finding #1, issue #247 fix pass) - both must read "Playroom Group", never "[object Object]".',
+    added: '2026-07-27',
+    build: () => {
+      const c = baseConfig('2026-06-21', 14 * 60);
+      c.scenario = 'composite-tile-name';
+      c.entries = [
+        makeEntry({
+          entry_id: 'living_room_blind',
+          title: 'Blind',
+          area: 'Living Room',
+          window_azimuth: 180,
+        }),
+        // Audit finding #1 (issue #247 fix pass): a Cover Group entry routes
+        // through the separate acp-group-tile/acp-group-dialog components
+        // instead of the cover tile's own title element — both must resolve
+        // the same composed name, never "[object Object]".
+        makeGroupEntry({
+          entry_id: 'playroom_group',
+          title: 'Group',
+          area: 'Playroom',
+        }),
+      ];
+      c.tile.name = [{ type: 'area' }, { type: 'entry' }];
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
+    id: 'icon-tap-action-shape',
+    label: 'Icon tap behavior — tinted shape',
+    description:
+      'The new Interactions > Icon tap behavior option, which mirrors HA\'s tile card. HA draws the pill-shaped tint behind a tile glyph only when the icon is interactive, and its getEntityDefaultTileIconAction returns "none" for the cover domain — which is why a native HA cover tile shows a bare glyph while a light shows a tinted circle. This scenario sets icon_tap_action to more-info, so BOTH the cover tile and the Cover Group tile draw the pill: the fill is the glyph\'s own state color at 20% opacity, rising to 35% on hover. Check three things. (1) The circle is behind the glyph, never dimming it. (2) Tapping the glyph opens more-info and does NOT also fire the tile body tap — they are independent targets, so the body must not open the ACP dialog on the same click. (3) Tab to the glyph: it takes a focus ring and Enter/Space activate it. Flip the control panel back to "none" and the shape must disappear entirely, restoring the pre-2.15 look.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'icon-tap-action-shape';
+      c.tile.icon_tap_action = 'more-info';
+      c.entries = [
+        makeEntry({ entry_id: 'south_window', title: 'Living Room', window_azimuth: 180 }),
+        makeGroupEntry({ entry_id: 'playroom_group', title: 'Playroom Group' }),
+      ];
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
 ];
 
 export function findScenario(id: string): Scenario | undefined {
@@ -2084,9 +2633,11 @@ export function normalizeConfig(cfg: HarnessConfig): HarnessConfig {
       ...cfg.tile,
       badges: { ...defaultBadges(), ...(cfg.tile?.badges ?? {}) },
       tileWidth: cfg.tile?.tileWidth ?? 0,
+      icon_tap_action: cfg.tile?.icon_tap_action ?? 'none',
     },
     decision: { ...defaultDecision(), ...(cfg.decision ?? {}) },
     solarChart: { ...defaultSolarChart(), ...(cfg.solarChart ?? {}) },
+    history: { ...defaultHistory(), ...(cfg.history ?? {}) },
     tooltips: { ...defaultTooltips(), ...(cfg.tooltips ?? {}) },
   };
 }

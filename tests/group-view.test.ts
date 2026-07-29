@@ -82,24 +82,49 @@ async function mount(hass: HomeAssistant, discovered: DiscoveredEntities): Promi
   return el;
 }
 
+/** The scene select and lock/automation/clear buttons live in the shared
+ *  `acp-group-controls-row` child, one shadow root deeper. */
+async function controlsRow(el: GroupViewLike): Promise<ShadowRoot> {
+  const row = el.shadowRoot!.querySelector('acp-group-controls-row') as HTMLElement & {
+    updateComplete: Promise<boolean>;
+  };
+  await row.updateComplete;
+  return row.shadowRoot!;
+}
+
+/** Roster rows are `acp-group-member-row` elements; a generic member (no ACP
+ *  entry) renders its fallback row inside that element's own shadow root. */
+async function memberRows(el: GroupViewLike): Promise<(HTMLElement & { entityId: string })[]> {
+  const rows = Array.from(
+    el.shadowRoot!.querySelectorAll('acp-group-member-row'),
+  ) as (HTMLElement & { entityId: string; updateComplete: Promise<boolean> })[];
+  for (const r of rows) await r.updateComplete;
+  return rows;
+}
+
 describe('acp-group-view (issue #185 Phase 3)', () => {
   it('renders one member row per member_positions entry', async () => {
     const el = await mount(makeHass(), makeDiscovered());
-    const rows = el.shadowRoot!.querySelectorAll('.member');
-    expect(rows.length).toBe(3);
+    expect((await memberRows(el)).length).toBe(3);
   });
 
   it('renders each member position', async () => {
     const el = await mount(makeHass(), makeDiscovered());
-    const text = el.shadowRoot!.textContent!.replace(/\s+/g, ' ');
-    expect(text).toContain('40');
-    expect(text).toContain('60');
+    const rows = await memberRows(el);
+    // The value lives on the row's position `acp-axis-bar`, two shadow roots
+    // down — assert the property rather than spelunking for the rendered text.
+    const positions = rows.map(
+      (r) =>
+        (r.shadowRoot!.querySelector('acp-axis-bar') as { actual?: number | null } | null)?.actual,
+    );
+    expect(positions).toContain(40);
+    expect(positions).toContain(60);
   });
 
   it('renders the member friendly name when the member entity exists, else the entity_id', async () => {
     const el = await mount(makeHass(), makeDiscovered());
-    const names = Array.from(el.shadowRoot!.querySelectorAll('.member-name')).map((n) =>
-      (n.textContent ?? '').trim(),
+    const names = (await memberRows(el)).map((r) =>
+      (r.shadowRoot!.querySelector('.name')?.textContent ?? '').trim(),
     );
     expect(names).toContain('Living Left');
     expect(names).toContain('Living Right');
@@ -109,8 +134,8 @@ describe('acp-group-view (issue #185 Phase 3)', () => {
 
   it('shows a who-won badge only for members present in member_winners', async () => {
     const el = await mount(makeHass(), makeDiscovered());
-    const rows = Array.from(el.shadowRoot!.querySelectorAll('.member'));
-    const withBadge = rows.filter((r) => r.querySelector('acp-tile-badge'));
+    const rows = await memberRows(el);
+    const withBadge = rows.filter((r) => r.shadowRoot!.querySelector('acp-tile-badge'));
     // cover.a + cover.b have winners; cover.generic does not.
     expect(withBadge.length).toBe(2);
   });
@@ -126,7 +151,9 @@ describe('acp-group-view (issue #185 Phase 3)', () => {
 
   it('renders the scene select with the four options and the current option selected', async () => {
     const el = await mount(makeHass(), makeDiscovered());
-    const select = el.shadowRoot!.querySelector('select.scene-select') as HTMLSelectElement;
+    const select = (await controlsRow(el)).querySelector(
+      'select.scene-select',
+    ) as HTMLSelectElement;
     expect(select).toBeTruthy();
     const values = Array.from(select.options).map((o) => o.value);
     expect(values).toEqual(['auto', 'all_open', 'all_closed', 'privacy']);
@@ -136,7 +163,9 @@ describe('acp-group-view (issue #185 Phase 3)', () => {
   it('calls select.select_option when a scene is chosen', async () => {
     const callService = vi.fn();
     const el = await mount(makeHass({ callService }), makeDiscovered());
-    const select = el.shadowRoot!.querySelector('select.scene-select') as HTMLSelectElement;
+    const select = (await controlsRow(el)).querySelector(
+      'select.scene-select',
+    ) as HTMLSelectElement;
     select.value = 'privacy';
     select.dispatchEvent(new Event('change'));
     expect(callService).toHaveBeenCalledWith(
@@ -150,7 +179,7 @@ describe('acp-group-view (issue #185 Phase 3)', () => {
   it('toggles the lock via switch.turn_on when currently unlocked', async () => {
     const callService = vi.fn();
     const el = await mount(makeHass({ callService, locked: false }), makeDiscovered());
-    (el.shadowRoot!.querySelector('.lock-toggle') as HTMLElement).click();
+    ((await controlsRow(el)).querySelector('.lock-toggle') as HTMLElement).click();
     expect(callService).toHaveBeenCalledWith(
       'switch',
       'turn_on',
@@ -162,7 +191,7 @@ describe('acp-group-view (issue #185 Phase 3)', () => {
   it('toggles the lock via switch.turn_off when currently locked', async () => {
     const callService = vi.fn();
     const el = await mount(makeHass({ callService, locked: true }), makeDiscovered());
-    (el.shadowRoot!.querySelector('.lock-toggle') as HTMLElement).click();
+    ((await controlsRow(el)).querySelector('.lock-toggle') as HTMLElement).click();
     expect(callService).toHaveBeenCalledWith(
       'switch',
       'turn_off',
@@ -174,7 +203,7 @@ describe('acp-group-view (issue #185 Phase 3)', () => {
   it('toggles automation via switch.turn_off when currently on', async () => {
     const callService = vi.fn();
     const el = await mount(makeHass({ callService, automation: true }), makeDiscovered());
-    (el.shadowRoot!.querySelector('.automation-toggle') as HTMLElement).click();
+    ((await controlsRow(el)).querySelector('.automation-toggle') as HTMLElement).click();
     expect(callService).toHaveBeenCalledWith(
       'switch',
       'turn_off',
@@ -186,7 +215,7 @@ describe('acp-group-view (issue #185 Phase 3)', () => {
   it('presses the clear-overrides button via button.press', async () => {
     const callService = vi.fn();
     const el = await mount(makeHass({ callService }), makeDiscovered());
-    (el.shadowRoot!.querySelector('.clear-overrides') as HTMLElement).click();
+    ((await controlsRow(el)).querySelector('.clear-overrides') as HTMLElement).click();
     expect(callService).toHaveBeenCalledWith(
       'button',
       'press',

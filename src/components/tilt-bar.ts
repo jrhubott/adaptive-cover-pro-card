@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
 import { formatPercent } from '../lib/formatters';
@@ -12,9 +12,16 @@ import { tooltip } from '../lib/tooltip';
  *
  * Shared between the cover-bar (stacked under each Position bar) and the tile
  * card (compact mini bar). It is purely presentational: it renders the
- * click-to-set track plus the solar target marker and fires an `acp-tilt-set`
- * CustomEvent (`detail: number` in [min,max]) on click. The host wires that to
- * `setAxes()` so service routing stays in one place.
+ * drag-to-set track plus the solar target marker and fires an `acp-tilt-set`
+ * CustomEvent (`detail: number` in [min,max]) when the gesture commits. The
+ * host wires that to `setAxes()` so service routing stays in one place.
+ *
+ * Dragging paints a live preview (fill + percentage) client-side and dispatches
+ * nothing; the commit rides the trailing compatibility `click` a real browser
+ * fires at the release point, so the click path below is also the drag path and
+ * a plain tap still behaves exactly as it always has. The track is a WAI-ARIA
+ * slider: arrows step by 1 axis unit, Page keys by 10, Home/End jump to the
+ * range ends.
  *
  * `label`/`min`/`max`/`unit` default to the original tilt values (Tilt title,
  * 0–100, %), so an un-parameterized `acp-tilt-bar` renders exactly as before.
@@ -50,6 +57,22 @@ export class AxisBar extends LitElement {
   /** Axis unit (defaults to the original '%'). Forward-looking; not yet
    *  rendered in the compact label. */
   @property() public unit = '%';
+  /* The two tooltips take i18n KEYS rather than resolved strings (unlike
+     `label`, which may come from a discovery-supplied axis name with no key at
+     all): the marker tooltip interpolates `{pct}`, so the bar has to own the
+     `t()` call. Both default to the tilt strings, the same way `label`/`min`/
+     `max`/`unit` do — an un-parameterized bar is unchanged, while a position
+     axis that forgets to pass them would otherwise tell the user to "set tilt". */
+  /** i18n key for the track tooltip. Null → the tilt hint. */
+  @property({ attribute: false }) public hintKey: string | null = null;
+  /** i18n key for the target-marker tooltip; receives `{pct}`. Null → the tilt
+   *  target hint. */
+  @property({ attribute: false }) public targetHintKey: string | null = null;
+
+  /** Live client-side value while a drag is in flight, in axis units. Drives
+   *  the fill and the percentage readout; never dispatches on its own. Null
+   *  whenever no gesture is active. */
+  @state() private _dragValue: number | null = null;
 
   /** Map an axis value onto a 0–100 track fraction using min/max. */
   private _frac(v: number | null): number {
@@ -62,7 +85,11 @@ export class AxisBar extends LitElement {
 
   protected render(): TemplateResult | typeof nothing {
     if (!this.hass) return nothing;
-    const actualFrac = this._frac(this.actual);
+    // A drag in flight overrides server truth for this bar's fill and readout;
+    // once it ends, `actual` takes over again with no extra bookkeeping.
+    const dragging = this._dragValue !== null;
+    const shownValue = this._dragValue ?? this.actual;
+    const actualFrac = this._frac(shownValue);
     const targetFrac = this._frac(this.target);
     const label = this.label ?? t('covers.tilt_title', this.hass);
     return html`
@@ -71,11 +98,24 @@ export class AxisBar extends LitElement {
         style=${this.coverColor ? `--acp-cover-color:${this.coverColor}` : nothing}
       >
         <span class="label">${label}</span>
-        <span class="num">${formatPercent(this.actual)}</span>
+        <span class="num">${formatPercent(shownValue)}</span>
         <div
-          class="track ${this.disabled ? 'disabled' : ''}"
+          class="track ${this.disabled ? 'disabled' : ''}${dragging ? ' dragging' : ''}"
+          role="slider"
+          tabindex=${this.disabled ? -1 : 0}
+          aria-disabled=${this.disabled ? 'true' : 'false'}
+          aria-valuemin=${this.min}
+          aria-valuemax=${this.max}
+          aria-valuenow=${shownValue ?? this.min}
+          aria-valuetext=${formatPercent(shownValue)}
+          aria-label=${label}
           @click=${this._onClick}
-          ${tooltip(t('covers.tilt_click_to_set', this.hass))}
+          @pointerdown=${this._onPointerDown}
+          @pointermove=${this._onPointerMove}
+          @pointerup=${this._onPointerEnd}
+          @pointercancel=${this._onPointerEnd}
+          @keydown=${this._onKeydown}
+          ${tooltip(t(this.hintKey ?? 'covers.tilt_click_to_set', this.hass))}
         >
           <div class="fill" style="width:${actualFrac}%"></div>
           <div class="fill-closed" style="width:${100 - actualFrac}%"></div>
@@ -83,7 +123,11 @@ export class AxisBar extends LitElement {
             ? html`<div
                 class="marker"
                 style="left:clamp(1px, ${targetFrac}%, calc(100% - 1px))"
-                ${tooltip(t('covers.tilt_target_tooltip', this.hass, { pct: targetFrac }))}
+                ${tooltip(
+                  t(this.targetHintKey ?? 'covers.tilt_target_tooltip', this.hass, {
+                    pct: targetFrac,
+                  }),
+                )}
               ></div>`
             : nothing}
         </div>
@@ -91,16 +135,85 @@ export class AxisBar extends LitElement {
     `;
   }
 
-  private _onClick(e: MouseEvent): void {
-    if (this.disabled) return;
-    const track = e.currentTarget as HTMLElement;
+  /** Map a pointer's clientX onto an axis value in [min,max]. Shared by the
+   *  click commit path and the drag preview so both read the track identically. */
+  private _valueFromEvent(e: { clientX: number }, track: HTMLElement): number {
     const rect = track.getBoundingClientRect();
     const frac = (e.clientX - rect.left) / rect.width;
     const raw = this.min + frac * (this.max - this.min);
-    const clamped = Math.max(this.min, Math.min(this.max, Math.round(raw)));
+    return this._clamp(raw);
+  }
+
+  private _clamp(v: number): number {
+    return Math.max(this.min, Math.min(this.max, Math.round(v)));
+  }
+
+  private _commit(value: number): void {
     this.dispatchEvent(
-      new CustomEvent<number>('acp-tilt-set', { detail: clamped, bubbles: true, composed: true }),
+      new CustomEvent<number>('acp-tilt-set', { detail: value, bubbles: true, composed: true }),
     );
+  }
+
+  private _onClick(e: MouseEvent): void {
+    if (this.disabled) return;
+    this._commit(this._valueFromEvent(e, e.currentTarget as HTMLElement));
+  }
+
+  /** Begin a drag: capture the pointer (best-effort, happy-dom may not implement
+   *  it) and start the live preview. Deliberately no `preventDefault()` —
+   *  suppressing it would also suppress the trailing `click` that commits. */
+  private _onPointerDown = (e: PointerEvent): void => {
+    if (this.disabled) return;
+    const track = e.currentTarget as HTMLElement;
+    (track as HTMLElement & { setPointerCapture?: (id: number) => void }).setPointerCapture?.(
+      e.pointerId,
+    );
+    this._dragValue = this._valueFromEvent(e, track);
+  };
+
+  private _onPointerMove = (e: PointerEvent): void => {
+    if (this.disabled || this._dragValue === null) return;
+    this._dragValue = this._valueFromEvent(e, e.currentTarget as HTMLElement);
+  };
+
+  /** End of gesture. Never commits: on pointerup the browser's trailing `click`
+   *  reaches `_onClick`, and on pointercancel there is no commit at all. */
+  private _onPointerEnd = (): void => {
+    this._dragValue = null;
+  };
+
+  /** Standard WAI-ARIA slider keys, stepping in axis units so a non-percent
+   *  range (e.g. slat angle -90..90) behaves sensibly. */
+  private _onKeydown(e: KeyboardEvent): void {
+    if (this.disabled) return;
+    const current = this.actual ?? this.min;
+    let next: number;
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'ArrowUp':
+        next = current + 1;
+        break;
+      case 'ArrowLeft':
+      case 'ArrowDown':
+        next = current - 1;
+        break;
+      case 'PageUp':
+        next = current + 10;
+        break;
+      case 'PageDown':
+        next = current - 10;
+        break;
+      case 'Home':
+        next = this.min;
+        break;
+      case 'End':
+        next = this.max;
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+    this._commit(this._clamp(next));
   }
 
   public static styles = css`
@@ -150,6 +263,18 @@ export class AxisBar extends LitElement {
       border-radius: 6px;
       cursor: pointer;
       overflow: hidden;
+      /* A touch-drag must move the fill, not scroll the page — own the gesture. */
+      touch-action: none;
+    }
+    .track:focus-visible {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 2px;
+    }
+    /* The 0.3s ease below smooths server-driven updates; during a drag it would
+       read as the fill lagging behind the finger, so drop it for the gesture. */
+    .track.dragging .fill,
+    .track.dragging .fill-closed {
+      transition: none;
     }
     :host([compact]) .track,
     .row.tile .track {
@@ -159,6 +284,7 @@ export class AxisBar extends LitElement {
        matching the up/stop/down controls disabled elsewhere on the tile. */
     .track.disabled {
       cursor: default;
+      touch-action: auto;
     }
     .fill {
       height: 100%;

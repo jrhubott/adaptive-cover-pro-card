@@ -5,6 +5,8 @@ import { INTEGRATION_DOMAIN } from '../src/const';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities } from '../src/types';
 import type { CSSResult } from 'lit';
+import { t } from '../src/lib/i18n';
+import { formatPercent } from '../src/lib/formatters';
 
 interface CoverBarLike extends HTMLElement {
   updateComplete: Promise<boolean>;
@@ -826,5 +828,420 @@ describe('acp-cover-bar cover name opens more-info', () => {
     // Regression guard: the track still drives set-position and never opens the dialog.
     expect(spy).not.toHaveBeenCalled();
     expect(callService).toHaveBeenCalled();
+  });
+});
+
+describe('acp-cover-bar position slider — issue #231', () => {
+  function stubRect(track: HTMLElement): void {
+    Object.defineProperty(track, 'getBoundingClientRect', {
+      value: () => ({ left: 0, width: 100, top: 0, bottom: 10, right: 100, height: 10 }),
+      configurable: true,
+    });
+  }
+
+  function singleCoverHass(actual: number, callService = vi.fn()): HomeAssistant {
+    return {
+      states: {
+        'sensor.cover_position': {
+          state: String(actual),
+          attributes: { actual_positions: { 'cover.a': actual } },
+        },
+        'cover.a': { state: 'open', attributes: { friendly_name: 'Cover A' } },
+      },
+      callService,
+    } as unknown as HomeAssistant;
+  }
+
+  const discovered: DiscoveredEntities = {
+    ...baseDiscovered,
+    entities: { target_position_sensor: 'sensor.cover_position' },
+  };
+
+  async function mount(hass: HomeAssistant): Promise<CoverBarLike> {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    document.body.appendChild(el);
+    el.hass = hass;
+    el.discovered = discovered;
+    await el.updateComplete;
+    return el;
+  }
+
+  it('renders .track as an accessible slider with aria-valuenow matching the actual percent', async () => {
+    const el = await mount(singleCoverHass(42));
+    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    expect(track.getAttribute('role')).toBe('slider');
+    expect(track.getAttribute('tabindex')).toBe('0');
+    expect(track.getAttribute('aria-valuemin')).toBe('0');
+    expect(track.getAttribute('aria-valuemax')).toBe('100');
+    expect(track.getAttribute('aria-valuenow')).toBe('42');
+    expect(track.getAttribute('aria-valuetext')).toBe(formatPercent(42));
+    expect(track.getAttribute('aria-label')).toBe(t('covers.position_slider_label', el.hass));
+  });
+
+  it('previews a live percentage on .num/.fill while dragging, without committing', async () => {
+    const callService = vi.fn();
+    const el = await mount(singleCoverHass(20, callService));
+    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    stubRect(track);
+
+    track.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, clientX: 20, pointerId: 1 }),
+    );
+    track.dispatchEvent(
+      new PointerEvent('pointermove', { bubbles: true, clientX: 80, pointerId: 1 }),
+    );
+    await el.updateComplete;
+
+    const num = el.shadowRoot!.querySelector('.num')!;
+    expect(num.textContent).toContain('80');
+    const fill = el.shadowRoot!.querySelector('.fill') as HTMLElement;
+    expect(fill.style.width).toBe('80%');
+    expect(callService).not.toHaveBeenCalled();
+  });
+
+  it('commits the final dragged value exactly once via the trailing click', async () => {
+    const callService = vi.fn();
+    const el = await mount(singleCoverHass(20, callService));
+    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    stubRect(track);
+
+    track.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, clientX: 20, pointerId: 1 }),
+    );
+    track.dispatchEvent(
+      new PointerEvent('pointermove', { bubbles: true, clientX: 80, pointerId: 1 }),
+    );
+    track.dispatchEvent(
+      new PointerEvent('pointerup', { bubbles: true, clientX: 80, pointerId: 1 }),
+    );
+    // A real browser fires a trailing compatibility `click` at the release point.
+    track.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 80 }));
+    await el.updateComplete;
+
+    expect(callService).toHaveBeenCalledTimes(1);
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_position',
+      { position: 80 },
+      { entity_id: 'cover.a' },
+    );
+  });
+
+  it('reverts the preview and does not commit on pointercancel', async () => {
+    const callService = vi.fn();
+    const el = await mount(singleCoverHass(20, callService));
+    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    stubRect(track);
+
+    track.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, clientX: 20, pointerId: 1 }),
+    );
+    track.dispatchEvent(
+      new PointerEvent('pointermove', { bubbles: true, clientX: 80, pointerId: 1 }),
+    );
+    track.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 1 }));
+    await el.updateComplete;
+
+    expect(callService).not.toHaveBeenCalled();
+    const num = el.shadowRoot!.querySelector('.num')!;
+    expect(num.textContent).toContain('20');
+    const fill = el.shadowRoot!.querySelector('.fill') as HTMLElement;
+    expect(fill.style.width).toBe('20%');
+  });
+
+  it.each([
+    ['ArrowRight', 51],
+    ['ArrowUp', 51],
+    ['ArrowLeft', 49],
+    ['ArrowDown', 49],
+    ['PageUp', 60],
+    ['PageDown', 40],
+    ['Home', 0],
+    ['End', 100],
+  ])('keydown %s from actual=50 calls set_position with %d', async (key, expected) => {
+    const callService = vi.fn();
+    const el = await mount(singleCoverHass(50, callService));
+    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+
+    track.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_position',
+      { position: expected },
+      { entity_id: 'cover.a' },
+    );
+  });
+
+  it('clamps PageUp at 100 near the top of the range', async () => {
+    const callService = vi.fn();
+    const el = await mount(singleCoverHass(95, callService));
+    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    track.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageUp', bubbles: true }));
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_position',
+      { position: 100 },
+      { entity_id: 'cover.a' },
+    );
+  });
+
+  it('clamps PageDown at 0 near the bottom of the range', async () => {
+    const callService = vi.fn();
+    const el = await mount(singleCoverHass(5, callService));
+    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    track.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown', bubbles: true }));
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_position',
+      { position: 0 },
+      { entity_id: 'cover.a' },
+    );
+  });
+
+  it('drags only the targeted cover row — the other cover renders unaffected', async () => {
+    const callService = vi.fn();
+    const el = await mount({
+      states: {
+        'sensor.cover_position': {
+          state: '20',
+          attributes: { actual_positions: { 'cover.a': 20, 'cover.b': 70 } },
+        },
+        'cover.a': { state: 'open', attributes: { friendly_name: 'Cover A' } },
+        'cover.b': { state: 'open', attributes: { friendly_name: 'Cover B' } },
+      },
+      callService,
+    } as unknown as HomeAssistant);
+
+    const tracks = el.shadowRoot!.querySelectorAll('.track');
+    const nums = el.shadowRoot!.querySelectorAll('.num');
+    expect(tracks.length).toBe(2);
+    const trackA = tracks[0] as HTMLElement;
+    stubRect(trackA);
+
+    trackA.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, clientX: 20, pointerId: 1 }),
+    );
+    trackA.dispatchEvent(
+      new PointerEvent('pointermove', { bubbles: true, clientX: 90, pointerId: 1 }),
+    );
+    await el.updateComplete;
+
+    expect(nums[0].textContent).toContain('90');
+    expect(nums[1].textContent).toContain('70');
+    const fillB = el.shadowRoot!.querySelectorAll('.fill')[1] as HTMLElement;
+    expect(fillB.style.width).toBe('70%');
+    expect(callService).not.toHaveBeenCalled();
+  });
+
+  it('adds touch-action: none to .track so a touch drag does not fight page scroll', () => {
+    const styles = (CoverBar as unknown as { styles: CSSResult }).styles.cssText;
+    expect(styles).toMatch(/\.track\s*{[^}]*touch-action:\s*none/);
+  });
+});
+
+// ── inverse_state frame normalization (#234) ─────────────────────────────────
+
+describe('acp-cover-bar inverse_state frame normalization (#234)', () => {
+  const AWNING = 'cover.patio_awning';
+
+  function inverseDiscovered(legacy = false): DiscoveredEntities {
+    return {
+      ...baseDiscovered,
+      cover_type: 'cover_awning',
+      entities: { target_position_sensor: 'sensor.cover_position' },
+      ...(legacy
+        ? {}
+        : { discovery: { axes: [{ id: 'position', inverted: true, supported: true }] } }),
+    };
+  }
+
+  /** Fully-extended awning: logical 100, dispatched 0. */
+  function inverseHass(opts: { linearActuals?: boolean } = {}): HomeAssistant {
+    return {
+      states: {
+        'sensor.cover_position': {
+          state: '0',
+          attributes: {
+            actual_positions: { [AWNING]: 0 },
+            ...(opts.linearActuals === false ? {} : { linear_actual_positions: { [AWNING]: 100 } }),
+            linear_position: 100,
+            raw_calculated_position: 100,
+          },
+        },
+        [AWNING]: { state: 'open', attributes: { friendly_name: 'Patio Awning' } },
+      },
+      callService: vi.fn(),
+    } as unknown as HomeAssistant;
+  }
+
+  async function mount(hass: HomeAssistant, discovered: DiscoveredEntities): Promise<CoverBarLike> {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    document.body.appendChild(el);
+    el.hass = hass;
+    el.discovered = discovered;
+    await el.updateComplete;
+    return el;
+  }
+
+  it('fills the per-cover track from the logical frame, matching the Target marker', async () => {
+    const el = await mount(inverseHass(), inverseDiscovered());
+    const open = el.shadowRoot!.querySelector('.fill') as HTMLElement;
+    const closed = el.shadowRoot!.querySelector('.fill-closed') as HTMLElement;
+    const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
+    expect(open.style.width).toBe('100%');
+    expect(closed.style.width).toBe('0%');
+    // The marker's left is a clamp() expression, so read the raw attribute
+    // (happy-dom does not expose clamp() through style.left).
+    expect(marker.getAttribute('style') ?? '').toContain('left:clamp(1px, 100%, calc(100% - 1px))');
+    expect(el.shadowRoot!.querySelector('.num')!.textContent!.trim()).toBe('100%');
+  });
+
+  it('un-inverts actual_positions when linear_actual_positions is absent', async () => {
+    const el = await mount(inverseHass({ linearActuals: false }), inverseDiscovered());
+    expect((el.shadowRoot!.querySelector('.fill') as HTMLElement).style.width).toBe('100%');
+  });
+
+  it('suppresses the Motor tooltip when the divergence is the inversion itself', async () => {
+    const el = await mount(inverseHass(), inverseDiscovered());
+    const target = el.shadowRoot!.querySelector('.head .target') as HTMLElement;
+    expect(target.getAttribute('data-tooltip')).toBeNull();
+  });
+
+  it('renders verbatim on a legacy entry with neither new field', async () => {
+    const el = await mount(inverseHass({ linearActuals: false }), inverseDiscovered(true));
+    expect((el.shadowRoot!.querySelector('.fill') as HTMLElement).style.width).toBe('0%');
+  });
+});
+
+// ── inverse_tilt frame normalization (#236) ──────────────────────────────────
+
+describe('acp-cover-bar inverse_tilt frame normalization (#236)', () => {
+  interface AxisBarLike extends HTMLElement {
+    updateComplete: Promise<boolean>;
+    actual: number | null;
+    target: number | null;
+  }
+
+  /** A venetian on an `inverse_tilt` install: the tilt axis alone is inverted,
+   *  so slats at logical 35 report `current_tilt_position: 65` while the
+   *  position axis stays in the logical frame at 60. */
+  const inverseTiltDiscovered: DiscoveredEntities = {
+    ...baseDiscovered,
+    cover_type: 'cover_venetian',
+    entities: {
+      target_position_sensor: 'sensor.cover_position',
+      target_tilt_sensor: 'sensor.cover_tilt',
+    },
+    discovery: {
+      cover_type: 'cover_venetian',
+      axes: [
+        { id: 'position', state_attr: 'current_position', supported: true, inverted: false },
+        { id: 'tilt', state_attr: 'current_tilt_position', supported: true, inverted: true },
+      ],
+    },
+  };
+
+  /** The `cover_tilt` / `cover_louvered_roof` shape: tilt is the ONLY declared
+   *  axis, so `secondaryAxes` picks it up and the same read applies. */
+  const tiltPrimaryDiscovered: DiscoveredEntities = {
+    ...inverseTiltDiscovered,
+    cover_type: 'cover_tilt',
+    discovery: {
+      cover_type: 'cover_tilt',
+      axes: [{ id: 'tilt', state_attr: 'current_tilt_position', supported: true, inverted: true }],
+    },
+  };
+
+  function inverseTiltHass(callService = vi.fn()): HomeAssistant {
+    return {
+      services: { adaptive_cover_pro: { set_axes: {}, set_position: {}, set_tilt: {} } },
+      states: {
+        'sensor.cover_position': {
+          state: '60',
+          attributes: { actual_positions: { 'cover.a': 60 } },
+        },
+        'sensor.cover_tilt': { state: '70', attributes: {} },
+        'cover.a': {
+          state: 'open',
+          attributes: {
+            friendly_name: 'Cover A',
+            current_position: 60,
+            current_tilt_position: 65,
+          },
+        },
+      },
+      callService,
+    } as unknown as HomeAssistant;
+  }
+
+  async function mount(hass: HomeAssistant, discovered: DiscoveredEntities): Promise<CoverBarLike> {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    document.body.appendChild(el);
+    el.hass = hass;
+    el.discovered = discovered;
+    await el.updateComplete;
+    return el;
+  }
+
+  const tiltBarOf = (el: CoverBarLike): AxisBarLike =>
+    el.shadowRoot!.querySelector('acp-tilt-bar') as AxisBarLike;
+
+  it('hands the tilt bar the logical value, not the cover-frame attribute', async () => {
+    const el = await mount(inverseTiltHass(), inverseTiltDiscovered);
+    const tilt = tiltBarOf(el);
+    expect(tilt.actual).toBe(35);
+    expect(tilt.target).toBe(70);
+  });
+
+  it('draws the tilt fill and readout in the logical frame', async () => {
+    const el = await mount(inverseTiltHass(), inverseTiltDiscovered);
+    const tilt = tiltBarOf(el);
+    await tilt.updateComplete;
+    const open = tilt.shadowRoot!.querySelector('.fill') as HTMLElement;
+    const closed = tilt.shadowRoot!.querySelector('.fill-closed') as HTMLElement;
+    expect(open.style.width).toBe('35%');
+    expect(closed.style.width).toBe('65%');
+    expect(tilt.shadowRoot!.querySelector('.num')!.textContent).toContain('35');
+  });
+
+  it('normalizes each axis independently — the position bar is untouched', async () => {
+    const el = await mount(inverseTiltHass(), inverseTiltDiscovered);
+    // The cover-bar's own `.fill` is the position track; the tilt track lives
+    // inside the nested acp-tilt-bar's shadow root.
+    expect((el.shadowRoot!.querySelector('.fill') as HTMLElement).style.width).toBe('60%');
+    expect(el.shadowRoot!.querySelector('.head .targets')!.textContent).toContain('60');
+  });
+
+  it('writes the un-inverted logical value — the integration applies _to_wire', async () => {
+    const callService = vi.fn();
+    const el = await mount(inverseTiltHass(callService), inverseTiltDiscovered);
+    tiltBarOf(el).dispatchEvent(new CustomEvent('acp-tilt-set', { detail: 80, bubbles: true }));
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { tilt: 80 } },
+      { entity_id: 'cover.a' },
+    );
+  });
+
+  it('steps the keyboard from the logical base (ArrowUp on 35 commits 36, not 66)', async () => {
+    const callService = vi.fn();
+    const el = await mount(inverseTiltHass(callService), inverseTiltDiscovered);
+    const tilt = tiltBarOf(el);
+    await tilt.updateComplete;
+    const track = tilt.shadowRoot!.querySelector('.track') as HTMLElement;
+    track.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowUp' }));
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { tilt: 36 } },
+      { entity_id: 'cover.a' },
+    );
+  });
+
+  it('normalizes a tilt-primary cover whose only declared axis is tilt', async () => {
+    const el = await mount(inverseTiltHass(), tiltPrimaryDiscovered);
+    expect(tiltBarOf(el).actual).toBe(35);
   });
 });

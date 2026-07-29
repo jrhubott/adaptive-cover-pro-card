@@ -1,5 +1,6 @@
 import type { SunSample } from '../../../src/lib/sun-model';
 import type { HarnessEntry, ManagedCoverCfg } from '../types';
+import { hourInZone } from '../zone';
 import { buildForecast } from './forecast';
 
 /**
@@ -59,5 +60,95 @@ export function buildActualHistory(
   if (finalPos !== null && !Number.isNaN(nowMs)) {
     out.push({ s: 'open', a: { current_position: finalPos }, lu: nowMs / 1000 });
   }
+  return out;
+}
+
+/**
+ * Per-cover divergence for the History card's per-cover lines.
+ *
+ * {@link buildActualHistory} models one cover trailing the forecast. This adds a
+ * per-cover personality on top: cover 0 tracks normally, and every later cover
+ * lags further and (for the last one) STALLS partway through the window. The
+ * stall is the case the per-cover lines exist for — the aggregate mean only
+ * sags a little when one cover of three stops moving, which reads as sluggish
+ * rather than broken.
+ */
+export function buildDivergentHistory(
+  entry: HarnessEntry,
+  cover: ManagedCoverCfg,
+  index: number,
+  samples: SunSample[],
+  nowMs: number,
+): CompressedState[] {
+  const base = buildActualHistory(entry, cover, samples, nowMs);
+  if (index === 0 || base.length === 0) return base;
+
+  // The last cover of a multi-cover entry stops responding at the midpoint.
+  const stalls = index >= 2;
+  const stallAt = base[Math.floor(base.length / 2)]?.lu ?? nowMs / 1000;
+  const offset = index * 8; // each cover sits a little further from the target
+
+  const out: CompressedState[] = [];
+  let frozen: number | null = null;
+  for (const st of base) {
+    if (stalls && st.lu >= stallAt) {
+      if (frozen === null) frozen = st.a.current_position;
+      continue;
+    }
+    out.push({
+      ...st,
+      a: { current_position: Math.max(0, Math.min(100, st.a.current_position - offset)) },
+    });
+  }
+  if (frozen !== null) {
+    out.push({ s: 'open', a: { current_position: frozen }, lu: nowMs / 1000 });
+  }
+  return out;
+}
+
+/** A generated hour (0–23, in the harness clock's own configured zone — see
+ *  `zone.ts`'s `hourInZone`) falls in the raw whole-hour "slats don't move
+ *  overnight" band: 22:00–09:59 (12 hours). Mirrors `mock/events.ts`'s
+ *  `isOvernightHour` (the two mocks have no shared module to hang a single
+ *  copy off of, and it is one line) — including that mirror's caveat: the
+ *  band actually RENDERED is wider than this raw cutoff, because
+ *  {@link buildTiltHistory} only evaluates it at 90-minute candidate points.
+ *  For the `history-venetian-tilt` scenario's 14:00 anchor (`scenarios.ts`)
+ *  that lands the hold at 21:30 → 11:00 (13.5 hours), not 22:00 → 10:00. */
+function isOvernightHour(hour: number): boolean {
+  return hour >= 22 || hour < 10;
+}
+
+/**
+ * Synthesize recorded slat tilt for a venetian cover. Tracks the entry's tilt
+ * target with a lag across a HANDFUL of real changes, holding perfectly FLAT
+ * overnight, so the History card's tilt track has both a target line and an
+ * actual line that visibly differ during the day — and a long flat overnight
+ * gap that exercises the same step-vs-interpolated render path as the position
+ * track (issue #253). The original dense 30-minute sinusoid never produced a
+ * gap long enough to tell a stepped line from an interpolated one.
+ */
+export function buildTiltHistory(
+  entry: HarnessEntry,
+  cover: ManagedCoverCfg,
+  startMs: number,
+  nowMs: number,
+  tz: string,
+): CompressedState[] {
+  const target = entry.target_tilt ?? 50;
+  const out: CompressedState[] = [];
+  const STEP_MS = 90 * 60 * 1000; // candidate change points, a bit over an hour apart
+  let i = 0;
+  let last: number | null = null;
+  for (let t = startMs; t < nowMs; t += STEP_MS, i++) {
+    if (isOvernightHour(hourInZone(t, tz)) && last !== null) continue;
+    const swing = Math.round(20 * Math.sin(i / 4));
+    const tilt = Math.max(0, Math.min(100, target + swing));
+    if (tilt === last) continue; // recorder only stores transitions
+    out.push({ s: 'open', a: { current_tilt_position: tilt } as never, lu: t / 1000 });
+    last = tilt;
+  }
+  const finalTilt = cover.tilt ?? target;
+  out.push({ s: 'open', a: { current_tilt_position: finalTilt } as never, lu: nowMs / 1000 });
   return out;
 }

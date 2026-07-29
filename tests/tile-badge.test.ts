@@ -457,6 +457,26 @@ describe('acp-tile-badge', () => {
     expect(kind(el)).toBe('group');
   });
 
+  // "3/5" is the one badge label that doesn't state its own meaning, so it is
+  // the one badge that carries an explanatory tooltip.
+  it('explains what the who-won count means in a tooltip', async () => {
+    const el = await mountBadge({ kindOverride: 'group', groupCount: 3, groupTotal: 5 });
+    const tip = el.shadowRoot!.querySelector('span.badge')!.getAttribute('data-tooltip') ?? '';
+    expect(tip).toContain('3 of 5');
+    expect(tip).toContain('group-driven');
+    expect(tip).toContain('group lock');
+  });
+
+  it('adds no tooltip to a badge whose label already says what it is', async () => {
+    const el = await mountBadge({ winner: 'manual' });
+    expect(el.shadowRoot!.querySelector('span.badge')!.hasAttribute('data-tooltip')).toBe(false);
+  });
+
+  it('adds no who-won tooltip when the counts are absent', async () => {
+    const el = await mountBadge({ kindOverride: 'group' });
+    expect(el.shadowRoot!.querySelector('span.badge')!.hasAttribute('data-tooltip')).toBe(false);
+  });
+
   // Issue #185: a member cover the group is driving wins with the group_scene
   // or group_lock handler. Its who-won badge must read "Group" — not "Auto" —
   // so the who-won display actually tells you the group is in control.

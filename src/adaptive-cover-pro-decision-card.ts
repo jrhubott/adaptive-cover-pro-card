@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing, type TemplateResult, type PropertyValue
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
-import { DECISION_CARD_EDITOR_NAME, DECISION_CARD_NAME } from './const';
+import { DECISION_CARD_EDITOR_NAME, DECISION_CARD_NAME, HISTORY_ICON } from './const';
 import { createDiscoveryMemo } from './lib/entity-discovery';
 import { makeEntitySuggestion } from './lib/entity-suggestion';
 import { entityStateChanged } from './lib/hass-change';
@@ -16,6 +16,7 @@ import type { AdaptiveCoverProDecisionCardConfig, DiscoveredEntities } from './t
 import { setTooltipDefaults } from './lib/tooltip';
 
 import './components/decision-strip';
+import './components/history-dialog';
 import './adaptive-cover-pro-decision-card-editor';
 
 @customElement(DECISION_CARD_NAME)
@@ -27,6 +28,7 @@ export class AdaptiveCoverProDecisionCard extends LitElement {
   // skip the websocket fetch dance (mirrors the tile/sky-compass card pattern).
   @state() public _registry: EntityRegistryEntry[] | null = null;
   @state() private _registryError: string | null = null;
+  @state() private _historyOpen = false;
 
   private _unsubRegistry: (() => void) | null = null;
   private _fetchInFlight = false;
@@ -187,9 +189,23 @@ export class AdaptiveCoverProDecisionCard extends LitElement {
     }
 
     const cfg = this._config;
+    const historyLabel = t('history.open', this.hass);
     return html`
       <ha-card>
-        ${cfg.title ? html`<div class="card-header">${cfg.title}</div>` : nothing}
+        <div class="card-top">
+          ${cfg.title ? html`<div class="card-header">${cfg.title}</div>` : nothing}
+          <button
+            class="icon-btn"
+            type="button"
+            aria-label=${historyLabel}
+            title=${historyLabel}
+            @click=${() => {
+              this._historyOpen = true;
+            }}
+          >
+            <ha-icon icon=${HISTORY_ICON}></ha-icon>
+          </button>
+        </div>
         <acp-decision-strip
           .hass=${this.hass}
           .discovered=${discovered}
@@ -198,6 +214,14 @@ export class AdaptiveCoverProDecisionCard extends LitElement {
           .showSummary=${cfg.show_decision_summary !== false}
         ></acp-decision-strip>
       </ha-card>
+      <acp-history-dialog
+        .hass=${this.hass}
+        .discovered=${discovered}
+        .open=${this._historyOpen}
+        @acp-history-closed=${() => {
+          this._historyOpen = false;
+        }}
+      ></acp-history-dialog>
     `;
   }
 
@@ -212,9 +236,33 @@ export class AdaptiveCoverProDecisionCard extends LitElement {
       gap: 8px;
       box-sizing: border-box;
     }
+    /* Always present so the History button has a home; .card-header inside it
+       stays conditional on the title, as it was before the button existed. */
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 24px;
+    }
     .card-header {
       font-size: 1.05rem;
       font-weight: 500;
+      color: var(--primary-text-color);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .icon-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--secondary-text-color);
+      padding: 2px;
+      display: inline-flex;
+      flex: 0 0 auto;
+    }
+    .icon-btn:hover {
       color: var(--primary-text-color);
     }
     .empty {

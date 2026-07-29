@@ -304,6 +304,25 @@ export function dayFractionX(t: number, dayStart: number, width: number): number
 }
 
 /**
+ * Map a timestamp onto an x-coordinate for an arbitrary time window.
+ *
+ * The generalization of {@link dayFractionX}, whose domain is pinned to a
+ * 24h local day. The History card's window is user-selectable (6h…72h) and
+ * ends at "now" rather than midnight, so it needs an explicit span. The domain
+ * is [startMs, endMs], mapped linearly onto [0, width] and clamped, so callers
+ * can pass out-of-window timestamps without drawing spurious spikes.
+ *
+ * A zero-or-negative span yields 0 — a degenerate window has no meaningful
+ * position, and returning NaN would poison every downstream `toFixed()`.
+ */
+export function spanFractionX(t: number, startMs: number, endMs: number, width: number): number {
+  const span = endMs - startMs;
+  if (!(span > 0)) return 0;
+  const frac = (t - startMs) / span;
+  return Math.max(0, Math.min(width, frac * width));
+}
+
+/**
  * Map a 0-100 percent value onto a y-coordinate in [top, top + height],
  * inverted so 100% lands at `top` and 0% lands at `top + height` (SVG y grows
  * downward). Mirrors `dayFractionX`'s style/placement for the y-axis.

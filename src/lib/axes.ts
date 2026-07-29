@@ -23,6 +23,11 @@ export interface ResolvedAxis {
   stateAttr?: string;
   /** Card role of the sensor carrying this axis's solar target, if known. */
   targetRole?: EntityRole;
+  /** True when the integration dispatches `100 − logical` for this axis, so
+   *  cover-frame reads must be un-inverted before the card renders them
+   *  (issue #234). False on every older integration and on the synthesized
+   *  fallback axes — the normalization is then inert. */
+  inverted: boolean;
 }
 
 const DEFAULT_MIN = 0;
@@ -60,6 +65,7 @@ export function resolveAxes(discovered: DiscoveredEntities): ResolvedAxis[] {
         unit: typeof a.unit === 'string' ? a.unit : DEFAULT_UNIT,
         stateAttr: typeof a.state_attr === 'string' ? a.state_attr : undefined,
         targetRole: AXIS_TARGET_SENSOR_ROLES[a.id as string],
+        inverted: a.inverted === true,
       }));
   }
 
@@ -72,6 +78,7 @@ export function resolveAxes(discovered: DiscoveredEntities): ResolvedAxis[] {
       unit: DEFAULT_UNIT,
       stateAttr: 'current_position',
       targetRole: 'target_position_sensor',
+      inverted: false,
     },
   ];
   if (discovered.entities.target_tilt_sensor) {
@@ -83,7 +90,21 @@ export function resolveAxes(discovered: DiscoveredEntities): ResolvedAxis[] {
       unit: DEFAULT_UNIT,
       stateAttr: 'current_tilt_position',
       targetRole: 'target_tilt_sensor',
+      inverted: false,
     });
   }
   return resolved;
+}
+
+/**
+ * Is this entry's *position* axis effectively inverted right now (issue #234)?
+ *
+ * The single oracle for the card's frame normalization: when true, every value
+ * read from a cover-frame source — the cover entity's `current_position`, the
+ * sensor's `actual_positions`, recorded position history — is `100 − logical`
+ * and must be un-inverted at the read. False on any integration that doesn't
+ * publish the flag, which makes the normalization inert.
+ */
+export function positionAxisInverted(discovered: DiscoveredEntities): boolean {
+  return resolveAxes(discovered).find((a) => a.id === 'position')?.inverted ?? false;
 }

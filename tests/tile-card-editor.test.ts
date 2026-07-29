@@ -41,6 +41,29 @@ function makeEditor(): EditorLike {
   return el;
 }
 
+interface SchemaField {
+  name: string;
+  selector?: Record<string, unknown>;
+  schema?: SchemaField[];
+}
+
+/** Depth-first field lookup. Options live inside expandable/grid containers
+ *  rather than at the top level, so a flat `.find()` misses them. */
+function findField(el: EditorLike, name: string): SchemaField | undefined {
+  const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement & {
+    schema?: SchemaField[];
+  };
+  const walk = (nodes: SchemaField[] | undefined): SchemaField | undefined => {
+    for (const n of nodes ?? []) {
+      if (n.name === name && n.selector) return n;
+      const hit = walk(n.schema);
+      if (hit) return hit;
+    }
+    return undefined;
+  };
+  return walk(haForm.schema);
+}
+
 describe('adaptive-cover-pro-tile-card editor — getConfigElement', () => {
   it('exposes a getConfigElement that returns the editor element', async () => {
     const { AdaptiveCoverProTileCard } = await import('../src/adaptive-cover-pro-tile-card');
@@ -313,10 +336,8 @@ describe('adaptive-cover-pro-tile-card editor — show_elevation_chart', () => {
     document.body.appendChild(el);
     await el.updateComplete;
 
-    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement & {
-      schema?: Array<{ name: string; selector?: Record<string, unknown> }>;
-    };
-    const field = (haForm.schema ?? []).find((s) => s.name === 'show_elevation_chart');
+    // Lives inside the Dialog sections group now, so walk the tree.
+    const field = findField(el, 'show_elevation_chart');
     expect(field).toBeTruthy();
     expect(field!.selector).toEqual({ boolean: {} });
   });
@@ -396,10 +417,8 @@ describe('adaptive-cover-pro-tile-card editor — state_color', () => {
     document.body.appendChild(el);
     await el.updateComplete;
 
-    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement & {
-      schema?: Array<{ name: string; selector?: Record<string, unknown> }>;
-    };
-    const field = (haForm.schema ?? []).find((s) => s.name === 'state_color');
+    // Lives inside the Content group now, so walk the tree.
+    const field = findField(el, 'state_color');
     expect(field).toBeTruthy();
     expect(field!.selector).toEqual({ boolean: {} });
   });
@@ -487,7 +506,7 @@ describe('adaptive-cover-pro-tile-card editor — cover pre-fill', () => {
     return el;
   }
 
-  it('(a) pre-fills cover when single managed cover resolves after registry load', async () => {
+  it('(a) does NOT pre-fill cover when a single managed cover resolves', async () => {
     const el = makeEditorSingleCover();
     el._registry = REGISTRY; // REGISTRY maps sensor.cover_position → target_position_sensor
     el.setConfig({ type: TYPE, entry_id: ENTRY });
@@ -500,10 +519,43 @@ describe('adaptive-cover-pro-tile-card editor — cover pre-fill', () => {
 
     await el.updateComplete;
 
-    // The pre-fill should have fired config-changed with cover set to the single managed cover.
-    const prefilled = emitted.find((c) => c.cover === 'cover.left');
-    expect(prefilled).toBeDefined();
-    expect(prefilled!.cover).toBe('cover.left');
+    // A single-cover entry must leave `cover` OUT of the config: the card's
+    // `_resolvedCover` already falls back to `managed_covers[0]`, so writing it
+    // pins an entity_id that discovery would resolve anyway — against the
+    // "entity binding goes through discovery" rule, and stale the moment the
+    // cover entity is renamed.
+    const prefilled = emitted.find((c) => c.cover !== undefined);
+    expect(prefilled).toBeUndefined();
+  });
+
+  it('(a2) hides the cover picker entirely for a single-cover entry', async () => {
+    const el = makeEditorSingleCover();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement & {
+      schema?: Array<{ name: string }>;
+    };
+    expect((haForm.schema ?? []).map((s) => s.name)).not.toContain('cover');
+  });
+
+  it('(a3) keeps the cover picker when an explicit cover is already configured', async () => {
+    const el = makeEditorSingleCover();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    // A config written before the picker was hidden must stay editable —
+    // and removable — rather than becoming invisible but still in effect.
+    el.setConfig({ type: TYPE, entry_id: ENTRY, cover: 'cover.left' });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement & {
+      schema?: Array<{ name: string }>;
+    };
+    expect((haForm.schema ?? []).map((s) => s.name)).toContain('cover');
   });
 
   it('(b) does NOT pre-fill when managed_covers.length > 1', async () => {
@@ -543,39 +595,206 @@ describe('adaptive-cover-pro-tile-card editor — cover pre-fill', () => {
   });
 });
 
-describe('adaptive-cover-pro-tile-card editor — schema', () => {
-  it('builds an ha-form schema that includes all expected fields', async () => {
+describe('adaptive-cover-pro-tile-card editor — composite (array) name (#247)', () => {
+  const COMPOSED_NAME = [{ type: 'area' }, { type: 'entry' }];
+
+  // (Audit finding #4, issue #247 fix pass: the former "does not throw when
+  // _config.name is an array" test duplicated this one's setConfig+render
+  // path without adding a distinct assertion — deleted rather than kept.)
+  it('blanks the name field data when name is composed, without disabling the field', async () => {
     const el = makeEditor();
     el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
     el._registry = REGISTRY;
-    el.setConfig({ type: TYPE, entry_id: ENTRY });
+    el.setConfig({ type: TYPE, entry_id: ENTRY, name: COMPOSED_NAME as unknown as string });
     document.body.appendChild(el);
     await el.updateComplete;
 
-    interface SchemaNode {
-      name: string;
-      type?: string;
-      schema?: SchemaNode[];
-    }
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement & {
+      data?: Record<string, unknown>;
+      schema?: Array<{ name: string; disabled?: boolean }>;
+    };
+    expect(haForm.data!.name).toBe('');
+    // Audit finding #3: the field must stay editable — its hint promises a
+    // "type a new title here" escape hatch, so `disabled` must never be set.
+    const nameField = (haForm.schema ?? []).find((s) => s.name === 'name');
+    expect(nameField?.disabled).toBeFalsy();
+  });
+
+  it('does not corrupt a composed name via an unrelated value-changed event', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY, name: COMPOSED_NAME as unknown as string });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    let emitted: AdaptiveCoverProTileCardConfig | null = null;
+    el.addEventListener('config-changed', (e: Event) => {
+      emitted = (e as CustomEvent).detail.config;
+    });
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement;
+    // Simulates ha-form's full-value-on-every-change contract: toggling an
+    // unrelated field (show_position) still carries the name field's current
+    // (blanked) value alongside it.
+    expect(() => {
+      haForm.dispatchEvent(
+        new CustomEvent('value-changed', {
+          bubbles: true,
+          composed: true,
+          detail: {
+            value: { type: TYPE, entry_id: ENTRY, name: '', show_position: false },
+          },
+        }),
+      );
+    }).not.toThrow();
+
+    expect(emitted).not.toBeNull();
+    expect(emitted!.name).toEqual(COMPOSED_NAME);
+    expect(emitted!.show_position).toBe(false);
+  });
+
+  // Audit finding #4 (issue #247 fix pass): this used to dispatch straight to
+  // `value-changed` without ever checking the schema item was reachable at
+  // all — so it kept passing even while the field was `disabled: true` (a
+  // real `ha-form` would refuse to emit a change from a disabled selector;
+  // the mocked element here doesn't enforce that, so the interaction it
+  // claimed to exercise was actually impossible in production). Assert the
+  // schema item is NOT disabled first, so this fails again if the escape
+  // hatch (finding #3) is ever removed, then drive the same interaction.
+  it('replaces a composed name when the user types a fresh string into the name field', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    el.setConfig({ type: TYPE, entry_id: ENTRY, name: COMPOSED_NAME as unknown as string });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement & {
+      schema?: Array<{ name: string; disabled?: boolean }>;
+    };
+    const nameField = (haForm.schema ?? []).find((s) => s.name === 'name');
+    expect(nameField?.disabled).toBeFalsy();
+
+    let emitted: AdaptiveCoverProTileCardConfig | null = null;
+    el.addEventListener('config-changed', (e: Event) => {
+      emitted = (e as CustomEvent).detail.config;
+    });
+
+    haForm.dispatchEvent(
+      new CustomEvent('value-changed', {
+        bubbles: true,
+        composed: true,
+        detail: {
+          value: { type: TYPE, entry_id: ENTRY, name: 'Custom Title' },
+        },
+      }),
+    );
+
+    expect(emitted).not.toBeNull();
+    expect(emitted!.name).toBe('Custom Title');
+  });
+});
+
+describe('adaptive-cover-pro-tile-card editor — schema', () => {
+  interface SchemaNode {
+    name: string;
+    type?: string;
+    title?: string;
+    expanded?: boolean;
+    schema?: SchemaNode[];
+  }
+
+  const collectNames = (nodes: SchemaNode[] | undefined): string[] =>
+    (nodes ?? []).flatMap((s) => [s.name, ...collectNames(s.schema)]);
+
+  async function schemaOf(config: Record<string, unknown>): Promise<SchemaNode[]> {
+    const el = makeEditor();
+    el._entries = [{ entry_id: ENTRY, title: 'Kitchen' }];
+    el._registry = REGISTRY;
+    el.setConfig(config as never);
+    document.body.appendChild(el);
+    await el.updateComplete;
     const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement & {
       schema?: SchemaNode[];
     };
     expect(haForm).toBeTruthy();
-    // Top-level fields: the badge toggles are collapsed into a single
-    // unnamed `expandable` group that sits where they used to be.
-    const topNames = (haForm.schema ?? []).map((s) => s.name);
-    expect(topNames).toEqual([
+    return haForm.schema ?? [];
+  }
+
+  it('keeps only the entity bindings ungrouped, everything else in sections', async () => {
+    const schema = await schemaOf({ type: TYPE, entry_id: ENTRY });
+    // Mirrors HA's tile editor: the entity binding sits above the sections and
+    // every presentation option lives inside one. `cover` joins entry_id only
+    // when the entry manages more than one cover (covered separately below).
+    const bindings = schema.filter((s) => s.type !== 'expandable').map((s) => s.name);
+    // The REGISTRY fixture manages two covers, so the cover picker shows.
+    expect(bindings).toEqual(['entry_id', 'cover']);
+    // Everything that is not a binding is an unnamed expandable section.
+    for (const node of schema.filter((s) => s.type === 'expandable')) {
+      expect(node.name).toBe('');
+    }
+  });
+
+  it('groups every option under the expected section', async () => {
+    const schema = await schemaOf({ type: TYPE, entry_id: ENTRY });
+    const sections = schema.filter((s) => s.type === 'expandable');
+    // Five sections, in order: Content, Controls, Badges, Dialog, Interactions.
+    expect(sections).toHaveLength(5);
+
+    const namesIn = (i: number) => collectNames(sections[i].schema).filter(Boolean);
+    expect(namesIn(0)).toEqual([
+      'name',
+      'icon',
+      'layout',
+      'show_position',
+      'show_state',
+      'show_decision_summary',
+      'state_color',
+      'show_motion_icon',
+    ]);
+    expect(namesIn(1)).toEqual(['show_controls', 'show_position_bar', 'show_tilt']);
+    expect(namesIn(2)).toContain('show_badge');
+    expect(namesIn(2)).toContain('badge_auto');
+    expect(namesIn(3)).toEqual(['show_compass', 'show_elevation_chart', 'show_solar_calc']);
+    expect(namesIn(4)).toEqual([
+      'tap_action',
+      'icon_tap_action',
+      'hold_action',
+      'double_tap_action',
+    ]);
+  });
+
+  it('opens Content by default and leaves the rest collapsed', async () => {
+    const sections = (await schemaOf({ type: TYPE, entry_id: ENTRY })).filter(
+      (s) => s.type === 'expandable',
+    );
+    expect(sections[0].expanded).toBe(true);
+    for (const s of sections.slice(1)) expect(s.expanded).toBeFalsy();
+  });
+
+  it('exposes show_tilt for a cover tile, not just a group', async () => {
+    // The cover tile has always honored show_tilt (the venetian slat bar) but
+    // the schema never offered it, so it was YAML-only.
+    const names = collectNames(await schemaOf({ type: TYPE, entry_id: ENTRY }));
+    expect(names).toContain('show_tilt');
+  });
+
+  it('still reaches every previously-flat field, so existing YAML keeps working', async () => {
+    // Sections are unnamed, so ha-form does not nest their values — grouping
+    // changed the layout only. Every key that used to be top-level must still
+    // be bound somewhere in the tree.
+    const names = collectNames(await schemaOf({ type: TYPE, entry_id: ENTRY }));
+    for (const n of [
       'entry_id',
       'name',
       'icon',
-      'cover',
       'layout',
       'show_position',
       'show_state',
       'show_decision_summary',
       'show_controls',
       'show_badge',
-      '', // expandable "Badges" group
       'show_position_bar',
       'show_motion_icon',
       'state_color',
@@ -585,13 +804,6 @@ describe('adaptive-cover-pro-tile-card editor — schema', () => {
       'tap_action',
       'hold_action',
       'double_tap_action',
-    ]);
-
-    // The badge booleans live nested inside the expandable > grid.
-    const collectNames = (nodes: SchemaNode[] | undefined): string[] =>
-      (nodes ?? []).flatMap((s) => [s.name, ...collectNames(s.schema)]);
-    const allNames = collectNames(haForm.schema);
-    const badgeNames = [
       'badge_auto',
       'badge_solar',
       'badge_force',
@@ -602,12 +814,46 @@ describe('adaptive-cover-pro-tile-card editor — schema', () => {
       'badge_climate',
       'badge_glare_zone',
       'badge_cloud',
-    ];
-    for (const n of badgeNames) {
-      expect(allNames).toContain(n);
+    ]) {
+      expect(names).toContain(n);
     }
-    const group = (haForm.schema ?? []).find((s) => s.type === 'expandable');
-    expect(group).toBeTruthy();
+  });
+
+  it('gives a Cover Group its own sections, without the cover-only ones', async () => {
+    // A group renders acp-group-tile, so layout / badges / dialog sections and
+    // the cover picker are all inert for it and must not appear.
+    const el = makeEditor();
+    el._entries = [{ entry_id: ENTRY, title: 'Playroom' }];
+    el._registry = [
+      {
+        entity_id: 'sensor.group_active_scene',
+        unique_id: `${ENTRY}_group_active_scene`,
+        config_entry_id: ENTRY,
+        platform: 'adaptive_cover_pro',
+        device_id: null,
+      },
+    ];
+    el.setConfig({ type: TYPE, entry_id: ENTRY });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const haForm = el.shadowRoot!.querySelector('ha-form') as HTMLElement & {
+      schema?: SchemaField[];
+    };
+    const schema = haForm.schema ?? [];
+    const sections = schema.filter((s) => (s as { type?: string }).type === 'expandable');
+    // Content, Controls, Group row, Interactions — no Badges, no Dialog.
+    expect(sections).toHaveLength(4);
+
+    const all = (nodes: SchemaField[] | undefined): string[] =>
+      (nodes ?? []).flatMap((n) => [n.name, ...all(n.schema)]);
+    const names = all(schema).filter(Boolean);
+    expect(names).toContain('show_member_badges');
+    expect(names).toContain('show_tilt');
+    expect(names).toContain('icon_tap_action');
+    for (const coverOnly of ['cover', 'layout', 'show_badge', 'show_compass', 'badge_auto']) {
+      expect(names).not.toContain(coverOnly);
+    }
   });
 
   it("restricts the cover picker to the entry's managed_covers when registry is loaded", async () => {
