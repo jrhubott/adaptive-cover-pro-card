@@ -42,3 +42,25 @@ export function zonedNowMs(date: string, minutes: number, timeZone: string): num
   const offset = zoneOffsetMs(timeZone, new Date(guess));
   return guess - offset;
 }
+
+/**
+ * The wall-clock hour (0–23) of the instant `ms` as it reads in `timeZone` —
+ * the inverse direction from {@link zonedNowMs}. Mock data generators use this
+ * to place "overnight" gaps against the harness's own configured location
+ * (see {@link zoneForLongitude}) instead of the developer machine's timezone,
+ * which is all `Date.prototype.getHours()` can see.
+ */
+export function hourInZone(ms: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(ms));
+  // An invalid IANA zone throws inside the `Intl.DateTimeFormat` constructor
+  // above, before this line is ever reached, so there is no live path where
+  // `find` fails to locate the 'hour' part — `hourCycle: 'h23'` guarantees
+  // one is always emitted. No fallback: a machine-local `Date.getHours()`
+  // read here would silently reinstate the developer-machine timezone this
+  // function exists to keep out of the harness's mock data generators.
+  return Number(parts.find((p) => p.type === 'hour')!.value);
+}

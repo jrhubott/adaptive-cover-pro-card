@@ -3,6 +3,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import {
   fetchStateHistory,
   parseStateSeries,
+  stepExpand,
   toBands,
   toNumericSeries,
 } from '../src/lib/state-history';
@@ -172,6 +173,80 @@ describe('toNumericSeries', () => {
       preferAttribute: 'linear_position',
     });
     expect(out).toEqual([{ t: T0, value: 55 }]);
+  });
+});
+
+describe('stepExpand', () => {
+  it('returns [] for an empty series', () => {
+    expect(stepExpand([], T2)).toEqual([]);
+  });
+
+  it('holds a single point flat out to endMs', () => {
+    // Nothing else was ever recorded — the value in effect at T0 is still in
+    // effect at the window end, so the render must draw a flat line there
+    // rather than stopping the polyline short.
+    expect(stepExpand([{ t: T0, value: 60 }], T2)).toEqual([
+      { t: T0, value: 60 },
+      { t: T2, value: 60 },
+    ]);
+  });
+
+  it('inserts a carry-then-step pair at a transition — the overnight-hold-then-drop shape', () => {
+    // The recorder only stores the two real samples (held at 100 overnight,
+    // dropped to 0 at T2). SVG linearly interpolates between consecutive
+    // polyline vertices, so without a carry point at (T2, 100) it draws a
+    // ramp from 100 to 0 across the whole gap instead of holding flat then
+    // stepping — exactly the bug in issue #253.
+    expect(
+      stepExpand(
+        [
+          { t: T0, value: 100 },
+          { t: T2, value: 0 },
+        ],
+        T2,
+      ),
+    ).toEqual([
+      { t: T0, value: 100 },
+      { t: T2, value: 100 },
+      { t: T2, value: 0 },
+    ]);
+  });
+
+  it('adds no extra duplicate when the series already ends at endMs with a repeated value', () => {
+    // Mirrors position-history.ts's own tail forward-fill: the last two points
+    // already share a value and the last already sits at endMs, so the general
+    // "value changed → insert a carry point" rule must emit nothing extra.
+    expect(
+      stepExpand(
+        [
+          { t: T0, value: 50 },
+          { t: T2, value: 50 },
+        ],
+        T2,
+      ),
+    ).toEqual([
+      { t: T0, value: 50 },
+      { t: T2, value: 50 },
+    ]);
+  });
+
+  it('gives each of several transitions its own carry point, in order', () => {
+    const out = stepExpand(
+      [
+        { t: T0, value: 0 },
+        { t: T1, value: 50 },
+        { t: T2, value: 100 },
+      ],
+      T3,
+    );
+    expect(out).toEqual([
+      { t: T0, value: 0 },
+      { t: T1, value: 0 },
+      { t: T1, value: 50 },
+      { t: T2, value: 50 },
+      { t: T2, value: 100 },
+      { t: T3, value: 100 },
+    ]);
   });
 });
 

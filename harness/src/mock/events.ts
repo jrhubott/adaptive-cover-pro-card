@@ -1,4 +1,5 @@
 import type { HarnessEntry } from '../types';
+import { hourInZone } from '../zone';
 
 /**
  * Synthetic stand-ins for the integration's diagnostic event buffer and for the
@@ -108,25 +109,50 @@ export function buildBinaryHistory(
   return out;
 }
 
+/** A generated hour (0–23, in the harness clock's own configured zone — see
+ *  {@link hourInZone}) falls in the raw whole-hour "nothing changes overnight"
+ *  band: 22:00–09:59 (12 hours). The band actually RENDERED in a scenario is
+ *  wider than that, though: {@link buildTargetHistory} only evaluates this at
+ *  2-hour candidate points, so the last pre-band and first post-band
+ *  candidates generally land outside 22:00/10:00 themselves. For the
+ *  `history-overnight-hold` scenario's 15:00 anchor (`scenarios.ts`) that
+ *  works out to a 21:00 → 11:00 (14-hour) hold — don't read this function's
+ *  own 22/10 cutoff as the visible gap width. */
+function isOvernightHour(hour: number): boolean {
+  return hour >= 22 || hour < 10;
+}
+
 /**
  * Synthesize the ACP TARGET series for the `Cover_Position` sensor, whose state
- * is the commanded position. Walks a smooth ramp around the entry's live target
- * so the History card's target line and actual line diverge visibly — the
- * "did the cover do what ACP asked?" read the card exists for.
+ * is the commanded position. Walks a HANDFUL of real changes across the window
+ * — and holds perfectly FLAT overnight — rather than a dense sample every 20
+ * minutes: the recorder only stores transitions, so a real install's target
+ * line has one long flat gap overnight and a small number of steps during the
+ * day. The card's target/actual lines diverge visibly during the day (the "did
+ * the cover do what ACP asked?" read the card exists for), and the overnight
+ * hold is exactly the long-gap shape issue #253's straight-ramp bug needed to
+ * reproduce — the original dense sinusoid sampled every 20 minutes, close
+ * enough together that an interpolated diagonal and a stepped line looked
+ * identical, which is how the bug went unnoticed in the harness.
  */
 export function buildTargetHistory(
   entry: HarnessEntry,
   startMs: number,
   nowMs: number,
+  tz: string,
 ): CompressedSensorState[] {
   const out: CompressedSensorState[] = [];
-  const STEP_MS = 20 * 60 * 1000;
+  const STEP_MS = 2 * 60 * 60 * 1000; // candidate change points, a couple hours apart
   let i = 0;
+  let last: number | null = null;
   for (let t = startMs; t < nowMs; t += STEP_MS, i++) {
+    if (isOvernightHour(hourInZone(t, tz)) && last !== null) continue;
     // A slow sinusoid around the entry target, clamped to 0..100.
-    const swing = Math.round(30 * Math.sin(i / 6));
+    const swing = Math.round(30 * Math.sin(i / 3));
     const pos = Math.max(0, Math.min(100, entry.target_position + swing));
+    if (pos === last) continue; // recorder only stores transitions
     out.push({ s: String(pos), a: {}, lu: t / 1000 });
+    last = pos;
   }
   out.push({ s: String(entry.target_position), a: {}, lu: (nowMs - 30_000) / 1000 });
   return out;
