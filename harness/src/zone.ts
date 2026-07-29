@@ -56,6 +56,11 @@ export function hourInZone(ms: number, timeZone: string): number {
     hour: '2-digit',
     hourCycle: 'h23',
   }).formatToParts(new Date(ms));
-  const hour = parts.find((p) => p.type === 'hour');
-  return hour ? Number(hour.value) : new Date(ms).getHours();
+  // An invalid IANA zone throws inside the `Intl.DateTimeFormat` constructor
+  // above, before this line is ever reached, so there is no live path where
+  // `find` fails to locate the 'hour' part — `hourCycle: 'h23'` guarantees
+  // one is always emitted. No fallback: a machine-local `Date.getHours()`
+  // read here would silently reinstate the developer-machine timezone this
+  // function exists to keep out of the harness's mock data generators.
+  return Number(parts.find((p) => p.type === 'hour')!.value);
 }

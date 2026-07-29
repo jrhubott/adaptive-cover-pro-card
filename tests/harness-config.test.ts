@@ -11,7 +11,7 @@ import {
 import type { HarnessConfig } from '../harness/src/types';
 import { buildStates } from '../harness/src/mock/state-gen';
 import { applyService } from '../harness/src/mock/services';
-import { zonedNowMs, zoneForLongitude } from '../harness/src/zone';
+import { zonedNowMs, zoneForLongitude, hourInZone } from '../harness/src/zone';
 import { INTEGRATION_DOMAIN } from '../src/const';
 import { buildRegistry } from '../harness/src/mock/registry';
 import { discoverEntities } from '../src/lib/entity-discovery';
@@ -30,6 +30,68 @@ interface CardStageLike extends HTMLElement {
   _tileConfig(entryId: string): Record<string, unknown>;
   _solarChartConfig(): Record<string, unknown>;
 }
+
+/** The repo has no `@types/node` — reach `process.env` through a local type
+ *  rather than take on a dependency for one test (mirrors the identical helper
+ *  in `extend-override-dialog.test.ts`). */
+const nodeEnv = (globalThis as unknown as { process: { env: Record<string, string | undefined> } })
+  .process.env;
+
+/** Runs `fn` with the process timezone pinned, then restores it. Node
+ *  re-reads `process.env.TZ` on assignment, so this genuinely takes effect —
+ *  scoped to the one test that needs it rather than pinned globally. */
+function withTimeZone(tz: string, fn: () => void): void {
+  const prev = nodeEnv.TZ;
+  nodeEnv.TZ = tz;
+  try {
+    fn();
+  } finally {
+    if (prev === undefined) delete nodeEnv.TZ;
+    else nodeEnv.TZ = prev;
+  }
+}
+
+describe('hourInZone (harness/src/zone.ts)', () => {
+  it('reads a whole-hour zone, and formats local midnight as 00 (never 24)', () => {
+    // Etc/GMT-5 is UTC+5 (IANA Etc/GMT signs are inverted from the common
+    // convention). 19:00 UTC on Jan 1 is local midnight the next day.
+    const ms = Date.UTC(2026, 0, 1, 19, 0, 0);
+    expect(hourInZone(ms, 'Etc/GMT-5')).toBe(0);
+  });
+
+  it('reads a non-integer offset zone (Asia/Kathmandu, UTC+05:45)', () => {
+    // 12:00 UTC + 5:45 = 17:45 local.
+    const ms = Date.UTC(2026, 0, 1, 12, 0, 0);
+    expect(hourInZone(ms, 'Asia/Kathmandu')).toBe(17);
+  });
+
+  it('reads another non-integer offset zone (Pacific/Chatham, UTC+12:45 in southern winter)', () => {
+    // July is southern-hemisphere winter, so Chatham sits at its standard
+    // +12:45 rather than +13:45 DST. 10:00 UTC + 12:45 = 22:45 local.
+    const ms = Date.UTC(2026, 6, 15, 10, 0, 0);
+    expect(hourInZone(ms, 'Pacific/Chatham')).toBe(22);
+  });
+
+  it('reads an extreme offset zone (Pacific/Kiritimati, UTC+14)', () => {
+    // 10:00 UTC + 14:00 = 24:00, i.e. local midnight the next day — must read
+    // back as hour 0, not 24.
+    const ms = Date.UTC(2026, 0, 1, 10, 0, 0);
+    expect(hourInZone(ms, 'Pacific/Kiritimati')).toBe(0);
+  });
+
+  it('is independent of the machine timezone — same epoch ms + zone yields the same hour', () => {
+    const ms = Date.UTC(2026, 6, 15, 3, 30, 0);
+    const tz = 'Asia/Kathmandu';
+    const expected = hourInZone(ms, tz);
+
+    withTimeZone('America/New_York', () => {
+      expect(hourInZone(ms, tz)).toBe(expected);
+    });
+    withTimeZone('Pacific/Kiritimati', () => {
+      expect(hourInZone(ms, tz)).toBe(expected);
+    });
+  });
+});
 
 describe('normalizeConfig', () => {
   it('backfills tile.badges when a persisted config predates the field', () => {

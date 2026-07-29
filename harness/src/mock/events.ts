@@ -110,9 +110,14 @@ export function buildBinaryHistory(
 }
 
 /** A generated hour (0–23, in the harness clock's own configured zone — see
- *  {@link hourInZone}) falls in the "nothing changes overnight" span a real
- *  cover schedule actually has — roughly 10:40 PM to 10:20 AM, rounded to
- *  whole hours since the mock steps in coarse increments. */
+ *  {@link hourInZone}) falls in the raw whole-hour "nothing changes overnight"
+ *  band: 22:00–09:59 (12 hours). The band actually RENDERED in a scenario is
+ *  wider than that, though: {@link buildTargetHistory} only evaluates this at
+ *  2-hour candidate points, so the last pre-band and first post-band
+ *  candidates generally land outside 22:00/10:00 themselves. For the
+ *  `history-overnight-hold` scenario's 15:00 anchor (`scenarios.ts`) that
+ *  works out to a 21:00 → 11:00 (14-hour) hold — don't read this function's
+ *  own 22/10 cutoff as the visible gap width. */
 function isOvernightHour(hour: number): boolean {
   return hour >= 22 || hour < 10;
 }

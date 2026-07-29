@@ -107,11 +107,14 @@ export function buildDivergentHistory(
 }
 
 /** A generated hour (0–23, in the harness clock's own configured zone — see
- *  `zone.ts`'s `hourInZone`) falls in the "slats don't move overnight" span —
- *  roughly 10:40 PM to 10:20 AM, rounded to whole hours since the mock steps
- *  in coarse increments. Mirrors `mock/events.ts`'s `isOvernightHour` (the two
- *  mocks have no shared module to hang a single copy off of, and it is one
- *  line). */
+ *  `zone.ts`'s `hourInZone`) falls in the raw whole-hour "slats don't move
+ *  overnight" band: 22:00–09:59 (12 hours). Mirrors `mock/events.ts`'s
+ *  `isOvernightHour` (the two mocks have no shared module to hang a single
+ *  copy off of, and it is one line) — including that mirror's caveat: the
+ *  band actually RENDERED is wider than this raw cutoff, because
+ *  {@link buildTiltHistory} only evaluates it at 90-minute candidate points.
+ *  For the `history-venetian-tilt` scenario's 14:00 anchor (`scenarios.ts`)
+ *  that lands the hold at 21:30 → 11:00 (13.5 hours), not 22:00 → 10:00. */
 function isOvernightHour(hour: number): boolean {
   return hour >= 22 || hour < 10;
 }

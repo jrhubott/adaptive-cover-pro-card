@@ -177,8 +177,14 @@ describe('acp-history-view — step-expanded curves (issue #253)', () => {
     expect(held[1]).toBeCloseTo(first[1], 5);
     // … strictly after the hold-start's x, never collapsed back onto it — a
     // carry vertex anchored to `prev.t` instead of `cur.t` would land held[0]
-    // exactly on first[0] and fail this.
+    // exactly on first[0] and fail this. This alone doesn't pin WHERE the
+    // vertex lands, only that it isn't stuck at the start.
     expect(held[0]).toBeGreaterThan(first[0]);
+    // … and pinned exactly to the drop instant, not merely somewhere after
+    // the start — a carry vertex emitted at any midpoint between hold-start
+    // and drop (the exact partial-diagonal defect #253 reported) would still
+    // satisfy the `toBeGreaterThan` check above but fails this one.
+    expect(held[0]).toBeCloseTo(dropped[0], 1);
     // And the line does actually reach the dropped value afterwards.
     expect(dropped[1]).not.toBeCloseTo(first[1], 1);
     // The dropped value then holds flat out to the window end rather than the
