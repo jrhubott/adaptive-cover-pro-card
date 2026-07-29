@@ -224,6 +224,17 @@ describe('clampToWindow', () => {
     expect(out.map((p) => p.t)).toEqual([T0, T1, T2]);
   });
 
+  it('leaves the caller array untouched when it has to sort it', () => {
+    // The doc promises "Pure.", and `stepExpand`'s own doc spells out why it
+    // matters: callers hand these helpers the STORED series, which `valueAt`
+    // and `history-stats.ts` still read afterwards. Sorting is the only branch
+    // that could mutate, so unsorted input is what has to be asserted on.
+    const input = [P(T2, 3), P(T0, 1), P(T1, 2)];
+    const copy = input.map((p) => ({ ...p }));
+    clampToWindow(input, T0 - 1, T3);
+    expect(input).toEqual(copy);
+  });
+
   it('pins a pre-window sample to the window start, keeping its value', () => {
     // The recorder answers a window query with the state in effect as the
     // window OPENED, carrying its own un-clamped timestamp. Dropping it would

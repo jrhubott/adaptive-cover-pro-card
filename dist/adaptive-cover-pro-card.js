@@ -2834,7 +2834,7 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
       text-align: center;
       padding: 16px;
     }
-  `,e([_e({attribute:!1})],xs.prototype,"hass",void 0),e([_e({attribute:!1})],xs.prototype,"discovered",void 0),e([_e({type:Boolean,reflect:!0})],xs.prototype,"compact",void 0),e([_e({attribute:!1})],xs.prototype,"coverColor",void 0),e([ge()],xs.prototype,"_dragPreview",void 0),xs=e([he("acp-cover-bar")],xs);const Is=864e5;let Ps=Ts=class extends ce{constructor(){super(...arguments),this.samples=[],this.events=[],this.history=[],this.now=Date.now(),this._hoverIdx=null,this._onPointerMove=e=>{const t=e.currentTarget.getBoundingClientRect();if(t.width<=0)return;const o=(e.clientX-t.left)/t.width,i=Math.max(0,Math.min(1,o))*Ts.VIEW_W;this._hoverIdx=this._nearestSampleIdx(i)},this._onPointerLeave=()=>{this._hoverIdx=null}}render(){const e=this.samples&&this.samples.length>0,t=this.history&&this.history.length>0;if(!e&&!t)return V;const{VIEW_W:o,VIEW_H:i,TOP_PAD:s,EVENT_HIT_W:n}=Ts,r=i-s,a=Lo(new Date(this.now)).getTime(),l=e=>$t(e,a,o),c=e=>kt(e,s,r),d=this.samples.map(e=>{const t=Date.parse(e.t);return{t:t,x:l(t),y:c(e.position),sample:e,inDay:!Number.isNaN(t)&&t>=a&&t<=a+Is}}),h=d.filter(e=>e.inDay).map(e=>`${e.x.toFixed(1)},${e.y.toFixed(1)}`).join(" "),p=a+Is,u=function(e,t,o){if(0===e.length||!(o>t))return[];const i=[...e].sort((e,t)=>e.t-t.t);let s=null;const n=[];for(const e of i){if(e.t>o)break;e.t<=t?s=e:n.push(e)}return s?[{t:t,value:s.value},...n]:n}(Cs(this.history??[]),a,p),_=Es(u,this.now).map(e=>`${l(e.t).toFixed(1)},${c(e.value).toFixed(1)}`).join(" "),g=function(e){for(const t of e)for(const e of Object.keys(t))if(!Fs.has(e)&&"number"==typeof t[e])return e;return null}(this.samples),m=[];if(null!==g){let e=[];for(const t of d){if(!t.inDay)continue;const o=t.sample[g];if("number"==typeof o){const i=kt(o,s,r);e.push(`${t.x.toFixed(1)},${i.toFixed(1)}`)}else e.length>0&&(m.push(e.join(" ")),e=[])}e.length>0&&m.push(e.join(" "))}const f=m.map(e=>H`<polyline class="curve-secondary" points=${e} fill="none"></polyline>`),v=(this.events??[]).map(e=>{const t=Date.parse(e.t);if(Number.isNaN(t)||t<a||t>a+Is)return null;const o=l(t),r=`evt-${e.kind}`,c=function(e,t){const o=`forecast.event.${e.kind}`,i=ot(o,t),s=i===o?e.label??e.kind:i,n=rt(e.t);return"—"===n?s:`${s} — ${n}`}(e,this.hass);return H`<g class="event-group" ${ho(c)}>
+  `,e([_e({attribute:!1})],xs.prototype,"hass",void 0),e([_e({attribute:!1})],xs.prototype,"discovered",void 0),e([_e({type:Boolean,reflect:!0})],xs.prototype,"compact",void 0),e([_e({attribute:!1})],xs.prototype,"coverColor",void 0),e([ge()],xs.prototype,"_dragPreview",void 0),xs=e([he("acp-cover-bar")],xs);const Is=864e5;let Ps=Ts=class extends ce{constructor(){super(...arguments),this.samples=[],this.events=[],this.history=[],this.now=Date.now(),this._hoverIdx=null,this._onPointerMove=e=>{const t=e.currentTarget.getBoundingClientRect();if(t.width<=0)return;const o=(e.clientX-t.left)/t.width,i=Math.max(0,Math.min(1,o))*Ts.VIEW_W;this._hoverIdx=this._nearestSampleIdx(i)},this._onPointerLeave=()=>{this._hoverIdx=null}}render(){const e=this.samples&&this.samples.length>0,t=this.history&&this.history.length>0;if(!e&&!t)return V;const{VIEW_W:o,VIEW_H:i,TOP_PAD:s,EVENT_HIT_W:n}=Ts,r=i-s,a=Lo(new Date(this.now)).getTime(),l=a+Is,c=e=>$t(e,a,o),d=e=>kt(e,s,r),h=this.samples.map(e=>{const t=Date.parse(e.t);return{t:t,x:c(t),y:d(e.position),sample:e,inDay:!Number.isNaN(t)&&t>=a&&t<=l}}),p=h.filter(e=>e.inDay).map(e=>`${e.x.toFixed(1)},${e.y.toFixed(1)}`).join(" "),u=function(e,t,o){if(0===e.length||!(o>t))return[];const i=[...e].sort((e,t)=>e.t-t.t);let s=null;const n=[];for(const e of i){if(e.t>o)break;e.t<=t?s=e:n.push(e)}return s?[{t:t,value:s.value},...n]:n}(Cs(this.history??[]),a,this.now),_=Es(u,this.now).map(e=>`${c(e.t).toFixed(1)},${d(e.value).toFixed(1)}`).join(" "),g=function(e){for(const t of e)for(const e of Object.keys(t))if(!Fs.has(e)&&"number"==typeof t[e])return e;return null}(this.samples),m=[];if(null!==g){let e=[];for(const t of h){if(!t.inDay)continue;const o=t.sample[g];if("number"==typeof o){const i=kt(o,s,r);e.push(`${t.x.toFixed(1)},${i.toFixed(1)}`)}else e.length>0&&(m.push(e.join(" ")),e=[])}e.length>0&&m.push(e.join(" "))}const f=m.map(e=>H`<polyline class="curve-secondary" points=${e} fill="none"></polyline>`),v=(this.events??[]).map(e=>{const t=Date.parse(e.t);if(Number.isNaN(t)||t<a||t>l)return null;const o=c(t),r=`evt-${e.kind}`,d=function(e,t){const o=`forecast.event.${e.kind}`,i=ot(o,t),s=i===o?e.label??e.kind:i,n=rt(e.t);return"—"===n?s:`${s} — ${n}`}(e,this.hass);return H`<g class="event-group" ${ho(d)}>
           <line
             class="event-hit"
             x1=${o.toFixed(1)}
@@ -2850,17 +2850,17 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
             y1=${s}
             y2=${i}
           ></line>
-        </g>`}).filter(e=>null!==e),b=null!==this._hoverIdx&&this._hoverIdx>=0&&this._hoverIdx<d.length?d[this._hoverIdx]:null,y=b?H`<g class="hover-guide" pointer-events="none">
+        </g>`}).filter(e=>null!==e),b=null!==this._hoverIdx&&this._hoverIdx>=0&&this._hoverIdx<h.length?h[this._hoverIdx]:null,y=b?H`<g class="hover-guide" pointer-events="none">
           <line class="hover-line"
             x1=${b.x.toFixed(1)} x2=${b.x.toFixed(1)}
             y1=${s} y2=${i}></line>
           <circle class="hover-dot" cx=${b.x.toFixed(1)} cy=${b.y.toFixed(1)} r="3"></circle>
-        </g>`:V,w=b?zs(u,b.t):null,x=b?W`<div class="hover-label" style=${`left: ${(b.x/o*100).toFixed(2)}%`}>
+        </g>`:V,w=!b||b.t>this.now?null:zs(u,b.t),x=b?W`<div class="hover-label" style=${`left: ${(b.x/o*100).toFixed(2)}%`}>
           ${function(e,t,o,i){const s=rt(e.t),n=`${Math.round(Os(e.position))}%`,r=e.handler?`${s} · ${n} · ${e.handler}`:`${s} · ${n}`;if(null===t)return r;const a=e[t];if("number"!=typeof a)return r;const l=function(e,t,o){const i=Ns[e];if(i)return ot(i,t);const s=o?.[e];return s||e.charAt(0).toUpperCase()+e.slice(1)}(t,o,i);return`${r} · ${l}: ${`${Math.round(Os(a))}%`}`}(b.sample,g,this.hass,this.axisLabels)}${null!==w?` · ${ot("forecast.legend_actual",this.hass)} ${Math.round(Os(w))}%`:""}
-        </div>`:V,$=[0,6,12,18,24].map(e=>{const t=l(a+36e5*e);return H`
+        </div>`:V,$=[0,6,12,18,24].map(e=>{const t=c(a+36e5*e);return H`
         <line class="grid faint" x1=${t} y1=${s} x2=${t} y2=${i-.5} />
         <text class="axis-label tick-time" x=${t} y=${i-3} text-anchor="middle">${e.toString().padStart(2,"0")}:00</text>
-      `}),k=this.now,A=l(k),S=k>=a&&k<=a+Is?H`<g class="now-group" ${ho(rt(new Date(k).toISOString()))}>
+      `}),k=this.now,A=c(k),S=k>=a&&k<=l?H`<g class="now-group" ${ho(rt(new Date(k).toISOString()))}>
           <line class="now-hit" x1=${A.toFixed(1)} y1=${s} x2=${A.toFixed(1)} y2=${i-.5}></line>
           <line class="now" x1=${A.toFixed(1)} y1=${s} x2=${A.toFixed(1)} y2=${i-.5}></line>
         </g>`:V;return W`
@@ -2875,7 +2875,7 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
           <line class="baseline" x1="0" y1=${i-.5} x2=${o} y2=${i-.5}></line>
           <text class="axis-label" x="4" y=${s+8} text-anchor="start">100%</text>
           ${$}
-          <polyline class="curve" points=${h} fill="none"></polyline>
+          <polyline class="curve" points=${p} fill="none"></polyline>
           ${_?H`<polyline class="actual-curve" points=${_} fill="none"></polyline>`:V}
           ${f} ${v} ${y} ${S}
         </svg>
@@ -2888,7 +2888,7 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
       <span class="legend-item"
         ><span class="swatch swatch-actual"></span>${ot("forecast.legend_actual",this.hass)}</span
       >
-    </div>`}_nearestSampleIdx(e){const t=Lo(new Date(this.now)).getTime();let o=-1,i=Number.POSITIVE_INFINITY;for(let s=0;s<this.samples.length;s++){const n=Date.parse(this.samples[s].t);if(Number.isNaN(n)||n<t||n>t+Is)continue;const r=$t(n,t,Ts.VIEW_W),a=Math.abs(r-e);a<i&&(i=a,o=s)}return o>=0?o:null}};function Os(e){return Number.isNaN(e)||e<0?0:e>100?100:e}Ps.VIEW_W=600,Ps.VIEW_H=80,Ps.TOP_PAD=10,Ps.EVENT_HIT_W=12,Ps.styles=r`
+    </div>`}_nearestSampleIdx(e){const t=Lo(new Date(this.now)).getTime(),o=t+Is;let i=-1,s=Number.POSITIVE_INFINITY;for(let n=0;n<this.samples.length;n++){const r=Date.parse(this.samples[n].t);if(Number.isNaN(r)||r<t||r>o)continue;const a=$t(r,t,Ts.VIEW_W),l=Math.abs(a-e);l<s&&(s=l,i=n)}return i>=0?i:null}};function Os(e){return Number.isNaN(e)||e<0?0:e>100?100:e}Ps.VIEW_W=600,Ps.VIEW_H=80,Ps.TOP_PAD=10,Ps.EVENT_HIT_W=12,Ps.styles=r`
     :host {
       display: block;
     }

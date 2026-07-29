@@ -220,6 +220,28 @@ describe('acp-forecast-strip', () => {
     expect(after!.textContent ?? '').toContain('80%');
   });
 
+  it('reports no Actual value past `now`, where the actual curve has ended', async () => {
+    // The actual curve terminates at `now` — nothing is recorded past it. A
+    // hold lookup happily returns the last recorded value for an evening
+    // forecast sample, so hovering 18:00 at noon would read "Actual 80%" with
+    // no actual line anywhere under the cursor: the same "readout disagrees
+    // with the line beneath it" problem the hold lookup exists to prevent.
+    const samples = [sample(8 * 3600_000, 45), sample(18 * 3600_000, 70)];
+    const hist = [history(3600_000, 20), history(9 * 3600_000, 80)];
+    const el = await mount(samples, [], NOW, hist);
+
+    // x=450 → the 18:00 sample, six hours past `now` (12:00).
+    const afterNow = await hoverAt(el, 450);
+    expect(afterNow).toBeTruthy();
+    expect(afterNow!.textContent ?? '').toContain('70%');
+    expect(afterNow!.textContent ?? '').not.toContain('Actual');
+
+    // x=200 → the 08:00 sample, inside recorded time, still reports it.
+    const beforeNow = await hoverAt(el, 200);
+    expect(beforeNow!.textContent ?? '').toContain('Actual');
+    expect(beforeNow!.textContent ?? '').toContain('20%');
+  });
+
   it('renders the strip from history alone when there are no forecast samples', async () => {
     const hist = [history(0, 10), history(6 * 3600_000, 50)];
     const el = await mount([], [], NOW, hist);

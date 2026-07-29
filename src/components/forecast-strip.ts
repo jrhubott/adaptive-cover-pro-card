@@ -73,6 +73,7 @@ export class ForecastStrip extends LitElement {
 
     // Fixed local-day axis: midnight → midnight (mirrors elevation-chart.ts)
     const dayStart = startOfDay(new Date(this.now)).getTime();
+    const dayEnd = dayStart + DAY_MS;
 
     const xAt = (t: number): number => dayFractionX(t, dayStart, VIEW_W);
     const yAt = (position: number): number => percentToY(position, TOP_PAD, usableH);
@@ -85,7 +86,7 @@ export class ForecastStrip extends LitElement {
       const ts = Date.parse(s.t);
       const x = xAt(ts);
       const y = yAt(s.position);
-      const inDay = !Number.isNaN(ts) && ts >= dayStart && ts <= dayStart + DAY_MS;
+      const inDay = !Number.isNaN(ts) && ts >= dayStart && ts <= dayEnd;
       return { t: ts, x, y, sample: s, inDay };
     });
     const points = samplePts
@@ -97,12 +98,14 @@ export class ForecastStrip extends LitElement {
     // forecast curve, but the recorder stores TRANSITIONS only — this is a
     // step function, and fed straight to a `<polyline>` a multi-hour hold
     // draws a diagonal ramp through positions the cover was never at (#255,
-    // the forecast-strip twin of #253). Clamp to the day first (which pins the
-    // pre-midnight carry-in to the left edge and drops next-day spillover),
-    // then step-expand out to `this.now` — the right edge of what the recorder
-    // actually knows, not the day's far edge, where nothing is recorded yet.
-    const dayEnd = dayStart + DAY_MS;
-    const historyValues = clampToWindow(isoToPoints(this.history ?? []), dayStart, dayEnd);
+    // the forecast-strip twin of #253). Clamp to the window first (which pins
+    // the pre-midnight carry-in to the left edge and drops spillover past the
+    // right one), then step-expand across it. BOTH take `this.now` as that
+    // right edge — the extent of what the recorder actually knows, not the
+    // day's far edge, where nothing is recorded yet. Stating it once is what
+    // keeps a sample in `(now, dayEnd]` from surviving the clamp and plotting
+    // to the RIGHT of the now cursor, past where the curve terminates.
+    const historyValues = clampToWindow(isoToPoints(this.history ?? []), dayStart, this.now);
     const actualPoints = stepExpand(historyValues, this.now)
       .map((p) => `${xAt(p.t).toFixed(1)},${yAt(p.value).toFixed(1)}`)
       .join(' ');
@@ -135,8 +138,7 @@ export class ForecastStrip extends LitElement {
     const eventGroups = (this.events ?? [])
       .map((e) => {
         const eventTime = Date.parse(e.t);
-        if (Number.isNaN(eventTime) || eventTime < dayStart || eventTime > dayStart + DAY_MS)
-          return null;
+        if (Number.isNaN(eventTime) || eventTime < dayStart || eventTime > dayEnd) return null;
         const x = xAt(eventTime);
         const colorClass = `evt-${e.kind}`;
         const ttText = describeEvent(e, this.hass);
@@ -178,10 +180,15 @@ export class ForecastStrip extends LitElement {
     // so picking the nearest sample in either direction reads the FUTURE just
     // before a transition and disagrees with the very line under the cursor.
     // Reads the clamped but UN-expanded series on purpose — per `stepExpand`'s
-    // own doc, a hold lookup must not see synthesized carry vertices. An
-    // unparseable forecast sample leaves `hover.t` NaN; `valueAt` returns null
-    // there, which the guard below already handles.
-    const hoverActual = hover ? valueAt(historyValues, hover.t) : null;
+    // own doc, a hold lookup must not see synthesized carry vertices.
+    //
+    // Suppressed entirely past `now`: the actual curve ends there, so a hold
+    // lookup on an evening forecast sample would report the last recorded
+    // value with no actual line anywhere beneath the cursor — the same
+    // readout-disagrees-with-the-line problem in the other direction. Written
+    // as `!(t > now)` so an unparseable sample's NaN `t` (NaN compares false)
+    // falls through to `valueAt`, which returns null for it as before.
+    const hoverActual = hover && !(hover.t > this.now) ? valueAt(historyValues, hover.t) : null;
 
     const hoverLabel = hover
       ? html`<div class="hover-label" style=${`left: ${((hover.x / VIEW_W) * 100).toFixed(2)}%`}>
@@ -204,7 +211,7 @@ export class ForecastStrip extends LitElement {
     // "now" cursor — only rendered when now falls within today's window
     const nowMs = this.now;
     const nowX = xAt(nowMs);
-    const nowInDay = nowMs >= dayStart && nowMs <= dayStart + DAY_MS;
+    const nowInDay = nowMs >= dayStart && nowMs <= dayEnd;
     const nowCursor = nowInDay
       ? svg`<g class="now-group" ${tooltip(formatClock(new Date(nowMs).toISOString()))}>
           <line class="now-hit" x1=${nowX.toFixed(1)} y1=${TOP_PAD} x2=${nowX.toFixed(1)} y2=${VIEW_H - 0.5}></line>
@@ -263,13 +270,16 @@ export class ForecastStrip extends LitElement {
   };
 
   private _nearestSampleIdx(svgX: number): number | null {
+    // Same fixed local-day window `render()` draws — recomputed here because
+    // this runs off a pointer event, outside that render pass.
     const dayStart = startOfDay(new Date(this.now)).getTime();
+    const dayEnd = dayStart + DAY_MS;
     let bestIdx = -1;
     let bestDist = Number.POSITIVE_INFINITY;
     for (let i = 0; i < this.samples.length; i++) {
       const ts = Date.parse(this.samples[i].t);
       // Skip out-of-day samples so hover can't land on a point the curve omits.
-      if (Number.isNaN(ts) || ts < dayStart || ts > dayStart + DAY_MS) continue;
+      if (Number.isNaN(ts) || ts < dayStart || ts > dayEnd) continue;
       const x = dayFractionX(ts, dayStart, ForecastStrip.VIEW_W);
       const d = Math.abs(x - svgX);
       if (d < bestDist) {
