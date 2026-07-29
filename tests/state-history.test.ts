@@ -1,11 +1,14 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { HomeAssistant } from 'custom-card-helpers';
 import {
+  clampToWindow,
   fetchStateHistory,
+  isoToPoints,
   parseStateSeries,
   stepExpand,
   toBands,
   toNumericSeries,
+  valueAt,
 } from '../src/lib/state-history';
 
 // Round epoch-ms so assertions read as clock times.
@@ -176,6 +179,86 @@ describe('toNumericSeries', () => {
   });
 });
 
+describe('isoToPoints', () => {
+  it('returns [] for an empty series', () => {
+    expect(isoToPoints([])).toEqual([]);
+  });
+
+  it('parses the ISO `t` and takes `position` as the value', () => {
+    expect(isoToPoints([{ t: new Date(T0).toISOString(), position: 60 }])).toEqual([
+      { t: T0, value: 60 },
+    ]);
+  });
+
+  it('drops an unparseable timestamp rather than emitting NaN', () => {
+    // A NaN `t` would poison every downstream `toFixed()` and land the vertex
+    // at x=NaN in the polyline.
+    expect(isoToPoints([{ t: 'not-a-date', position: 60 }])).toEqual([]);
+  });
+
+  it('keeps only the parseable entries of a mixed series', () => {
+    const out = isoToPoints([
+      { t: new Date(T0).toISOString(), position: 10 },
+      { t: 'not-a-date', position: 20 },
+      { t: new Date(T2).toISOString(), position: 30 },
+    ]);
+    expect(out).toEqual([
+      { t: T0, value: 10 },
+      { t: T2, value: 30 },
+    ]);
+  });
+});
+
+describe('clampToWindow', () => {
+  const P = (t: number, value: number) => ({ t, value });
+
+  it('returns [] for an empty series or an inverted window', () => {
+    expect(clampToWindow([], T0, T2)).toEqual([]);
+    expect(clampToWindow([P(T1, 1)], T2, T0)).toEqual([]);
+    expect(clampToWindow([P(T1, 1)], T0, T0)).toEqual([]);
+  });
+
+  it('sorts unsorted input into `t` order', () => {
+    const out = clampToWindow([P(T2, 3), P(T0, 1), P(T1, 2)], T0 - 1, T3);
+    expect(out.map((p) => p.value)).toEqual([1, 2, 3]);
+    expect(out.map((p) => p.t)).toEqual([T0, T1, T2]);
+  });
+
+  it('pins a pre-window sample to the window start, keeping its value', () => {
+    // The recorder answers a window query with the state in effect as the
+    // window OPENED, carrying its own un-clamped timestamp. Dropping it would
+    // erase the whole left half of the curve.
+    expect(clampToWindow([P(T0, 40), P(T2, 50)], T1, T3)).toEqual([P(T1, 40), P(T2, 50)]);
+  });
+
+  it('keeps only the MOST RECENT of several pre-window samples', () => {
+    expect(clampToWindow([P(T0, 10), P(T1, 20)], T2, T3)).toEqual([P(T2, 20)]);
+  });
+
+  it('is idempotent for a sample exactly at the window start', () => {
+    expect(clampToWindow([P(T0, 40), P(T2, 50)], T0, T3)).toEqual([P(T0, 40), P(T2, 50)]);
+  });
+
+  it('KEEPS a sample exactly at the window end', () => {
+    // Deliberately `>` where `toBands` uses `>=`: a zero-width band is
+    // meaningless, but a polyline vertex sitting on the right edge is not.
+    expect(clampToWindow([P(T0, 40), P(T2, 50)], T0, T2)).toEqual([P(T0, 40), P(T2, 50)]);
+  });
+
+  it('drops every sample past the window end', () => {
+    // The loop breaks on the first one — on sorted input nothing after it can
+    // be in-window either. A vertex past the end would be clamped onto the
+    // axis's right edge and draw a spurious spike.
+    expect(clampToWindow([P(T1, 2), P(T3 + 3_600_000, 9), P(T3 + 7_200_000, 8)], T0, T3)).toEqual([
+      P(T1, 2),
+    ]);
+  });
+
+  it('passes an already-in-window series through unchanged', () => {
+    expect(clampToWindow([P(T1, 1), P(T2, 2)], T0, T3)).toEqual([P(T1, 1), P(T2, 2)]);
+  });
+});
+
 describe('stepExpand', () => {
   it('returns [] for an empty series', () => {
     expect(stepExpand([], T2)).toEqual([]);
@@ -299,8 +382,7 @@ describe('fetchStateHistory', () => {
 });
 
 describe('valueAt (step-function lookup)', () => {
-  it('returns the last sample AT or BEFORE t, never the next one', async () => {
-    const { valueAt } = await import('../src/components/history-view');
+  it('returns the last sample AT or BEFORE t, never the next one', () => {
     const pts = [
       { t: T0, value: 60 },
       { t: T2, value: 0 },
@@ -313,13 +395,11 @@ describe('valueAt (step-function lookup)', () => {
     expect(valueAt(pts, T3)).toBe(0);
   });
 
-  it('is null before the first sample — nothing is known there', async () => {
-    const { valueAt } = await import('../src/components/history-view');
+  it('is null before the first sample — nothing is known there', () => {
     expect(valueAt([{ t: T1, value: 10 }], T0)).toBeNull();
   });
 
-  it('is null for an empty series', async () => {
-    const { valueAt } = await import('../src/components/history-view');
+  it('is null for an empty series', () => {
     expect(valueAt([], T0)).toBeNull();
   });
 });

@@ -6,6 +6,7 @@ import type { ForecastEvent, ForecastSample, PositionHistorySample } from '../ty
 import { formatClock } from '../lib/formatters';
 import { t } from '../lib/i18n';
 import { dayFractionX, percentToY } from '../lib/geometry';
+import { clampToWindow, isoToPoints, stepExpand, valueAt } from '../lib/state-history';
 import { startOfDay } from '../lib/sun-model';
 import { tooltip } from '../lib/tooltip';
 
@@ -92,16 +93,18 @@ export class ForecastStrip extends LitElement {
       .map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`)
       .join(' ');
 
-    // Recorded actual position (00:00 → now). Same axis/mapping as the forecast
-    // curve; out-of-day samples are dropped like the forecast's.
-    const historyPts = (this.history ?? []).map((s) => {
-      const ts = Date.parse(s.t);
-      const inDay = !Number.isNaN(ts) && ts >= dayStart && ts <= dayStart + DAY_MS;
-      return { t: ts, x: xAt(ts), y: yAt(s.position), position: s.position, inDay };
-    });
-    const actualPoints = historyPts
-      .filter((p) => p.inDay)
-      .map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+    // Recorded actual position (00:00 → now). Same axis/mapping as the
+    // forecast curve, but the recorder stores TRANSITIONS only — this is a
+    // step function, and fed straight to a `<polyline>` a multi-hour hold
+    // draws a diagonal ramp through positions the cover was never at (#255,
+    // the forecast-strip twin of #253). Clamp to the day first (which pins the
+    // pre-midnight carry-in to the left edge and drops next-day spillover),
+    // then step-expand out to `this.now` — the right edge of what the recorder
+    // actually knows, not the day's far edge, where nothing is recorded yet.
+    const dayEnd = dayStart + DAY_MS;
+    const historyValues = clampToWindow(isoToPoints(this.history ?? []), dayStart, dayEnd);
+    const actualPoints = stepExpand(historyValues, this.now)
+      .map((p) => `${xAt(p.t).toFixed(1)},${yAt(p.value).toFixed(1)}`)
       .join(' ');
 
     // Secondary-axis track (e.g. tilt): detected generically, drawn as
@@ -171,11 +174,14 @@ export class ForecastStrip extends LitElement {
         </g>`
       : nothing;
 
-    const inDayHistory = historyPts.filter((p) => p.inDay);
-    const hoverActual =
-      hover && inDayHistory.length > 0
-        ? (nearestByX(inDayHistory, hover.x)?.position ?? null)
-        : null;
+    // A HOLD lookup, not nearest-by-distance: the series is a step function,
+    // so picking the nearest sample in either direction reads the FUTURE just
+    // before a transition and disagrees with the very line under the cursor.
+    // Reads the clamped but UN-expanded series on purpose — per `stepExpand`'s
+    // own doc, a hold lookup must not see synthesized carry vertices. An
+    // unparseable forecast sample leaves `hover.t` NaN; `valueAt` returns null
+    // there, which the guard below already handles.
+    const hoverActual = hover ? valueAt(historyValues, hover.t) : null;
 
     const hoverLabel = hover
       ? html`<div class="hover-label" style=${`left: ${((hover.x / VIEW_W) * 100).toFixed(2)}%`}>
@@ -417,21 +423,6 @@ export class ForecastStrip extends LitElement {
       stroke-width: 10;
     }
   `;
-}
-
-/** Nearest point (by x) from a non-empty list. Used to label the hovered time
- *  with the actual position sampled closest to the forecast's hovered point. */
-function nearestByX<T extends { x: number }>(pts: T[], x: number): T | null {
-  let best: T | null = null;
-  let bestDist = Number.POSITIVE_INFINITY;
-  for (const p of pts) {
-    const d = Math.abs(p.x - x);
-    if (d < bestDist) {
-      bestDist = d;
-      best = p;
-    }
-  }
-  return best;
 }
 
 function clampPercent(value: number): number {
