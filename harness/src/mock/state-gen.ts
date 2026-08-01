@@ -373,10 +373,38 @@ function addEntryStates(
     friendly_name: `${entry.title} Manual Override End Time`,
     device_class: 'timestamp',
   });
+  // `per_entity` carries each managed cover's own command target — the only
+  // per-cover target the integration publishes, and what the tile's rail ticks
+  // read. Each cover may pin its own `command_target`; without one the rail
+  // takes the entry target, which is what a single-cover entry has always
+  // effectively shown. Cover frame, like `actual_positions`. Omitted under the
+  // legacy flag so the card exercises its entry-target fallback.
   states[id('position_verification_sensor')] = mkState(
     id('position_verification_sensor'),
     allAtTarget ? 'ok' : 'mismatch',
-    { friendly_name: `${entry.title} Position Verification` },
+    {
+      friendly_name: `${entry.title} Position Verification`,
+      ...(legacyIntegration
+        ? {}
+        : {
+            per_entity: Object.fromEntries(
+              entry.covers.map((c) => {
+                const logical = c.command_target ?? entry.target_position;
+                return [
+                  c.entity_id,
+                  {
+                    target: inverse ? flip(logical) : logical,
+                    actual: actualPositions[c.entity_id] ?? null,
+                    at_target: allAtTarget,
+                    retry_count: 0,
+                    last_reconcile_time: null,
+                    wait_for_target: false,
+                  },
+                ];
+              }),
+            ),
+          }),
+    },
   );
 
   states[id('motion_status_sensor')] = mkState(id('motion_status_sensor'), f.motion_status, {

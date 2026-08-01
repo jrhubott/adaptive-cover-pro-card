@@ -28,11 +28,63 @@ export interface ResolvedAxis {
    *  (issue #234). False on every older integration and on the synthesized
    *  fallback axes — the normalization is then inert. */
   inverted: boolean;
+  /** True when driving this axis toward its MAXIMUM blocks more sun — an awning
+   *  extends as its position rises, while a blind uncovers the window. This is
+   *  the integration's own polarity flag, and it is what decides which end of a
+   *  rail reads as "full": see {@link axisDisplayValue}.
+   *
+   *  Distinct from {@link inverted}, which is a data-frame correction on the
+   *  values themselves. This one never changes a value the card reads or
+   *  writes — only which end of the track draws as filled. */
+  openBlocksSun: boolean;
+}
+
+/**
+ * Map a logical axis value to the value the rail should *draw*, so a full rail
+ * always means "blocking the most sun" regardless of which direction the axis
+ * counts in. Identity for an awning (extending raises the value AND the
+ * coverage); mirrored for a blind or a slat angle, where the maximum is the
+ * fully-uncovered end.
+ *
+ * This is a **presentation transform**, not a value-frame correction: it maps
+ * between the logical frame the card reads and writes and the direction the
+ * track is drawn in. Every value that reaches a sensor comparison or a service
+ * call is in the logical frame — a pointer or keyboard commit passes through
+ * here precisely to convert a drawn fraction BACK before writing. Keep it clear
+ * of the real frame corrections (`inverted` / #234, `linear_position` / #1028),
+ * which change what a value means rather than which way it is painted.
+ *
+ * Its own inverse: applying it to a rail fraction converts back to a logical
+ * value, which is why one function serves both the fill and the pointer.
+ */
+export function axisDisplayValue(
+  value: number,
+  axis: Pick<ResolvedAxis, 'openBlocksSun' | 'min' | 'max'>,
+): number {
+  return axis.openBlocksSun ? value : axis.min + axis.max - value;
 }
 
 const DEFAULT_MIN = 0;
 const DEFAULT_MAX = 100;
 const DEFAULT_UNIT = '%';
+
+/**
+ * Cover types whose POSITION axis blocks more sun as it opens — the integration
+ * declares its own `POSITION_AXIS_OPEN_BLOCKS_SUN` singleton for exactly these
+ * (`cover_types/awning.py`, `cover_types/oscillating_awning.py`).
+ *
+ * Only a fallback. `open_blocks_sun` on the discovery payload is authoritative
+ * whenever it is present, and a tenth cover type gets it right without touching
+ * this list. This exists for the two cases that publish no flag: no
+ * `cover_discovery` at all, and a `cover_discovery` from an integration that
+ * predates the field — where defaulting to `false` would draw every awning
+ * backwards.
+ */
+const OPEN_BLOCKS_SUN_COVER_TYPES = new Set(['cover_awning', 'cover_oscillating_awning']);
+
+function fallbackOpenBlocksSun(discovered: DiscoveredEntities, axisId: string): boolean {
+  return axisId === 'position' && OPEN_BLOCKS_SUN_COVER_TYPES.has(discovered.cover_type);
+}
 
 function capitalize(id: string): string {
   return id.charAt(0).toUpperCase() + id.slice(1);
@@ -66,6 +118,13 @@ export function resolveAxes(discovered: DiscoveredEntities): ResolvedAxis[] {
         stateAttr: typeof a.state_attr === 'string' ? a.state_attr : undefined,
         targetRole: AXIS_TARGET_SENSOR_ROLES[a.id as string],
         inverted: a.inverted === true,
+        // Read defensively like every other field: an integration that publishes
+        // `cover_discovery` but predates `open_blocks_sun` must not have its
+        // awnings silently mirrored by a `=== true` default.
+        openBlocksSun:
+          typeof a.open_blocks_sun === 'boolean'
+            ? a.open_blocks_sun
+            : fallbackOpenBlocksSun(discovered, a.id as string),
       }));
   }
 
@@ -79,6 +138,10 @@ export function resolveAxes(discovered: DiscoveredEntities): ResolvedAxis[] {
       stateAttr: 'current_position',
       targetRole: 'target_position_sensor',
       inverted: false,
+      // The sky compass reads this same resolved axis (`geometry.ts` →
+      // `coverWedgeOuterRadius` takes the flag), so an entry with no discovery
+      // still has one polarity across every surface.
+      openBlocksSun: fallbackOpenBlocksSun(discovered, 'position'),
     },
   ];
   if (discovered.entities.target_tilt_sensor) {
@@ -91,9 +154,39 @@ export function resolveAxes(discovered: DiscoveredEntities): ResolvedAxis[] {
       stateAttr: 'current_tilt_position',
       targetRole: 'target_tilt_sensor',
       inverted: false,
+      openBlocksSun: false,
     });
   }
   return resolved;
+}
+
+/**
+ * The entry's position axis, always resolvable.
+ *
+ * Discovery publishes it for every cover type that HAS one; a tilt-only type
+ * (`cover_tilt`, louvered roof) publishes only its slat axis, and an older
+ * integration publishes nothing at all. Both cases still render position rails,
+ * so they need a defined polarity rather than whatever `axes[0]` happens to be —
+ * handing a slat axis to {@link axisDisplayValue} would take its min/max, which
+ * need not be the 0–100 a track fraction is expressed in.
+ *
+ * Single source for that fallback: it was synthesized in three places, and the
+ * copies had already drifted apart.
+ */
+export function positionAxisFor(discovered: DiscoveredEntities): ResolvedAxis {
+  return (
+    resolveAxes(discovered).find((a) => a.id === 'position') ?? {
+      id: 'position',
+      label: 'Position',
+      min: DEFAULT_MIN,
+      max: DEFAULT_MAX,
+      unit: DEFAULT_UNIT,
+      stateAttr: 'current_position',
+      targetRole: 'target_position_sensor',
+      inverted: false,
+      openBlocksSun: fallbackOpenBlocksSun(discovered, 'position'),
+    }
+  );
 }
 
 /**

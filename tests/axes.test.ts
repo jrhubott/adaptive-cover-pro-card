@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { resolveAxes, positionAxisInverted } from '../src/lib/axes';
+import {
+  axisDisplayValue,
+  positionAxisFor,
+  positionAxisInverted,
+  resolveAxes,
+} from '../src/lib/axes';
 import type { CoverDiscovery, DiscoveredEntities } from '../src/types';
 
 const base: DiscoveredEntities = {
@@ -178,5 +183,135 @@ describe('positionAxisInverted — #234', () => {
 
   it('is false on a legacy entry with no discovery at all', () => {
     expect(positionAxisInverted(base)).toBe(false);
+  });
+});
+
+// ── display polarity: open_blocks_sun → axisDisplayValue ─────────────────────
+// The rails, the covers-bar tracks and the compass wedge all draw "how much sun
+// is this axis blocking", so the direction a track fills in is data, not a
+// per-component decision. These pin the resolution order for that flag and the
+// transform it feeds.
+
+describe('resolveAxes — openBlocksSun resolution', () => {
+  it('takes the discovery flag verbatim when the integration publishes it', () => {
+    const d = withDiscovery({
+      axes: [
+        { id: 'position', supported: true, open_blocks_sun: true },
+        { id: 'tilt', supported: true, open_blocks_sun: false },
+      ],
+    });
+    const axes = resolveAxes(d);
+    expect(axes.find((a) => a.id === 'position')!.openBlocksSun).toBe(true);
+    expect(axes.find((a) => a.id === 'tilt')!.openBlocksSun).toBe(false);
+  });
+
+  it('honours a published `false` on an awning rather than the cover-type guess', () => {
+    // The payload wins outright — a future cover type that reports itself is not
+    // second-guessed by the card's fallback list.
+    const d = {
+      ...base,
+      cover_type: 'cover_awning',
+      discovery: {
+        axes: [{ id: 'position', supported: true, open_blocks_sun: false }],
+      },
+    } as DiscoveredEntities;
+    expect(resolveAxes(d).find((a) => a.id === 'position')!.openBlocksSun).toBe(false);
+  });
+
+  it('falls back to the cover type when discovery omits the flag entirely', () => {
+    // An integration new enough to publish `cover_discovery` but older than
+    // `open_blocks_sun`. Defaulting to false here drew every awning backwards.
+    const awning = {
+      ...base,
+      cover_type: 'cover_awning',
+      discovery: {
+        axes: [{ id: 'position', supported: true }],
+      },
+    } as DiscoveredEntities;
+    const blind = withDiscovery({ axes: [{ id: 'position', supported: true }] });
+    expect(resolveAxes(awning).find((a) => a.id === 'position')!.openBlocksSun).toBe(true);
+    expect(resolveAxes(blind).find((a) => a.id === 'position')!.openBlocksSun).toBe(false);
+  });
+
+  it('covers the oscillating awning, which the integration marks the same way', () => {
+    const d = { ...base, cover_type: 'cover_oscillating_awning' } as DiscoveredEntities;
+    expect(positionAxisFor(d).openBlocksSun).toBe(true);
+  });
+
+  it('never marks a non-position axis from the cover type alone', () => {
+    // Only the POSITION axis of an awning extends into the sun; its slat axis
+    // (were it to have one) closes like any other.
+    const d = {
+      ...base,
+      cover_type: 'cover_awning',
+      discovery: {
+        axes: [{ id: 'tilt', supported: true }],
+      },
+    } as DiscoveredEntities;
+    expect(resolveAxes(d).find((a) => a.id === 'tilt')!.openBlocksSun).toBe(false);
+  });
+
+  it('synthesizes the flag on a legacy entry with no discovery at all', () => {
+    const awning = { ...base, cover_type: 'cover_awning' } as DiscoveredEntities;
+    expect(resolveAxes(awning)[0].openBlocksSun).toBe(true);
+    expect(resolveAxes(base)[0].openBlocksSun).toBe(false);
+  });
+});
+
+describe('positionAxisFor', () => {
+  it('returns the discovered position axis when there is one', () => {
+    const d = withDiscovery({
+      axes: [{ id: 'position', supported: true, min: 0, max: 100, open_blocks_sun: true }],
+    });
+    expect(positionAxisFor(d).id).toBe('position');
+    expect(positionAxisFor(d).openBlocksSun).toBe(true);
+  });
+
+  it('synthesizes a position axis for a tilt-only cover type', () => {
+    // `cover_tilt` / louvered roof publish only a slat axis, but the card still
+    // renders position rails. Taking axes[0] would hand them the slat axis and
+    // its range, which need not be the 0–100 a track fraction speaks in.
+    const d = {
+      ...base,
+      cover_type: 'cover_tilt',
+      discovery: {
+        axes: [{ id: 'tilt', supported: true, min: -90, max: 90 }],
+      },
+    } as DiscoveredEntities;
+    const axis = positionAxisFor(d);
+    expect(axis.id).toBe('position');
+    expect(axis.min).toBe(0);
+    expect(axis.max).toBe(100);
+  });
+});
+
+describe('axisDisplayValue', () => {
+  const blind = { openBlocksSun: false, min: 0, max: 100 };
+  const awning = { openBlocksSun: true, min: 0, max: 100 };
+
+  it('mirrors an axis whose open end lets the sun in', () => {
+    expect(axisDisplayValue(0, blind)).toBe(100);
+    expect(axisDisplayValue(100, blind)).toBe(0);
+    expect(axisDisplayValue(30, blind)).toBe(70);
+  });
+
+  it('is the identity for an axis whose open end blocks the sun', () => {
+    expect(axisDisplayValue(0, awning)).toBe(0);
+    expect(axisDisplayValue(100, awning)).toBe(100);
+    expect(axisDisplayValue(30, awning)).toBe(30);
+  });
+
+  it('is its own inverse — which is what lets one function serve fill and pointer', () => {
+    for (const v of [0, 1, 37, 50, 99, 100]) {
+      expect(axisDisplayValue(axisDisplayValue(v, blind), blind)).toBe(v);
+      expect(axisDisplayValue(axisDisplayValue(v, awning), awning)).toBe(v);
+    }
+  });
+
+  it('mirrors within a non-0–100 range, so a slat axis stays inside its bounds', () => {
+    const slat = { openBlocksSun: false, min: -90, max: 90 };
+    expect(axisDisplayValue(-90, slat)).toBe(90);
+    expect(axisDisplayValue(90, slat)).toBe(-90);
+    expect(axisDisplayValue(0, slat)).toBe(0);
   });
 });

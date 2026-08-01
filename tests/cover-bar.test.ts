@@ -66,20 +66,21 @@ describe('acp-cover-bar fill style — issue #135', () => {
 });
 
 describe('acp-cover-bar two-tone fill — issue #135 follow-up', () => {
-  it('both segments derive from the cover colour — open pale, closed solid', () => {
+  it('both segments derive from the cover colour — blocking solid, clear pale', () => {
     const styles = (CoverBar as unknown as { styles: CSSResult }).styles.cssText;
-    // Open portion (.fill) and closed portion (.fill-closed) share the cover hue
-    // (override, else --primary-color); no gold, so nothing competes with the
-    // gold sun on the compass. Open is the fainter mix, closed the stronger.
-    expect(styles).toMatch(/\.fill\s*{[^}]*--acp-cover-color,\s*var\(--primary-color\)\)\s*18%/);
+    // Both segments share the cover hue (override, else --primary-color); no
+    // gold, so nothing competes with the gold sun on the compass. `.fill` is the
+    // LEADING segment and now carries the sun-blocking portion, so it takes the
+    // stronger mix and `.fill-closed` (the clear remainder) the fainter one.
+    expect(styles).toMatch(/\.fill\s*{[^}]*--acp-cover-color,\s*var\(--primary-color\)\)\s*50%/);
     expect(styles).toMatch(
-      /\.fill-closed\s*{[^}]*--acp-cover-color,\s*var\(--primary-color\)\)\s*50%/,
+      /\.fill-closed\s*{[^}]*--acp-cover-color,\s*var\(--primary-color\)\)\s*18%/,
     );
     // The fills no longer borrow the FOV gold (.warn still uses --warning-color).
     expect(styles).not.toMatch(/\.fill[^}]*--warning-color/);
   });
 
-  it('splits the track into open + closed widths summing to 100%', async () => {
+  it('splits the track into blocking + clear widths summing to 100%', async () => {
     const el = document.createElement('acp-cover-bar') as CoverBarLike;
     document.body.appendChild(el);
 
@@ -106,10 +107,11 @@ describe('acp-cover-bar two-tone fill — issue #135 follow-up', () => {
 
     await el.updateComplete;
 
-    const open = el.shadowRoot!.querySelector('.fill') as HTMLElement;
-    const closed = el.shadowRoot!.querySelector('.fill-closed') as HTMLElement;
-    expect(open.style.width).toBe('69%');
-    expect(closed.style.width).toBe('31%');
+    const blocking = el.shadowRoot!.querySelector('.fill') as HTMLElement;
+    const clear = el.shadowRoot!.querySelector('.fill-closed') as HTMLElement;
+    // A blind at 69% OPEN is 31% covered, and the track draws coverage.
+    expect(blocking.style.width).toBe('31%');
+    expect(clear.style.width).toBe('69%');
   });
 
   it('closed segment falls back to --primary-color when no cover colour is set', () => {
@@ -207,11 +209,13 @@ describe('acp-cover-bar manual-override divergence — issue #158', () => {
     const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
     const open = el.shadowRoot!.querySelector('.fill') as HTMLElement;
     const num = el.shadowRoot!.querySelector('.num')!.textContent!;
-    // Marker is clamped so its centred 2px box never clips at the rail ends; the
-    // 60% target sits inside the clamp window so the percent flows through.
+    // Marker is clamped so its centred 2px box never clips at the rail ends.
+    // Both the marker and the fill are drawn in the COVERAGE direction, so a 60%
+    // solar target sits at 40% along the track and a held 44% draws 56%; the
+    // readout stays in the integration's frame.
     // (happy-dom drops clamp() from style.left, so read the rendered attribute.)
-    expect(marker.getAttribute('style')).toContain('left:clamp(1px, 60%, calc(100% - 1px))');
-    expect(open.style.width).toBe('44%');
+    expect(marker.getAttribute('style')).toContain('left:clamp(1px, 40%, calc(100% - 1px))');
+    expect(open.style.width).toBe('56%');
     expect(num).toContain('44');
   });
 
@@ -389,7 +393,8 @@ describe('acp-cover-bar target marker clamp at extremes — issue #158 (trailing
   });
 
   it('clamps the marker inside the rail at the 100% extreme', async () => {
-    const el = await mountAtTarget(100, 70);
+    // Target 0 (fully closed) draws at the 100% end of a coverage track.
+    const el = await mountAtTarget(0, 30);
     const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
     // left:100% would push the centred box off the right edge under
     // overflow:hidden; the clamp keeps it inside the rail.
@@ -397,7 +402,8 @@ describe('acp-cover-bar target marker clamp at extremes — issue #158 (trailing
   });
 
   it('clamps the marker inside the rail at the 0% extreme', async () => {
-    const el = await mountAtTarget(0, 30);
+    // Target 100 (fully open) draws at the 0% end of a coverage track.
+    const el = await mountAtTarget(100, 70);
     const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
     expect(marker.getAttribute('style')).toContain('left:clamp(1px, 0%, calc(100% - 1px))');
   });
@@ -696,21 +702,22 @@ describe('acp-cover-bar transit motion indicator', () => {
     return el;
   }
 
-  it('renders a closing indicator with a resolved label when the cover is mid-close', async () => {
+  it('states the closing direction in the readout when the cover is mid-close', async () => {
     const el = await mount(transitHass({ 'cover.x': 'closing' }));
-    const indicator = el.shadowRoot!.querySelector('.num .transit-closing');
-    expect(indicator).not.toBeNull();
-    // Label resolves via covers.closing i18n key.
-    expect(indicator!.getAttribute('data-tooltip')).toContain('Closing');
-    // The percent still renders alongside the motion indicator.
-    expect(el.shadowRoot!.querySelector('.num')!.textContent).toContain('50');
+    // The readout now leads with the localized state, and a no-feedback cover's
+    // transit direction is folded into it — so the separate arrow glyph would
+    // say the same thing twice and is suppressed whenever state text renders.
+    const num = el.shadowRoot!.querySelector('.num')!.textContent!;
+    expect(num).toContain('Closing');
+    expect(num).toContain('50');
+    expect(el.shadowRoot!.querySelector('.num .transit-closing')).toBeNull();
   });
 
-  it('renders an opening indicator when the cover is mid-open', async () => {
+  it('states the opening direction in the readout when the cover is mid-open', async () => {
     const el = await mount(transitHass({ 'cover.x': 'opening' }));
-    const indicator = el.shadowRoot!.querySelector('.num .transit-opening');
-    expect(indicator).not.toBeNull();
-    expect(indicator!.getAttribute('data-tooltip')).toContain('Opening');
+    const num = el.shadowRoot!.querySelector('.num')!.textContent!;
+    expect(num).toContain('Opening');
+    expect(el.shadowRoot!.querySelector('.num .transit-opening')).toBeNull();
   });
 
   it('renders no transit indicator when transit_states is absent', async () => {
@@ -873,8 +880,12 @@ describe('acp-cover-bar position slider — issue #231', () => {
     expect(track.getAttribute('tabindex')).toBe('0');
     expect(track.getAttribute('aria-valuemin')).toBe('0');
     expect(track.getAttribute('aria-valuemax')).toBe('100');
-    expect(track.getAttribute('aria-valuenow')).toBe('42');
-    expect(track.getAttribute('aria-valuetext')).toBe(formatPercent(42));
+    // The track draws COVERAGE, and ARIA describes the visual, so valuenow is
+    // the mirrored value; valuetext carries the open percentage it came from.
+    expect(track.getAttribute('aria-valuenow')).toBe('58');
+    expect(track.getAttribute('aria-valuetext')).toBe(
+      t('covers.position_open_value', el.hass, { pct: formatPercent(42) }),
+    );
     expect(track.getAttribute('aria-label')).toBe(t('covers.position_slider_label', el.hass));
   });
 
@@ -892,8 +903,10 @@ describe('acp-cover-bar position slider — issue #231', () => {
     );
     await el.updateComplete;
 
+    // 80% along the track is 80% COVERED, i.e. 20% open — the readout stays in
+    // the integration's frame while the fill follows the finger.
     const num = el.shadowRoot!.querySelector('.num')!;
-    expect(num.textContent).toContain('80');
+    expect(num.textContent).toContain('20');
     const fill = el.shadowRoot!.querySelector('.fill') as HTMLElement;
     expect(fill.style.width).toBe('80%');
     expect(callService).not.toHaveBeenCalled();
@@ -919,10 +932,12 @@ describe('acp-cover-bar position slider — issue #231', () => {
     await el.updateComplete;
 
     expect(callService).toHaveBeenCalledTimes(1);
+    // Released 80% along the track = 80% covered = position 20. The write is
+    // always in the integration's frame, never the drawn one.
     expect(callService).toHaveBeenCalledWith(
       INTEGRATION_DOMAIN,
       'set_position',
-      { position: 80 },
+      { position: 20 },
       { entity_id: 'cover.a' },
     );
   });
@@ -945,19 +960,23 @@ describe('acp-cover-bar position slider — issue #231', () => {
     expect(callService).not.toHaveBeenCalled();
     const num = el.shadowRoot!.querySelector('.num')!;
     expect(num.textContent).toContain('20');
+    // Back to server truth: 20% open draws as 80% covered.
     const fill = el.shadowRoot!.querySelector('.fill') as HTMLElement;
-    expect(fill.style.width).toBe('20%');
+    expect(fill.style.width).toBe('80%');
   });
 
+  // Keys step the DRAWN value, so the fill always moves the way the key points.
+  // On a blind (mirrored) that means a rightward key raises coverage, which is a
+  // LOWER position; Home/End name the ends of the track, not of the axis.
   it.each([
-    ['ArrowRight', 51],
-    ['ArrowUp', 51],
-    ['ArrowLeft', 49],
-    ['ArrowDown', 49],
-    ['PageUp', 60],
-    ['PageDown', 40],
-    ['Home', 0],
-    ['End', 100],
+    ['ArrowRight', 49],
+    ['ArrowUp', 49],
+    ['ArrowLeft', 51],
+    ['ArrowDown', 51],
+    ['PageUp', 40],
+    ['PageDown', 60],
+    ['Home', 100],
+    ['End', 0],
   ])('keydown %s from actual=50 calls set_position with %d', async (key, expected) => {
     const callService = vi.fn();
     const el = await mount(singleCoverHass(50, callService));
@@ -973,28 +992,30 @@ describe('acp-cover-bar position slider — issue #231', () => {
     );
   });
 
-  it('clamps PageUp at 100 near the top of the range', async () => {
+  it('clamps PageUp at the fully-covered end near the top of the track', async () => {
     const callService = vi.fn();
-    const el = await mount(singleCoverHass(95, callService));
+    // 5% open = 95% covered; PageUp adds 10 points of coverage and clamps.
+    const el = await mount(singleCoverHass(5, callService));
     const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
     track.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageUp', bubbles: true }));
     expect(callService).toHaveBeenCalledWith(
       INTEGRATION_DOMAIN,
       'set_position',
-      { position: 100 },
+      { position: 0 },
       { entity_id: 'cover.a' },
     );
   });
 
-  it('clamps PageDown at 0 near the bottom of the range', async () => {
+  it('clamps PageDown at the fully-clear end near the bottom of the track', async () => {
     const callService = vi.fn();
-    const el = await mount(singleCoverHass(5, callService));
+    // 95% open = 5% covered; PageDown removes 10 points of coverage and clamps.
+    const el = await mount(singleCoverHass(95, callService));
     const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
     track.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown', bubbles: true }));
     expect(callService).toHaveBeenCalledWith(
       INTEGRATION_DOMAIN,
       'set_position',
-      { position: 0 },
+      { position: 100 },
       { entity_id: 'cover.a' },
     );
   });
@@ -1027,10 +1048,12 @@ describe('acp-cover-bar position slider — issue #231', () => {
     );
     await el.updateComplete;
 
-    expect(nums[0].textContent).toContain('90');
+    // Dragged to 90% along the track = 90% covered = position 10.
+    expect(nums[0].textContent).toContain('10');
+    // Row B is untouched: still 70% open, drawn as 30% covered.
     expect(nums[1].textContent).toContain('70');
     const fillB = el.shadowRoot!.querySelectorAll('.fill')[1] as HTMLElement;
-    expect(fillB.style.width).toBe('70%');
+    expect(fillB.style.width).toBe('30%');
     expect(callService).not.toHaveBeenCalled();
   });
 
@@ -1089,12 +1112,17 @@ describe('acp-cover-bar inverse_state frame normalization (#234)', () => {
     const open = el.shadowRoot!.querySelector('.fill') as HTMLElement;
     const closed = el.shadowRoot!.querySelector('.fill-closed') as HTMLElement;
     const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
+    // A fully-extended AWNING: logical 100, and extending an awning blocks more
+    // sun, so the track draws it full — polarity is identity here. Fill and
+    // marker still agree, which is what this test is about.
     expect(open.style.width).toBe('100%');
     expect(closed.style.width).toBe('0%');
     // The marker's left is a clamp() expression, so read the raw attribute
     // (happy-dom does not expose clamp() through style.left).
     expect(marker.getAttribute('style') ?? '').toContain('left:clamp(1px, 100%, calc(100% - 1px))');
-    expect(el.shadowRoot!.querySelector('.num')!.textContent!.trim()).toBe('100%');
+    // The readout leads with the localized state and stays in the integration's
+    // frame — the display polarity never reaches it.
+    expect(el.shadowRoot!.querySelector('.num')!.textContent!.trim()).toBe('Open · 100%');
   });
 
   it('un-inverts actual_positions when linear_actual_positions is absent', async () => {
@@ -1200,8 +1228,9 @@ describe('acp-cover-bar inverse_tilt frame normalization (#236)', () => {
     await tilt.updateComplete;
     const open = tilt.shadowRoot!.querySelector('.fill') as HTMLElement;
     const closed = tilt.shadowRoot!.querySelector('.fill-closed') as HTMLElement;
-    expect(open.style.width).toBe('35%');
-    expect(closed.style.width).toBe('65%');
+    // Logical tilt 35; slats block more sun as the value falls, so 35 draws 65.
+    expect(open.style.width).toBe('65%');
+    expect(closed.style.width).toBe('35%');
     expect(tilt.shadowRoot!.querySelector('.num')!.textContent).toContain('35');
   });
 
@@ -1209,7 +1238,9 @@ describe('acp-cover-bar inverse_tilt frame normalization (#236)', () => {
     const el = await mount(inverseTiltHass(), inverseTiltDiscovered);
     // The cover-bar's own `.fill` is the position track; the tilt track lives
     // inside the nested acp-tilt-bar's shadow root.
-    expect((el.shadowRoot!.querySelector('.fill') as HTMLElement).style.width).toBe('60%');
+    // Position is logical 60, drawn as 40% blocking — untouched by the tilt
+    // axis's own inversion, which is the point of this test.
+    expect((el.shadowRoot!.querySelector('.fill') as HTMLElement).style.width).toBe('40%');
     expect(el.shadowRoot!.querySelector('.head .targets')!.textContent).toContain('60');
   });
 
@@ -1225,7 +1256,7 @@ describe('acp-cover-bar inverse_tilt frame normalization (#236)', () => {
     );
   });
 
-  it('steps the keyboard from the logical base (ArrowUp on 35 commits 36, not 66)', async () => {
+  it('steps the keyboard from the logical base (ArrowUp on 35 commits 34, not 66)', async () => {
     const callService = vi.fn();
     const el = await mount(inverseTiltHass(callService), inverseTiltDiscovered);
     const tilt = tiltBarOf(el);
@@ -1235,7 +1266,10 @@ describe('acp-cover-bar inverse_tilt frame normalization (#236)', () => {
     expect(callService).toHaveBeenCalledWith(
       INTEGRATION_DOMAIN,
       'set_axes',
-      { axes: { tilt: 36 } },
+      // ArrowUp moves the fill up, which on a slat axis means MORE blocking and
+      // so a lower value: 34. The thing this test guards is that it steps from
+      // the logical 35 and not the cover-frame 65 (which would give 64/66).
+      { axes: { tilt: 34 } },
       { entity_id: 'cover.a' },
     );
   });

@@ -89,6 +89,52 @@ export function coverSolarTarget(hass: HomeAssistant, d: DiscoveredEntities): nu
 }
 
 /**
+ * Per-cover **command** targets in the logical frame — the position the
+ * integration last resolved and dispatched to each managed cover, read from the
+ * `position_verification` sensor's `per_entity` diagnostics map.
+ *
+ * This is the only per-cover target the integration publishes, and it is the
+ * only one that is meaningful on a cover whose dispatched value is a remap of
+ * the entry's abstract target: a day/night shade in the `dual_entity` control
+ * model folds the fabric blend into its middle rail's absolute position, so the
+ * entry-level target sits on a different scale than that rail's own travel.
+ *
+ * Note this is the last *commanded* position, not the solar/pipeline target —
+ * they diverge mid-move and under a manual override.
+ *
+ * Values arrive in the cover frame, like `actual_positions`, so they take the
+ * same `inverted` un-flip. One caveat for the `dual_entity` middle rail: the
+ * integration tracks separately whether inversion was actually applied to the
+ * value it dispatched there, and the card cannot see that flag — so on an
+ * inverse-state entry that rail's tick may be mirrored. Inert on every
+ * non-inverse install.
+ *
+ * `{}` when the sensor or the attribute is missing (older integration).
+ */
+export function coverCommandTargets(
+  hass: HomeAssistant,
+  d: DiscoveredEntities,
+): Record<string, number> {
+  const id = d.entities.position_verification_sensor;
+  if (!id) return {};
+  const perEntity = hass.states[id]?.attributes?.per_entity as
+    | Record<string, { target?: number | null }>
+    | undefined;
+  if (!perEntity || typeof perEntity !== 'object') return {};
+  const inverted = positionAxisInverted(d);
+  // Non-numeric entries are omitted rather than mapped to null: an absent key
+  // and a null-valued key would mean the same thing to every caller, and the
+  // nullable type only invited handling for a case that cannot occur.
+  const out: Record<string, number> = {};
+  for (const [eid, diag] of Object.entries(perEntity)) {
+    const v = diag?.target;
+    if (typeof v !== 'number' || !Number.isFinite(v)) continue;
+    out[eid] = inverted ? 100 - v : v;
+  }
+  return out;
+}
+
+/**
  * Live per-cover positions in the **logical** frame — the map every actual-side
  * surface renders from (covers bar fills, compass actual ring). Resolution
  * order (issue #234):

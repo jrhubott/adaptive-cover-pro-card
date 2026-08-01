@@ -1220,6 +1220,70 @@ export class AcpHarnessControlPanel extends LitElement {
             this._emit({ ...this.config, tile: { ...this.config.tile, [k]: v } }),
           ),
         )}
+        <label class="row">
+          <span>covers (rail order)</span>
+          <select
+            @change=${(e: Event) => {
+              const v = (e.target as HTMLSelectElement).value;
+              const ids = (this.config.entries[0]?.covers ?? []).map((c) => c.entity_id);
+              const covers =
+                v === 'default' ? [] : v === 'reversed' ? [...ids].reverse() : [ids[0]];
+              this._emit({ ...this.config, tile: { ...this.config.tile, covers } });
+            }}
+          >
+            <option value="default" ?selected=${!this.config.tile.covers?.length}>
+              (integration order)
+            </option>
+            <option value="reversed" ?selected=${this.config.tile.covers?.length > 1}>
+              Reversed
+            </option>
+            <option value="first-only" ?selected=${this.config.tile.covers?.length === 1}>
+              First rail only
+            </option>
+          </select>
+        </label>
+        <label class="row">
+          <span>controls_cover</span>
+          <select
+            @change=${(e: Event) =>
+              this._emit({
+                ...this.config,
+                tile: {
+                  ...this.config.tile,
+                  controls_cover: (e.target as HTMLSelectElement).value,
+                },
+              })}
+          >
+            <option value="" ?selected=${!this.config.tile.controls_cover}>(resolved cover)</option>
+            ${(this.config.entries[0]?.covers ?? []).map(
+              (c) =>
+                html`<option
+                  value=${c.entity_id}
+                  ?selected=${this.config.tile.controls_cover === c.entity_id}
+                >
+                  ${c.friendly_name}
+                </option>`,
+            )}
+          </select>
+        </label>
+        <label class="row">
+          <span>controls_axis</span>
+          <select
+            @change=${(e: Event) =>
+              this._emit({
+                ...this.config,
+                tile: { ...this.config.tile, controls_axis: (e.target as HTMLSelectElement).value },
+              })}
+          >
+            <option value="" ?selected=${!this.config.tile.controls_axis}>(position)</option>
+            <option value="position" ?selected=${this.config.tile.controls_axis === 'position'}>
+              position
+            </option>
+            <option value="tilt" ?selected=${this.config.tile.controls_axis === 'tilt'}>
+              tilt
+            </option>
+          </select>
+        </label>
         <fieldset class="entry">
           <legend>Badges (opt-in)</legend>
           ${(

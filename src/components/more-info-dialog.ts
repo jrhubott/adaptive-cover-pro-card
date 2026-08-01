@@ -78,6 +78,12 @@ export class MoreInfoDialog extends LitElement {
   /** Per-kind badge opt-in, threaded down from the tile-card config. */
   @property({ attribute: false }) public badges?: AdaptiveCoverProTileCardConfig['badges'];
 
+  /** Explicit rail order/subset from the tile-card config's `covers`, so the
+   *  dialog's cover bars agree with the tile that opened it. Undefined keeps
+   *  the integration's order — which is what every caller that doesn't set
+   *  `covers` gets, dialog and main card alike. */
+  @property({ attribute: false }) public coverOrder?: string[];
+
   // Refresh the time-derived bits (the forecast strip's `now` cursor) every minute while
   // the dialog is open, aligned to the minute boundary. The dialog is always in the DOM via
   // the tile card, so gate on `open` rather than connection so a closed dialog isn't ticking.
@@ -296,7 +302,11 @@ export class MoreInfoDialog extends LitElement {
               : nothing}
           </div>
 
-          <acp-cover-bar .hass=${this.hass} .discovered=${this.discovered}></acp-cover-bar>
+          <acp-cover-bar
+            .hass=${this.hass}
+            .discovered=${this.discovered}
+            .coverOrder=${this.coverOrder}
+          ></acp-cover-bar>
 
           ${this._renderForecastStrip()} ${this._renderControls()}
           ${showResume

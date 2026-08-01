@@ -5,6 +5,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { DiscoveredEntities } from '../types';
 import { memberBadgeWinners } from '../lib/badge-visibility';
+import { positionAxisFor } from '../lib/axes';
 import { formatPercent } from '../lib/formatters';
 import { coverStateColor } from '../lib/icons';
 import {
@@ -97,6 +98,7 @@ export class GroupDialog extends LitElement {
             .hintKey=${'covers.click_to_set'}
             .targetHintKey=${'covers.target_tooltip'}
             .actual=${s.position}
+            .openBlocksSun=${positionAxisFor(this.discovered).openBlocksSun}
             .disabled=${!controllable}
             @acp-tilt-set=${(ev: CustomEvent<number>) => setGroupPosition(this.hass, s, ev.detail)}
           ></acp-axis-bar>
@@ -106,6 +108,7 @@ export class GroupDialog extends LitElement {
                 .hass=${this.hass}
                 .label=${t('covers.tilt_title', this.hass)}
                 .actual=${s.tilt.value}
+                .openBlocksSun=${false}
                 @acp-tilt-set=${(ev: CustomEvent<number>) => setGroupTilt(this.hass, s, ev.detail)}
               ></acp-axis-bar>`
             : nothing}
@@ -146,6 +149,7 @@ export class GroupDialog extends LitElement {
                       .entityId=${id}
                       .position=${pos}
                       .winner=${s.memberWinners?.[id]}
+                      .openBlocksSun=${positionAxisFor(this.discovered).openBlocksSun}
                       .acpManaged=${!!s.memberWinners && id in s.memberWinners}
                       .showTilt=${this.showTilt}
                     ></acp-group-member-row>`,
