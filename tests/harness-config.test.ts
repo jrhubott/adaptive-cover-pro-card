@@ -14,6 +14,8 @@ import { applyService } from '../harness/src/mock/services';
 import { zonedNowMs, zoneForLongitude, hourInZone } from '../harness/src/zone';
 import { INTEGRATION_DOMAIN } from '../src/const';
 import { buildRegistry } from '../harness/src/mock/registry';
+import { buildMockHass } from '../harness/src/mock/hass';
+import { resolveCoverBatteries, lowestBattery } from '../src/lib/battery';
 import { discoverEntities } from '../src/lib/entity-discovery';
 import { positionAxisInverted, resolveAxes } from '../src/lib/axes';
 import {
@@ -700,5 +702,59 @@ describe('harness inverse_tilt scenario (#236)', () => {
     const { hass, discovered } = discoverFor('inverse-tilt-venetian');
     const tilt = resolveAxes(discovered).find((a) => a.id === 'tilt')!;
     expect(logicalAxisValue(hass, tilt, VENETIAN)).toBe(35);
+  });
+});
+
+// ── Harness battery mirroring (#260) ────────────────────────────────────────
+
+describe('harness — cover battery mock', () => {
+  const scenario = () => {
+    const s = findScenario('cover-battery');
+    expect(s).toBeTruthy();
+    return normalizeConfig(s!.build());
+  };
+
+  it('ships a cover-battery scenario covering healthy, low and unknown', () => {
+    const levels = scenario().entries.flatMap((e) => e.covers.map((c) => c.battery));
+    expect(levels).toContain(82);
+    expect(levels).toContain(8);
+    expect(levels).toContain(null);
+  });
+
+  it('emits a device_class:battery SENSOR per battery-backed cover, and none otherwise', () => {
+    const cfg = scenario();
+    cfg.entries[0].covers[0].battery = undefined;
+    const { states } = buildStates(cfg);
+
+    expect(states['sensor.healthy_shade_battery']).toBeUndefined();
+    const low = states['sensor.low_left_battery'];
+    expect(low).toBeTruthy();
+    expect(low.attributes.device_class).toBe('battery');
+    expect(low.state).toBe('8');
+    // A null level models a sensor that has stopped reporting.
+    expect(states['sensor.unknown_shade_battery'].state).toBe('unknown');
+  });
+
+  // The gap that made this invisible in the harness while working on real HA:
+  // `device_id` lives ONLY on the display registry, which the mock never built.
+  it('exposes hass.entities with each cover and its battery on the cover’s own device', () => {
+    const cfg = scenario();
+    const { hass } = buildMockHass(cfg, () => {});
+    const entities = (hass as unknown as { entities: Record<string, { device_id?: string }> })
+      .entities;
+
+    expect(entities['cover.low_left'].device_id).toBe(
+      entities['sensor.low_left_battery'].device_id,
+    );
+    // …and NOT the ACP entry's device: a real battery hangs off the motor.
+    expect(entities['cover.low_left'].device_id).not.toBe('device_low');
+  });
+
+  it('resolves through the card’s own lookup end to end', () => {
+    const cfg = scenario();
+    const { hass } = buildMockHass(cfg, () => {});
+    const out = resolveCoverBatteries(hass, ['cover.low_left', 'cover.low_right']);
+    expect(out.map((b) => b.level)).toEqual([8, 64]);
+    expect(lowestBattery(out)!.cover_id).toBe('cover.low_left');
   });
 });

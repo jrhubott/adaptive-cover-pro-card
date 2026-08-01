@@ -117,6 +117,12 @@ export interface ManagedCoverCfg {
    *  shade's middle rail carries the fabric blend folded into an absolute
    *  position. */
   command_target?: number;
+  /** Battery charge for this cover, 0..100. Emits a `device_class: battery`
+   *  sensor on the cover's own device — the same shape a Zigbee shade motor
+   *  produces, and the only thing `resolveCoverBatteries` looks for. Omit for a
+   *  mains-powered cover (no battery entity at all, nothing renders); `null`
+   *  emits the sensor as `unknown`, which the card treats as low. */
+  battery?: number | null;
 }
 
 export interface HarnessEntry {

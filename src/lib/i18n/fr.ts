@@ -83,6 +83,9 @@ export const fr: EnDict = {
     legend_actual: 'Réel',
   },
   dialog: {
+    battery: 'Batterie {level}%',
+    battery_named: '{name} : {level}%',
+    battery_unknown: 'Niveau de batterie inconnu',
     extend: {
       title: 'Prolonger la dérogation manuelle',
       presets_label: "Jusqu'à",
@@ -263,6 +266,8 @@ export const fr: EnDict = {
   tile: {
     motion_pending: "Délai d'occupation en cours",
     motion_detected: 'Occupation détectée',
+    battery_low: 'Batterie faible — {level}%',
+    battery_unknown: 'Niveau de batterie inconnu',
     icon_action_label: "Action de l'icône du store",
     open: 'Ouvrir',
     stop: 'Arrêter',

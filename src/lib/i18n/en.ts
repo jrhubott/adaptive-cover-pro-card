@@ -77,6 +77,9 @@ export const en = {
     legend_actual: 'Actual',
   },
   dialog: {
+    battery: '{level}% battery',
+    battery_named: '{name}: {level}%',
+    battery_unknown: 'Battery level unknown',
     extend: {
       title: 'Extend manual override',
       presets_label: 'Until',
@@ -254,6 +257,8 @@ export const en = {
   tile: {
     motion_pending: 'Occupancy timeout pending',
     motion_detected: 'Occupancy detected',
+    battery_low: 'Low battery — {level}%',
+    battery_unknown: 'Battery level unknown',
     icon_action_label: 'Cover icon action',
     open: 'Open',
     stop: 'Stop',

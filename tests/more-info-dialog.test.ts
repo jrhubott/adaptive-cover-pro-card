@@ -957,3 +957,112 @@ describe('acp-more-info-dialog: position-history fetch cache (#234)', () => {
     expect(callWS).toHaveBeenCalledTimes(1);
   });
 });
+
+// ── Battery indicator in the header (#260) ──────────────────────────────────
+
+describe('more-info dialog — battery indicator', () => {
+  /** Attach a battery sensor to a cover's device via `hass.entities`, the
+   *  display registry the lookup walks. */
+  function withBatteries(
+    h: HomeAssistant,
+    covers: Array<{ cover: string; sensor: string; device: string; state: string; name?: string }>,
+  ): HomeAssistant {
+    const raw = h as unknown as {
+      states: Record<string, unknown>;
+      entities?: Record<string, { device_id?: string | null }>;
+    };
+    raw.entities = {};
+    for (const c of covers) {
+      raw.states[c.cover] = { state: 'open', attributes: { friendly_name: c.name ?? c.cover } };
+      raw.states[c.sensor] = { state: c.state, attributes: { device_class: 'battery' } };
+      raw.entities[c.cover] = { device_id: c.device };
+      raw.entities[c.sensor] = { device_id: c.device };
+    }
+    return h;
+  }
+
+  const battery = (el: DialogLike): Element | null =>
+    el.shadowRoot!.querySelector('.icon-btn.battery');
+
+  it('renders nothing when no managed cover reports a battery', async () => {
+    const el = await mount({ hass: hass(), discovered: discovered(), open: true });
+    expect(battery(el)).toBeFalsy();
+  });
+
+  it('renders the level for a single battery-backed cover', async () => {
+    const el = await mount({
+      hass: withBatteries(hass(), [
+        { cover: 'cover.left', sensor: 'sensor.left_batt', device: 'dev_l', state: '82' },
+      ]),
+      discovered: discovered(),
+      open: true,
+    });
+    const btn = battery(el)!;
+    expect(btn).toBeTruthy();
+    expect(btn.getAttribute('aria-label')).toContain('82');
+    expect(btn.classList.contains('low')).toBe(false);
+    expect(btn.querySelector('ha-icon')!.getAttribute('icon')).toBe('mdi:battery-80');
+  });
+
+  it('marks a low battery and uses the matching glyph', async () => {
+    const el = await mount({
+      hass: withBatteries(hass(), [
+        { cover: 'cover.left', sensor: 'sensor.left_batt', device: 'dev_l', state: '11' },
+      ]),
+      discovered: discovered(),
+      open: true,
+    });
+    const btn = battery(el)!;
+    expect(btn.classList.contains('low')).toBe(true);
+    expect(btn.querySelector('ha-icon')!.getAttribute('icon')).toBe('mdi:battery-10');
+  });
+
+  // The icon follows the WORST cell so a flat battery can't hide behind a
+  // healthy sibling, while the tooltip names every cover so which one is low
+  // stays recoverable.
+  it('follows the worst cell and names every cover on a multi-cover entry', async () => {
+    const d = discovered();
+    d.managed_covers = ['cover.left', 'cover.right'];
+    const el = await mount({
+      hass: withBatteries(hass(), [
+        {
+          cover: 'cover.left',
+          sensor: 'sensor.l_batt',
+          device: 'dev_l',
+          state: '64',
+          name: 'Left',
+        },
+        {
+          cover: 'cover.right',
+          sensor: 'sensor.r_batt',
+          device: 'dev_r',
+          state: '8',
+          name: 'Right',
+        },
+      ]),
+      discovered: d,
+      open: true,
+    });
+    const btn = battery(el)!;
+    expect(btn.classList.contains('low')).toBe(true);
+    expect(btn.querySelector('ha-icon')!.getAttribute('icon')).toBe('mdi:battery-outline');
+    const label = btn.getAttribute('aria-label')!;
+    expect(label).toContain('Left');
+    expect(label).toContain('64');
+    expect(label).toContain('Right');
+    expect(label).toContain('8');
+  });
+
+  it('is a readout, not a control — no button element, no pointer affordance', async () => {
+    const el = await mount({
+      hass: withBatteries(hass(), [
+        { cover: 'cover.left', sensor: 'sensor.left_batt', device: 'dev_l', state: '50' },
+      ]),
+      discovered: discovered(),
+      open: true,
+    });
+    const btn = battery(el)!;
+    expect(btn.tagName).not.toBe('BUTTON');
+    expect(btn.getAttribute('role')).toBe('img');
+  });
+});

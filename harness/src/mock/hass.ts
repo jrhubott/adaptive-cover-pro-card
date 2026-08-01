@@ -22,7 +22,7 @@ import {
   type CompressedSensorState,
   type LogbookRow,
 } from './events';
-import { buildStates, type GeneratedStates } from './state-gen';
+import { buildStates, batteryEntityId, coverDeviceId, type GeneratedStates } from './state-gen';
 
 export interface ServiceCallEvent {
   ts: number;
@@ -261,6 +261,27 @@ export function buildMockHass(
     if (areaId && e.area) areas[areaId] = { area_id: areaId, name: e.area };
   }
 
+  // `hass.entities` — the frontend's *display* entity registry. Distinct from the
+  // full websocket registry `buildRegistry` returns: it omits unique_id/platform
+  // but carries `device_id` for EVERY entity, which is the only way a card can
+  // get from a cover to a battery sensor sitting on the same physical device.
+  // Each managed cover is its own device (the motor), not part of ACP's device.
+  const entityRegistryDisplay: Record<string, { device_id?: string }> = {};
+  for (const e of cfg.entries) {
+    for (const c of e.covers) {
+      const deviceId = coverDeviceId(c.entity_id);
+      devices[deviceId] = {
+        id: deviceId,
+        name: c.friendly_name,
+        config_entries: [],
+      };
+      entityRegistryDisplay[c.entity_id] = { device_id: deviceId };
+      if (c.battery !== undefined) {
+        entityRegistryDisplay[batteryEntityId(c.entity_id)] = { device_id: deviceId };
+      }
+    }
+  }
+
   // Cover entity_id -> { entry, cover, index } for mocking recorder position
   // history. `index` lets the mock give each cover of a multi-cover entry its
   // own trajectory, so the History card's per-cover lines have something to
@@ -465,6 +486,7 @@ export function buildMockHass(
     } as unknown as HomeAssistant['user'],
     devices,
     areas,
+    entities: entityRegistryDisplay,
     callService: callService as unknown as HomeAssistant['callService'],
     callWS: callWS as unknown as HomeAssistant['callWS'],
     connection: {

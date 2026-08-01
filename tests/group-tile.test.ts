@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import '../src/components/group-tile';
+import { GroupTile } from '../src/components/group-tile';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities } from '../src/types';
 import { loadEntityRegistry } from '../src/lib/registry-store';
@@ -483,5 +483,25 @@ describe('acp-group-tile — icon interactivity', () => {
     await el.updateComplete;
     expect(iconAction).not.toHaveBeenCalled();
     expect(moreInfo).toHaveBeenCalled();
+  });
+});
+
+describe('group tile — rail color is constant (#260)', () => {
+  // The inline `background:${iconColor || 'var(--primary-color)'}` was removed
+  // so the rail no longer changes hue with the aggregate state. This element's
+  // `.pos-fill` had NO background in CSS at all before that — it relied entirely
+  // on the inline style — so the CSS default is load-bearing, not cosmetic.
+  it('declares a background on .pos-fill in CSS', () => {
+    const css = GroupTile.styles.toString();
+    expect(css).toMatch(/\.pos-fill\s*\{[^}]*background:/);
+    expect(css).toContain('--acp-pos-fill-color');
+    expect(css).toContain('var(--state-cover-active-color');
+  });
+
+  it('never writes an inline background onto the fill', async () => {
+    const el = await mount(makeHass(), makeDiscovered());
+    const fill = el.shadowRoot!.querySelector('.pos-fill');
+    expect(fill).toBeTruthy();
+    expect(fill!.getAttribute('style') ?? '').not.toContain('background');
   });
 });

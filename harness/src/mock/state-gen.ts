@@ -589,7 +589,33 @@ function addCoverStates(states: Record<string, HassState>, entry: HarnessEntry):
       ...(deviceClass !== undefined ? { device_class: deviceClass } : {}),
       ...(c.icon ? { icon: c.icon } : {}),
     });
+    // A battery-powered cover carries its charge on a SEPARATE sensor sitting on
+    // the cover's own device, the way a Zigbee shade motor does — not as an
+    // attribute of the cover. That separation is the whole reason the card has to
+    // walk `hass.entities` for a device_id, so mocking it any other way would
+    // exercise a path real installs never take. `null` emits `unknown`.
+    if (c.battery !== undefined) {
+      const batteryId = batteryEntityId(c.entity_id);
+      states[batteryId] = mkState(batteryId, c.battery === null ? 'unknown' : String(c.battery), {
+        friendly_name: `${c.friendly_name} battery`,
+        device_class: 'battery',
+        unit_of_measurement: '%',
+        state_class: 'measurement',
+      });
+    }
   }
+}
+
+/** The mock battery sensor paired with a cover — `cover.foo` → `sensor.foo_battery`. */
+export function batteryEntityId(coverEntityId: string): string {
+  return `sensor.${coverEntityId.split('.')[1]}_battery`;
+}
+
+/** The mock device a cover and its battery sensor both belong to. Distinct from
+ *  the ACP entry's own `device_<entry_id>`: in a real install the cover is its
+ *  own device (the motor), and the battery hangs off THAT, not off ACP. */
+export function coverDeviceId(coverEntityId: string): string {
+  return `device_${coverEntityId.replace('.', '_')}`;
 }
 
 /**

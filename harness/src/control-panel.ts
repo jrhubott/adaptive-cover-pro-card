@@ -724,6 +724,37 @@ export class AcpHarnessControlPanel extends LitElement {
                     html`<option value=${dc} ?selected=${c.device_class === dc}>${dc}</option>`,
                 )}
               </select>
+              <select
+                title="Battery — none emits no sensor at all; unknown emits it as 'unknown' (the card treats that as low)"
+                @change=${(ev: Event) => {
+                  const v = (ev.target as HTMLSelectElement).value;
+                  const battery = v === 'none' ? undefined : v === 'unknown' ? null : 50;
+                  const covers = e.covers.map((cc, i) => (i === ci ? { ...cc, battery } : cc));
+                  this._patchEntry(idx, { covers });
+                }}
+              >
+                <option value="none" ?selected=${c.battery === undefined}>batt: none</option>
+                <option value="level" ?selected=${typeof c.battery === 'number'}>
+                  batt: level
+                </option>
+                <option value="unknown" ?selected=${c.battery === null}>batt: unknown</option>
+              </select>
+              ${typeof c.battery === 'number'
+                ? html`<input
+                    type="number"
+                    min="0"
+                    max="100"
+                    title="Battery %"
+                    .value=${String(c.battery)}
+                    @change=${(ev: Event) => {
+                      const v = (ev.target as HTMLInputElement).value;
+                      const covers = e.covers.map((cc, i) =>
+                        i === ci ? { ...cc, battery: v === '' ? null : parseInt(v, 10) } : cc,
+                      );
+                      this._patchEntry(idx, { covers });
+                    }}
+                  />`
+                : ''}
               ${e.cover_type === 'cover_venetian'
                 ? html`<input
                     type="number"
