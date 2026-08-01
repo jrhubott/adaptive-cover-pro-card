@@ -3672,3 +3672,254 @@ describe('adaptive-cover-pro-tile-card — controls_cover / controls_axis', () =
     );
   });
 });
+
+// ── Bar-only layout, rail geometry, battery + rail chrome (#260) ─────────────
+
+describe('tile card — bar-only layout (#260)', () => {
+  // The overlap fix: the bar-only grid special-case was deleted outright, so a
+  // bar-only tile uses the same `.has-chrome-row` grid as a badged one. The old
+  // rule spanned `.label` across both rows in the same column as `.chrome-line`,
+  // and `.tile-body`'s `align-items: center` then centered the label on top of
+  // the bottom-aligned bar. happy-dom does no layout, so the stylesheet text is
+  // the only assertable trace of the mechanism being gone.
+  const css = (): string => AdaptiveCoverProTileCard.styles.toString();
+
+  it('no longer spans the bar-only label across both grid rows', () => {
+    expect(css()).not.toContain('grid-row: 1 / -1');
+  });
+
+  it('has no bar-only grid override left at any breakpoint', () => {
+    expect(css()).not.toContain('.tile-body.detailed.bar-only');
+  });
+
+  it('still emits the bar-only class as a styling/test hook', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, show_badge: false },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    expect(body.classList.contains('bar-only')).toBe(true);
+  });
+
+  // The regression guard flagged during investigation: ~15 rules are scoped
+  // `.chrome-line .pos-*`, so the bar markup must stay under `.chrome-line`.
+  it('keeps .chrome-line as the bar’s wrapper, as a sibling of .label', async () => {
+    for (const showBadge of [true, false]) {
+      const el = await mount(
+        { type: TYPE, entry_id: ENTRY, show_badge: showBadge },
+        makeHass({ coverLeftCurrentPosition: 60 }),
+      );
+      const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+      expect(body.querySelector('.chrome-line .pos-bar')).toBeTruthy();
+      expect(body.querySelector('.label .chrome-line')).toBeFalsy();
+    }
+  });
+});
+
+describe('tile card — rail geometry (#260)', () => {
+  const css = (): string => AdaptiveCoverProTileCard.styles.toString();
+
+  // A lone rail and a stacked rail must be the same length. The stack is wider
+  // than a lone rail by exactly the glyph lane, so the glyphs hang to its LEFT
+  // instead of eating into the rails.
+  it('derives the glyph lane from the glyph size and row gap rather than hardcoding it', () => {
+    const text = css();
+    expect(text).toContain(
+      '--acp-rail-glyph-lane: calc(var(--acp-rail-glyph-size) + var(--acp-rail-glyph-gap))',
+    );
+    expect(text).toContain('calc(var(--acp-rail-basis) + var(--acp-rail-glyph-lane))');
+  });
+
+  it('sizes the glyph and the row gap from those same tokens, so the lane cannot drift', () => {
+    const text = css();
+    expect(text).toContain('width: var(--acp-rail-glyph-size)');
+    expect(text).toContain('gap: var(--acp-rail-glyph-gap)');
+  });
+
+  it('renders a bare rail with no glyph for a single cover', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    expect(body.querySelector('.pos-bar')).toBeTruthy();
+    expect(body.querySelector('.pos-stack')).toBeFalsy();
+    expect(body.querySelector('.pos-glyph')).toBeFalsy();
+  });
+
+  it('renders one glyph-led row per cover for a multi-cover entry', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    expect(body.querySelectorAll('.pos-stack .pos-row').length).toBe(2);
+    expect(body.querySelectorAll('.pos-stack .pos-row .pos-glyph').length).toBe(2);
+  });
+});
+
+describe('tile card — rail color is constant (#260)', () => {
+  const css = (): string => AdaptiveCoverProTileCard.styles.toString();
+
+  // A rail is a measurement, not a status light: it must not change hue as the
+  // cover crosses open/closed, and on a multi-rail tile the rails must agree.
+  it('paints the fill from the cover-active token, not the per-state one', () => {
+    const text = css();
+    expect(text).toContain('--acp-pos-fill-color');
+    expect(text).toContain('var(--state-cover-active-color');
+    expect(text).not.toContain('--state-cover-open-color');
+  });
+
+  it('never writes an inline background onto the fill', async () => {
+    for (const coverLeftState of ['open', 'closed']) {
+      const el = await mount(
+        { type: TYPE, entry_id: ENTRY },
+        makeHass({ coverLeftCurrentPosition: 60, coverLeftState }),
+      );
+      const fills = el.shadowRoot!.querySelectorAll('.pos-fill');
+      expect(fills.length).toBeGreaterThan(0);
+      for (const fill of fills) {
+        expect(fill.getAttribute('style') ?? '').not.toContain('background');
+      }
+    }
+  });
+});
+
+describe('tile card — low-battery overlay (#260)', () => {
+  /** `hass.entities` is the display registry the battery lookup walks; the
+   *  tile-card fixture has no reason to carry it otherwise. */
+  function withBattery(
+    hass: HomeAssistant,
+    level: string | null,
+    opts: { deviceClass?: string; entityId?: string } = {},
+  ): HomeAssistant {
+    const id = opts.entityId ?? 'sensor.left_battery';
+    const h = hass as unknown as {
+      states: Record<string, unknown>;
+      entities?: Record<string, { device_id?: string | null }>;
+    };
+    if (level !== null) {
+      h.states[id] = { state: level, attributes: { device_class: opts.deviceClass ?? 'battery' } };
+    }
+    h.entities = {
+      'cover.left': { device_id: 'dev_left' },
+      ...(level !== null ? { [id]: { device_id: 'dev_left' } } : {}),
+    };
+    return hass;
+  }
+
+  it('renders no overlay for a healthy battery', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
+      withBattery(makeHass({ coverLeftCurrentPosition: 60 }), '82'),
+    );
+    expect(el.shadowRoot!.querySelector('.battery-overlay')).toBeFalsy();
+  });
+
+  it('renders no overlay for a mains-powered cover with no battery entity', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
+      withBattery(makeHass({ coverLeftCurrentPosition: 60 }), null),
+    );
+    expect(el.shadowRoot!.querySelector('.battery-overlay')).toBeFalsy();
+  });
+
+  it('renders a level-appropriate overlay below the threshold', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
+      withBattery(makeHass({ coverLeftCurrentPosition: 60 }), '8'),
+    );
+    const overlay = el.shadowRoot!.querySelector('.battery-overlay')!;
+    expect(overlay).toBeTruthy();
+    expect(overlay.getAttribute('icon')).toBe('mdi:battery-outline');
+  });
+
+  // A battery sensor that has stopped reporting is exactly the warning case.
+  it('renders the alert overlay for an unknown level', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
+      withBattery(makeHass({ coverLeftCurrentPosition: 60 }), 'unavailable'),
+    );
+    expect(el.shadowRoot!.querySelector('.battery-overlay')!.getAttribute('icon')).toBe(
+      'mdi:battery-alert-variant-outline',
+    );
+  });
+
+  // Z-Wave/ZHA ship a binary_sensor battery alongside the percentage sensor.
+  it('ignores a binary_sensor battery instead of warning on its on/off state', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
+      withBattery(makeHass({ coverLeftCurrentPosition: 60 }), 'off', {
+        entityId: 'binary_sensor.left_battery',
+      }),
+    );
+    expect(el.shadowRoot!.querySelector('.battery-overlay')).toBeFalsy();
+  });
+
+  // Motion sits top-right, battery bottom-left, so both can show at once.
+  it('pins the two icon overlays to opposite corners', () => {
+    const text = AdaptiveCoverProTileCard.styles.toString();
+    expect(text).toMatch(/\.motion-overlay\s*\{[^}]*top:\s*-4px;[^}]*right:\s*-6px/);
+    expect(text).toMatch(/\.battery-overlay\s*\{[^}]*bottom:\s*-4px;[^}]*left:\s*-6px/);
+  });
+});
+
+describe('tile card — drag position readout (#260)', () => {
+  interface Draggable extends CardLike {
+    _posDrag: { id: string; pct: number } | null;
+  }
+
+  it('shows no readout when idle', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    );
+    expect(el.shadowRoot!.querySelector('.pos-readout')).toBeFalsy();
+  });
+
+  // The hover tooltip carries the same number, but a tooltip is mouse-only —
+  // on a phone the finger setting the position also covers the rail.
+  it('shows the live logical percentage on the dragged rail only', async () => {
+    const el = (await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    )) as Draggable;
+    el._posDrag = { id: 'cover.left', pct: 37 };
+    await el.updateComplete;
+
+    const readouts = el.shadowRoot!.querySelectorAll('.pos-readout');
+    expect(readouts.length).toBe(1);
+    expect(readouts[0].textContent!.trim()).toContain('37');
+  });
+
+  it('clears the readout when the drag ends', async () => {
+    const el = (await mount(
+      { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    )) as Draggable;
+    el._posDrag = { id: 'cover.left', pct: 37 };
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('.pos-readout')).toBeTruthy();
+
+    el._posDrag = null;
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('.pos-readout')).toBeFalsy();
+  });
+
+  // .pos-bar is overflow:hidden to clip the fill, so the readout must not live
+  // inside it, and it must never swallow the drag it reports on.
+  it('sits outside the clipped bar and is pointer-transparent', async () => {
+    const el = (await mount(
+      { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    )) as Draggable;
+    el._posDrag = { id: 'cover.left', pct: 37 };
+    await el.updateComplete;
+
+    expect(el.shadowRoot!.querySelector('.pos-slider > .pos-readout')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('.pos-bar .pos-readout')).toBeFalsy();
+    expect(AdaptiveCoverProTileCard.styles.toString()).toMatch(
+      /\.pos-readout\s*\{[^}]*pointer-events:\s*none/,
+    );
+  });
+});

@@ -410,7 +410,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'day-night-dual-rail',
     label: 'Day/night shade — two rails (dual_entity)',
     description:
-      "A day/night shade in the integration's dual_entity control model: ONE config entry binding TWO cover.* rail entities (bottom rail carries the coverage, middle rail carries the sheer-vs-blackout fabric split). The blend is not a drivable tilt axis on either entity, so discovery reports position only — pre-fix the tile card rendered managed_covers[0] and nothing else, leaving the middle rail with no readout and no control anywhere on the tile. The tile must now show ONE POSITION RAIL PER MANAGED COVER, stacked in the slot the single bar used to occupy, each led by its own cover glyph rather than a name — resolved through the same chain as the tile icon (entity `icon` → `device_class` → `cover_type`), so the two rails here carry DIFFERENT glyphs only because the middle rail pins an explicit `icon`. Hover a glyph for that rail's name, and the slider's accessible name carries it too. Clear the middle rail's `icon` in this scenario and both rails collapse to the same shutter glyph — that is correct, and the reason the names moved to the tooltip instead of disappearing. BOTH rails carry an orange target tick, but from DIFFERENT sources, deliberately. The resolved cover (the bottom rail) keeps the entry-level pipeline target — the number this tile has always shown, and the one the dialog marker still shows. Every OTHER rail reads its own dispatched value from the position_verification sensor's per_entity map: the middle rail's is 30 against the entry target of 60, because its dispatched value is the fabric blend folded into an absolute position, so borrowing the entry target would put its tick on the wrong scale. Flip “Legacy integration” on to drop per_entity entirely — the bottom rail is unaffected and the middle rail goes tickless rather than showing a borrowed number. Rail ORDER follows the integration's own entity order (config_entry.options[entities]), which the card cannot influence — set “covers (rail order)” in the Tile card panel to Reversed and the two rails swap, or to “First rail only” to prove it doubles as a filter. The ORDER CARRIES INTO THE MORE-INFO DIALOG: open the tile and the dialog\'s stacked cover bars follow the same order and subset, so the two surfaces never disagree. Only an explicit covers list travels — a tile pinned with `cover` alone leaves the dialog showing every managed cover exactly as before. The rails draw COVERAGE, not openness: a full rail means the cover is blocking the most sun, the same polarity as the sky compass wedge — which now reads the same open_blocks_sun flag instead of testing for cover_awning, so an oscillating awning no longer draws an inverted wedge beside a correctly-filled rail. Polarity comes from the discovery axis flag open_blocks_sun, so it is per-axis and per-cover-type rather than hardcoded — compare against any AWNING scenario, where extending raises both the value and the coverage so its rail fills the other way. Drag, arrows and the target tick all follow the drawn direction; only the tooltip and the service call stay in the integration frame. Each rail is an independent slider: drag one and only that rail's fill follows (a single shared drag state used to paint both), release fires exactly one set_axes for THAT entity (watch the service log), and the gesture must not open the more-info dialog. Point “controls_cover” at the middle rail in the Tile card panel and the ↑■↓ buttons retarget to it — including their at-open/at-closed disabling, which now reads the retargeted entity rather than always the first cover.",
+      "A day/night shade in the integration's dual_entity control model: ONE config entry binding TWO cover.* rail entities (bottom rail carries the coverage, middle rail carries the sheer-vs-blackout fabric split). The blend is not a drivable tilt axis on either entity, so discovery reports position only — pre-fix the tile card rendered managed_covers[0] and nothing else, leaving the middle rail with no readout and no control anywhere on the tile. The tile must now show ONE POSITION RAIL PER MANAGED COVER, stacked in the slot the single bar used to occupy, each led by its own cover glyph rather than a name — resolved through the same chain as the tile icon (entity `icon` → `device_class` → `cover_type`), so the two rails here carry DIFFERENT glyphs only because the middle rail pins an explicit `icon`. Hover a glyph for that rail's name, and the slider's accessible name carries it too. Clear the middle rail's `icon` in this scenario and both rails collapse to the same shutter glyph — that is correct, and the reason the names moved to the tooltip instead of disappearing. BOTH rails carry an orange target tick, but from DIFFERENT sources, deliberately. The resolved cover (the bottom rail) keeps the entry-level pipeline target — the number this tile has always shown, and the one the dialog marker still shows. Every OTHER rail reads its own dispatched value from the position_verification sensor's per_entity map: the middle rail's is 30 against the entry target of 60, because its dispatched value is the fabric blend folded into an absolute position, so borrowing the entry target would put its tick on the wrong scale. Flip “Legacy integration” on to drop per_entity entirely — the bottom rail is unaffected and the middle rail goes tickless rather than showing a borrowed number. Rail ORDER follows the integration's own entity order (config_entry.options[entities]), which the card cannot influence — set “covers (rail order)” in the Tile card panel to Reversed and the two rails swap, or to “First rail only” to prove it doubles as a filter. The ORDER CARRIES INTO THE MORE-INFO DIALOG: open the tile and the dialog\'s stacked cover bars follow the same order and subset, so the two surfaces never disagree. Only an explicit covers list travels — a tile pinned with `cover` alone leaves the dialog showing every managed cover exactly as before. The rails draw COVERAGE, not openness: a full rail means the cover is blocking the most sun, the same polarity as the sky compass wedge — which now reads the same open_blocks_sun flag instead of testing for cover_awning, so an oscillating awning no longer draws an inverted wedge beside a correctly-filled rail. Polarity comes from the discovery axis flag open_blocks_sun, so it is per-axis and per-cover-type rather than hardcoded — compare against any AWNING scenario, where extending raises both the value and the coverage so its rail fills the other way. Drag, arrows and the target tick all follow the drawn direction; only the tooltip and the service call stay in the integration frame. Each rail is an independent slider: drag one and only that rail's fill follows (a single shared drag state used to paint both), release fires exactly one set_axes for THAT entity (watch the service log), and the gesture must not open the more-info dialog. Point “controls_cover” at the middle rail in the Tile card panel and the ↑■↓ buttons retarget to it — including their at-open/at-closed disabling, which now reads the retargeted entity rather than always the first cover. It retargets the BUTTONS ONLY, deliberately: the name/state line, position readout, icon, color and tap target all keep describing the resolved cover (the bottom rail), and the orange target ticks stay where they are. Making the display follow this option was tried and reverted — the tile's `cover` is simultaneously the displayed entity, the rail carrying the entry-level pipeline target, the tilt axis's read/write target and the anchor for the entry-scale position fallback, so moving it for display silently moved a service-call target too.",
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'day-night-dual-rail';
@@ -2304,12 +2304,83 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'cover-battery',
+    label: 'Cover battery — low overlay, dialog readout, unknown level (#260)',
+    added: '2026-07-31',
+    issue: 260,
+    description:
+      "Battery reporting across all three states the card distinguishes. A cover's battery is NOT an ACP entity — it is a separate `device_class: battery` sensor on the cover's OWN device — so the card resolves it by walking `hass.entities` for the cover's device_id and finding the battery sensor beside it. That is why this scenario gives each cover its own mock device. Three entries: 'Healthy' at 82% (no overlay — the tile icon must stay clean, and the dialog's battery button shows a full-ish glyph reading '82% battery'); 'Low' at 8% (the tile icon gains a RED battery overlay at its BOTTOM-LEFT, diagonally opposite the occupancy symbol's top-right so the two never collide, tooltip 'Low battery — 8%'); and 'Unknown' whose sensor reads `unknown` (treated as LOW deliberately — a battery that has stopped reporting is exactly what a warning is for — so it also overlays, with mdi:battery-alert-variant-outline). The threshold is LOW_BATTERY_PCT = 20 in src/lib/battery.ts, shared by the tile overlay and the dialog readout so they cannot drift. Check the multi-cover path too: 'Low' has two covers at 8% and 64%, so the icon must follow the WORST cell while the dialog tooltip names both ('Left: 8% · Right: 64%'). Set any of it live from Managed covers → the batt: select (none/level/unknown) in the control panel. A mains-powered cover (batt: none) emits no sensor at all and must render nothing anywhere.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'cover-battery';
+      c.tile.layout = 'detailed';
+      c.entries = [
+        makeEntry({
+          entry_id: 'healthy',
+          title: 'Healthy',
+          window_azimuth: 180,
+          color: '#43a047',
+          target_position: 70,
+          covers: [
+            {
+              entity_id: 'cover.healthy_shade',
+              friendly_name: 'Healthy shade',
+              position: 70,
+              device_class: 'shade',
+              battery: 82,
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'low',
+          title: 'Low',
+          window_azimuth: 180,
+          color: '#e53935',
+          target_position: 40,
+          covers: [
+            {
+              entity_id: 'cover.low_left',
+              friendly_name: 'Left',
+              position: 40,
+              device_class: 'shade',
+              battery: 8,
+            },
+            {
+              entity_id: 'cover.low_right',
+              friendly_name: 'Right',
+              position: 40,
+              device_class: 'shade',
+              battery: 64,
+            },
+          ],
+        }),
+        makeEntry({
+          entry_id: 'unknown_batt',
+          title: 'Unknown',
+          window_azimuth: 180,
+          color: '#8e24aa',
+          target_position: 55,
+          covers: [
+            {
+              entity_id: 'cover.unknown_shade',
+              friendly_name: 'Unknown shade',
+              position: 55,
+              device_class: 'shade',
+              battery: null,
+            },
+          ],
+        }),
+      ];
+      return c;
+    },
+  },
+  {
     id: 'bar-only-tile',
-    label: 'Bar-only tile — no badges, centered name/state (#208)',
+    label: 'Bar-only tile — no badges, same grid as a badged tile (#260)',
     added: '2026-07-13',
     issue: 208,
     description:
-      "The bar-only detailed tile (commit that centers name/state, #208): integration enabled but AUTOMATIC control OFF, no manual override and no floor slot, so NO chrome badges render — only the position bar. The name/state must sit VERTICALLY CENTERED across the tile height (not pinned to the top), with the bar hugging the bottom and reserving the badge-height so this tile is the same height as a badged one. Two entries: one at ~65% open, one fully open. Note the rail draws COVERAGE, so 65% open is a 35%-filled rail and the fully-open one is empty. Verify the responsive fix: drag the tile-width control DOWN below ~340px — the ↑■↓ controls must drop to their own full-width row (they previously stayed inline for bar-only tiles because the wide grid out-specified the reflow). Toggle 'show_position_bar' off in Per-card config to confirm the chrome row collapses entirely (single-row tile) and that no slider remains. The bar is also the tile's position slider: press and drag it and the fill plus the tooltip readout follow live with no service call until release, then exactly one set_axes fires (watch the service log) — dragging RIGHT closes the cover, because the rail draws coverage and the write is the un-mirrored logical value. The gesture must NOT open the more-info dialog, though a tap anywhere else on the tile still must. Its grab area extends about 8px above and below the 6px rail without changing the tile's height, and Tab reaches it for arrow (±1), Page Up/Down (±10) and Home/End control.",
+      "The bar-only detailed tile: integration enabled but AUTOMATIC control OFF, no manual override and no floor slot, so NO chrome badges render — only the position bar. Since #260 a bar-only tile has NO grid special-case at all — it uses the same two-row grid as a badged tile, so the name/state sit in row 1 and the bar spans label+controls beneath them. It must look exactly like a badged tile with the badge pills removed: same name/state position, same full-width bar, same tile height (the chrome row still reserves the 22px badge height). The old layout centered the name/state across the full tile height and confined the bar to the label column; that centering is what produced #260's overlap — a centered label spanning both rows sat on top of the bottom-aligned bar — so it is deliberately gone, and the tile must NOT look vertically centered any more. Two entries: one at ~65% open, one fully open. Note the rail draws COVERAGE, so 65% open is a 35%-filled rail and the fully-open one is empty. Verify the responsive reflow: drag the tile-width control DOWN below ~340px — the ↑■↓ controls must drop to their own full-width row, now inherited from the plain has-chrome-row reflow rather than a bar-only re-assertion. Toggle 'show_position_bar' off in Per-card config to confirm the chrome row collapses entirely (single-row tile) and that no slider remains. The bar is also the tile's position slider: press and drag it and the fill plus the tooltip readout follow live with no service call until release, then exactly one set_axes fires (watch the service log) — dragging RIGHT closes the cover, because the rail draws coverage and the write is the un-mirrored logical value. The gesture must NOT open the more-info dialog, though a tap anywhere else on the tile still must. Its grab area extends about 8px above and below the 6px rail without changing the tile's height, and Tab reaches it for arrow (±1), Page Up/Down (±10) and Home/End control.",
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'bar-only-tile';

@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { LitElement, html, css, nothing, unsafeCSS, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
@@ -6,7 +6,7 @@ import type { DiscoveredEntities } from '../types';
 import { memberBadgeWinners } from '../lib/badge-visibility';
 import { axisDisplayValue, positionAxisFor } from '../lib/axes';
 import { formatPercent } from '../lib/formatters';
-import { coverStateColor } from '../lib/icons';
+import { coverStateColor, COVER_ACTIVE_COLOR } from '../lib/icons';
 import {
   groupIcon,
   readGroup,
@@ -169,10 +169,7 @@ export class GroupTile extends LitElement {
                 @keydown=${(e: KeyboardEvent) => this._onPosKeydown(e, s)}
               >
                 <div class="pos-bar">
-                  <div
-                    class="pos-fill"
-                    style=${`width:${shownFill}%;background:${iconColor || 'var(--primary-color)'}`}
-                  ></div>
+                  <div class="pos-fill" style=${`width:${shownFill}%`}></div>
                 </div>
               </div>`
             : nothing}
@@ -521,6 +518,10 @@ export class GroupTile extends LitElement {
     .pos-fill {
       position: absolute;
       inset: 0 auto 0 0;
+      /* One constant color for every rail, never the cover's state color: a rail
+         that changed hue as it crossed open/closed read as a status light rather
+         than a measurement. Overridable per-theme via --acp-pos-fill-color. */
+      background: var(--acp-pos-fill-color, ${unsafeCSS(COVER_ACTIVE_COLOR)});
       opacity: 0.55;
       border-radius: 6px;
       transition: width 0.3s ease;

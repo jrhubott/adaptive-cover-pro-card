@@ -5,6 +5,7 @@ import {
   coverOpenIcon,
   coverCloseIcon,
   coverStateColor,
+  COVER_ACTIVE_COLOR,
 } from '../src/lib/icons';
 
 describe('pickCoverIcon', () => {
@@ -216,5 +217,34 @@ describe('coverStateColor', () => {
   });
   it('empty string resolves to the unavailable var', () => {
     expect(coverStateColor('')).toBe('var(--state-unavailable-color)');
+  });
+});
+
+describe('COVER_ACTIVE_COLOR', () => {
+  it('drops only the per-state layer from coverStateColor’s cascade', () => {
+    // Same theme cascade, minus `--state-cover-<state>-color` — so a position
+    // rail still tracks the theme and still reads as "cover", but stays one
+    // constant color instead of changing hue as the cover crosses open/closed.
+    expect(COVER_ACTIVE_COLOR).toBe(
+      'var(--state-cover-active-color, var(--state-cover-color, var(--state-active-color, var(--primary-color))))',
+    );
+    expect(COVER_ACTIVE_COLOR).not.toContain('-open-');
+    expect(COVER_ACTIVE_COLOR).not.toContain('-closed-');
+  });
+
+  it('shares its inner tiers with the active branch of coverStateColor', () => {
+    const active = coverStateColor('open');
+    for (const tier of [
+      '--state-cover-active-color',
+      '--state-cover-color',
+      '--state-active-color',
+    ]) {
+      expect(active).toContain(tier);
+      expect(COVER_ACTIVE_COLOR).toContain(tier);
+    }
+  });
+
+  it('ends at --primary-color so a theme defining no state tokens still paints', () => {
+    expect(COVER_ACTIVE_COLOR.endsWith('var(--primary-color))))')).toBe(true);
   });
 });

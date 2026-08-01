@@ -1,4 +1,12 @@
-import { LitElement, html, css, nothing, type TemplateResult, type PropertyValues } from 'lit';
+import {
+  LitElement,
+  html,
+  css,
+  nothing,
+  unsafeCSS,
+  type TemplateResult,
+  type PropertyValues,
+} from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import {
   handleAction,
@@ -23,8 +31,15 @@ import { buildOverridePresets } from './lib/override-presets';
 import './components/extend-override-dialog';
 import { AXIS_LABEL_I18N_KEYS } from './const';
 import { entityStateChanged } from './lib/hass-change';
+import { resolveCoverBatteries, lowestBattery, batteryIcon, isLowBattery } from './lib/battery';
 import { fetchAcpConfigEntries } from './lib/config-entries';
-import { coverStateIcon, coverStateColor, coverOpenIcon, coverCloseIcon } from './lib/icons';
+import {
+  coverStateIcon,
+  coverStateColor,
+  coverOpenIcon,
+  coverCloseIcon,
+  COVER_ACTIVE_COLOR,
+} from './lib/icons';
 import { subscribeEntityRegistry, type EntityRegistryEntry } from './lib/entity-registry';
 import { loadEntityRegistry, getCachedRegistry } from './lib/registry-store';
 import { registryCache } from './lib/registry-cache';
@@ -712,6 +727,14 @@ export class AdaptiveCoverProTileCard extends LitElement {
         : cfg.covers
       : [];
     const barCovers = listed.length > 0 ? listed : defaultCovers;
+    // Low-battery overlay on the tile icon, sibling to the motion overlay. Keyed
+    // off the tile's OWN cover list, not the entry's: a tile narrowed to one rail
+    // of a dual-rail shade must not warn about the battery of a cover it doesn't
+    // show. Renders only when low, so a healthy or mains-powered cover is silent.
+    const lowBattery = (() => {
+      const worst = lowestBattery(resolveCoverBatteries(this.hass, barCovers));
+      return isLowBattery(worst) ? worst : null;
+    })();
     // Live value for any rail. The resolved cover keeps the value the rest of
     // the tile (icon, readout, controls) already agrees on; every other rail
     // reproduces the same resolution for ITSELF rather than reading a raw
@@ -742,18 +765,16 @@ export class AdaptiveCoverProTileCard extends LitElement {
       id === cover ? calculatedPosition : (commandTargets[id] ?? null);
     const showPositionBar =
       detailed && cfg.show_position_bar !== false && barCovers.some((id) => railLive(id) !== null);
+    // A single cover shows a bare rail — no glyph, there is nothing to tell apart.
+    // The stack reserves a glyph lane to its LEFT rather than taking it out of the
+    // rails, so a stacked rail and a lone rail are the same length and line up on
+    // both edges (issue #260).
     const posBarTpl = showPositionBar
       ? barCovers.length === 1
         ? // Same per-rail resolution as the stack below. Reading `livePosition`
           // here painted the RESOLVED cover's value onto whatever cover
           // `covers[0]` names, while clicks/drags wrote to `covers[0]`.
-          this._posBar(
-            barCovers[0],
-            railLive(barCovers[0]),
-            railTarget(barCovers[0]),
-            iconColor,
-            positionAxis,
-          )
+          this._posBar(barCovers[0], railLive(barCovers[0]), railTarget(barCovers[0]), positionAxis)
         : html`<div class="pos-stack">
             ${barCovers.map((id) => {
               const live = railLive(id);
@@ -764,7 +785,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                   icon=${this._railIcon(id, discovered, live)}
                   ${tooltip(railName)}
                 ></ha-icon>
-                ${this._posBar(id, live, railTarget(id), iconColor, positionAxis, railName)}
+                ${this._posBar(id, live, railTarget(id), positionAxis, railName)}
               </div>`;
             })}
           </div>`
@@ -779,9 +800,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
       ? html`${autoBadgeTpl}${showWinnerBadge ? badgeTpl : nothing}${floorChipTpl}`
       : nothing;
     const hasChromeRow = detailed && (hasDetailBadges || showPositionBar);
-    // Bar-only: the chrome row carries just the position bar (no badges). Center
-    // the name/state across the reserved row height and let the bar hug the
-    // bottom, instead of pinning the label to the top (issue #208).
+    // Bar-only: the chrome row carries just the position bar (no badges). Kept
+    // as a class for tests and styling hooks, but the layout is identical to a
+    // badged tile's — see the .bar-only note in the stylesheet (issue #260).
     const barOnly = hasChromeRow && !hasDetailBadges;
 
     return html`
@@ -814,6 +835,17 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 class="motion-overlay ${motionState}"
                 icon="mdi:motion-sensor"
                 ${tooltip(motionTitle)}
+              ></ha-icon>`
+            : nothing}
+          ${lowBattery
+            ? html`<ha-icon
+                class="battery-overlay"
+                icon=${batteryIcon(lowBattery.level, lowBattery.charging)}
+                ${tooltip(
+                  lowBattery.level === null
+                    ? t('tile.battery_unknown', this.hass)
+                    : t('tile.battery_low', this.hass, { level: lowBattery.level }),
+                )}
               ></ha-icon>`
             : nothing}
         </div>
@@ -984,7 +1016,6 @@ export class AdaptiveCoverProTileCard extends LitElement {
     id: string,
     live: number | null,
     target: number | null,
-    iconColor: string | null,
     axis: ResolvedAxis,
     /** Rail name, folded into the slider's accessible name on a multi-rail tile
      *  where "Position" alone doesn't say which cover is being driven. */
@@ -1028,10 +1059,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       @keydown=${(e: KeyboardEvent) => this._onPosKeydown(e, id, shownFill, axis)}
     >
       <div class="pos-bar" ${tooltip(tip)}>
-        <div
-          class="pos-fill"
-          style=${`width:${shownFill}%${iconColor ? `;background:${iconColor}` : ''}`}
-        ></div>
+        <div class="pos-fill" style=${`width:${shownFill}%`}></div>
         ${targetFill !== null
           ? html`<div
               class="pos-marker"
@@ -1039,6 +1067,14 @@ export class AdaptiveCoverProTileCard extends LitElement {
             ></div>`
           : nothing}
       </div>
+      ${dragging
+        ? html`<div
+            class="pos-readout"
+            style=${`left:clamp(16px, ${shownFill}%, calc(100% - 16px))`}
+          >
+            ${formatPercent(shown)}
+          </div>`
+        : nothing}
     </div>`;
   }
 
@@ -1439,26 +1475,14 @@ export class AdaptiveCoverProTileCard extends LitElement {
         'icon chrome chrome'
         'icon tilt   tilt';
     }
-    /* Bar-only (position bar, no badges): confine the bar to the label column so
-       the controls can span both rows, then center the name/state across the
-       full height with the bar hugging the bottom — so a bar-only tile centers
-       its label instead of pinning it to the top (issue #208). Scoped to
-       :not(.has-tilt): a tilt tile keeps its 3-row grid (label/chrome/tilt) and
-       must NOT span the label across the bar + tilt rows, which would overlap
-       them (the tilt grid wins on specificity, so the label span has to opt out
-       explicitly here). */
-    .tile-body.detailed.bar-only:not(.has-tilt) {
-      grid-template-areas:
-        'icon label  controls'
-        'icon chrome controls';
-    }
-    .tile-body.detailed.bar-only:not(.has-tilt) .label {
-      grid-row: 1 / -1;
-      align-self: center;
-    }
-    .tile-body.detailed.bar-only:not(.has-tilt) .chrome-line {
-      align-self: end;
-    }
+    /* Bar-only (position bar, no badges) gets NO grid special-case: it uses the
+       same .has-chrome-row grid as a badged tile, so the bar spans label+controls
+       at full tile width and the name/state sit in row 1. The old special-case
+       confined the bar to the label column and spanned .label across both rows to
+       keep it centered (issue #208) — but a centered label and a bottom-aligned
+       bar then shared one cell and overlapped (issue #260), and the confined bar
+       read as a different component from the badged tile's full-width one. A
+       bar-only tile is now a badged tile minus the badges. */
     /* Name over state, vertically centered against the icon (HA ha-tile-info).
        No gap: HA's .info stacks the two lines with no gap and lets the primary
        line-height (normal, 1.6) do the spacing. */
@@ -1504,6 +1528,15 @@ export class AdaptiveCoverProTileCard extends LitElement {
       align-items: center;
       gap: 6px;
       min-width: 0;
+      /* Rail geometry, shared by the lone rail and the multi-cover stack so the
+         two stay the same length — see the .pos-stack note (issue #260). The
+         glyph lane is the per-rail glyph plus the .pos-row gap that separates it
+         from the rail. */
+      --acp-rail-basis: 170px;
+      --acp-rail-max: 55%;
+      --acp-rail-glyph-size: 15px;
+      --acp-rail-glyph-gap: 6px;
+      --acp-rail-glyph-lane: calc(var(--acp-rail-glyph-size) + var(--acp-rail-glyph-gap));
       /* Reserve the badge pill's height even when no badge is present, so a
          bar-only tile is the same height as one with badges — the position bar
          just centers in the reserved space (issue #208). Matches the tile-badge
@@ -1528,8 +1561,8 @@ export class AdaptiveCoverProTileCard extends LitElement {
       margin-left: auto;
       align-self: center;
       position: relative;
-      flex: 0 1 170px;
-      max-width: 55%;
+      flex: 0 1 var(--acp-rail-basis);
+      max-width: var(--acp-rail-max);
       cursor: pointer;
       /* A touch-drag must move the fill, not scroll the dashboard. */
       touch-action: none;
@@ -1542,13 +1575,20 @@ export class AdaptiveCoverProTileCard extends LitElement {
       inset: -8px 0;
     }
     /* Multi-cover entry: the rails stack in the slot the single rail occupies,
-       each labelled with its cover's short name. The stack owns the flex sizing
-       so each rail below it can size itself to the full stack width. */
+       each labelled with its cover's glyph. The stack owns the flex sizing so
+       each rail below it can size itself to the full stack width.
+
+       It is WIDER than a lone rail by exactly the glyph lane, so the glyphs hang
+       to the left of the rail track instead of shortening the rails. Both are
+       margin-left:auto, so the right edges meet and — the lane cancelling out on
+       the left — a stacked rail and a lone rail are the same length and start at
+       the same x (issue #260). Derive, never hardcode: the lane is the glyph's
+       own width plus the .pos-row gap. */
     .chrome-line .pos-stack {
       margin-left: auto;
       align-self: center;
-      flex: 0 1 170px;
-      max-width: 55%;
+      flex: 0 1 calc(var(--acp-rail-basis) + var(--acp-rail-glyph-lane));
+      max-width: calc(var(--acp-rail-max) + var(--acp-rail-glyph-lane));
       min-width: 0;
       display: flex;
       flex-direction: column;
@@ -1557,7 +1597,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     .chrome-line .pos-stack .pos-row {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: var(--acp-rail-glyph-gap);
       min-width: 0;
     }
     /* Per-rail glyph in place of a name: two rails of one shade have long,
@@ -1574,9 +1614,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
       justify-content: center;
       align-self: center;
       line-height: 0;
-      --mdc-icon-size: 15px;
-      width: 15px;
-      height: 15px;
+      --mdc-icon-size: var(--acp-rail-glyph-size);
+      width: var(--acp-rail-glyph-size);
+      height: var(--acp-rail-glyph-size);
       color: var(--secondary-text-color);
     }
     .chrome-line .pos-stack .pos-slider {
@@ -1599,6 +1639,26 @@ export class AdaptiveCoverProTileCard extends LitElement {
     .chrome-line .pos-slider.dragging .pos-fill {
       transition: none;
     }
+    /* Live percentage while a drag is in flight. The hover tooltip carries the
+       same number, but a tooltip is mouse-only — on a phone, the finger setting
+       the position is also the thing covering the rail, so without this the user
+       is dragging blind. Sits in .pos-slider, NOT .pos-bar: the bar is
+       overflow:hidden to clip the fill, which would clip this too. Pointer-events
+       off so it never eats the drag it is reporting on. */
+    .chrome-line .pos-readout {
+      position: absolute;
+      bottom: calc(100% + 6px);
+      transform: translateX(-50%);
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: var(--secondary-background-color, rgba(127, 127, 127, 0.9));
+      color: var(--primary-text-color);
+      font-size: var(--ha-font-size-s, 0.75rem);
+      line-height: var(--ha-line-height-condensed, 1.2);
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 2;
+    }
     .chrome-line .pos-bar {
       position: relative;
       width: 100%;
@@ -1610,7 +1670,13 @@ export class AdaptiveCoverProTileCard extends LitElement {
     .chrome-line .pos-fill {
       position: absolute;
       inset: 0 auto 0 0;
-      background: var(--primary-color);
+      /* One constant color for every rail, never the cover's state color: a rail
+         that changed hue as it crossed open/closed read as a status light rather
+         than a measurement, and on a multi-rail tile the rails disagreed with
+         each other. The icon still carries state color (the state_color option),
+         which is where that signal belongs. Overridable per-theme via
+         --acp-pos-fill-color. */
+      background: var(--acp-pos-fill-color, ${unsafeCSS(COVER_ACTIVE_COLOR)});
       opacity: 0.55;
       border-radius: 6px;
       transition: width 0.3s ease;
@@ -1747,6 +1813,20 @@ export class AdaptiveCoverProTileCard extends LitElement {
       right: -6px;
       --mdc-icon-size: 12px;
       color: var(--warning-color, #f1c232);
+      background: var(--card-background-color, white);
+      border-radius: 50%;
+      padding: 1px;
+      line-height: 0;
+    }
+    /* Sibling of .motion-overlay, pinned to the opposite corner so a cover that
+       is both occupied and low on battery shows both without them colliding —
+       motion top-right, battery bottom-left. */
+    .battery-overlay {
+      position: absolute;
+      bottom: -4px;
+      left: -6px;
+      --mdc-icon-size: 12px;
+      color: var(--error-color, #db4437);
       background: var(--card-background-color, white);
       border-radius: 50%;
       padding: 1px;
@@ -1920,22 +2000,8 @@ export class AdaptiveCoverProTileCard extends LitElement {
             'icon tilt'
             'controls controls';
         }
-        /* The wide bar-only grid is :not(.has-tilt) at (0,4,0), which out-weighs
-           the (0,3,0) has-chrome-row reflow above — so re-assert the reflowed
-           (controls on their own row) grid at matching specificity here, or a
-           bar-only tile would keep its inline layout on phones. */
-        .tile-body.detailed.bar-only:not(.has-tilt) {
-          grid-template-areas:
-            'icon label'
-            'icon chrome'
-            'controls controls';
-        }
-        /* Narrow reflow stacks the controls on their own row, so the bar-only
-           label span from the wide layout would overlap them — pin it back to
-           the name row. */
-        .tile-body.detailed.bar-only:not(.has-tilt) .label {
-          grid-row: 1 / 2;
-        }
+        /* No bar-only re-assertion needed: the wide layout no longer special-cases
+           bar-only, so the .has-chrome-row reflow above already applies (#260). */
         .tile-body.detailed .controls {
           margin-top: 4px;
           gap: 8px;
@@ -1978,20 +2044,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
           'tilt tilt'
           'controls controls';
       }
-      /* Re-assert the reflowed grid for bar-only (see the 480px block): the wide
-         bar-only rule out-specifies the has-chrome-row reflow, so without this a
-         bar-only tile in a narrow Sections column keeps its inline controls. */
-      .tile-body.detailed.bar-only:not(.has-tilt) {
-        grid-template-areas:
-          'icon label'
-          'icon chrome'
-          'controls controls';
-      }
-      /* Narrow reflow stacks the controls on their own row, so the bar-only
-         label span from the wide layout would overlap them — pin it back. */
-      .tile-body.detailed.bar-only:not(.has-tilt) .label {
-        grid-row: 1 / 2;
-      }
+      /* Same as the 480px block: no bar-only re-assertion needed (#260). */
       .tile-body.detailed .controls {
         margin-top: 4px;
         gap: 8px;

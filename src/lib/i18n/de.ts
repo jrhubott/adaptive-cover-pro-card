@@ -81,6 +81,9 @@ export const de: EnDict = {
     legend_actual: 'Ist',
   },
   dialog: {
+    battery: 'Batterie {level}%',
+    battery_named: '{name}: {level}%',
+    battery_unknown: 'Batteriestand unbekannt',
     extend: {
       title: 'Manuelle Übersteuerung verlängern',
       presets_label: 'Bis',
@@ -259,6 +262,8 @@ export const de: EnDict = {
   tile: {
     motion_pending: 'Anwesenheits-Timeout läuft',
     motion_detected: 'Anwesenheit erkannt',
+    battery_low: 'Batterie schwach — {level}%',
+    battery_unknown: 'Batteriestand unbekannt',
     icon_action_label: 'Aktion des Beschattungssymbols',
     open: 'Öffnen',
     stop: 'Stopp',

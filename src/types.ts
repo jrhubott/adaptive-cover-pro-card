@@ -102,7 +102,14 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
    *  cover (`cover`, else the first key of `actual_positions`). Only meaningful
    *  when the entry manages more than one cover — a day/night shade in the
    *  integration's `dual_entity` model binds two rail entities, and the buttons
-   *  can be pointed at either rail. */
+   *  can be pointed at either rail.
+   *
+   *  Buttons ONLY. The tile's state line, position readout, icon, color and tap
+   *  target continue to describe the resolved cover. Making the display follow
+   *  this option was tried and reverted: `cover` simultaneously means the
+   *  displayed entity, the rail whose tick carries the entry-level pipeline
+   *  target, the tilt axis's read/write target, and the anchor for the
+   *  entry-scale position fallback — moving one moved all four. */
   controls_cover?: string;
   /** Which discovered axis the ↑■▼ buttons drive, by axis id (`position`,
    *  `tilt`, …). Defaults to `position`. Open drives the axis maximum, close
