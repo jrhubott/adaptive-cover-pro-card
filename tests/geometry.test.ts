@@ -638,29 +638,29 @@ describe('coverWedgeOuterRadius', () => {
 
   it('blind at position=0 fills the full FOV (clamped to fovOuter)', () => {
     // 1 - 0/100 = 1 → OUTER_R, clamped to fovOuter when smaller.
-    expect(coverWedgeOuterRadius(0, 'cover_blind', OUTER_R, OUTER_R)).toBe(OUTER_R);
-    expect(coverWedgeOuterRadius(0, 'cover_blind', OUTER_R, 90)).toBe(90);
+    expect(coverWedgeOuterRadius(0, false, OUTER_R, OUTER_R)).toBe(OUTER_R);
+    expect(coverWedgeOuterRadius(0, false, OUTER_R, 90)).toBe(90);
   });
 
   it('blind at position=100 collapses to centre (≤ fovInner side / null per inner gate)', () => {
     // 1 - 100/100 = 0 → radius 0, which is ≤ any positive fovInner so it does
     // not draw; the raw radius is 0.
-    expect(coverWedgeOuterRadius(100, 'cover_blind', OUTER_R, OUTER_R)).toBe(0);
+    expect(coverWedgeOuterRadius(100, false, OUTER_R, OUTER_R)).toBe(0);
   });
 
   it('clamps to fovOuterR when the raw cover radius exceeds it', () => {
     // blind pos=5 → 1 - 0.05 = 0.95 → rawCoverR = 104.5; fovOuter 97.78 → clamp.
     const fovOuter = 97.78;
-    expect(coverWedgeOuterRadius(5, 'cover_blind', OUTER_R, fovOuter)).toBe(fovOuter);
+    expect(coverWedgeOuterRadius(5, false, OUTER_R, fovOuter)).toBe(fovOuter);
   });
 
   it('awning fraction is position/100 (inverse of blind)', () => {
     // awning pos=100 → fraction 1 → OUTER_R.
-    expect(coverWedgeOuterRadius(100, 'cover_awning', OUTER_R, OUTER_R)).toBe(OUTER_R);
+    expect(coverWedgeOuterRadius(100, true, OUTER_R, OUTER_R)).toBe(OUTER_R);
     // awning pos=0 → fraction 0 → radius 0.
-    expect(coverWedgeOuterRadius(0, 'cover_awning', OUTER_R, OUTER_R)).toBe(0);
+    expect(coverWedgeOuterRadius(0, true, OUTER_R, OUTER_R)).toBe(0);
     // awning pos=50 → fraction 0.5 → 55.
-    expect(coverWedgeOuterRadius(50, 'cover_awning', OUTER_R, OUTER_R)).toBe(55);
+    expect(coverWedgeOuterRadius(50, true, OUTER_R, OUTER_R)).toBe(55);
   });
 });
 

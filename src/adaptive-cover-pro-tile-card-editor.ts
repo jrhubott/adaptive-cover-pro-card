@@ -2,7 +2,8 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant, LovelaceCardEditor } from 'custom-card-helpers';
 
-import { TILE_CARD_EDITOR_NAME } from './const';
+import { AXIS_LABEL_I18N_KEYS, TILE_CARD_EDITOR_NAME } from './const';
+import { resolveAxes } from './lib/axes';
 import { fetchAcpConfigEntries, type AcpConfigEntry } from './lib/config-entries';
 import { renderEditorFooter } from './lib/editor-footer';
 import {
@@ -93,6 +94,8 @@ const LABEL_KEYS: Record<string, string> = {
   show_state: 'editor.tile.show_state',
   show_decision_summary: 'editor.tile.show_decision_summary',
   show_controls: 'editor.tile.show_controls',
+  controls_cover: 'editor.tile.controls_cover',
+  controls_axis: 'editor.tile.controls_axis',
   show_badge: 'editor.tile.show_badge',
   show_position_bar: 'editor.tile.show_position_bar',
   show_tilt: 'editor.tile.show_tilt',
@@ -159,7 +162,11 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       this._ensureEntries();
       this._ensureRegistry();
     }
-    if (changed.has('_registry') && this._registry !== null) {
+    // `_config` too, not just `_registry`: switching entry_id changes which
+    // covers exist, and a stale `_managedCovers` makes the rail list show the
+    // PREVIOUS entry's covers — which then get re-emitted into `covers` on the
+    // next interaction, leaving a config the tile filters down to nothing.
+    if ((changed.has('_registry') || changed.has('_config')) && this._registry !== null) {
       this._refreshManagedCovers();
     }
   }
@@ -254,7 +261,13 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       this._registry,
     );
     this._managedCovers = discovered?.managed_covers ?? [];
+    this._isGroupEntry = !!discovered?.is_group;
   }
+
+  /** True for a Cover Group entry. The group tile ignores every cover-tile
+   *  option, so the rail-order widget must not offer one — same rationale as
+   *  the group branch of {@link _schema}. */
+  @state() private _isGroupEntry = false;
 
   private _computeLabel = (schema: HaFormSchemaItem): string => {
     const key = LABEL_KEYS[schema.name];
@@ -314,6 +327,16 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       ...(this._config ?? { type: '', entry_id: '' }),
       ...cleaned,
     };
+    // Every cover-binding key names an entity of the OLD entry, so switching
+    // entries must drop them rather than carry them across. Left behind, `covers`
+    // filters to nothing (a tile with no rails and no way back through the UI)
+    // and `controls_cover` would aim ↑■↓ at another entry's cover.
+    if (this._config?.entry_id && next.entry_id !== this._config.entry_id) {
+      delete next.cover;
+      delete next.covers;
+      delete next.controls_cover;
+      delete next.controls_axis;
+    }
     // Prune the object entirely when all nine badges are on (keeps YAML minimal).
     if (Object.keys(badges).length > 0) next.badges = badges;
     else delete next.badges;
@@ -340,11 +363,23 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
             class="text-input"
             .value=${this._config.entry_id ?? ''}
             placeholder=${t('editor.common.entry_id_manual_placeholder', this.hass)}
-            @change=${(e: Event) =>
-              this._emit({
+            @change=${(e: Event) => {
+              // Same cover-key purge as `_valueChanged` — this path bypasses
+              // ha-form entirely, and it is reached exactly when discovery is
+              // degraded, which is when a stale `controls_cover` slips through
+              // the tile's roster validation.
+              const next = {
                 ...(this._config ?? { type: '', entry_id: '' }),
                 entry_id: (e.target as HTMLInputElement).value,
-              })}
+              };
+              if (this._config?.entry_id && next.entry_id !== this._config.entry_id) {
+                delete next.cover;
+                delete next.covers;
+                delete next.controls_cover;
+                delete next.controls_axis;
+              }
+              this._emit(next);
+            }}
           />
           ${renderEditorFooter(this.hass)}
         </div>
@@ -386,7 +421,179 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
         ${this._managedCovers.length > 1 && !this._config?.cover
           ? html`<div class="hint">${t('editor.tile.cover_blank_hint', this.hass)}</div>`
           : nothing}
-        ${renderEditorFooter(this.hass)}
+        ${this._renderRailOrder()} ${renderEditorFooter(this.hass)}
+      </div>
+    `;
+  }
+
+  /** Index currently being dragged in the rail-order list, or null. */
+  @state() private _dragFrom: number | null = null;
+
+  /**
+   * The rail list in its effective order: the configured `covers` first (minus
+   * anything the entry no longer manages), then every remaining managed cover.
+   * Rails past the configured list are the hidden ones — this is what lets one
+   * widget express both order and subset without a separate "add" affordance.
+   */
+  private _railRows(): { id: string; shown: boolean }[] {
+    const managed = this._managedCovers;
+    const configured = (this._config?.covers ?? []).filter((id) => managed.includes(id));
+    const rest = managed.filter((id) => !configured.includes(id));
+    // With no `covers` set, the widget must show what the TILE renders, which
+    // is the `cover` pin alone when one is set and every managed cover
+    // otherwise. Marking them all shown regardless made the widget disagree
+    // with the tile, and made hiding a rail paradoxically ADD one.
+    const rows =
+      configured.length > 0
+        ? [
+            ...configured.map((id) => ({ id, shown: true })),
+            ...rest.map((id) => ({ id, shown: false })),
+          ]
+        : managed.map((id) => ({ id, shown: this._defaultShows(id) }));
+    // Shown rails ALWAYS come first. Only they are persisted, so `_moveRail`
+    // can only reorder within that block — leaving a shown rail at a high index
+    // behind a hidden one left its ↑ button enabled over a no-op.
+    return [...rows.filter((r) => r.shown), ...rows.filter((r) => !r.shown)];
+  }
+
+  /** Which rails the tile draws when `covers` is absent — {@link _emitRails}
+   *  and {@link _railRows} must agree on this or the key gets dropped into a
+   *  state that renders differently from the list the user just arranged. */
+  private _defaultShows(id: string): boolean {
+    return this._config?.cover ? id === this._config.cover : true;
+  }
+
+  private _coverName(id: string): string {
+    return (this.hass?.states[id]?.attributes?.friendly_name as string | undefined) ?? id;
+  }
+
+  /** Write a reordered/re-filtered row list back to `covers`. An all-shown list
+   *  in the integration's own order is written as `undefined` so an untouched
+   *  card keeps a clean config rather than gaining a redundant key. */
+  private _emitRails(rows: { id: string; shown: boolean }[]): void {
+    if (!this._config) return;
+    const covers = rows.filter((r) => r.shown).map((r) => r.id);
+    // "Default" is what the tile renders with no `covers` key — which is the
+    // `cover` pin when one is set, NOT the full managed list. Comparing against
+    // the full list would delete the key on a pinned tile and silently collapse
+    // it back to one rail.
+    const fallback = this._managedCovers.filter((id) => this._defaultShows(id));
+    const isDefault =
+      covers.length === fallback.length && covers.every((id, i) => id === fallback[i]);
+    const { covers: _drop, ...rest } = this._config;
+    this._emit(isDefault ? rest : { ...rest, covers });
+  }
+
+  /** Reorder within the SHOWN block only. Only shown rails are persisted, so a
+   *  move involving a hidden row could not be represented and silently snapped
+   *  back — the buttons for those are disabled instead of pretending to work. */
+  private _moveRail(from: number, to: number): void {
+    const rows = this._railRows();
+    const shownCount = rows.filter((r) => r.shown).length;
+    if (to < 0 || to >= shownCount || from >= shownCount || from === to) return;
+    const next = [...rows];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    this._emitRails(next);
+  }
+
+  private _toggleRail(index: number): void {
+    const rows = this._railRows();
+    // Never let the last visible rail be hidden — a tile with no position bar
+    // is what `show_position_bar` is for, and losing every rail here would
+    // leave no way back except editing YAML.
+    if (rows[index].shown && rows.filter((r) => r.shown).length === 1) return;
+    const target = rows[index];
+    if (target.shown) {
+      this._emitRails(rows.map((r, i) => (i === index ? { ...r, shown: false } : r)));
+      return;
+    }
+    // Re-showing puts the rail back at its position in the integration's own
+    // order rather than on the end. Appending made hide-then-show a permanent
+    // reorder: hiding A in [A,B,C] and showing it again yielded [B,C,A], which
+    // then also pinned a redundant `covers` key into the YAML.
+    const shown = rows.filter((r) => r.shown);
+    const home = this._managedCovers.indexOf(target.id);
+    const at = shown.filter((r) => this._managedCovers.indexOf(r.id) < home).length;
+    const restored = [...shown];
+    restored.splice(at, 0, { ...target, shown: true });
+    this._emitRails(restored);
+  }
+
+  /**
+   * Rail order/visibility, as a sortable list rather than an `ha-form` field.
+   * Drag a row, or use the ↑/↓ buttons — those are not a lesser fallback but
+   * the only path that works on touch and with a keyboard, since HTML5 drag
+   * events fire for neither.
+   */
+  private _renderRailOrder(): TemplateResult | typeof nothing {
+    // A Cover Group renders `acp-group-tile`, which reads none of this — same
+    // reason `_schema()` hides the cover options for a group.
+    if (this._isGroupEntry || this._managedCovers.length < 2) return nothing;
+    const rows = this._railRows();
+    const shownCount = rows.filter((r) => r.shown).length;
+    return html`
+      <div class="rail-order">
+        <div class="rail-order-title">${t('editor.tile.covers', this.hass)}</div>
+        <div class="hint">${t('editor.tile.covers_hint', this.hass)}</div>
+        <ul>
+          ${rows.map(
+            (row, i) => html`
+              <li
+                class=${`rail${row.shown ? '' : ' hidden-rail'}${this._dragFrom === i ? ' dragging' : ''}`}
+                draggable=${row.shown ? 'true' : 'false'}
+                @dragstart=${() => (this._dragFrom = i)}
+                @dragend=${() => (this._dragFrom = null)}
+                @dragover=${(e: DragEvent) => {
+                  // Only shown rows are valid drop targets — a hidden row has no
+                  // position in the persisted list, so a drop there would snap
+                  // back with no explanation. Refusing the dragover means the
+                  // cursor says "not allowed" instead.
+                  if (row.shown) e.preventDefault();
+                }}
+                @drop=${(e: DragEvent) => {
+                  e.preventDefault();
+                  if (this._dragFrom !== null && row.shown) this._moveRail(this._dragFrom, i);
+                  this._dragFrom = null;
+                }}
+              >
+                <ha-icon class="grip" icon="mdi:drag-horizontal-variant"></ha-icon>
+                <span class="rail-name">${this._coverName(row.id)}</span>
+                <button
+                  type="button"
+                  class="rail-btn"
+                  aria-label=${t('editor.tile.covers_move_up', this.hass)}
+                  ?disabled=${!row.shown || i === 0}
+                  @click=${() => this._moveRail(i, i - 1)}
+                >
+                  <ha-icon icon="mdi:arrow-up"></ha-icon>
+                </button>
+                <button
+                  type="button"
+                  class="rail-btn"
+                  aria-label=${t('editor.tile.covers_move_down', this.hass)}
+                  ?disabled=${!row.shown || i >= shownCount - 1}
+                  @click=${() => this._moveRail(i, i + 1)}
+                >
+                  <ha-icon icon="mdi:arrow-down"></ha-icon>
+                </button>
+                <button
+                  type="button"
+                  class="rail-btn"
+                  aria-label=${t(
+                    row.shown ? 'editor.tile.covers_hide' : 'editor.tile.covers_show',
+                    this.hass,
+                  )}
+                  aria-pressed=${row.shown ? 'true' : 'false'}
+                  ?disabled=${row.shown && shownCount === 1}
+                  @click=${() => this._toggleRail(i)}
+                >
+                  <ha-icon icon=${row.shown ? 'mdi:eye' : 'mdi:eye-off'}></ha-icon>
+                </button>
+              </li>
+            `,
+          )}
+        </ul>
       </div>
     `;
   }
@@ -408,6 +615,10 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     // state field: that field is written from `updated()`, so gating the schema
     // on it would need a second render cycle before the picker appeared.
     let managedCount = 0;
+    // Axes the entry actually exposes, for the ↑■↓ target picker. Labels prefer
+    // the card's own i18n for known ids (the integration emits English-only
+    // labels), matching what the bars themselves render.
+    let axisOptions: { value: string; label: string }[] = [];
     if (this._registry && this._config?.entry_id) {
       const discovered = discoverEntities(
         this.hass,
@@ -420,6 +631,12 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
         coverSelector = {
           entity: { domain: 'cover', include_entities: discovered.managed_covers },
         };
+      }
+      if (discovered && !isGroup) {
+        axisOptions = resolveAxes(discovered).map((a) => ({
+          value: a.id,
+          label: AXIS_LABEL_I18N_KEYS[a.id] ? t(AXIS_LABEL_I18N_KEYS[a.id], this.hass) : a.label,
+        }));
       }
     }
 
@@ -477,6 +694,10 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       ...(managedCount > 1 || this._config?.cover
         ? [{ name: 'cover', selector: coverSelector }]
         : []),
+      // NOTE: rail order/subset (`covers`) is NOT an ha-form field. HA's
+      // multi-entity selector is an add/remove list with no reordering, which
+      // is the one thing this control exists to do — so it renders as the
+      // sortable list in `_renderRailOrder()` instead.
       this._section('content_section', 'mdi:format-text', true, [
         { name: 'name', selector: { text: {} } },
         { name: 'icon', selector: { icon: {} } },
@@ -500,6 +721,20 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
           // but the schema never offered it, so it was YAML-only until now.
           { name: 'show_tilt', selector: { boolean: {} } },
         ]),
+        // What the ↑■↓ buttons drive. Each picker appears only when it has a
+        // real choice to offer — one cover or one axis means the control can
+        // only ever re-select the default.
+        ...(managedCount > 1 || this._config?.controls_cover
+          ? [{ name: 'controls_cover', selector: coverSelector }]
+          : []),
+        ...(axisOptions.length > 1 || this._config?.controls_axis
+          ? [
+              {
+                name: 'controls_axis',
+                selector: { select: { options: axisOptions, mode: 'dropdown' } },
+              },
+            ]
+          : []),
       ]),
       this._section('badge_section', 'mdi:label-multiple-outline', false, [
         { name: 'show_badge', selector: { boolean: {} } },
@@ -585,6 +820,76 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     .error {
       font-size: 0.82rem;
       color: var(--error-color, crimson);
+    }
+    /* Rail order: a sortable list, because HA's multi-entity selector can add
+       and remove but not reorder. */
+    .rail-order-title {
+      font-weight: 500;
+      font-size: 0.88rem;
+      color: var(--primary-text-color);
+    }
+    .rail-order ul {
+      list-style: none;
+      margin: 6px 0 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .rail-order li.rail {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      border: 1px solid var(--divider-color);
+      border-radius: 6px;
+      background: var(--card-background-color, transparent);
+      cursor: grab;
+    }
+    .rail-order li.rail.dragging {
+      opacity: 0.5;
+      cursor: grabbing;
+    }
+    .rail-order li.rail.hidden-rail .rail-name {
+      opacity: 0.45;
+      text-decoration: line-through;
+    }
+    .rail-order .grip {
+      --mdc-icon-size: 18px;
+      color: var(--secondary-text-color);
+      flex: 0 0 auto;
+    }
+    .rail-order .rail-name {
+      flex: 1 1 auto;
+      min-width: 0;
+      font-size: 0.88rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .rail-order .rail-btn {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--secondary-text-color);
+      cursor: pointer;
+    }
+    .rail-order .rail-btn:hover:not(:disabled) {
+      background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
+    }
+    .rail-order .rail-btn:disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
+    .rail-order .rail-btn ha-icon {
+      --mdc-icon-size: 18px;
     }
     .hint {
       font-size: 0.8rem;

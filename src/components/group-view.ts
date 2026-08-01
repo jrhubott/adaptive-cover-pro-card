@@ -5,6 +5,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { DiscoveredEntities } from '../types';
 import { memberBadgeWinners } from '../lib/badge-visibility';
+import { positionAxisFor } from '../lib/axes';
 import { formatPercent } from '../lib/formatters';
 import {
   readGroup,
@@ -65,6 +66,7 @@ export class GroupView extends LitElement {
           .hintKey=${'covers.click_to_set'}
           .targetHintKey=${'covers.target_tooltip'}
           .actual=${s.position}
+          .openBlocksSun=${positionAxisFor(this.discovered).openBlocksSun}
           .compact=${this.compact}
           .disabled=${!controllable}
           @acp-tilt-set=${(ev: CustomEvent<number>) => setGroupPosition(this.hass, s, ev.detail)}
@@ -75,6 +77,7 @@ export class GroupView extends LitElement {
               .hass=${this.hass}
               .label=${t('covers.tilt_title', this.hass)}
               .actual=${s.tilt.value}
+              .openBlocksSun=${false}
               .compact=${this.compact}
               @acp-tilt-set=${(ev: CustomEvent<number>) => setGroupTilt(this.hass, s, ev.detail)}
             ></acp-axis-bar>`
@@ -112,6 +115,7 @@ export class GroupView extends LitElement {
                     .entityId=${id}
                     .position=${pos}
                     .winner=${s.memberWinners?.[id]}
+                    .openBlocksSun=${positionAxisFor(this.discovered).openBlocksSun}
                     .acpManaged=${!!s.memberWinners && id in s.memberWinners}
                     .compact=${this.compact}
                   ></acp-group-member-row>`,

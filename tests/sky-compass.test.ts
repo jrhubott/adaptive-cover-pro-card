@@ -1357,14 +1357,14 @@ describe('acp-sky-compass manual-override divergence (#132 Problem A)', () => {
     const solarTargetPath = wedgePath(
       normalizeAzimuth(135),
       normalizeAzimuth(225),
-      coverWedgeOuterRadius(20, 'cover_blind', 110, 110),
+      coverWedgeOuterRadius(20, false, 110, 110),
       0,
       0,
     );
     const heldPath = wedgePath(
       normalizeAzimuth(135),
       normalizeAzimuth(225),
-      coverWedgeOuterRadius(80, 'cover_blind', 110, 110),
+      coverWedgeOuterRadius(80, false, 110, 110),
       0,
       0,
     );
@@ -1454,7 +1454,7 @@ describe('acp-sky-compass manual-override divergence (#132 Problem A)', () => {
     const heldPath = wedgePath(
       normalizeAzimuth(135),
       normalizeAzimuth(225),
-      coverWedgeOuterRadius(80, 'cover_blind', 110, 110),
+      coverWedgeOuterRadius(80, false, 110, 110),
       0,
       0,
     );

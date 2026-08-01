@@ -94,6 +94,13 @@ export class GroupMemberRow extends LitElement {
   @property({ type: Boolean }) public acpManaged = false;
   /** Host-level opt-out for the tilt track (the card's `show_tilt`). */
   @property({ type: Boolean }) public showTilt = true;
+
+  /** Rail polarity for this member's POSITION track, passed down from the group
+   *  entry's position axis — a member is a foreign cover with no discovery of
+   *  its own, so the group's own axis is the best available answer, and it keeps
+   *  a member row agreeing with the aggregate track above it. Tilt tracks are
+   *  always mirrored and do not consult this. */
+  @property({ type: Boolean }) public openBlocksSun = true;
   @property({ type: Boolean, reflect: true }) public compact = false;
 
   /** This member's own ACP config entry, once the registry cache is warm.
@@ -216,6 +223,7 @@ export class GroupMemberRow extends LitElement {
               .hintKey=${'covers.click_to_set'}
               .targetHintKey=${'covers.target_tooltip'}
               .actual=${this.position}
+              .openBlocksSun=${this.openBlocksSun}
               .disabled=${offline}
               .compact=${this.compact}
               @acp-tilt-set=${(e: CustomEvent<number>) => this._set('position', e.detail)}
@@ -227,6 +235,7 @@ export class GroupMemberRow extends LitElement {
                     .hass=${this.hass}
                     .label=${t('covers.tilt_title', this.hass)}
                     .actual=${liveTilt}
+                    .openBlocksSun=${false}
                     .disabled=${offline}
                     .compact=${this.compact}
                     @acp-tilt-set=${(e: CustomEvent<number>) => this._set('tilt', e.detail)}

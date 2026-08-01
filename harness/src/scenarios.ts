@@ -103,6 +103,9 @@ function defaultTile(): HarnessConfig['tile'] {
     show_badge: true,
     show_position_bar: true,
     show_tilt: true,
+    covers: [],
+    controls_cover: '',
+    controls_axis: '',
     show_scene_select: true,
     show_lock: true,
     show_automation: true,
@@ -396,6 +399,48 @@ export const SCENARIOS: Scenario[] = [
               friendly_name: 'Living Room venetian',
               position: 60,
               tilt: 35,
+            },
+          ],
+        }),
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'day-night-dual-rail',
+    label: 'Day/night shade — two rails (dual_entity)',
+    description:
+      "A day/night shade in the integration's dual_entity control model: ONE config entry binding TWO cover.* rail entities (bottom rail carries the coverage, middle rail carries the sheer-vs-blackout fabric split). The blend is not a drivable tilt axis on either entity, so discovery reports position only — pre-fix the tile card rendered managed_covers[0] and nothing else, leaving the middle rail with no readout and no control anywhere on the tile. The tile must now show ONE POSITION RAIL PER MANAGED COVER, stacked in the slot the single bar used to occupy, each led by its own cover glyph rather than a name — resolved through the same chain as the tile icon (entity `icon` → `device_class` → `cover_type`), so the two rails here carry DIFFERENT glyphs only because the middle rail pins an explicit `icon`. Hover a glyph for that rail's name, and the slider's accessible name carries it too. Clear the middle rail's `icon` in this scenario and both rails collapse to the same shutter glyph — that is correct, and the reason the names moved to the tooltip instead of disappearing. BOTH rails carry an orange target tick, but from DIFFERENT sources, deliberately. The resolved cover (the bottom rail) keeps the entry-level pipeline target — the number this tile has always shown, and the one the dialog marker still shows. Every OTHER rail reads its own dispatched value from the position_verification sensor's per_entity map: the middle rail's is 30 against the entry target of 60, because its dispatched value is the fabric blend folded into an absolute position, so borrowing the entry target would put its tick on the wrong scale. Flip “Legacy integration” on to drop per_entity entirely — the bottom rail is unaffected and the middle rail goes tickless rather than showing a borrowed number. Rail ORDER follows the integration's own entity order (config_entry.options[entities]), which the card cannot influence — set “covers (rail order)” in the Tile card panel to Reversed and the two rails swap, or to “First rail only” to prove it doubles as a filter. The ORDER CARRIES INTO THE MORE-INFO DIALOG: open the tile and the dialog\'s stacked cover bars follow the same order and subset, so the two surfaces never disagree. Only an explicit covers list travels — a tile pinned with `cover` alone leaves the dialog showing every managed cover exactly as before. The rails draw COVERAGE, not openness: a full rail means the cover is blocking the most sun, the same polarity as the sky compass wedge — which now reads the same open_blocks_sun flag instead of testing for cover_awning, so an oscillating awning no longer draws an inverted wedge beside a correctly-filled rail. Polarity comes from the discovery axis flag open_blocks_sun, so it is per-axis and per-cover-type rather than hardcoded — compare against any AWNING scenario, where extending raises both the value and the coverage so its rail fills the other way. Drag, arrows and the target tick all follow the drawn direction; only the tooltip and the service call stay in the integration frame. Each rail is an independent slider: drag one and only that rail's fill follows (a single shared drag state used to paint both), release fires exactly one set_axes for THAT entity (watch the service log), and the gesture must not open the more-info dialog. Point “controls_cover” at the middle rail in the Tile card panel and the ↑■↓ buttons retarget to it — including their at-open/at-closed disabling, which now reads the retargeted entity rather than always the first cover.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'day-night-dual-rail';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Living Room',
+          cover_type: 'cover_day_night_shade',
+          window_azimuth: 180,
+          color: '#7e57c2',
+          target_position: 60,
+          covers: [
+            {
+              entity_id: 'cover.south_window_bottom',
+              friendly_name: 'Living Room bottom rail',
+              position: 60,
+              tilt: 0,
+            },
+            {
+              entity_id: 'cover.south_window_middle',
+              friendly_name: 'Living Room middle rail',
+              position: 25,
+              tilt: 0,
+              // The HA-native way to tell two rails of one shade apart, since
+              // the card cannot derive bottom-vs-middle from anything but names.
+              icon: 'mdi:blinds-horizontal',
+              // Deliberately unlike the entry target (60): this rail's
+              // dispatched value is the fabric blend folded into an absolute
+              // position, so its tick must come from its own per_entity target.
+              command_target: 30,
             },
           ],
         }),
@@ -927,7 +972,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'inverse-state-awning',
     label: 'Inverse state — extended awning (#234)',
     description:
-      'An `inverse_state` awning, fully extended and on target. The integration dispatches 100 − 100 = 0, so the Cover_Position sensor STATE, its actual_positions and the physical cover entity all read 0, while linear_position / linear_actual_positions stay at the logical 100 and the discovery position axis carries inverted: true. The card must render entirely in the logical frame: a FULL position bar with the target marker on top of it (not an empty bar with the marker pinned at the far end), the readout "Open · 100%" agreeing with the entity state, the open glyph, ↑ (open) disabled and ↓ (close) live, the compass actual ring on the target wedge, the forecast history track the same way up as the forecast curve, and no spurious "Motor: 0%" tooltip on the COVERS Target chip. This is also the frame check for the position slider: drag the tile bar to roughly a third and the set_axes call in the service log must carry that same logical value (~33), not its cover-frame mirror (~67) — render frame and write frame have to agree.',
+      'An `inverse_state` awning, fully extended and on target. The integration dispatches 100 − 100 = 0, so the Cover_Position sensor STATE, its actual_positions and the physical cover entity all read 0, while linear_position / linear_actual_positions stay at the logical 100 and the discovery position axis carries inverted: true. The card must render entirely in the logical frame: a FULL position bar with the target marker on top of it (not an empty bar with the marker pinned at the far end) — an awning blocks more sun as it extends (open_blocks_sun: true), so its rail is the one cover type whose fill is NOT mirrored, the readout "Open · 100%" agreeing with the entity state, the open glyph, ↑ (open) disabled and ↓ (close) live, the compass actual ring on the target wedge, the forecast history track the same way up as the forecast curve, and no spurious "Motor: 0%" tooltip on the COVERS Target chip. This is also the frame check for the position slider: drag the tile bar to roughly a third and the set_axes call in the service log must carry that same logical value (~33), not its cover-frame mirror (~67) — render frame and write frame have to agree.',
     build: () => {
       const c = baseConfig('2026-06-21', 14 * 60);
       c.scenario = 'inverse-state-awning';
@@ -970,7 +1015,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'inverse-tilt-venetian',
     label: 'Inverse tilt — venetian slats (#236)',
     description:
-      'A venetian with `inverse_tilt` configured on the SLAT axis only. The integration dispatches 100 − 35 = 65, so the mock cover reports current_tilt_position: 65 while the Cover_Tilt sensor still publishes the logical target 70 and the discovery tilt axis carries inverted: true. The card must draw the tilt bar at 35% with the target marker at 70% — a wide, obvious gap — with the readout "35 %" and aria-valuenow="35", while the POSITION bar is untouched at 60%, proving the two axes normalize independently. Drag the tilt track to roughly 80% and the service log must show exactly one set_axes { tilt: 80 } — NOT 20; render frame and write frame have to agree (the integration applies its own _to_wire). ArrowUp on the focused tilt track commits 36, not 66 — pre-fix the bar started stepping from the cover-frame 65 and jumped 31 points.',
+      'A venetian with `inverse_tilt` configured on the SLAT axis only. The integration dispatches 100 − 35 = 65, so the mock cover reports current_tilt_position: 65 while the Cover_Tilt sensor still publishes the logical target 70 and the discovery tilt axis carries inverted: true. The card must draw the tilt bar with the readout "35 %" while its FILL sits at 65% and the target marker at 30% — slats block more sun as the value falls (open_blocks_sun: false), so the track is mirrored and aria-valuenow is the drawn 65. The wide, obvious actual-vs-target gap is the point. The POSITION bar is untouched at a logical 60 (drawn 40%), proving the two axes normalize independently. Drag the tilt track to roughly 80% and the service log must show exactly one set_axes { tilt: 80 } — NOT 20; render frame and write frame have to agree (the integration applies its own _to_wire). ArrowUp on the focused tilt track commits 34 — it steps the DRAWN value so the fill follows the key, and on a mirrored axis that is a lower tilt value. What it must never do is step from the cover-frame 65 (which would give 64 or 66) — pre-fix the bar did exactly that and jumped 31 points.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'inverse-tilt-venetian';
@@ -2264,7 +2309,7 @@ export const SCENARIOS: Scenario[] = [
     added: '2026-07-13',
     issue: 208,
     description:
-      "The bar-only detailed tile (commit that centers name/state, #208): integration enabled but AUTOMATIC control OFF, no manual override and no floor slot, so NO chrome badges render — only the position bar. The name/state must sit VERTICALLY CENTERED across the tile height (not pinned to the top), with the bar hugging the bottom and reserving the badge-height so this tile is the same height as a badged one. Two entries: one at ~65% open, one fully open. Verify the responsive fix: drag the tile-width control DOWN below ~340px — the ↑■↓ controls must drop to their own full-width row (they previously stayed inline for bar-only tiles because the wide grid out-specified the reflow). Toggle 'show_position_bar' off in Per-card config to confirm the chrome row collapses entirely (single-row tile) and that no slider remains. The bar is also the tile's position slider: press and drag it and the fill plus the tooltip readout follow live with no service call until release, then exactly one set_axes fires (watch the service log). The gesture must NOT open the more-info dialog, though a tap anywhere else on the tile still must. Its grab area extends about 8px above and below the 6px rail without changing the tile's height, and Tab reaches it for arrow (±1), Page Up/Down (±10) and Home/End control.",
+      "The bar-only detailed tile (commit that centers name/state, #208): integration enabled but AUTOMATIC control OFF, no manual override and no floor slot, so NO chrome badges render — only the position bar. The name/state must sit VERTICALLY CENTERED across the tile height (not pinned to the top), with the bar hugging the bottom and reserving the badge-height so this tile is the same height as a badged one. Two entries: one at ~65% open, one fully open. Note the rail draws COVERAGE, so 65% open is a 35%-filled rail and the fully-open one is empty. Verify the responsive fix: drag the tile-width control DOWN below ~340px — the ↑■↓ controls must drop to their own full-width row (they previously stayed inline for bar-only tiles because the wide grid out-specified the reflow). Toggle 'show_position_bar' off in Per-card config to confirm the chrome row collapses entirely (single-row tile) and that no slider remains. The bar is also the tile's position slider: press and drag it and the fill plus the tooltip readout follow live with no service call until release, then exactly one set_axes fires (watch the service log) — dragging RIGHT closes the cover, because the rail draws coverage and the write is the un-mirrored logical value. The gesture must NOT open the more-info dialog, though a tap anywhere else on the tile still must. Its grab area extends about 8px above and below the 6px rail without changing the tile's height, and Tab reaches it for arrow (±1), Page Up/Down (±10) and Home/End control.",
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'bar-only-tile';

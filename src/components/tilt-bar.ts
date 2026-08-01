@@ -74,13 +74,30 @@ export class AxisBar extends LitElement {
    *  whenever no gesture is active. */
   @state() private _dragValue: number | null = null;
 
-  /** Map an axis value onto a 0–100 track fraction using min/max. */
+  /** True when driving this axis toward its maximum blocks MORE sun, so the
+   *  track fills toward the maximum. False mirrors it, which is the slat-angle
+   *  case: closing the slats blocks the sun but lowers the value.
+   *
+   *  Defaults to the identity so a caller that does not thread the axis flag
+   *  keeps the geometry it had before this existed. Cover surfaces pass the
+   *  resolved `ResolvedAxis.openBlocksSun`; group surfaces have no per-member
+   *  discovery, so they pass the group's own position-axis polarity for a
+   *  position track and a literal `false` for a slat track — the value the
+   *  integration gives every tilt axis. See `lib/axes.ts → axisDisplayValue`. */
+  @property({ type: Boolean }) public openBlocksSun = true;
+
+  /** Map an axis value onto a 0–100 track fraction using min/max, in the
+   *  direction the rail draws (see {@link openBlocksSun}). */
   private _frac(v: number | null): number {
-    const value = v ?? this.min;
+    // "No reading" draws EMPTY, never full. Substituting `min` was harmless
+    // while the track drew the value directly, but on a mirrored axis it maps
+    // to a completely full bar — an unknown cover would read as fully blocking.
+    if (v === null || v === undefined || Number.isNaN(v)) return 0;
     const span = this.max - this.min;
     if (span === 0) return 0;
-    const pct = ((value - this.min) / span) * 100;
-    return Math.max(0, Math.min(100, pct));
+    const pct = ((v - this.min) / span) * 100;
+    const clamped = Math.max(0, Math.min(100, pct));
+    return this.openBlocksSun ? clamped : 100 - clamped;
   }
 
   protected render(): TemplateResult | typeof nothing {
@@ -106,7 +123,11 @@ export class AxisBar extends LitElement {
           aria-disabled=${this.disabled ? 'true' : 'false'}
           aria-valuemin=${this.min}
           aria-valuemax=${this.max}
-          aria-valuenow=${shownValue ?? this.min}
+          aria-valuenow=${shownValue === null
+            ? this.min
+            : this.openBlocksSun
+              ? shownValue
+              : this.min + this.max - shownValue}
           aria-valuetext=${formatPercent(shownValue)}
           aria-label=${label}
           @click=${this._onClick}
@@ -124,8 +145,10 @@ export class AxisBar extends LitElement {
                 class="marker"
                 style="left:clamp(1px, ${targetFrac}%, calc(100% - 1px))"
                 ${tooltip(
+                  // The VALUE, not the drawn fraction — those diverge the moment
+                  // the axis is mirrored or its range is not 0..100.
                   t(this.targetHintKey ?? 'covers.tilt_target_tooltip', this.hass, {
-                    pct: targetFrac,
+                    pct: this.target,
                   }),
                 )}
               ></div>`
@@ -139,7 +162,10 @@ export class AxisBar extends LitElement {
    *  click commit path and the drag preview so both read the track identically. */
   private _valueFromEvent(e: { clientX: number }, track: HTMLElement): number {
     const rect = track.getBoundingClientRect();
-    const frac = (e.clientX - rect.left) / rect.width;
+    const drawn = (e.clientX - rect.left) / rect.width;
+    // Un-draw before mapping to axis units, so the value committed is the one
+    // the fill under the finger represents.
+    const frac = this.openBlocksSun ? drawn : 1 - drawn;
     const raw = this.min + frac * (this.max - this.min);
     return this._clamp(raw);
   }
@@ -186,28 +212,39 @@ export class AxisBar extends LitElement {
    *  range (e.g. slat angle -90..90) behaves sensibly. */
   private _onKeydown(e: KeyboardEvent): void {
     if (this.disabled) return;
-    const current = this.actual ?? this.min;
+    // Every key is expressed in the DRAWN direction, so the thumb always moves
+    // the way the key points and `aria-valuenow` (also drawn) steps with it.
+    // Home/End included: they name the ends of the TRACK, so on a mirrored axis
+    // Home is the axis maximum. Leaving them in axis units put Home on
+    // `aria-valuemax` and End on `aria-valuemin`.
+    const step = this.openBlocksSun ? 1 : -1;
+    const trackStart = this.openBlocksSun ? this.min : this.max;
+    const trackEnd = this.openBlocksSun ? this.max : this.min;
+    // With no reading the track draws EMPTY, so stepping has to start from the
+    // empty end — not `min`, which on a mirrored axis is the FULL end and made
+    // a rightward key jump the fill from empty to completely full.
+    const current = this.actual ?? trackStart;
     let next: number;
     switch (e.key) {
       case 'ArrowRight':
       case 'ArrowUp':
-        next = current + 1;
+        next = current + step;
         break;
       case 'ArrowLeft':
       case 'ArrowDown':
-        next = current - 1;
+        next = current - step;
         break;
       case 'PageUp':
-        next = current + 10;
+        next = current + 10 * step;
         break;
       case 'PageDown':
-        next = current - 10;
+        next = current - 10 * step;
         break;
       case 'Home':
-        next = this.min;
+        next = trackStart;
         break;
       case 'End':
-        next = this.max;
+        next = trackEnd;
         break;
       default:
         return;
@@ -227,7 +264,11 @@ export class AxisBar extends LitElement {
     /* Cover-bar variant: mirror .cover's grid so the track + percentage line up
        with the Position row directly above (name | num | track | warn-spacer). */
     .row.cover {
-      grid-template-columns: minmax(80px, 1fr) 48px 3fr 16px;
+      /* Must stay identical to acp-cover-bar's .cover grid — these are two
+         separate grids stacked in one .cover-group, so any divergence offsets
+         this track from the position track directly above it. Fixed, not
+         minmax: an auto track resolves per-grid to its own content. */
+      grid-template-columns: minmax(80px, 1fr) 11ch 3fr 16px;
       gap: 8px;
       font-size: 0.82rem;
     }
@@ -253,8 +294,10 @@ export class AxisBar extends LitElement {
     .row.cover .num {
       text-align: right;
     }
-    /* Track mirrors the position bar: open segment pale, closed solid — same
-       hue as the cover wedge. */
+    /* Track mirrors the position bar: the LEADING segment carries the
+       sun-blocking portion and is solid, the trailing clear portion is pale —
+       same hue as the cover wedge. The leading segment is sized from the drawn
+       fraction, so on a mirrored axis it is the closed end. */
     .track {
       position: relative;
       display: flex;
@@ -289,13 +332,13 @@ export class AxisBar extends LitElement {
     .fill {
       height: 100%;
       flex-shrink: 0;
-      background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 18%, transparent);
+      background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 50%, transparent);
       transition: width 0.3s ease;
     }
     .fill-closed {
       height: 100%;
       flex-shrink: 0;
-      background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 50%, transparent);
+      background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 18%, transparent);
       transition: width 0.3s ease;
     }
     .marker {

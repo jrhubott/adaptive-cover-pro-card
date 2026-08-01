@@ -2554,8 +2554,10 @@ describe('adaptive-cover-pro-tile-card HA tile layout (detailed)', () => {
     expect(bar).toBeTruthy();
     const fill = bar.querySelector('.pos-fill') as HTMLElement;
     const marker = bar.querySelector('.pos-marker') as HTMLElement;
-    expect(fill.getAttribute('style') ?? '').toContain('width:60%');
-    expect(marker.getAttribute('style') ?? '').toContain('42%');
+    // The rail draws COVERAGE on a blind: 60% open is 40% blocking, and the 42%
+    // solar target sits at 58% along the track.
+    expect(fill.getAttribute('style') ?? '').toContain('width:40%');
+    expect(marker.getAttribute('style') ?? '').toContain('58%');
   });
 
   it('detailed: keeps the position bar when show_badge is false (bar is independent of badges)', async () => {
@@ -2912,7 +2914,8 @@ describe('adaptive-cover-pro-tile-card — position bar drag slider', () => {
     expect(slider.getAttribute('tabindex')).toBe('0');
     expect(slider.getAttribute('aria-valuemin')).toBe('0');
     expect(slider.getAttribute('aria-valuemax')).toBe('100');
-    expect(slider.getAttribute('aria-valuenow')).toBe('60');
+    // ARIA describes the visual, so valuenow is the drawn (coverage) value.
+    expect(slider.getAttribute('aria-valuenow')).toBe('40');
     expect(slider.getAttribute('aria-label')).toBeTruthy();
     // The visible rail stays nested inside, untouched.
     expect(slider.querySelector('.pos-bar')).toBeTruthy();
@@ -2935,10 +2938,12 @@ describe('adaptive-cover-pro-tile-card — position bar drag slider', () => {
     slider.dispatchEvent(up(80));
     slider.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: 80 }));
     await el.updateComplete;
+    // Released 80% along the track = 80% covered = position 20. The write stays
+    // in the integration's frame.
     expect(posCall(callService)).toEqual([
       INTEGRATION_DOMAIN,
       'set_axes',
-      { axes: { position: 80 } },
+      { axes: { position: 20 } },
       { entity_id: 'cover.left' },
     ]);
   });
@@ -2963,16 +2968,20 @@ describe('adaptive-cover-pro-tile-card — position bar drag slider', () => {
     );
     await el.updateComplete;
     expect(posCall(callService)).toBeUndefined();
-    expect(fillWidth(el)).toContain('width:60%');
+    // Back to server truth: 60% open draws as 40% blocking.
+    expect(fillWidth(el)).toContain('width:40%');
   });
 
+  // Keys step the DRAWN value so the fill moves the way the key points; on a
+  // blind that means a rightward key raises coverage, i.e. lowers the position.
+  // Home/End name the ends of the track, not of the axis.
   it.each([
-    ['ArrowRight', 61],
-    ['ArrowLeft', 59],
-    ['PageUp', 70],
-    ['PageDown', 50],
-    ['Home', 0],
-    ['End', 100],
+    ['ArrowRight', 59],
+    ['ArrowLeft', 61],
+    ['PageUp', 50],
+    ['PageDown', 70],
+    ['Home', 100],
+    ['End', 0],
   ])('commits %s from the keyboard as %i', async (key, expected) => {
     const { slider, callService } = await mountSlider();
     slider.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, composed: true, key }));
@@ -3399,5 +3408,267 @@ describe('adaptive-cover-pro-tile-card — icon_tap_action', () => {
     expect(css).toContain('border-radius: var(--ha-border-radius-pill, 9999px)');
     expect(css).toContain('opacity: 0.2');
     expect(css).toContain('opacity: 0.35');
+  });
+});
+
+// ── one rail per managed cover ───────────────────────────────────────────────
+// An entry that binds several covers (a day/night shade in the integration's
+// `dual_entity` model binds a bottom and a middle rail) previously rendered only
+// `managed_covers[0]`, leaving every other cover with no readout and no control
+// anywhere on the tile.
+
+describe('adaptive-cover-pro-tile-card — multi-cover rails', () => {
+  /** Two managed covers, each reporting its own position, plus a per-entity
+   *  command target for the second one. */
+  function twoRailHass(overrides: Record<string, unknown> = {}): HomeAssistant {
+    const h = makeHass() as unknown as { states: Record<string, unknown> };
+    h.states['sensor.cover_position'] = {
+      state: '42',
+      attributes: { actual_positions: { 'cover.left': 60, 'cover.right': 25 } },
+    };
+    h.states['cover.left'] = {
+      state: 'open',
+      attributes: { friendly_name: 'Living Room bottom rail', current_position: 60 },
+    };
+    h.states['cover.right'] = {
+      state: 'open',
+      attributes: { friendly_name: 'Living Room middle rail', current_position: 25 },
+    };
+    h.states['sensor.position_verification'] = {
+      state: 'ok',
+      attributes: { per_entity: { 'cover.right': { target: 30 } } },
+    };
+    Object.assign(h.states, overrides);
+    return h as unknown as HomeAssistant;
+  }
+
+  const REG = [
+    ...REGISTRY,
+    {
+      entity_id: 'sensor.position_verification',
+      unique_id: `${ENTRY}_position_verification`,
+      config_entry_id: ENTRY,
+      platform: 'adaptive_cover_pro',
+      device_id: null,
+    },
+  ];
+
+  async function mountRails(
+    config: Partial<AdaptiveCoverProTileCardConfig> = {},
+    hass = twoRailHass(),
+  ): Promise<CardLike> {
+    const el = makeCard();
+    el.setConfig({ type: TYPE, entry_id: ENTRY, ...config } as AdaptiveCoverProTileCardConfig);
+    el.hass = hass;
+    document.body.appendChild(el);
+    el._registry = REG;
+    await el.updateComplete;
+    return el;
+  }
+
+  function rails(el: CardLike): HTMLElement[] {
+    return Array.from(el.shadowRoot!.querySelectorAll('.pos-stack .pos-row')) as HTMLElement[];
+  }
+
+  it('renders one rail per managed cover, in the integration’s order', async () => {
+    const el = await mountRails();
+    expect(rails(el).length).toBe(2);
+  });
+
+  it('draws each rail from its OWN cover, not the resolved one', async () => {
+    const el = await mountRails();
+    const fills = el.shadowRoot!.querySelectorAll('.pos-stack .pos-fill');
+    // Blind polarity: 60 open → 40 blocking, 25 open → 75 blocking.
+    expect(fills[0].getAttribute('style')).toContain('width:40%');
+    expect(fills[1].getAttribute('style')).toContain('width:75%');
+  });
+
+  it('labels each rail with its cover glyph and keeps the name as a tooltip', async () => {
+    const el = await mountRails();
+    const glyphs = el.shadowRoot!.querySelectorAll('.pos-stack .pos-glyph');
+    expect(glyphs.length).toBe(2);
+    // The entry title is stripped off the friendly name, so two rails of one
+    // shade read as "bottom rail" / "middle rail" rather than repeating it.
+    expect(glyphs[0].getAttribute('data-tooltip')).toContain('bottom rail');
+    expect(glyphs[1].getAttribute('data-tooltip')).toContain('middle rail');
+  });
+
+  it('names each slider for its own rail so they are distinguishable', async () => {
+    const el = await mountRails();
+    const sliders = el.shadowRoot!.querySelectorAll('.pos-stack .pos-slider');
+    expect(sliders[0].getAttribute('aria-label')).toContain('bottom rail');
+    expect(sliders[1].getAttribute('aria-label')).toContain('middle rail');
+  });
+
+  it('drags one rail without moving the other', async () => {
+    const el = await mountRails();
+    const sliders = el.shadowRoot!.querySelectorAll('.pos-stack .pos-slider');
+    const first = sliders[0] as HTMLElement;
+    Object.defineProperty(first, 'getBoundingClientRect', {
+      value: () => ({ left: 0, width: 100, top: 0, bottom: 6, right: 100, height: 6 }),
+      configurable: true,
+    });
+    first.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, composed: true, clientX: 90, pointerId: 1 }),
+    );
+    await el.updateComplete;
+    const fills = el.shadowRoot!.querySelectorAll('.pos-stack .pos-fill');
+    // A single shared drag state used to paint both rails from whichever one
+    // had the finger on it.
+    expect(fills[0].getAttribute('style')).toContain('width:90%');
+    expect(fills[1].getAttribute('style')).toContain('width:75%');
+  });
+
+  it('commits a drag to the rail that was dragged', async () => {
+    const callService = vi.fn();
+    const hass = twoRailHass();
+    (hass as unknown as { callService: unknown }).callService = callService;
+    (hass as unknown as { services: unknown }).services = {
+      adaptive_cover_pro: { set_axes: {} },
+    };
+    const el = await mountRails({}, hass);
+    const second = el.shadowRoot!.querySelectorAll('.pos-stack .pos-slider')[1] as HTMLElement;
+    Object.defineProperty(second, 'getBoundingClientRect', {
+      value: () => ({ left: 0, width: 100, top: 0, bottom: 6, right: 100, height: 6 }),
+      configurable: true,
+    });
+    second.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: 80 }));
+    await el.updateComplete;
+    // 80% along a coverage track = position 20, written to the SECOND cover.
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { position: 20 } },
+      { entity_id: 'cover.right' },
+    );
+  });
+
+  it('ticks the resolved rail from the pipeline target and the rest per-entity', async () => {
+    const el = await mountRails();
+    const markers = el.shadowRoot!.querySelectorAll('.pos-stack .pos-marker');
+    // Resolved cover keeps the entry target (42 → 58 drawn); the second rail
+    // takes its own dispatched value (30 → 70 drawn), which is on a different
+    // scale precisely because it is a remap.
+    expect(markers[0].getAttribute('style')).toContain('58%');
+    expect(markers[1].getAttribute('style')).toContain('70%');
+  });
+
+  it('leaves a non-resolved rail tickless when the integration publishes no per-entity target', async () => {
+    const hass = twoRailHass();
+    delete (hass as unknown as { states: Record<string, unknown> }).states[
+      'sensor.position_verification'
+    ];
+    const el = await mountRails({}, hass);
+    const railEls = rails(el);
+    // Better tickless than borrowing the entry target, which is on the wrong
+    // scale for this rail.
+    expect(railEls[1].querySelector('.pos-marker')).toBeNull();
+    expect(railEls[0].querySelector('.pos-marker')).not.toBeNull();
+  });
+
+  it('collapses to a single rail when the tile is pinned with `cover`', async () => {
+    const el = await mountRails({ cover: 'cover.right' });
+    expect(el.shadowRoot!.querySelector('.pos-stack')).toBeNull();
+    const fill = el.shadowRoot!.querySelector('.pos-fill') as HTMLElement;
+    // The single-rail branch must read the PINNED cover, not the resolved one.
+    expect(fill.getAttribute('style')).toContain('width:75%');
+  });
+
+  it('orders and filters the rails from `covers`', async () => {
+    const el = await mountRails({ covers: ['cover.right', 'cover.left'] });
+    const glyphs = el.shadowRoot!.querySelectorAll('.pos-stack .pos-glyph');
+    expect(glyphs[0].getAttribute('data-tooltip')).toContain('middle rail');
+    expect(glyphs[1].getAttribute('data-tooltip')).toContain('bottom rail');
+  });
+
+  it('drops ids the entry does not manage', async () => {
+    const el = await mountRails({ covers: ['cover.right', 'cover.gone'] });
+    expect(el.shadowRoot!.querySelector('.pos-stack')).toBeNull();
+    expect(el.shadowRoot!.querySelector('.pos-fill')).not.toBeNull();
+  });
+
+  it('falls back to every rail when `covers` matches nothing at all', async () => {
+    // Every listed cover renamed or removed from the entry. Rendering no bar
+    // would be unrecoverable: the editor hides its repair widget below two
+    // managed covers, leaving only YAML.
+    const el = await mountRails({ covers: ['cover.gone', 'cover.also_gone'] });
+    expect(rails(el).length).toBe(2);
+  });
+});
+
+// ── retargetable ↑■↓ ─────────────────────────────────────────────────────────
+
+describe('adaptive-cover-pro-tile-card — controls_cover / controls_axis', () => {
+  function hassFor(callService: ReturnType<typeof vi.fn>): HomeAssistant {
+    const h = makeHass({
+      callService: callService as unknown as (...args: unknown[]) => unknown,
+    }) as unknown as {
+      states: Record<string, unknown>;
+      services?: unknown;
+    };
+    h.states['cover.left'] = {
+      state: 'open',
+      attributes: { friendly_name: 'Bottom', current_position: 60 },
+    };
+    h.states['cover.right'] = {
+      state: 'open',
+      attributes: { friendly_name: 'Middle', current_position: 100 },
+    };
+    h.services = { adaptive_cover_pro: { set_axes: {} } };
+    return h as unknown as HomeAssistant;
+  }
+
+  it('drives the resolved cover by default', async () => {
+    const callService = vi.fn();
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, hassFor(callService));
+    (el.shadowRoot!.querySelector('button.down') as HTMLButtonElement).click();
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { position: 0 } },
+      { entity_id: 'cover.left' },
+    );
+  });
+
+  it('retargets to the named cover', async () => {
+    const callService = vi.fn();
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, controls_cover: 'cover.right' },
+      hassFor(callService),
+    );
+    (el.shadowRoot!.querySelector('button.down') as HTMLButtonElement).click();
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { position: 0 } },
+      { entity_id: 'cover.right' },
+    );
+  });
+
+  it('gates at-open/at-closed on the retargeted cover, not the resolved one', async () => {
+    // `cover.right` is fully open, `cover.left` is at 60.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, controls_cover: 'cover.right' },
+      hassFor(vi.fn()),
+    );
+    expect((el.shadowRoot!.querySelector('button.up') as HTMLButtonElement).disabled).toBe(true);
+    expect((el.shadowRoot!.querySelector('button.down') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('ignores a controls_cover the entry does not manage', async () => {
+    // Unvalidated, this would fire set_axes at a cover in another config entry —
+    // the integration resolves the entity id, so it would physically move.
+    const callService = vi.fn();
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, controls_cover: 'cover.someone_elses' },
+      hassFor(callService),
+    );
+    (el.shadowRoot!.querySelector('button.down') as HTMLButtonElement).click();
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { position: 0 } },
+      { entity_id: 'cover.left' },
+    );
   });
 });

@@ -4,6 +4,7 @@ import { classMap } from 'lit/directives/class-map.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
 import { entityStateChanged } from '../lib/hass-change';
+import { positionAxisFor } from '../lib/axes';
 
 import type { DiscoveredEntities, SunPositionAttributes } from '../types';
 import {
@@ -58,6 +59,11 @@ interface EntryOverlay {
   coverPos: number | null;
   actualPos: number | null;
   coverType: DiscoveredEntities['cover_type'];
+  /** Position-axis polarity from discovery: true when OPENING this cover
+   *  blocks more sun (awnings, oscillating awnings). Drives both the wedge
+   *  geometry and the "extended" tooltip wording, so neither has to
+   *  re-derive it from the cover-type string. */
+  openBlocksSun: boolean;
   color: string;
   isOverride: boolean;
   index: number;
@@ -186,6 +192,7 @@ export class SkyCompass extends LitElement {
         coverPos: displayTarget(this.hass, d),
         actualPos: coverActualPosition(this.hass, d),
         coverType: d.cover_type,
+        openBlocksSun: positionAxisFor(d).openBlocksSun,
         color,
         isOverride,
         index: i,
@@ -492,11 +499,11 @@ export class SkyCompass extends LitElement {
     );
     const coverOuter =
       o.coverPos !== null
-        ? coverWedgeOuterRadius(o.coverPos, o.coverType, OUTER_R, fovOuterR)
+        ? coverWedgeOuterRadius(o.coverPos, o.openBlocksSun, OUTER_R, fovOuterR)
         : null;
     const actualOuter =
       o.actualPos !== null
-        ? coverWedgeOuterRadius(o.actualPos, o.coverType, OUTER_R, fovOuterR)
+        ? coverWedgeOuterRadius(o.actualPos, o.openBlocksSun, OUTER_R, fovOuterR)
         : null;
     const bsBearings = o.sun.blind_spot_range
       ? blindSpotBearings(windowAzi, o.sun.blind_spot_range as [number, number])
@@ -579,10 +586,9 @@ export class SkyCompass extends LitElement {
     // plus an actual line appended only when a live aggregate exists (#132).
     const ttCoverLines: string[] = [];
     if (o.coverPos !== null) {
-      const targetKey =
-        o.coverType === 'cover_awning'
-          ? 'compass.cover_position_target_awning'
-          : 'compass.cover_position_target';
+      const targetKey = o.openBlocksSun
+        ? 'compass.cover_position_target_awning'
+        : 'compass.cover_position_target';
       ttCoverLines.push(`${label}${t(targetKey, this.hass, { pct: o.coverPos })}`);
       if (o.actualPos !== null) {
         ttCoverLines.push(

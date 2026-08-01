@@ -17,7 +17,7 @@ import {
 import { createDiscoveryMemo } from './lib/entity-discovery';
 import { resolveTileName, isValidAcpName } from './lib/name-parts';
 import { makeEntitySuggestion } from './lib/entity-suggestion';
-import { resolveAxes, type ResolvedAxis } from './lib/axes';
+import { axisDisplayValue, positionAxisFor, resolveAxes, type ResolvedAxis } from './lib/axes';
 import { setAxes, engageManualOverride, hasEngageManualOverride } from './lib/services';
 import { buildOverridePresets } from './lib/override-presets';
 import './components/extend-override-dialog';
@@ -43,7 +43,13 @@ import {
   resolveCustomPositionPct,
   resolveActiveMinModeFloor,
 } from './lib/decision-summary';
-import { coverHeldPosition, logicalAxisValue, logicalCoverPosition } from './lib/cover-position';
+import {
+  coverCommandTargets,
+  coverHeldPosition,
+  coverLogicalActuals,
+  logicalAxisValue,
+  logicalCoverPosition,
+} from './lib/cover-position';
 import {
   buildSolarActiveContext,
   isAutoControlActive,
@@ -77,7 +83,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
   /** Live client-side percent while the position slider is being dragged.
    *  Drives the fill and readout; the write happens on the gesture's trailing
    *  click, never mid-drag. Null whenever no drag is in flight. */
-  @state() private _posDrag: number | null = null;
+  /** In-flight position drag, keyed by the cover entity being dragged — a
+   *  multi-cover entry renders one rail per cover, so a single scalar would
+   *  paint every rail with whichever one has the finger on it. */
+  @state() private _posDrag: { id: string; pct: number } | null = null;
   @state() private _extendOpen = false;
 
   private _unsubRegistry: (() => void) | null = null;
@@ -334,6 +343,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
         .showSolarCalc=${this._config.show_solar_calc !== false}
         .stateColor=${this._config.state_color !== false}
         .badges=${this._config.badges}
+        .coverOrder=${this._config.covers}
         @acp-dialog-close=${this._closeDialog}
       ></acp-more-info-dialog>
       <acp-extend-override-dialog
@@ -469,7 +479,12 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // `show_tilt` is reinterpreted as "show non-position axes". On an older
     // integration `resolveAxes` synthesizes tilt from the Cover_Tilt sensor, so
     // behavior is unchanged.
-    const secondaryAxis = resolveAxes(discovered).find((a) => a.id !== 'position');
+    const axes = resolveAxes(discovered);
+    const secondaryAxis = axes.find((a) => a.id !== 'position');
+    // The rails' axis, always the POSITION one — never `axes[0]`, which on a
+    // tilt-only cover type is the slat axis and carries its range, not the
+    // 0–100 a track fraction speaks in.
+    const positionAxis = positionAxisFor(discovered);
     const showTilt = cfg.show_tilt !== false && !!secondaryAxis;
     // liveTilt mirrors reportedPosition above: the raw `current_tilt_position`
     // attribute is gated on `noLiveData` (not trusted for `unknown` either).
@@ -481,11 +496,48 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const liveTilt = !noLiveData && secondaryAxis ? this._liveAxis(cover, secondaryAxis) : null;
     const tiltTarget =
       !offline && secondaryAxis ? this._axisTarget(discovered, secondaryAxis) : null;
-    // When the cover reports its position, disable the control that can't do
-    // anything: open (↑) at fully-open, close (↓) at fully-closed. Covers that
-    // don't report a position leave both enabled (gate stays on `!cover`).
-    const atOpen = reportedPosition !== null && reportedPosition >= 100;
-    const atClosed = reportedPosition !== null && reportedPosition <= 0;
+    // The ↑■↓ buttons are retargetable (`controls_cover` / `controls_axis`):
+    // by default they drive the resolved cover's position axis exactly as
+    // before, but a day/night shade in the integration's `dual_entity` model
+    // binds two rail entities and a venetian exposes a second axis, and either
+    // can be the thing the user wants the buttons on.
+    // Falls back to the POSITION axis, never `axes[0]`. On a tilt-only cover
+    // type (cover_tilt, louvered roof) discovery publishes only the slat axis,
+    // and taking axes[0] silently changed the default ↑/↓ payload from
+    // `{position: …}` to `{tilt: …}` and re-gated at-open/at-closed on
+    // `current_tilt_position`.
+    const controlsAxis =
+      axes.find((a) => a.id === cfg.controls_axis) ?? positionAxisFor(discovered);
+    // Validated against the roster exactly like `covers` is. Unvalidated, a
+    // `controls_cover` left behind by an entry change (or hand-written) would
+    // aim `set_axes` at a cover in a DIFFERENT config entry — the integration
+    // resolves the entity id, so that cover would physically move.
+    const controlsCover =
+      cfg.controls_cover &&
+      (discovered.managed_covers.length === 0 ||
+        discovered.managed_covers.includes(cfg.controls_cover))
+        ? cfg.controls_cover
+        : cover;
+    // Same trust gate as `reportedPosition`, but applied to whichever entity
+    // the buttons actually drive — an `unknown` rail must not have its stale
+    // attribute decide whether ↑ is disabled.
+    const controlsState = controlsCover ? this.hass.states[controlsCover] : undefined;
+    // The buttons follow the entity they DRIVE, not the one the tile is about.
+    // Reading `offline` (the resolved cover) disabled a live retargeted rail
+    // whenever the resolved cover happened to be unavailable, and left the
+    // buttons live against an unavailable retargeted one.
+    const controlsOffline = isOffline(controlsState?.state);
+    const controlsValue =
+      isUnavailable(controlsState?.state) || !controlsAxis
+        ? null
+        : controlsAxis.id === 'position'
+          ? logicalCoverPosition(this.hass, discovered, controlsCover)
+          : logicalAxisValue(this.hass, controlsAxis, controlsCover);
+    // When the target reports its value, disable the control that can't do
+    // anything: open (↑) at the axis maximum, close (↓) at its minimum. Targets
+    // that don't report leave both enabled (gate stays on `!controlsCover`).
+    const atOpen = controlsValue !== null && controlsValue >= (controlsAxis?.max ?? 100);
+    const atClosed = controlsValue !== null && controlsValue <= (controlsAxis?.min ?? 0);
     const winner = this._winner(discovered);
     const traceAttrs = this._traceAttrs(discovered);
     const manualEndIso = this._manualEndIso(discovered);
@@ -630,47 +682,92 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // the auto/solar target is a marker tick. Purely informational — the ↑■↓
     // buttons remain the control surface. Detailed layout only, with its own
     // `show_position_bar` toggle independent of the badge master switch.
-    const showPositionBar = detailed && cfg.show_position_bar !== false && livePosition !== null;
-    // A drag in flight overrides the server-truth fill and readout. Post-#234
-    // `livePosition` is logical-frame and `set_axes` takes logical values, so
-    // the percentage you drag to is exactly the one that gets sent.
-    const posDragging = this._posDrag !== null;
-    const shownPosition = this._posDrag ?? livePosition;
-    const posBarTooltip = showPositionBar
-      ? calculatedPosition !== null
-        ? `${formatPercent(shownPosition)} · ${t('dialog.target', this.hass)} ${formatPercent(calculatedPosition)}`
-        : formatPercent(shownPosition)
-      : '';
+    // One rail per managed cover. An entry that drives several covers (a day/
+    // night shade's two rails in the `dual_entity` model, or plain multi-cover
+    // entry) previously rendered only `managed_covers[0]`, so the rest of the
+    // covers the tile is bound to had no readout and no control at all.
+    //
+    // `covers` picks the rails and their order — the integration's own order is
+    // the config flow's entity-pick order, which the card cannot influence.
+    // Unknown ids are dropped rather than rendered as dead rails. Failing that,
+    // `cover` pins the tile to its single rail, as before.
+    // Default rails: the `cover` pin alone when one is set, else every managed
+    // cover. The editor's rail widget must agree with this exactly.
+    const defaultCovers = cfg.cover
+      ? [cfg.cover]
+      : discovered.managed_covers.length > 0
+        ? discovered.managed_covers
+        : cover
+          ? [cover]
+          : [];
+    // An explicit `covers` list picks the rails and their order; ids the entry
+    // no longer manages are dropped. If that leaves NOTHING — every listed cover
+    // was renamed or removed from the entry — fall back to the default rather
+    // than rendering a tile with no position bar: the editor hides its repair
+    // widget below two managed covers, so an empty result would be escapable
+    // only by hand-editing YAML.
+    const listed = cfg.covers?.length
+      ? discovered.managed_covers.length > 0
+        ? cfg.covers.filter((id) => discovered.managed_covers.includes(id))
+        : cfg.covers
+      : [];
+    const barCovers = listed.length > 0 ? listed : defaultCovers;
+    // Live value for any rail. The resolved cover keeps the value the rest of
+    // the tile (icon, readout, controls) already agrees on; every other rail
+    // reproduces the same resolution for ITSELF rather than reading a raw
+    // attribute: the `unknown`-state gate from issue #232 (a stale
+    // `current_position` is not live truth), then the integration's own
+    // snapshot — which carries the assumed position for a no-feedback cover, and
+    // is exactly what the dialog's cover bars read, so the two agree.
+    const logicalActuals = coverLogicalActuals(this.hass, discovered);
+    const railLive = (id: string): number | null => {
+      if (id === cover) return livePosition;
+      const st = this.hass.states[id];
+      if (isOffline(st?.state)) return null;
+      const reported = isUnavailable(st?.state)
+        ? null
+        : logicalCoverPosition(this.hass, discovered, id);
+      return reported ?? logicalActuals[id] ?? null;
+    };
+    // The resolved cover's tick stays the entry's pipeline target — the number
+    // this tile has always shown, and the one the dialog's marker still shows.
+    // Only the OTHER rails take the per-cover command target, because the entry
+    // target is on the wrong scale for them (a day/night shade's middle rail
+    // carries the fabric blend folded into an absolute position). Deliberately
+    // not the reverse: routing can pin a dispatched value to 0/100 on an
+    // open/close-only cover, and interpolation makes it diverge from the linear
+    // value, so it is a worse tick wherever the pipeline target is available.
+    const commandTargets = coverCommandTargets(this.hass, discovered);
+    const railTarget = (id: string): number | null =>
+      id === cover ? calculatedPosition : (commandTargets[id] ?? null);
+    const showPositionBar =
+      detailed && cfg.show_position_bar !== false && barCovers.some((id) => railLive(id) !== null);
     const posBarTpl = showPositionBar
-      ? html`<div
-          class="pos-slider${posDragging ? ' dragging' : ''}"
-          role="slider"
-          tabindex="0"
-          aria-valuemin="0"
-          aria-valuemax="100"
-          aria-valuenow=${shownPosition ?? 0}
-          aria-valuetext=${formatPercent(shownPosition)}
-          aria-label=${t('covers.position_slider_label', this.hass)}
-          @click=${(e: MouseEvent) => this._onPosClick(e, cover)}
-          @pointerdown=${this._onPosPointerDown}
-          @pointermove=${this._onPosPointerMove}
-          @pointerup=${this._onPosPointerEnd}
-          @pointercancel=${this._onPosPointerEnd}
-          @keydown=${(e: KeyboardEvent) => this._onPosKeydown(e, cover, livePosition ?? 0)}
-        >
-          <div class="pos-bar" ${tooltip(posBarTooltip)}>
-            <div
-              class="pos-fill"
-              style=${`width:${shownPosition}%${iconColor ? `;background:${iconColor}` : ''}`}
-            ></div>
-            ${calculatedPosition !== null
-              ? html`<div
-                  class="pos-marker"
-                  style=${`left:clamp(1px, ${calculatedPosition}%, calc(100% - 1px))`}
-                ></div>`
-              : nothing}
-          </div>
-        </div>`
+      ? barCovers.length === 1
+        ? // Same per-rail resolution as the stack below. Reading `livePosition`
+          // here painted the RESOLVED cover's value onto whatever cover
+          // `covers[0]` names, while clicks/drags wrote to `covers[0]`.
+          this._posBar(
+            barCovers[0],
+            railLive(barCovers[0]),
+            railTarget(barCovers[0]),
+            iconColor,
+            positionAxis,
+          )
+        : html`<div class="pos-stack">
+            ${barCovers.map((id) => {
+              const live = railLive(id);
+              const railName = this._coverShortName(id, discovered);
+              return html`<div class="pos-row">
+                <ha-icon
+                  class="pos-glyph"
+                  icon=${this._railIcon(id, discovered, live)}
+                  ${tooltip(railName)}
+                ></ha-icon>
+                ${this._posBar(id, live, railTarget(id), iconColor, positionAxis, railName)}
+              </div>`;
+            })}
+          </div>`
       : nothing;
     // ACP's own chrome (Auto badge, winner/Manual badge, floor chip) and the
     // position bar share one row beneath the name/state: badges left, bar
@@ -746,6 +843,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 .unit=${secondaryAxis?.unit ?? '%'}
                 .actual=${liveTilt}
                 .target=${tiltTarget}
+                .openBlocksSun=${secondaryAxis?.openBlocksSun ?? false}
                 .disabled=${offline}
                 @acp-tilt-set=${(e: CustomEvent<number>) =>
                   secondaryAxis && this._setAxis(cover, secondaryAxis.id, e.detail)}
@@ -758,8 +856,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 class="up"
                 type="button"
                 aria-label=${t('tile.open', this.hass)}
-                ?disabled=${!cover || offline || atOpen}
-                @click=${() => this._setCoverPosition(cover, 100)}
+                ?disabled=${!controlsCover || controlsOffline || atOpen}
+                @click=${() =>
+                  controlsAxis && this._setAxis(controlsCover, controlsAxis.id, controlsAxis.max)}
               >
                 <ha-icon icon=${coverOpenIcon(coverDeviceClass)}></ha-icon>
               </button>
@@ -767,8 +866,8 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 class="stop"
                 type="button"
                 aria-label=${t('tile.stop', this.hass)}
-                ?disabled=${!cover || offline}
-                @click=${() => this._stopCover(cover)}
+                ?disabled=${!controlsCover || controlsOffline}
+                @click=${() => this._stopCover(controlsCover)}
               >
                 <ha-icon icon="mdi:stop"></ha-icon>
               </button>
@@ -776,8 +875,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 class="down"
                 type="button"
                 aria-label=${t('tile.close', this.hass)}
-                ?disabled=${!cover || offline || atClosed}
-                @click=${() => this._setCoverPosition(cover, 0)}
+                ?disabled=${!controlsCover || controlsOffline || atClosed}
+                @click=${() =>
+                  controlsAxis && this._setAxis(controlsCover, controlsAxis.id, controlsAxis.min)}
               >
                 <ha-icon icon=${coverCloseIcon(coverDeviceClass)}></ha-icon>
               </button>
@@ -871,6 +971,106 @@ export class AdaptiveCoverProTileCard extends LitElement {
     this._setAxis(cover, 'position', position);
   }
 
+  /** One position rail. `live` is the logical-frame value, `target` the command
+   *  target tick (null on a rail the entry-level target doesn't describe).
+   *
+   *  The rail DRAWS coverage, not openness: a full rail means the cover is
+   *  blocking the most sun, which is the polarity the sky compass has always
+   *  used. `axisDisplayValue` is the only place that flip happens, and it is
+   *  applied symmetrically — fill, tick, pointer and keyboard all go through it,
+   *  so the value read from the sensor and the value handed to `set_axes` stay
+   *  in the logical frame untouched. */
+  private _posBar(
+    id: string,
+    live: number | null,
+    target: number | null,
+    iconColor: string | null,
+    axis: ResolvedAxis,
+    /** Rail name, folded into the slider's accessible name on a multi-rail tile
+     *  where "Position" alone doesn't say which cover is being driven. */
+    railName?: string,
+  ): TemplateResult {
+    // A drag in flight overrides the server-truth fill and readout. Post-#234
+    // the live value is logical-frame and `set_axes` takes logical values, so
+    // the percentage you drag to is exactly the one that gets sent.
+    const dragging = this._posDrag?.id === id;
+    const shown = dragging ? this._posDrag!.pct : live;
+    // What the rail paints. ARIA describes the visual, so `aria-valuenow` is
+    // this too — a screen reader stepping the slider must move the fill the way
+    // the arrow key points. The open percentage is still spoken, via valuetext.
+    // 0, never null: a null width would emit `width:null%` and only render empty
+    // because the browser drops the invalid declaration. The sibling bars both
+    // normalize here too.
+    const shownFill = shown === null ? 0 : axisDisplayValue(shown, axis);
+    const targetFill = target === null ? null : axisDisplayValue(target, axis);
+    const tip =
+      target !== null
+        ? `${formatPercent(shown)} · ${t('dialog.target', this.hass)} ${formatPercent(target)}`
+        : formatPercent(shown);
+    return html`<div
+      class="pos-slider${dragging ? ' dragging' : ''}"
+      role="slider"
+      tabindex="0"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow=${shownFill}
+      aria-valuetext=${t('covers.position_open_value', this.hass, {
+        pct: formatPercent(shown),
+      })}
+      aria-label=${railName
+        ? `${railName} · ${t('covers.position_slider_label', this.hass)}`
+        : t('covers.position_slider_label', this.hass)}
+      @click=${(e: MouseEvent) => this._onPosClick(e, id, axis)}
+      @pointerdown=${(e: PointerEvent) => this._onPosPointerDown(e, id, axis)}
+      @pointermove=${(e: PointerEvent) => this._onPosPointerMove(e, id, axis)}
+      @pointerup=${this._onPosPointerEnd}
+      @pointercancel=${this._onPosPointerEnd}
+      @keydown=${(e: KeyboardEvent) => this._onPosKeydown(e, id, shownFill, axis)}
+    >
+      <div class="pos-bar" ${tooltip(tip)}>
+        <div
+          class="pos-fill"
+          style=${`width:${shownFill}%${iconColor ? `;background:${iconColor}` : ''}`}
+        ></div>
+        ${targetFill !== null
+          ? html`<div
+              class="pos-marker"
+              style=${`left:clamp(1px, ${targetFill}%, calc(100% - 1px))`}
+            ></div>`
+          : nothing}
+      </div>
+    </div>`;
+  }
+
+  /** Glyph for one rail on a multi-cover tile, resolved through the same chain
+   *  as the tile's own icon: the cover entity's explicit `icon` wins, then its
+   *  `device_class`, then the entry's `cover_type`. The card has no way to know
+   *  which rail of a day/night shade is the bottom one and which the middle —
+   *  that distinction lives only in the entity names — so set an `icon` on the
+   *  rail entities in HA to tell them apart at a glance. */
+  private _railIcon(id: string, discovered: DiscoveredEntities, live: number | null): string {
+    const st = this.hass.states[id];
+    return coverStateIcon({
+      explicitIcon: st?.attributes?.icon as string | undefined,
+      deviceClass: st?.attributes?.device_class as string | undefined,
+      coverType: discovered.cover_type,
+      position: live,
+    });
+  }
+
+  /** Rail label for a multi-cover tile: the cover's friendly name with the
+   *  entry title stripped off the front, so two rails of one shade read
+   *  "Bottom" / "Middle" rather than repeating the shade's name twice. */
+  private _coverShortName(id: string, discovered: DiscoveredEntities): string {
+    const full = (this.hass.states[id]?.attributes?.friendly_name as string | undefined) ?? id;
+    const prefix = discovered.entry_title;
+    if (prefix && full.toLowerCase().startsWith(prefix.toLowerCase())) {
+      const rest = full.slice(prefix.length).replace(/^[\s\-–—:]+/, '');
+      if (rest) return rest;
+    }
+    return full;
+  }
+
   /** Percent along the position slider from a pointer's clientX. */
   private _posPctFromEvent(e: { clientX: number }, el: HTMLElement): number {
     const rect = el.getBoundingClientRect();
@@ -882,19 +1082,26 @@ export class AdaptiveCoverProTileCard extends LitElement {
      every slider gesture stops propagation, exactly as `.controls` does. No
      `preventDefault()` on pointerdown: that would also suppress the trailing
      compatibility `click` the commit rides on. */
-  private _onPosPointerDown = (e: PointerEvent): void => {
+  /* `_posDrag.pct` is stored in the LOGICAL frame, like every other value the
+     card holds — `axisDisplayValue` converts the rail fraction back on the way
+     in, so the drag preview, the readout and the eventual service call are all
+     the same number and no caller has to remember which frame it is holding. */
+  private _onPosPointerDown = (e: PointerEvent, id: string, axis: ResolvedAxis): void => {
     e.stopPropagation();
     const el = e.currentTarget as HTMLElement;
     (el as HTMLElement & { setPointerCapture?: (id: number) => void }).setPointerCapture?.(
       e.pointerId,
     );
-    this._posDrag = this._posPctFromEvent(e, el);
+    this._posDrag = { id, pct: axisDisplayValue(this._posPctFromEvent(e, el), axis) };
   };
 
-  private _onPosPointerMove = (e: PointerEvent): void => {
-    if (this._posDrag === null) return;
+  private _onPosPointerMove = (e: PointerEvent, id: string, axis: ResolvedAxis): void => {
+    if (this._posDrag?.id !== id) return;
     e.stopPropagation();
-    this._posDrag = this._posPctFromEvent(e, e.currentTarget as HTMLElement);
+    this._posDrag = {
+      id,
+      pct: axisDisplayValue(this._posPctFromEvent(e, e.currentTarget as HTMLElement), axis),
+    };
   };
 
   /** Ends the gesture without writing: on pointerup the trailing `click`
@@ -904,13 +1111,24 @@ export class AdaptiveCoverProTileCard extends LitElement {
     this._posDrag = null;
   };
 
-  private _onPosClick(e: MouseEvent, cover: string | undefined): void {
+  private _onPosClick(e: MouseEvent, cover: string | undefined, axis: ResolvedAxis): void {
     e.stopPropagation();
-    this._setCoverPosition(cover, this._posPctFromEvent(e, e.currentTarget as HTMLElement));
+    this._setCoverPosition(
+      cover,
+      axisDisplayValue(this._posPctFromEvent(e, e.currentTarget as HTMLElement), axis),
+    );
   }
 
-  /** Standard WAI-ARIA slider keys: arrows ±1, Page ±10, Home/End to the ends. */
-  private _onPosKeydown(e: KeyboardEvent, cover: string | undefined, current: number): void {
+  /** Standard WAI-ARIA slider keys: arrows ±1, Page ±10, Home/End to the ends.
+   *  `current` and `next` are rail fractions, matching `aria-valuenow`, so the
+   *  arrow keys always move the fill the way they point; the step is converted
+   *  back to a logical value at the write. */
+  private _onPosKeydown(
+    e: KeyboardEvent,
+    cover: string | undefined,
+    current: number,
+    axis: ResolvedAxis,
+  ): void {
     let next: number;
     switch (e.key) {
       case 'ArrowRight':
@@ -938,7 +1156,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     }
     e.preventDefault();
     e.stopPropagation();
-    this._setCoverPosition(cover, Math.max(0, Math.min(100, next)));
+    this._setCoverPosition(cover, axisDisplayValue(Math.max(0, Math.min(100, next)), axis));
   }
 
   private _stopCover(cover: string | undefined): void {
@@ -1322,6 +1540,54 @@ export class AdaptiveCoverProTileCard extends LitElement {
       content: '';
       position: absolute;
       inset: -8px 0;
+    }
+    /* Multi-cover entry: the rails stack in the slot the single rail occupies,
+       each labelled with its cover's short name. The stack owns the flex sizing
+       so each rail below it can size itself to the full stack width. */
+    .chrome-line .pos-stack {
+      margin-left: auto;
+      align-self: center;
+      flex: 0 1 170px;
+      max-width: 55%;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .chrome-line .pos-stack .pos-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+    /* Per-rail glyph in place of a name: two rails of one shade have long,
+       near-identical names that ate the rail's width.
+
+       ha-icon defaults to inline-flex and inherits the tile's line-height, so
+       its glyph sits low inside its own box even though the row centers that
+       box. Making it a zero-line-height flex box centers the glyph on the rail
+       rather than on a text baseline the rail knows nothing about. */
+    .chrome-line .pos-stack .pos-glyph {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      align-self: center;
+      line-height: 0;
+      --mdc-icon-size: 15px;
+      width: 15px;
+      height: 15px;
+      color: var(--secondary-text-color);
+    }
+    .chrome-line .pos-stack .pos-slider {
+      margin-left: 0;
+      flex: 1 1 auto;
+      max-width: none;
+    }
+    /* Rails sit tight in the stack, so the ±8px grab boxes would overlap and
+       the upper rail would swallow the lower rail's top half. */
+    .chrome-line .pos-stack .pos-slider::before {
+      inset: -2px 0;
     }
     .chrome-line .pos-slider:focus-visible {
       outline: 2px solid var(--primary-color);

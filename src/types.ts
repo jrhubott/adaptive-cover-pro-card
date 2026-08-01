@@ -77,8 +77,17 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   /** Override the auto-resolved cover icon (mdi:*). */
   icon?: string;
   /** Explicit `cover.*` entity when an entry manages multiple covers
-   *  (default: first key of the integration's `actual_positions`). */
+   *  (default: first key of the integration's `actual_positions`). This is
+   *  which cover the tile is *about* — it drives the icon, the state readout,
+   *  the ↑■▼ default target, and (unless `covers` is set) collapses the tile to
+   *  that one position rail. */
   cover?: string;
+  /** Which position rails to render, in order. Defaults to every managed cover
+   *  in the integration's own order — `config_entry.options[entities]`, i.e.
+   *  the order the covers were picked in the config flow, which the card cannot
+   *  otherwise influence. Doubles as a filter: listing a subset renders only
+   *  those rails. Ids not managed by the entry are dropped. */
+  covers?: string[];
   /** Render the cover's current position to the right of the title. */
   show_position?: boolean;
   /** Render the cover's localized state ("Open" / "Closed" / "Opening" / …)
@@ -89,6 +98,16 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   show_decision_summary?: boolean;
   /** Render the ↑■▼ controls row (default true). */
   show_controls?: boolean;
+  /** Which managed cover the ↑■▼ buttons drive. Defaults to the tile's resolved
+   *  cover (`cover`, else the first key of `actual_positions`). Only meaningful
+   *  when the entry manages more than one cover — a day/night shade in the
+   *  integration's `dual_entity` model binds two rail entities, and the buttons
+   *  can be pointed at either rail. */
+  controls_cover?: string;
+  /** Which discovered axis the ↑■▼ buttons drive, by axis id (`position`,
+   *  `tilt`, …). Defaults to `position`. Open drives the axis maximum, close
+   *  its minimum; stop is per-entity and axis-independent. */
+  controls_axis?: string;
   /** Render the mini tilt (slat-angle) bar for dual-axis venetian covers
    *  (default true). Self-hides when the entry exposes no `Cover_Tilt` sensor,
    *  and on the `one-line` layout (tilt folds into the readout there). */
