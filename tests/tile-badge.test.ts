@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { TileBadge } from '../src/components/tile-badge';
+import { BADGE_TOKENS, type BadgeKind } from '../src/const';
 
 interface BadgeLike extends HTMLElement {
   updateComplete: Promise<boolean>;
@@ -389,9 +390,11 @@ describe('acp-tile-badge', () => {
     expect(text(el)).toBe('Safety');
     // The kind class stays custom_position (the winner is still a custom slot).
     expect(kind(el)).toBe('custom_position');
-    // Visual tokens are the red force styling.
+    // Visual tokens are the red force styling. Asserted on the ACCENT hue: the
+    // rendered values are color-mix expressions resolved against the theme, so
+    // the old dark-red literal is gone but the identity is the same red.
     const span = el.shadowRoot!.querySelector('span.badge') as HTMLElement;
-    expect(span.getAttribute('style')).toContain('#b71c1c');
+    expect(span.getAttribute('style')).toContain('#f44336');
     // The force icon (mdi:flash) is rendered.
     expect(el.shadowRoot!.querySelector('ha-icon')!.getAttribute('icon')).toBe('mdi:flash');
   });
@@ -467,14 +470,22 @@ describe('acp-tile-badge', () => {
     expect(tip).toContain('group lock');
   });
 
-  it('adds no tooltip to a badge whose label already says what it is', async () => {
+  // Inverted deliberately. A badge label is abbreviated for width — `_label()`
+  // drops "Manual · " once a countdown exists and "Custom · " once a slot name
+  // does — so no label reliably says what it is, and every kind now explains
+  // itself. These two used to assert the opposite.
+  it('adds an explanatory tooltip to a badge whose label names its own kind', async () => {
     const el = await mountBadge({ winner: 'manual' });
-    expect(el.shadowRoot!.querySelector('span.badge')!.hasAttribute('data-tooltip')).toBe(false);
+    const tip = el.shadowRoot!.querySelector('span.badge')!.getAttribute('data-tooltip') ?? '';
+    expect(tip).toContain('Manual override is active');
   });
 
-  it('adds no who-won tooltip when the counts are absent', async () => {
+  it('falls back to the generic group tooltip when the counts are absent', async () => {
     const el = await mountBadge({ kindOverride: 'group' });
-    expect(el.shadowRoot!.querySelector('span.badge')!.hasAttribute('data-tooltip')).toBe(false);
+    const tip = el.shadowRoot!.querySelector('span.badge')!.getAttribute('data-tooltip') ?? '';
+    expect(tip).toContain('Cover Group');
+    // Not the "N/M members" form — there are no counts to put in it.
+    expect(tip).not.toContain('of');
   });
 
   // Issue #185: a member cover the group is driving wins with the group_scene
@@ -619,5 +630,92 @@ describe('acp-tile-badge — extendable (#229)', () => {
     // clock text + extend icon + resume icon — no leading kind icon.
     expect(el.shadowRoot!.querySelector('.badge-icon')).toBeFalsy();
     expect(el.shadowRoot!.querySelectorAll('button.act').length).toBe(2);
+  });
+
+  // --- Every badge kind explains itself (issue: "badges should all have tooltips") ---
+
+  it('gives every badge kind a tooltip, never a raw i18n key', async () => {
+    const kinds = Object.keys(BADGE_TOKENS) as BadgeKind[];
+    for (const kind of kinds) {
+      const el = await mountBadge({ kindOverride: kind });
+      const anchor = el.shadowRoot!.querySelector('span.badge, button.badge, .badge-label')!;
+      const tip = anchor.getAttribute('data-tooltip') ?? '';
+      expect(tip, `badge kind "${kind}" has no tooltip`).not.toBe('');
+      // `t()` echoes an unknown key; a raw `badge.tip.foo` in a tooltip is the
+      // failure mode `_tip()`'s guard exists to prevent.
+      expect(tip, `badge kind "${kind}" leaked an i18n key`).not.toContain('badge.tip.');
+    }
+  });
+
+  // The motivating case: the custom-position label drops its "Custom · " prefix
+  // once a slot name exists, so a badge reading "Default · 40%" never says it is
+  // a custom position. The tooltip carries every part the label compressed away.
+  it('assembles the custom-position tooltip from the parts the label dropped', async () => {
+    const el = await mountBadge({
+      winner: 'custom_position',
+      slotName: 'Table extension',
+      pct: 60,
+      minimumMode: true,
+    });
+    const tip = el.shadowRoot!.querySelector('span.badge')!.getAttribute('data-tooltip') ?? '';
+    expect(tip).toContain('custom position slot');
+    expect(tip).toContain('Table extension');
+    expect(tip).toContain('60%');
+    expect(tip).toContain('floor');
+  });
+
+  it('omits the parts a custom-position badge does not have', async () => {
+    const el = await mountBadge({ winner: 'custom_position' });
+    const tip = el.shadowRoot!.querySelector('span.badge')!.getAttribute('data-tooltip') ?? '';
+    expect(tip).toContain('custom position slot');
+    expect(tip).not.toContain('Slot:');
+    expect(tip).not.toContain('floor');
+  });
+
+  it('names the slot number when the slot has no bound-sensor name', async () => {
+    const el = await mountBadge({ winner: 'custom_position', slotNumber: 3 });
+    const tip = el.shadowRoot!.querySelector('span.badge')!.getAttribute('data-tooltip') ?? '';
+    expect(tip).toContain('#3');
+  });
+
+  it('states the manual countdown in the tooltip, which the label shows bare', async () => {
+    const el = await mountBadge({ winner: 'manual', manualEndIso: '2026-06-09T16:35:00' });
+    const tip = el.shadowRoot!.querySelector('span.badge')!.getAttribute('data-tooltip') ?? '';
+    expect(tip).toContain('Manual override is active until');
+  });
+
+  it('falls back to the undated manual sentence for an unparseable end time', async () => {
+    const el = await mountBadge({ winner: 'manual', manualEndIso: 'not-a-date' });
+    const tip = el.shadowRoot!.querySelector('span.badge')!.getAttribute('data-tooltip') ?? '';
+    // The undated sentence, not "active until —". Asserted on "until" rather
+    // than on the em-dash: the undated string contains one of its own.
+    expect(tip).toContain('Manual override is active');
+    expect(tip).not.toContain('until');
+  });
+
+  // One hit area, two things to say: meaning first, action second.
+  it('combines meaning and action on a resumable badge', async () => {
+    const el = await mountBadge({ winner: 'manual', manualActive: true, resumable: true });
+    const tip = el.shadowRoot!.querySelector('button.badge')!.getAttribute('data-tooltip') ?? '';
+    expect(tip).toContain('Manual override is active');
+    expect(tip).toContain('Resume');
+  });
+
+  // On the two-button variant the container's hit area IS the action buttons,
+  // so the kind hint goes on the label or it would shadow their own hints.
+  it('puts the kind hint on the label of the two-action variant', async () => {
+    const el = await mountBadge({
+      winner: 'manual',
+      manualActive: true,
+      resumable: true,
+      extendable: true,
+    });
+    const root = el.shadowRoot!;
+    expect(root.querySelector('span.badge')!.hasAttribute('data-tooltip')).toBe(false);
+    expect(root.querySelector('.badge-label')!.getAttribute('data-tooltip')).toContain(
+      'Manual override is active',
+    );
+    expect(root.querySelector('.act.extend')!.getAttribute('data-tooltip')).toContain('Extend');
+    expect(root.querySelector('.act.resume')!.getAttribute('data-tooltip')).toContain('Resume');
   });
 });

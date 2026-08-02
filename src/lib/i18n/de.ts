@@ -38,6 +38,31 @@ export const de: EnDict = {
     floor_suffix: ' ↥',
     safety: 'Sicherheit',
     group: 'Gruppe',
+    tip: {
+      auto: 'Die Automatiksteuerung ist aktiv und kein Handler übersteuert — die Abdeckung folgt dem Ergebnis der Pipeline.',
+      manual:
+        'Eine manuelle Übersteuerung ist aktiv — die Abdeckung bleibt dort, wo Sie sie eingestellt haben, und die Automatik pausiert.',
+      manual_until:
+        'Eine manuelle Übersteuerung ist bis {time} aktiv — bis dahin bleibt die Abdeckung dort, wo Sie sie eingestellt haben.',
+      force: 'Eine erzwungene Position übersteuert alle anderen Handler.',
+      weather: 'Die Wettersicherheit steuert die Position.',
+      glare_zone:
+        'Die Sonne steht in einer konfigurierten Blendungszone, und der Blendungs-Handler steuert die Position.',
+      climate: 'Die Klimasteuerung steuert die Position.',
+      cloud: 'Bewölkung unterdrückt die Sonnenverfolgung.',
+      custom_position: 'Ein benutzerdefinierter Positions-Slot steuert diese Abdeckung.',
+      custom_position_slot: 'Slot: {name}.',
+      custom_position_value: 'Seine Position beträgt {pct} %.',
+      custom_position_floor:
+        'Er wirkt als Mindestposition: Er hebt die Position über den Rohwert der Berechnung an, statt ihn zu ersetzen.',
+      solar: 'Sonnenverfolgung — die Position folgt der Sonne über das Fenster.',
+      motion: 'Der Raum gilt als nicht belegt, daher hält der Anwesenheits-Handler die Position.',
+      off: 'Die Integration ist für diese Abdeckung deaktiviert — es wird nichts gesteuert.',
+      off_schedule:
+        'Außerhalb des konfigurierten Zeitfensters, daher pausiert die Automatiksteuerung.',
+      group: 'Die Abdeckungsgruppe bestimmt derzeit diese Position.',
+      safety: 'Eine Sicherheitsposition übersteuert alle anderen Handler.',
+    },
   },
   group: {
     title: 'Abdeckungsgruppe',
@@ -201,6 +226,7 @@ export const de: EnDict = {
     target_tooltip_override:
       'Theoretisches Sonnenziel {pct}% — Beschattung wird durch manuelle Übersteuerung gehalten',
     target_tooltip_motor: 'Motor: {pct}% (vor Kalibrierung)',
+    position_title: 'Position',
     tilt_title: 'Neigung',
     tilt_target: 'Neigung: {pct}',
     tilt_click_to_set: 'Klicken zum Festlegen der Neigung',

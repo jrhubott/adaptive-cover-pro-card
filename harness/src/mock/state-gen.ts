@@ -108,8 +108,16 @@ export function buildStates(cfg: HarnessConfig): GeneratedStates {
 /**
  * Build the integration's `cover_discovery` descriptor (issue #180) for a mock
  * cover type. Mirrors the serialized `CoverDescriptor`/`AxisDescriptor` shape:
- * every cover exposes a `position` axis; venetian additionally exposes a `tilt`
- * axis. Emitted on the control_status sensor unless the legacy flag is set.
+ * every cover exposes a `position` axis; venetian additionally exposes a
+ * DRIVABLE `tilt` axis. Emitted on the control_status sensor unless the legacy
+ * flag is set.
+ *
+ * A day/night shade also publishes a `tilt` axis, but with `supported: false` —
+ * copied from a live entry, because the integration declares the axis for the
+ * cover type and then marks it unsupported for this control model. That is the
+ * shape that matters: the forecast for such an entry still carries a `tilt`
+ * value, so anything deciding what to render from the sample keys instead of
+ * from `supported` draws a slat track on a shade with no slats.
  *
  * `positionInverted` / `tiltInverted` mirror the integration's
  * `AxisDescriptor.inverted`, which is set per axis from that axis's own
@@ -127,6 +135,7 @@ export function buildCoverDiscovery(
       cover_awning: 'Awning',
       cover_tilt: 'Tilt',
       cover_venetian: 'Venetian',
+      cover_day_night_shade: 'Day/Night Shade',
     } as Record<CoverType, string>
   )[coverType];
   const axes: Record<string, unknown>[] = [
@@ -145,7 +154,7 @@ export function buildCoverDiscovery(
       inverted: positionInverted,
     },
   ];
-  if (coverType === 'cover_venetian') {
+  if (coverType === 'cover_venetian' || coverType === 'cover_day_night_shade') {
     axes.push({
       id: 'tilt',
       label: 'Tilt',
@@ -157,7 +166,7 @@ export function buildCoverDiscovery(
       state_attr: 'current_tilt_position',
       service_attr: 'tilt',
       open_blocks_sun: false,
-      supported: true,
+      supported: coverType === 'cover_venetian',
       inverted: tiltInverted,
     });
   }
@@ -374,11 +383,19 @@ function addEntryStates(
     device_class: 'timestamp',
   });
   // `per_entity` carries each managed cover's own command target — the only
-  // per-cover target the integration publishes, and what the tile's rail ticks
-  // read. Each cover may pin its own `command_target`; without one the rail
-  // takes the entry target, which is what a single-cover entry has always
-  // effectively shown. Cover frame, like `actual_positions`. Omitted under the
-  // legacy flag so the card exercises its entry-target fallback.
+  // per-cover target the integration publishes, and the ONLY source for a
+  // non-resolved rail's target tick. Each cover may pin its own
+  // `command_target`; without one it defaults to the entry target here in the
+  // mock, which is what a single-cover entry has always effectively shown.
+  // Cover frame, like `actual_positions`. Omitted entirely under the legacy
+  // flag, where every non-resolved rail then goes tickless.
+  //
+  // `command_target: null` models the third live shape: a cover the integration
+  // has not dispatched to (a cover already at the calculated position is skipped
+  // as `same_position`), whose `target` and `last_reconcile_time` are both null.
+  // Its rail goes TICKLESS — the card does not fall back to the entry target,
+  // because it cannot tell a mirrored rail from a remapped one. Upstream gap:
+  // adaptive-cover-pro#1158.
   states[id('position_verification_sensor')] = mkState(
     id('position_verification_sensor'),
     allAtTarget ? 'ok' : 'mismatch',
@@ -389,13 +406,14 @@ function addEntryStates(
         : {
             per_entity: Object.fromEntries(
               entry.covers.map((c) => {
+                const unreconciled = c.command_target === null;
                 const logical = c.command_target ?? entry.target_position;
                 return [
                   c.entity_id,
                   {
-                    target: inverse ? flip(logical) : logical,
+                    target: unreconciled ? null : inverse ? flip(logical) : logical,
                     actual: actualPositions[c.entity_id] ?? null,
-                    at_target: allAtTarget,
+                    at_target: unreconciled ? false : allAtTarget,
                     retry_count: 0,
                     last_reconcile_time: null,
                     wait_for_target: false,
