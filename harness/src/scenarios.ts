@@ -410,7 +410,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'day-night-dual-rail',
     label: 'Day/night shade — two rails (dual_entity)',
     description:
-      "A day/night shade in the integration's dual_entity control model: ONE config entry binding TWO cover.* rail entities (bottom rail carries the coverage, middle rail carries the sheer-vs-blackout fabric split). The blend is not a drivable tilt axis on either entity, so discovery reports position only — pre-fix the tile card rendered managed_covers[0] and nothing else, leaving the middle rail with no readout and no control anywhere on the tile. The tile must now show ONE POSITION RAIL PER MANAGED COVER, stacked in the slot the single bar used to occupy, each led by its own cover glyph rather than a name — resolved through the same chain as the tile icon (entity `icon` → `device_class` → `cover_type`), so the two rails here carry DIFFERENT glyphs only because the middle rail pins an explicit `icon`. Hover a glyph for that rail's name, and the slider's accessible name carries it too. Clear the middle rail's `icon` in this scenario and both rails collapse to the same shutter glyph — that is correct, and the reason the names moved to the tooltip instead of disappearing. BOTH rails carry an orange target tick, but from DIFFERENT sources, deliberately. The resolved cover (the bottom rail) keeps the entry-level pipeline target — the number this tile has always shown, and the one the dialog marker still shows. Every OTHER rail reads its own dispatched value from the position_verification sensor's per_entity map: the middle rail's is 30 against the entry target of 60, because its dispatched value is the fabric blend folded into an absolute position, so borrowing the entry target would put its tick on the wrong scale. Flip “Legacy integration” on to drop per_entity entirely — the bottom rail is unaffected and the middle rail goes tickless rather than showing a borrowed number. Rail ORDER follows the integration's own entity order (config_entry.options[entities]), which the card cannot influence — set “covers (rail order)” in the Tile card panel to Reversed and the two rails swap, or to “First rail only” to prove it doubles as a filter. The ORDER CARRIES INTO THE MORE-INFO DIALOG: open the tile and the dialog\'s stacked cover bars follow the same order and subset, so the two surfaces never disagree. Only an explicit covers list travels — a tile pinned with `cover` alone leaves the dialog showing every managed cover exactly as before. The rails draw COVERAGE, not openness: a full rail means the cover is blocking the most sun, the same polarity as the sky compass wedge — which now reads the same open_blocks_sun flag instead of testing for cover_awning, so an oscillating awning no longer draws an inverted wedge beside a correctly-filled rail. Polarity comes from the discovery axis flag open_blocks_sun, so it is per-axis and per-cover-type rather than hardcoded — compare against any AWNING scenario, where extending raises both the value and the coverage so its rail fills the other way. Drag, arrows and the target tick all follow the drawn direction; only the tooltip and the service call stay in the integration frame. Each rail is an independent slider: drag one and only that rail's fill follows (a single shared drag state used to paint both), release fires exactly one set_axes for THAT entity (watch the service log), and the gesture must not open the more-info dialog. Point “controls_cover” at the middle rail in the Tile card panel and the ↑■↓ buttons retarget to it — including their at-open/at-closed disabling, which now reads the retargeted entity rather than always the first cover. It retargets the BUTTONS ONLY, deliberately: the name/state line, position readout, icon, color and tap target all keep describing the resolved cover (the bottom rail), and the orange target ticks stay where they are. Making the display follow this option was tried and reverted — the tile's `cover` is simultaneously the displayed entity, the rail carrying the entry-level pipeline target, the tilt axis's read/write target and the anchor for the entry-scale position fallback, so moving it for display silently moved a service-call target too.",
+      "A day/night shade in the integration's dual_entity control model: ONE config entry binding TWO cover.* rail entities (bottom rail carries the coverage, middle rail carries the sheer-vs-blackout fabric split). The blend is not a drivable tilt axis on either entity, so discovery reports position only — pre-fix the tile card rendered managed_covers[0] and nothing else, leaving the middle rail with no readout and no control anywhere on the tile. The tile must now show ONE POSITION RAIL PER MANAGED COVER, stacked in the slot the single bar used to occupy, each led by its own cover glyph rather than a name — resolved through the same chain as the tile icon (entity `icon` → `device_class` → `cover_type`), so the two rails here carry DIFFERENT glyphs only because the middle rail pins an explicit `icon`. Hover a glyph for that rail's name, and the slider's accessible name carries it too. Clear the middle rail's `icon` in this scenario and both rails collapse to the same shutter glyph — that is correct, and the reason the names moved to the tooltip instead of disappearing. BOTH rails carry an orange target tick, but from DIFFERENT sources, deliberately. The resolved cover (the bottom rail) keeps the entry-level pipeline target — the number this tile has always shown, and the one the dialog marker still shows. Every OTHER rail reads its own dispatched value from the position_verification sensor's per_entity map: the middle rail's is 30 against the entry target of 60, because its dispatched value is the fabric blend folded into an absolute position, so borrowing the entry target would put its tick on the wrong scale. Flip “Legacy integration” on to drop per_entity entirely — the bottom rail is unaffected and the middle rail goes tickless rather than showing a borrowed number. OPEN THE MORE-INFO DIALOG AND LOOK AT THE FORECAST STRIP TOO: this cover type is the phantom-tilt repro. Its discovery declares a `tilt` axis with `supported: false` — it has two rails, not slats — while the integration still emits a `tilt` value on every solar forecast sample. The strip must draw ONE track and a legend with no Tilt entry. A second, dashed track here means something went back to deciding what to plot from the sample keys instead of from discovery, which is what drew a slat curve on a slatless shade. Compare the Venetian dual-axis scenario, where tilt IS supported and the dashed track is correct. Rail ORDER follows the integration's own entity order (config_entry.options[entities]), which the card cannot influence — set “covers (rail order)” in the Tile card panel to Reversed and the two rails swap, or to “First rail only” to prove it doubles as a filter. The ORDER CARRIES INTO THE MORE-INFO DIALOG: open the tile and the dialog\'s stacked cover bars follow the same order and subset, so the two surfaces never disagree. Only an explicit covers list travels — a tile pinned with `cover` alone leaves the dialog showing every managed cover exactly as before. The rails draw COVERAGE, not openness: a full rail means the cover is blocking the most sun, the same polarity as the sky compass wedge — which now reads the same open_blocks_sun flag instead of testing for cover_awning, so an oscillating awning no longer draws an inverted wedge beside a correctly-filled rail. Polarity comes from the discovery axis flag open_blocks_sun, so it is per-axis and per-cover-type rather than hardcoded — compare against any AWNING scenario, where extending raises both the value and the coverage so its rail fills the other way. Drag, arrows and the target tick all follow the drawn direction; only the tooltip and the service call stay in the integration frame. Each rail is an independent slider: drag one and only that rail's fill follows (a single shared drag state used to paint both), release fires exactly one set_axes for THAT entity (watch the service log), and the gesture must not open the more-info dialog. Point “controls_cover” at the middle rail in the Tile card panel and the ↑■↓ buttons retarget to it — including their at-open/at-closed disabling, which now reads the retargeted entity rather than always the first cover. It retargets the BUTTONS ONLY, deliberately: the name/state line, position readout, icon, color and tap target all keep describing the resolved cover (the bottom rail), and the orange target ticks stay where they are. Making the display follow this option was tried and reverted — the tile's `cover` is simultaneously the displayed entity, the rail carrying the entry-level pipeline target, the tilt axis's read/write target and the anchor for the entry-scale position fallback, so moving it for display silently moved a service-call target too.",
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'day-night-dual-rail';
@@ -472,6 +472,55 @@ export const SCENARIOS: Scenario[] = [
               friendly_name: 'Living Room venetian',
               position: 60,
               tilt: 35,
+            },
+          ],
+        }),
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'mirrored-rails-target-ticks',
+    label: 'Mirrored rails — upstream: covers skipped as same_position get no tick',
+    description:
+      "One entry driving THREE identical shades across a window bank, reproducing an UPSTREAM integration gap (adaptive-cover-pro#1158) rather than a card bug — it is the repro case and the future regression guard, and the card deliberately does NOT paper over it. `per_entity[….].target` is a RECONCILIATION record: the integration writes it only when it dispatches, and a cover already sitting on the calculated position is skipped as `same_position`, so it never receives one even though the pipeline computed the number — visible in last_skipped_action's own calculated_position. READ THE RAILS LEFT TO RIGHT, because the three ticks come from three different places and only the middle one proves anything. The LEFT rail is managed_covers[0], the tile's resolved cover, so `railTarget` short-circuits and hands it the ENTRY target before per_entity is ever consulted — it would be ticked whatever this scenario said. The CENTER rail is the one the integration has reconciled: its tick comes from its own per_entity target, and setting its `command_target` to null visibly removes it. The RIGHT rail is unreconciled and therefore BARE — that is the bug, and the card leaves it bare on purpose, because it cannot tell a MIRRORED rail (entry scale, borrowing the entry target would be right) from a REMAPPED one (own scale, borrowing would put the tick in the wrong place). Note the integration's own diagnostics contradict themselves here exactly as they do live: per_entity reports at_target false for a cover the entry-level sensor counts inside all_at_target true. Compare the Day/night dual-rail scenario for the remapped case, where the middle rail publishes its own 30 against an entry target of 60. When the integration records the target on its skip path, the right rail gains a tick with no card change — that is the assertion this scenario holds.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'mirrored-rails-target-ticks';
+      c.entries = [
+        makeEntry({
+          entry_id: 'front_bank',
+          title: 'Front Shades',
+          cover_type: 'cover_blind',
+          window_azimuth: 180,
+          color: '#7e57c2',
+          target_position: 40,
+          covers: [
+            {
+              entity_id: 'cover.front_left_shade',
+              friendly_name: 'Front Left Shade',
+              position: 40,
+              // The RESOLVED cover (managed_covers[0]). Its tick comes from the
+              // entry target via railTarget's `id === cover` short-circuit, so
+              // per_entity never enters into it — deliberately left null to
+              // stop this rail from looking like evidence for the per-cover path.
+              command_target: null,
+            },
+            {
+              entity_id: 'cover.front_center_shade',
+              friendly_name: 'Front Center Shade',
+              position: 40,
+              // The load-bearing one: a NON-resolved rail the integration HAS
+              // reconciled, so its tick can only have come from per_entity.
+              // Flip this to null and the tick disappears.
+              command_target: 40,
+            },
+            {
+              entity_id: 'cover.front_right_shade',
+              friendly_name: 'Front Right Shade',
+              position: 40,
+              // Non-resolved and unreconciled: bare rail, the reported bug.
+              command_target: null,
             },
           ],
         }),

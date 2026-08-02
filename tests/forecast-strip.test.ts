@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import '../src/components/forecast-strip';
 import type { ForecastSample, ForecastEvent, PositionHistorySample } from '../src/types';
+import type { ResolvedAxis } from '../src/lib/axes';
 import { startOfDay } from '../src/lib/sun-model';
 
 interface StripLike extends HTMLElement {
@@ -9,22 +10,39 @@ interface StripLike extends HTMLElement {
   events?: ForecastEvent[];
   history?: PositionHistorySample[];
   now?: number;
-  axisLabels?: Record<string, string>;
+  axes?: ResolvedAxis[];
 }
+
+/** A discovery axis with card defaults, so a test names only what it varies. */
+function axis(id: string, over: Partial<ResolvedAxis> = {}): ResolvedAxis {
+  return {
+    id,
+    label: id.charAt(0).toUpperCase() + id.slice(1),
+    min: 0,
+    max: 100,
+    unit: '%',
+    inverted: false,
+    openBlocksSun: false,
+    ...over,
+  };
+}
+
+/** The ordinary two-axis entry: position + a drivable tilt. */
+const POSITION_AND_TILT: ResolvedAxis[] = [axis('position'), axis('tilt')];
 
 async function mount(
   samples: ForecastSample[],
   events: ForecastEvent[],
   nowMs?: number,
   history?: PositionHistorySample[],
-  axisLabels?: Record<string, string>,
+  axes?: ResolvedAxis[],
 ): Promise<StripLike> {
   const el = document.createElement('acp-forecast-strip') as StripLike;
   el.samples = samples;
   el.events = events;
   if (history !== undefined) el.history = history;
   if (nowMs !== undefined) el.now = nowMs;
-  if (axisLabels !== undefined) el.axisLabels = axisLabels;
+  if (axes !== undefined) el.axes = axes;
   document.body.appendChild(el);
   await el.updateComplete;
   return el;
@@ -393,17 +411,43 @@ describe('acp-forecast-strip', () => {
     expect(el.shadowRoot!.querySelectorAll('polyline.curve-secondary').length).toBe(0);
   });
 
-  it('renders a secondary-axis polyline when samples carry an extra numeric key', async () => {
+  it('renders a secondary-axis polyline for a DISCOVERED axis the samples carry', async () => {
     const samples = [
       { ...sample(0, 50), tilt: 20 },
       { ...sample(6 * 3600_000, 60), tilt: 40 },
     ];
-    const el = await mount(samples, [], NOW);
-    const secondary = el.shadowRoot!.querySelectorAll('polyline.curve-secondary');
+    const el = await mount(samples, [], NOW, undefined, POSITION_AND_TILT);
+    const secondary = el.shadowRoot!.querySelectorAll('polyline.track.secondary');
     expect(secondary.length).toBe(1);
     const points = secondary[0].getAttribute('points') ?? '';
     const pairs = points.trim().split(/\s+/).filter(Boolean);
     expect(pairs.length).toBe(2);
+  });
+
+  // The bug this rewrite exists for: a `cover_day_night_shade` publishes a tilt
+  // axis with `supported: false` (so `resolveAxes` drops it) while the
+  // integration still emits `tilt` on every solar forecast sample. Deciding
+  // membership from the sample keys drew a slat curve on a slatless shade.
+  it('draws NO secondary track for an axis discovery did not declare', async () => {
+    const samples = [
+      { ...sample(0, 50), tilt: 20 },
+      { ...sample(6 * 3600_000, 60), tilt: 40 },
+    ];
+    const el = await mount(samples, [], NOW, undefined, [axis('position')]);
+    expect(el.shadowRoot!.querySelectorAll('polyline.track.secondary').length).toBe(0);
+    expect(el.shadowRoot!.querySelectorAll('polyline.track.curve').length).toBe(1);
+  });
+
+  // An empty array is discovery's own answer ("nothing is supported"), NOT the
+  // absent-property fallback — sniffing there would redraw the phantom track on
+  // exactly the entry that reported no drivable axis.
+  it('does not sniff when discovery declares an empty axis list', async () => {
+    const samples = [
+      { ...sample(0, 50), tilt: 20 },
+      { ...sample(6 * 3600_000, 60), tilt: 40 },
+    ];
+    const el = await mount(samples, [], NOW, undefined, []);
+    expect(el.shadowRoot!.querySelectorAll('polyline.track.secondary').length).toBe(0);
   });
 
   it('splits the secondary-axis track into separate segments across a gap', async () => {
@@ -414,20 +458,20 @@ describe('acp-forecast-strip', () => {
       { ...sample(10 * 3600_000, 60), tilt: 30 },
       { ...sample(12 * 3600_000, 70), tilt: 40 },
     ];
-    const el = await mount(samples, [], NOW);
-    const secondary = el.shadowRoot!.querySelectorAll('polyline.curve-secondary');
+    const el = await mount(samples, [], NOW, undefined, POSITION_AND_TILT);
+    const secondary = el.shadowRoot!.querySelectorAll('polyline.track.secondary');
     expect(secondary.length).toBe(2);
   });
 
   it('type-checks a sample literal carrying an inline secondary-axis key', async () => {
-    const literalSample: ForecastSample = {
-      t: new Date(DAY_START).toISOString(),
-      position: 50,
-      handler: 'solar',
-      tilt: 20,
-    };
-    const el = await mount([literalSample], [], NOW);
-    expect(el.shadowRoot!.querySelector('polyline.curve-secondary')).toBeTruthy();
+    // Two samples, not one: a single point is a valid <polyline> that draws
+    // nothing, and the `drawn` filter deliberately excludes it.
+    const literalSamples: ForecastSample[] = [
+      { t: new Date(DAY_START).toISOString(), position: 50, handler: 'solar', tilt: 20 },
+      { t: new Date(DAY_START + 3600_000).toISOString(), position: 55, handler: 'solar', tilt: 25 },
+    ];
+    const el = await mount(literalSamples, [], NOW, undefined, POSITION_AND_TILT);
+    expect(el.shadowRoot!.querySelector('polyline.track.secondary')).toBeTruthy();
   });
 
   it('includes the secondary-axis value in the hover label when present', async () => {
@@ -435,35 +479,182 @@ describe('acp-forecast-strip', () => {
       { ...sample(0, 50), tilt: 20 },
       { ...sample(6 * 3600_000, 60), tilt: 40 },
     ];
-    const el = await mount(samples, [], NOW);
+    const el = await mount(samples, [], NOW, undefined, POSITION_AND_TILT);
     const label = await hoverFirst(el);
     expect(label).toBeTruthy();
     expect(label!.textContent ?? '').toContain('Tilt');
     expect(label!.textContent ?? '').toContain('20%');
   });
 
-  it('uses a discovery-supplied axisLabel for an unknown secondary axis key', async () => {
+  it('uses the discovery label for an axis with no card i18n key', async () => {
     const samples = [
       { ...sample(0, 50), elevation: 15 },
       { ...sample(6 * 3600_000, 60), elevation: 25 },
     ];
-    // Discovery label deliberately differs from the capitalized key ("Elevation")
-    // so this proves the axisLabels override is consulted, not the fallback.
-    const el = await mount(samples, [], NOW, undefined, { elevation: 'Sun height' });
+    // Label deliberately differs from the capitalized key ("Elevation") so this
+    // proves the discovery label is consulted, not the id fallback.
+    const el = await mount(samples, [], NOW, undefined, [
+      axis('position'),
+      axis('elevation', { label: 'Sun height' }),
+    ]);
     const label = await hoverFirst(el);
     expect(label).toBeTruthy();
     expect(label!.textContent ?? '').toContain('Sun height');
     expect(label!.textContent ?? '').toContain('15%');
   });
 
-  it('still prefers the card i18n tilt label over an axisLabels override for tilt', async () => {
+  it('still prefers the card i18n tilt label over a discovery label for tilt', async () => {
     const samples = [
       { ...sample(0, 50), tilt: 20 },
       { ...sample(6 * 3600_000, 60), tilt: 40 },
     ];
-    const el = await mount(samples, [], NOW, undefined, { tilt: 'ShouldNotWin' });
+    const el = await mount(samples, [], NOW, undefined, [
+      axis('position'),
+      axis('tilt', { label: 'ShouldNotWin' }),
+    ]);
     const label = await hoverFirst(el);
     expect(label!.textContent ?? '').toContain('Tilt');
     expect(label!.textContent ?? '').not.toContain('ShouldNotWin');
+  });
+
+  // --- Legend agrees with what is drawn (the user-facing ask) ---
+
+  it('legends every drawn track, with a swatch carrying the track class', async () => {
+    const samples = [
+      { ...sample(0, 50), tilt: 20 },
+      { ...sample(6 * 3600_000, 60), tilt: 40 },
+    ];
+    const el = await mount(samples, [], NOW, undefined, POSITION_AND_TILT);
+    const items = [...el.shadowRoot!.querySelectorAll('.legend-item')];
+    expect(items.map((i) => i.textContent!.trim())).toEqual(['Position', 'Tilt']);
+    // The swatch shares the polyline's class, which is what keeps the legend
+    // color from drifting from the line color.
+    expect(items[0].querySelector('.swatch')!.className).toContain('curve');
+    expect(items[1].querySelector('.swatch')!.className).toContain('secondary');
+  });
+
+  it('says "Forecast" for a lone position track, and switches to axis names on a second axis', async () => {
+    const single = await mount(
+      [sample(0, 50), sample(6 * 3600_000, 60)],
+      [],
+      NOW,
+      [{ t: new Date(DAY_START).toISOString(), position: 50 }],
+      [axis('position')],
+    );
+    expect(single.shadowRoot!.querySelector('.legend')!.textContent).toContain('Forecast');
+
+    const dual = await mount(
+      [
+        { ...sample(0, 50), tilt: 20 },
+        { ...sample(6 * 3600_000, 60), tilt: 40 },
+      ],
+      [],
+      NOW,
+      undefined,
+      POSITION_AND_TILT,
+    );
+    expect(dual.shadowRoot!.querySelector('.legend')!.textContent).not.toContain('Forecast');
+  });
+
+  // The legend must describe INK, not intent. A declared axis whose only
+  // carrying samples fall outside today's window resolves a track but draws
+  // nothing — legending it would show a swatch for an absent line AND flip the
+  // position entry's label from "Forecast" to "Position" as collateral.
+  it('omits a resolved track that drew nothing from the legend', async () => {
+    const samples: ForecastSample[] = [
+      sample(21 * 3600_000, 40, 'default'),
+      sample(23 * 3600_000, 40, 'default'),
+      // Tomorrow: carries tilt, but outside the midnight-to-midnight window.
+      { ...sample(30 * 3600_000, 60), tilt: 70 },
+      { ...sample(32 * 3600_000, 70), tilt: 80 },
+    ];
+    const el = await mount(samples, [], DAY_START + 22 * 3600_000, undefined, POSITION_AND_TILT);
+    expect(el.shadowRoot!.querySelectorAll('polyline.track.secondary').length).toBe(0);
+    const legend = el.shadowRoot!.querySelector('.legend');
+    expect(legend?.textContent ?? '').not.toContain('Tilt');
+  });
+
+  // A one-point run is a valid <polyline> that renders no line.
+  it('does not legend a track whose only in-day sample is a single point', async () => {
+    const samples: ForecastSample[] = [
+      sample(0, 40, 'default'),
+      { ...sample(6 * 3600_000, 50), tilt: 30 },
+      sample(9 * 3600_000, 60, 'default'),
+    ];
+    const el = await mount(samples, [], NOW, undefined, POSITION_AND_TILT);
+    expect(el.shadowRoot!.querySelectorAll('polyline.track.secondary').length).toBe(0);
+    expect(el.shadowRoot!.querySelector('.legend')?.textContent ?? '').not.toContain('Tilt');
+  });
+
+  // --- Generic axes: the leading axis is discovery's, not hardcoded position ---
+
+  it('draws a tilt-only entry as a solid PRIMARY track, not a dashed secondary', async () => {
+    const samples: ForecastSample[] = [
+      { ...sample(0, 50), tilt: 20 },
+      { ...sample(6 * 3600_000, 50), tilt: 40 },
+    ];
+    const el = await mount(samples, [], NOW, undefined, [axis('tilt')]);
+    // One solid curve, no dashed track, and no "Position" claim anywhere.
+    expect(el.shadowRoot!.querySelectorAll('polyline.track.curve').length).toBe(1);
+    expect(el.shadowRoot!.querySelectorAll('polyline.track.secondary').length).toBe(0);
+    const label = await hoverFirst(el);
+    expect(label!.textContent ?? '').not.toContain('Position');
+  });
+
+  it('normalizes values through the axis min/max instead of assuming 0-100', async () => {
+    const samples: ForecastSample[] = [sample(0, 0), sample(6 * 3600_000, 255)];
+    const el = await mount(samples, [], NOW, undefined, [axis('position', { max: 255 })]);
+    const pts = parsePoints(
+      el.shadowRoot!.querySelector('polyline.track.curve')!.getAttribute('points')!,
+    );
+    // 0 -> bottom of the plot, 255 (the axis max) -> top. Assuming 0-100 would
+    // clamp both ends of a 0-255 axis to the top.
+    expect(pts[0][1]).toBeGreaterThan(pts[1][1]);
+    // The top-left axis label states the axis maximum, not a hardcoded 100%.
+    expect(el.shadowRoot!.innerHTML).toContain('255%');
+  });
+
+  it('gives each secondary axis its own palette class', async () => {
+    const samples: ForecastSample[] = [
+      { ...sample(0, 50), tilt: 20, slat: 10 },
+      { ...sample(6 * 3600_000, 60), tilt: 40, slat: 30 },
+    ];
+    const el = await mount(samples, [], NOW, undefined, [
+      axis('position'),
+      axis('tilt'),
+      axis('slat'),
+    ]);
+    expect(el.shadowRoot!.querySelector('polyline.axis-c0')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('polyline.axis-c1')).toBeTruthy();
+  });
+
+  it('keeps the palette contiguous when a declared axis carries no samples', async () => {
+    const samples: ForecastSample[] = [
+      { ...sample(0, 50), slat: 10 },
+      { ...sample(6 * 3600_000, 60), slat: 30 },
+    ];
+    // `tilt` is declared but absent from every sample, so it earns no track —
+    // and must not leave a hole in the palette that pushes `slat` to axis-c1.
+    const el = await mount(samples, [], NOW, undefined, [
+      axis('position'),
+      axis('tilt'),
+      axis('slat'),
+    ]);
+    expect(el.shadowRoot!.querySelectorAll('polyline.track.secondary').length).toBe(1);
+    expect(el.shadowRoot!.querySelector('polyline.axis-c0')).toBeTruthy();
+  });
+
+  it('draws one track per axis when a payload declares the same axis twice', async () => {
+    const samples: ForecastSample[] = [
+      { ...sample(0, 50), tilt: 20 },
+      { ...sample(6 * 3600_000, 60), tilt: 40 },
+    ];
+    const el = await mount(samples, [], NOW, undefined, [
+      axis('position'),
+      axis('tilt'),
+      axis('tilt'),
+    ]);
+    expect(el.shadowRoot!.querySelectorAll('polyline.track.secondary').length).toBe(1);
+    expect(el.shadowRoot!.querySelectorAll('.legend-item').length).toBe(2);
   });
 });

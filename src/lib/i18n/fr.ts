@@ -38,6 +38,32 @@ export const fr: EnDict = {
     floor_suffix: ' ↥',
     safety: 'Sécurité',
     group: 'Groupe',
+    tip: {
+      auto: 'Le contrôle automatique est actif et aucun gestionnaire ne le remplace — le volet suit le résultat du pipeline.',
+      manual:
+        "Une dérogation manuelle est active — le volet reste où vous l'avez placé et le contrôle automatique est en pause.",
+      manual_until:
+        "Une dérogation manuelle est active jusqu'à {time} — le volet reste où vous l'avez placé jusque-là.",
+      force: 'Une position forcée remplace tous les autres gestionnaires.',
+      weather: 'La sécurité météo pilote la position.',
+      glare_zone:
+        "Le soleil se trouve dans une zone d'éblouissement configurée, et le gestionnaire d'éblouissement pilote la position.",
+      climate: 'Le contrôle climatique pilote la position.',
+      cloud: 'La couverture nuageuse désactive le suivi solaire.',
+      custom_position: 'Un emplacement de position personnalisée pilote ce volet.',
+      custom_position_slot: 'Emplacement : {name}.',
+      custom_position_value: 'Sa position est de {pct} %.',
+      custom_position_floor:
+        'Il agit comme un plancher : il relève la position au-dessus du calcul brut au lieu de le remplacer.',
+      solar: 'Suivi solaire — la position suit la course du soleil devant la fenêtre.',
+      motion:
+        "La pièce est considérée comme inoccupée, le gestionnaire d'occupation maintient donc la position.",
+      off: "L'intégration est désactivée pour ce volet — rien n'est piloté.",
+      off_schedule:
+        'En dehors de la plage horaire configurée, le contrôle automatique est donc en pause.',
+      group: 'Le groupe de volets décide actuellement de cette position.',
+      safety: 'Une position de sécurité remplace tous les autres gestionnaires.',
+    },
   },
   group: {
     title: 'Groupe de couvertures',
@@ -205,6 +231,7 @@ export const fr: EnDict = {
     target_tooltip_override:
       'Cible solaire théorique {pct}% — le store est maintenu par la commande manuelle',
     target_tooltip_motor: 'Moteur : {pct}% (avant étalonnage)',
+    position_title: 'Position',
     tilt_title: 'Inclinaison',
     tilt_target: 'Inclinaison : {pct}',
     tilt_click_to_set: "Cliquer pour définir l'inclinaison",

@@ -113,6 +113,16 @@ export class AcpHarnessBadgeGallery extends LitElement {
   protected render(): TemplateResult {
     const kinds = Object.keys(BADGE_TOKENS) as BadgeKind[];
     return html`
+      <p class="note">
+        Hover every badge below — <strong>all of them carry an explanatory tooltip</strong>, not
+        just the ones whose label is cryptic. The labels are abbreviated for width (a manual badge
+        shows a bare clock, a custom-position badge a bare slot name), so the tooltip is the only
+        place the full meaning is stated. On the two-button manual variants the hint sits on the
+        LABEL, so the Extend and Resume buttons keep their own; on the single-button resumable
+        variant the one tooltip states the meaning first and the action second. A badge kind with no
+        <code>badge.tip.*</code> string gets no tooltip rather than a raw key — add the string in
+        all three locales when adding a kind.
+      </p>
       <h2 class="heading">All badge kinds <span class="hint">(${kinds.length})</span></h2>
       <div class="grid" id="kinds">
         ${kinds.map(
@@ -144,6 +154,16 @@ export class AcpHarnessBadgeGallery extends LitElement {
       display: block;
       padding: 16px;
       box-sizing: border-box;
+    }
+    .note {
+      margin: 0 0 4px;
+      max-width: 70ch;
+      font-size: 0.8rem;
+      line-height: 1.45;
+      color: var(--secondary-text-color, #888);
+    }
+    .note code {
+      font-size: 0.95em;
     }
     .heading {
       margin: 18px 0 8px;

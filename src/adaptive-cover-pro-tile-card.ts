@@ -16,6 +16,8 @@ import {
 } from 'custom-card-helpers';
 
 import {
+  ACCENT_BG_ALPHA,
+  FG_ACCENT_MIX,
   HANDLER_I18N_KEYS,
   INTEGRATION_DOMAIN,
   TILE_CARD_NAME,
@@ -760,6 +762,16 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // not the reverse: routing can pin a dispatched value to 0/100 on an
     // open/close-only cover, and interpolation makes it diverge from the linear
     // value, so it is a worse tick wherever the pipeline target is available.
+    //
+    // A rail with no command target stays TICKLESS rather than borrowing the
+    // entry's, and that is deliberate: the card cannot tell a mirrored rail
+    // (entry scale, borrowing would be right) from a remapped one (own scale,
+    // borrowing would put the tick in the wrong place), so it declines to
+    // guess. Note that a missing target is currently more common than it
+    // should be — the integration records a command target only on dispatch,
+    // so a cover skipped as `same_position` never gets one even though the
+    // pipeline computed it (adaptive-cover-pro#1158). The fix belongs there,
+    // where the number is known, not in a card-side guess.
     const commandTargets = coverCommandTargets(this.hass, discovered);
     const railTarget = (id: string): number | null =>
       id === cover ? calculatedPosition : (commandTargets[id] ?? null);
@@ -1905,8 +1917,27 @@ export class AdaptiveCoverProTileCard extends LitElement {
       font-size: 0.7rem;
       padding: 1px 6px;
       border-radius: 999px;
-      background: rgba(156, 39, 176, 0.22);
-      color: #6a1b9a;
+      background: color-mix(in srgb, var(--acp-floor-accent) ${ACCENT_BG_ALPHA}%, transparent);
+      /* The custom-position purple resolved AGAINST THE THEME'S OWN TEXT COLOR
+         rather than pinned to a literal. The literal it replaces (#6a1b9a) is a
+         dark purple chosen for a light background; on HA's dark theme it landed
+         at 1.6:1 filled and 1.3:1 hollow — the chip was legible only if you knew
+         what it said. Mixing with --primary-text-color leans the same hue dark
+         on a light theme and light on a dark one, so one declaration covers
+         both, and it follows a custom theme rather than guessing from the OS
+         the way prefers-color-scheme would.
+
+         The ratios come from const.ts rather than being restated here. Written
+         out by hand this chip used 60%, which reads as a deliberate emphasis
+         and is not — it lands at 4.35:1 on HA dark, under the 4.5:1 floor the
+         badges beside it clear at 40%. Importing the constants is what stops the
+         chip and the badges from drifting apart again. */
+      --acp-floor-accent: #9c27b0;
+      color: color-mix(
+        in srgb,
+        var(--acp-floor-accent) ${FG_ACCENT_MIX}%,
+        var(--primary-text-color, #212121)
+      );
       /* Reserve the border so the outline (is-armed) state doesn't shift layout. */
       border: 1px solid transparent;
       white-space: nowrap;
@@ -1924,11 +1955,23 @@ export class AdaptiveCoverProTileCard extends LitElement {
     /* Clamping axis: not-clamping → hollow/outline (transparent fill + purple border). */
     .acp-floor-chip.is-armed {
       background: transparent;
-      border-color: rgba(156, 39, 176, 0.5);
+      border-color: color-mix(in srgb, var(--acp-floor-accent) 60%, transparent);
     }
-    /* Priority axis: bypassable (priority ≤ 80) → subdued. */
+    /* Priority axis: bypassable (priority ≤ 80) → subdued.
+       NOT opacity any more. Opacity multiplies into the TEXT as much as the
+       chrome, and stacked on the hollow variant it was what took this chip to
+       1.3:1 — a legibility cost paid to signal a secondary attribute. The
+       priority axis already has a non-destructive carrier in font-weight (see
+       .resists-manual), so bypassable states itself by NOT being emphasized,
+       and softens its outline instead. Text contrast is untouched. */
     .acp-floor-chip.is-bypassable {
-      opacity: 0.6;
+      font-weight: 400;
+    }
+    /* Scoped to the hollow variant on purpose: the filled one has a deliberately
+       transparent border, and softening a border that isn't drawn would instead
+       make one appear. */
+    .acp-floor-chip.is-armed.is-bypassable {
+      border-color: color-mix(in srgb, var(--acp-floor-accent) 35%, transparent);
     }
     /* Priority axis: resists manual ↓ (priority > 80) → emphasized. */
     .acp-floor-chip.resists-manual {

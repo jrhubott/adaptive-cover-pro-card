@@ -20,6 +20,15 @@ interface SyntheticForecast {
  * function of elevation (higher sun → slats closer, lower `tilt`%), enough to
  * visibly vary across the solar window. It's omitted entirely on non-solar
  * samples so the harness naturally exercises the card's gap-segmentation.
+ *
+ * DAY/NIGHT SHADES CARRY THE SAME KEY ON PURPOSE, and it is not a mistake in
+ * the mock. A live `cover_day_night_shade` publishes `tilt` on its solar
+ * forecast samples while its own discovery marks the tilt axis
+ * `supported: false` — the shade has no slats to angle. The forecast strip
+ * must therefore decide what to draw from discovery, not from which keys the
+ * samples happen to carry; before it did, this entry drew a phantom tilt
+ * track. Removing this key from the mock would hide the regression rather
+ * than fix it.
  */
 export function buildForecast(entry: HarnessEntry, samples: SunSample[]): SyntheticForecast {
   const forecast: ForecastSample[] = [];
@@ -49,9 +58,10 @@ export function buildForecast(entry: HarnessEntry, samples: SunSample[]): Synthe
       sunElevation: s.elevation,
       nowMs: s.t.getTime(),
     });
-    const dualAxis = entry.cover_type === 'cover_venetian';
+    const emitsTilt =
+      entry.cover_type === 'cover_venetian' || entry.cover_type === 'cover_day_night_shade';
     const tilt =
-      dualAxis && winner === 'solar'
+      emitsTilt && winner === 'solar'
         ? Math.round(Math.max(0, Math.min(100, 90 - Math.max(0, s.elevation))))
         : undefined;
     forecast.push({

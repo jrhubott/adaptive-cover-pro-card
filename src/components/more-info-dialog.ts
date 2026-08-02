@@ -3,7 +3,9 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
 import {
+  ACCENT_BG_ALPHA,
   BADGE_KINDS_BY_HANDLER,
+  FG_ACCENT_MIX,
   HANDLER_I18N_KEYS,
   HANDLER_ORDER,
   HISTORY_ICON,
@@ -599,10 +601,6 @@ export class MoreInfoDialog extends LitElement {
     const events: ForecastEvent[] = attrs?.events ?? [];
     const history = this._positionHistory;
     if (samples.length === 0 && history.length === 0) return nothing;
-    // Source secondary-axis labels from discovery so a non-tilt forecast axis
-    // reads its integration-supplied name; known axes still prefer card i18n.
-    const axisLabels: Record<string, string> = {};
-    for (const axis of resolveAxes(this.discovered)) axisLabels[axis.id] = axis.label;
     return html`<div class="forecast-block">
       <div class="forecast-label">${t('dialog.todays_forecast', this.hass)}</div>
       <acp-forecast-strip
@@ -611,7 +609,7 @@ export class MoreInfoDialog extends LitElement {
         .events=${events}
         .history=${history}
         .now=${Date.now()}
-        .axisLabels=${axisLabels}
+        .axes=${resolveAxes(this.discovered)}
       ></acp-forecast-strip>
       <div class="forecast-note">${t('forecast.solar_only_note', this.hass)}</div>
     </div>`;
@@ -845,17 +843,29 @@ export class MoreInfoDialog extends LitElement {
     .slot-template ha-icon {
       --mdc-icon-size: 14px;
     }
+    /* The dialog's copy of the tile's floor chip, and it resolves its purple the
+       same way and for the same reason: the literal #6a1b9a it replaces is a
+       light-theme color that sat near 1.6:1 on HA's dark theme. Keep the two in
+       step — they are the same marker on two surfaces. */
     .slot-min-mode {
       font-size: 0.7rem;
       padding: 1px 6px;
       border-radius: 999px;
-      background: rgba(156, 39, 176, 0.22);
-      color: #6a1b9a;
+      --acp-floor-accent: #9c27b0;
+      background: color-mix(in srgb, var(--acp-floor-accent) ${ACCENT_BG_ALPHA}%, transparent);
+      color: color-mix(
+        in srgb,
+        var(--acp-floor-accent) ${FG_ACCENT_MIX}%,
+        var(--primary-text-color, #212121)
+      );
     }
     /* Priority axis: floor whose priority ≤ manual-override is bypassable by a
-       manual ↓ → subdued. Per-slot rows have no clamping notion, so no fill/outline. */
+       manual ↓ → subdued. Per-slot rows have no clamping notion, so no
+       fill/outline. Subdued via the background rather than opacity, which
+       multiplied into the text and was half of why this chip was unreadable. */
     .slot-min-mode.is-bypassable {
-      opacity: 0.6;
+      background: color-mix(in srgb, var(--acp-floor-accent) 10%, transparent);
+      font-weight: 400;
     }
     .slot-toggle {
       padding: 2px 10px;

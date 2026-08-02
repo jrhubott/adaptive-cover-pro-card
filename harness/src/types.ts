@@ -115,8 +115,21 @@ export interface ManagedCoverCfg {
    *  rail target tick. Defaults to the entry target. Set it per cover to model
    *  a rail whose dispatched value is a remap of the entry target — a day/night
    *  shade's middle rail carries the fabric blend folded into an absolute
-   *  position. */
-  command_target?: number;
+   *  position.
+   *
+   *  Set it to `null` for the OTHER live shape: `per_entity[…].target` is a
+   *  RECONCILIATION record, so it stays null (alongside a null
+   *  `last_reconcile_time`) until the integration has actually dispatched to
+   *  that entity — and a cover already resting on the calculated position is
+   *  skipped as `same_position` and never dispatched to at all. A mirrored entry
+   *  driving several identical shades therefore publishes a number for the one
+   *  cover it reconciled and null for the rest.
+   *
+   *  The tile draws NO TICK on such a rail. It does not borrow the entry target,
+   *  because it cannot tell a mirrored rail (entry scale, borrowing would be
+   *  right) from a remapped one (own scale, borrowing would be wrong). The fix
+   *  belongs upstream — adaptive-cover-pro#1158. */
+  command_target?: number | null;
   /** Battery charge for this cover, 0..100. Emits a `device_class: battery`
    *  sensor on the cover's own device — the same shape a Zigbee shade motor
    *  produces, and the only thing `resolveCoverBatteries` looks for. Omit for a

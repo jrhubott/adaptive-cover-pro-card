@@ -497,6 +497,23 @@ export class CoverBar extends LitElement {
       align-items: center;
       font-size: 0.82rem;
     }
+    /* Floating-tooltip cursor lifecycle for this shadow root's INERT tooltip
+       carriers: the transit arrow and the header target chip. Restated here
+       because a shadow root cannot borrow its host's copy of this pair.
+
+       Deliberately not a bare [data-tooltip] selector. The other three anchors
+       in here are interactive and already carry the right cursor — .name is a
+       role="button" that opens more-info, and .track / the tilt track are
+       drag-to-set sliders — so a blanket rule would replace three correct
+       pointers with a help cursor that promises information instead of action. */
+    .transit[data-tooltip]:hover,
+    .target[data-tooltip]:hover {
+      cursor: help;
+    }
+    .transit[data-tooltip][acp-tt-shown],
+    .target[data-tooltip][acp-tt-shown] {
+      cursor: default;
+    }
     /* The cover name is a tap target that opens the entry's more-info dialog,
        so it carries a pointer cursor and a keyboard focus ring. It still hovers
        an entity-id tooltip, but click/Enter/Space open the dialog. */

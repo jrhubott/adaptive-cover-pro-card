@@ -242,34 +242,74 @@ export const BADGE_KINDS_BY_HANDLER: Partial<Record<HandlerName, BadgeKind>> = {
 
 interface BadgeTokens {
   label: string;
+  /** The saturated hue this kind is identified by — the single value both
+   *  {@link bg} and {@link fg} are derived from, so a kind cannot end up with a
+   *  tint and a text color that disagree. */
+  accent: string;
   bg: string;
   fg: string;
 }
 
+/** Accent share in the background tint, as a percentage. Per kind, because the
+ *  originals were hand-tuned and reproducing them keeps this a contrast change
+ *  rather than a redesign.
+ *
+ *  Exported because the floor chip is the same construct rendered by hand in two
+ *  stylesheets rather than through {@link BADGE_TOKENS}, and it must not drift
+ *  from the badges it sits beside. */
+export const ACCENT_BG_ALPHA = 22;
+
 /**
- * Visual tokens per badge kind. Colors are chosen against the HA dark/light
- * background defaults; they're intentionally hard-coded rather than driven by
- * `var(--*)` so the badge reads the same regardless of theme.
+ * Accent share in the foreground; the remaining 60% is the THEME'S OWN text
+ * color. One ratio for all thirteen kinds, chosen because it clears 4.5:1
+ * against every kind's tint on both HA default themes — the darkest case is
+ * `custom_position` on dark at 6.1:1 and `motion` on light at 4.7:1.
+ *
+ * This is what replaced the fixed dark `fg` literals each kind used to carry.
+ * Those were picked against a light background, and the comment here used to
+ * claim they were hard-coded "so the badge reads the same regardless of theme";
+ * what they actually did was read correctly on one theme and wash out on the
+ * other — `custom_position` measured 1.6:1 on HA's dark theme and `auto` 2.4:1,
+ * against a 4.5:1 AA floor. Mixing with `--primary-text-color` leans each hue
+ * dark on a light theme and light on a dark one from a single declaration, and
+ * follows a CUSTOM theme too, which a `prefers-color-scheme` media query would
+ * not — it reads the OS, not Home Assistant.
+ */
+export const FG_ACCENT_MIX = 40;
+
+function badgeTokens(label: string, accent: string, bgAlpha = ACCENT_BG_ALPHA): BadgeTokens {
+  return {
+    label,
+    accent,
+    bg: `color-mix(in srgb, ${accent} ${bgAlpha}%, transparent)`,
+    fg: `color-mix(in srgb, ${accent} ${FG_ACCENT_MIX}%, var(--primary-text-color, #212121))`,
+  };
+}
+
+/**
+ * Visual tokens per badge kind. Every consumer applies these through an inline
+ * `style=` (the badge itself, the history who-won bands and legend swatches),
+ * so both values must stay valid CSS colors rather than raw hex.
  */
 export const BADGE_TOKENS: Record<BadgeKind, BadgeTokens> = {
-  auto: { label: 'Auto', bg: 'rgba(76, 175, 80, 0.18)', fg: '#2e7d32' },
-  manual: { label: 'Manual', bg: 'rgba(255, 152, 0, 0.22)', fg: '#e65100' },
-  force: { label: 'Force', bg: 'rgba(244, 67, 54, 0.22)', fg: '#b71c1c' },
-  weather: { label: 'Sun protection', bg: 'rgba(244, 67, 54, 0.22)', fg: '#b71c1c' },
-  glare_zone: { label: 'Glare', bg: 'rgba(244, 67, 54, 0.22)', fg: '#b71c1c' },
-  climate: { label: 'Climate', bg: 'rgba(0, 150, 136, 0.22)', fg: '#00695c' },
-  cloud: { label: 'Cloudy', bg: 'rgba(33, 150, 243, 0.22)', fg: '#0d47a1' },
-  custom_position: { label: 'Custom', bg: 'rgba(156, 39, 176, 0.22)', fg: '#6a1b9a' },
-  solar: { label: 'Solar tracking', bg: 'rgba(76, 175, 80, 0.22)', fg: '#1b5e20' },
-  motion: { label: 'Occupancy', bg: 'rgba(255, 235, 59, 0.22)', fg: '#827717' },
-  off: { label: 'Off', bg: 'rgba(97, 97, 97, 0.28)', fg: '#212121' },
-  off_schedule: { label: 'Off-schedule', bg: 'rgba(96, 125, 139, 0.22)', fg: '#37474f' },
+  auto: badgeTokens('Auto', '#4caf50', 18),
+  manual: badgeTokens('Manual', '#ff9800'),
+  force: badgeTokens('Force', '#f44336'),
+  weather: badgeTokens('Sun protection', '#f44336'),
+  glare_zone: badgeTokens('Glare', '#f44336'),
+  climate: badgeTokens('Climate', '#009688'),
+  cloud: badgeTokens('Cloudy', '#2196f3'),
+  custom_position: badgeTokens('Custom', '#9c27b0'),
+  solar: badgeTokens('Solar tracking', '#4caf50'),
+  motion: badgeTokens('Occupancy', '#ffeb3b'),
+  off: badgeTokens('Off', '#616161', 28),
+  off_schedule: badgeTokens('Off-schedule', '#607d8b'),
   // Cover Group who-won count badge (issue #185). Shares the `auto` palette:
   // group-driven IS normal automatic operation from the member's point of view,
   // so it should read as calm/green rather than as an exception. The label and
   // icon keep it distinguishable. Applied via `kindOverride` for the "N/M"
   // count badge, and derived from a winner for a group-driven member.
-  group: { label: 'Group', bg: 'rgba(76, 175, 80, 0.18)', fg: '#2e7d32' },
+  group: badgeTokens('Group', '#4caf50', 18),
 };
 
 /**
@@ -413,6 +453,7 @@ export const AXIS_TARGET_SENSOR_ROLES: Record<string, EntityRole> = {
  * back to the discovery label, then a capitalized raw id.
  */
 export const AXIS_LABEL_I18N_KEYS: Record<string, string> = {
+  position: 'covers.position_title',
   tilt: 'covers.tilt_title',
 };
 

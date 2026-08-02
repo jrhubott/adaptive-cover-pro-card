@@ -91,8 +91,10 @@ describe('floor glyph (↥) i18n', () => {
   });
 
   it('badge.floor_suffix is " ↥" (leading space) in EN and FR', () => {
-    expect((en.badge as Record<string, string>).floor_suffix).toBe(' ↥');
-    expect((fr.badge as Record<string, string>).floor_suffix).toBe(' ↥');
+    // Read directly rather than through a `Record<string, string>` cast — the
+    // badge block gained a nested `tip` object, so it is no longer all-strings.
+    expect(en.badge.floor_suffix).toBe(' ↥');
+    expect(fr.badge.floor_suffix).toBe(' ↥');
   });
 });
 
