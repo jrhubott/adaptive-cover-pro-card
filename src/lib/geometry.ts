@@ -474,19 +474,26 @@ export function aggregateActualPosition(map: Record<string, number | null>): num
 }
 
 /**
- * Outer radius of a cover-fill wedge for a given position (0–100) and cover
- * type, clamped to the FOV's outer radius. Blinds/tilts close from the rim
- * inward (fraction = 1 − pos/100); awnings extend from the centre outward
- * (fraction = pos/100). The result is `min(outerR × fraction, fovOuterR)` —
- * callers decide whether the wedge draws by comparing against the inner radius.
+ * Outer radius of a cover-fill wedge for a given position (0–100), clamped to
+ * the FOV's outer radius. Blinds/tilts close from the rim inward
+ * (fraction = 1 − pos/100); a cover whose OPEN end blocks the sun — an awning,
+ * extending — grows from the centre outward (fraction = pos/100). The result is
+ * `min(outerR × fraction, fovOuterR)`; callers decide whether the wedge draws by
+ * comparing against the inner radius.
+ *
+ * `openBlocksSun` is the integration's own per-axis flag, threaded in by the
+ * caller (see `lib/axes.ts` → `positionAxisFor`). It replaced a hardcoded
+ * `cover_type === 'cover_awning'` test, which silently excluded every other
+ * cover type the integration marks the same way — an oscillating awning drew an
+ * inverted wedge beside a correctly-filled position bar.
  */
 export function coverWedgeOuterRadius(
   pos: number,
-  coverType: string,
+  openBlocksSun: boolean,
   outerR: number,
   fovOuterR: number,
 ): number {
-  const fraction = coverType === 'cover_awning' ? pos / 100 : 1 - pos / 100;
+  const fraction = openBlocksSun ? pos / 100 : 1 - pos / 100;
   return Math.min(outerR * fraction, fovOuterR);
 }
 

@@ -122,6 +122,22 @@ export function coverCloseIcon(deviceClass?: string): string {
  * home-assistant-frontend's `stateActive()` (`UNAVAILABLE`/`UNKNOWN` both
  * return `false`) — an unknown cover reads as grey/off, not amber/on.
  */
+/**
+ * The cover's ACTIVE state color, with the per-state layer deliberately dropped.
+ *
+ * {@link coverStateColor} resolves `--state-cover-<state>-color` first, so its
+ * result changes as the cover crosses open/closed. This is the same chain minus
+ * that layer: one constant color that still tracks the user's theme and still
+ * reads as "this is a cover", which is what the position rails want — a rail is
+ * a measurement, not a status light. Ends at `--primary-color` for themes that
+ * define none of the HA state tokens.
+ */
+export const COVER_ACTIVE_COLOR =
+  'var(--state-cover-active-color, ' +
+  'var(--state-cover-color, ' +
+  'var(--state-active-color, ' +
+  'var(--primary-color))))';
+
 export function coverStateColor(state: string | null | undefined): string {
   // The `|| !state` is redundant with `isOffline` at runtime (it already
   // treats a missing state as offline) but narrows `state` to `string` for

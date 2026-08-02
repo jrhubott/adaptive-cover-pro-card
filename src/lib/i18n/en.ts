@@ -30,6 +30,35 @@ export const en = {
     floor_suffix: ' ↥',
     safety: 'Safety',
     group: 'Group',
+    // Explanatory tooltips — one per badge kind. Every badge carries one,
+    // including the kinds whose label already names them: the label is
+    // abbreviated for width (the manual badge shows a bare clock, the custom
+    // badge a bare slot name), so the tooltip is the only place the full
+    // meaning is stated.
+    tip: {
+      auto: 'Automatic control is on and no handler is overriding — the cover follows the pipeline result.',
+      manual:
+        'Manual override is active — the cover is held where you put it and automatic control is paused.',
+      manual_until:
+        'Manual override is active until {time} — the cover is held where you put it until then.',
+      force: 'A forced position is overriding every other handler.',
+      weather: 'Weather safety is driving the position.',
+      glare_zone:
+        'The sun is in a configured glare zone, and the glare handler is driving the position.',
+      climate: 'Climate control is driving the position.',
+      cloud: 'Cloud cover is suppressing solar tracking.',
+      custom_position: 'A custom position slot is driving this cover.',
+      custom_position_slot: 'Slot: {name}.',
+      custom_position_value: 'Its position is {pct}%.',
+      custom_position_floor:
+        'It is applied as a floor: it raises the position above the raw calculation rather than replacing it.',
+      solar: 'Solar tracking — the position follows the sun across the window.',
+      motion: 'The room reads as unoccupied, so the occupancy handler is holding position.',
+      off: 'The integration is disabled for this cover — nothing is being driven.',
+      off_schedule: 'Outside the configured schedule window, so automatic control is paused.',
+      group: 'The Cover Group is currently deciding this position.',
+      safety: 'A safety position is overriding every other handler.',
+    },
   },
   group: {
     title: 'Cover Group',
@@ -77,6 +106,9 @@ export const en = {
     legend_actual: 'Actual',
   },
   dialog: {
+    battery: '{level}% battery',
+    battery_named: '{name}: {level}%',
+    battery_unknown: 'Battery level unknown',
     extend: {
       title: 'Extend manual override',
       presets_label: 'Until',
@@ -187,11 +219,13 @@ export const en = {
     target_solar: 'Solar target: {pct}',
     click_to_set: 'Click to set position',
     position_slider_label: 'Cover position slider',
+    position_open_value: '{pct} open',
     opening: 'Opening…',
     closing: 'Closing…',
     target_tooltip: 'Target {pct}%',
     target_tooltip_override: 'Would-be solar target {pct}% — cover is held by manual override',
     target_tooltip_motor: 'Motor: {pct}% (before calibration)',
+    position_title: 'Position',
     tilt_title: 'Tilt',
     tilt_target: 'Tilt: {pct}',
     tilt_click_to_set: 'Click to set tilt',
@@ -253,6 +287,8 @@ export const en = {
   tile: {
     motion_pending: 'Occupancy timeout pending',
     motion_detected: 'Occupancy detected',
+    battery_low: 'Low battery — {level}%',
+    battery_unknown: 'Battery level unknown',
     icon_action_label: 'Cover icon action',
     open: 'Open',
     stop: 'Stop',
@@ -413,6 +449,15 @@ export const en = {
       show_state: 'Show state (Open/Closed)',
       show_decision_summary: 'Show decision summary',
       show_controls: 'Show ↑ ■ ↓ controls',
+      covers: 'Position bars (order)',
+      covers_hint:
+        'Drag a row, or use the arrows, to set the order the position bars appear in. The eye hides a bar without unbinding the cover.',
+      covers_move_up: 'Move up',
+      covers_move_down: 'Move down',
+      covers_hide: 'Hide this bar',
+      covers_show: 'Show this bar',
+      controls_cover: 'Cover driven by ↑ ■ ↓',
+      controls_axis: 'Axis driven by ↑ ■ ↓',
       show_badge: 'Show contextual badge',
       show_position_bar: 'Show position bar',
       show_tilt: 'Show tilt bar',

@@ -3,7 +3,9 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
 import {
+  ACCENT_BG_ALPHA,
   BADGE_KINDS_BY_HANDLER,
+  FG_ACCENT_MIX,
   HANDLER_I18N_KEYS,
   HANDLER_ORDER,
   HISTORY_ICON,
@@ -36,6 +38,7 @@ import type {
   PositionHistorySample,
 } from '../types';
 import { formatPercent } from '../lib/formatters';
+import { resolveCoverBatteries, lowestBattery, batteryIcon, isLowBattery } from '../lib/battery';
 import { fetchPositionHistory } from '../lib/position-history';
 import { startOfDay } from '../lib/sun-model';
 import { t } from '../lib/i18n';
@@ -77,6 +80,12 @@ export class MoreInfoDialog extends LitElement {
 
   /** Per-kind badge opt-in, threaded down from the tile-card config. */
   @property({ attribute: false }) public badges?: AdaptiveCoverProTileCardConfig['badges'];
+
+  /** Explicit rail order/subset from the tile-card config's `covers`, so the
+   *  dialog's cover bars agree with the tile that opened it. Undefined keeps
+   *  the integration's order — which is what every caller that doesn't set
+   *  `covers` gets, dialog and main card alike. */
+  @property({ attribute: false }) public coverOrder?: string[];
 
   // Refresh the time-derived bits (the forecast strip's `now` cursor) every minute while
   // the dialog is open, aligned to the minute boundary. The dialog is always in the DOM via
@@ -188,6 +197,46 @@ export class MoreInfoDialog extends LitElement {
     return coverStateColor(stateObj?.state);
   }
 
+  /**
+   * Battery indicator beside the History button, rendered only when at least one
+   * managed cover reports a battery. The icon tracks the WORST cell in the entry
+   * — a two-motor shade with one flat battery has to read as flat — while the
+   * tooltip names every cover so which one is low stays recoverable.
+   */
+  private _batteryTpl(): TemplateResult | typeof nothing {
+    const covers = this.coverOrder ?? this.discovered?.managed_covers ?? [];
+    const batteries = resolveCoverBatteries(this.hass, covers);
+    const worst = lowestBattery(batteries);
+    if (!worst) return nothing;
+
+    const title =
+      batteries.length === 1
+        ? worst.level === null
+          ? t('dialog.battery_unknown', this.hass)
+          : t('dialog.battery', this.hass, { level: worst.level })
+        : batteries
+            .map((b) =>
+              t('dialog.battery_named', this.hass, {
+                name: this._coverName(b.cover_id),
+                level: b.level === null ? '—' : b.level,
+              }),
+            )
+            .join(' · ');
+
+    return html`<div
+      class="icon-btn battery${isLowBattery(worst) ? ' low' : ''}"
+      role="img"
+      aria-label=${title}
+      ${tooltip(title)}
+    >
+      <ha-icon icon=${batteryIcon(worst.level, worst.charging)}></ha-icon>
+    </div>`;
+  }
+
+  private _coverName(coverId: string): string {
+    return (this.hass?.states[coverId]?.attributes?.friendly_name as string | undefined) ?? coverId;
+  }
+
   protected render(): TemplateResult | typeof nothing {
     if (!this.open || !this.hass || !this.discovered) return nothing;
     const winner = this._winner();
@@ -252,6 +301,7 @@ export class MoreInfoDialog extends LitElement {
                         ></acp-tile-badge>`,
                     )}
             </div>
+            ${this._batteryTpl()}
             <button
               class="icon-btn history-link"
               type="button"
@@ -296,7 +346,11 @@ export class MoreInfoDialog extends LitElement {
               : nothing}
           </div>
 
-          <acp-cover-bar .hass=${this.hass} .discovered=${this.discovered}></acp-cover-bar>
+          <acp-cover-bar
+            .hass=${this.hass}
+            .discovered=${this.discovered}
+            .coverOrder=${this.coverOrder}
+          ></acp-cover-bar>
 
           ${this._renderForecastStrip()} ${this._renderControls()}
           ${showResume
@@ -547,10 +601,6 @@ export class MoreInfoDialog extends LitElement {
     const events: ForecastEvent[] = attrs?.events ?? [];
     const history = this._positionHistory;
     if (samples.length === 0 && history.length === 0) return nothing;
-    // Source secondary-axis labels from discovery so a non-tilt forecast axis
-    // reads its integration-supplied name; known axes still prefer card i18n.
-    const axisLabels: Record<string, string> = {};
-    for (const axis of resolveAxes(this.discovered)) axisLabels[axis.id] = axis.label;
     return html`<div class="forecast-block">
       <div class="forecast-label">${t('dialog.todays_forecast', this.hass)}</div>
       <acp-forecast-strip
@@ -559,7 +609,7 @@ export class MoreInfoDialog extends LitElement {
         .events=${events}
         .history=${history}
         .now=${Date.now()}
-        .axisLabels=${axisLabels}
+        .axes=${resolveAxes(this.discovered)}
       ></acp-forecast-strip>
       <div class="forecast-note">${t('forecast.solar_only_note', this.hass)}</div>
     </div>`;
@@ -677,6 +727,14 @@ export class MoreInfoDialog extends LitElement {
       align-items: center;
       --mdc-icon-size: 18px;
     }
+    /* The battery shares .icon-btn's metrics so it lines up with the buttons
+       beside it, but it is a readout, not a control — no pointer affordance. */
+    .icon-btn.battery {
+      cursor: default;
+    }
+    .icon-btn.battery.low {
+      color: var(--error-color, #db4437);
+    }
     .icon-btn:hover {
       color: var(--primary-text-color);
     }
@@ -785,17 +843,29 @@ export class MoreInfoDialog extends LitElement {
     .slot-template ha-icon {
       --mdc-icon-size: 14px;
     }
+    /* The dialog's copy of the tile's floor chip, and it resolves its purple the
+       same way and for the same reason: the literal #6a1b9a it replaces is a
+       light-theme color that sat near 1.6:1 on HA's dark theme. Keep the two in
+       step — they are the same marker on two surfaces. */
     .slot-min-mode {
       font-size: 0.7rem;
       padding: 1px 6px;
       border-radius: 999px;
-      background: rgba(156, 39, 176, 0.22);
-      color: #6a1b9a;
+      --acp-floor-accent: #9c27b0;
+      background: color-mix(in srgb, var(--acp-floor-accent) ${ACCENT_BG_ALPHA}%, transparent);
+      color: color-mix(
+        in srgb,
+        var(--acp-floor-accent) ${FG_ACCENT_MIX}%,
+        var(--primary-text-color, #212121)
+      );
     }
     /* Priority axis: floor whose priority ≤ manual-override is bypassable by a
-       manual ↓ → subdued. Per-slot rows have no clamping notion, so no fill/outline. */
+       manual ↓ → subdued. Per-slot rows have no clamping notion, so no
+       fill/outline. Subdued via the background rather than opacity, which
+       multiplied into the text and was half of why this chip was unreadable. */
     .slot-min-mode.is-bypassable {
-      opacity: 0.6;
+      background: color-mix(in srgb, var(--acp-floor-accent) 10%, transparent);
+      font-weight: 400;
     }
     .slot-toggle {
       padding: 2px 10px;

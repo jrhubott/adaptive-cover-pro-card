@@ -1,11 +1,12 @@
-import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { LitElement, html, css, nothing, unsafeCSS, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { DiscoveredEntities } from '../types';
 import { memberBadgeWinners } from '../lib/badge-visibility';
+import { axisDisplayValue, positionAxisFor } from '../lib/axes';
 import { formatPercent } from '../lib/formatters';
-import { coverStateColor } from '../lib/icons';
+import { coverStateColor, COVER_ACTIVE_COLOR } from '../lib/icons';
 import {
   groupIcon,
   readGroup,
@@ -75,6 +76,11 @@ export class GroupTile extends LitElement {
 
     const stateText = t(`group.state_${s.aggregate}`, this.hass);
     const shownPosition = this._posDrag ?? s.position;
+    // Rail polarity, same source as every other position surface. A group
+    // publishes no axes of its own (GroupPolicy.axes is empty), so this is
+    // the synthesized fallback — mirrored unless the entry is an awning.
+    const posAxis = positionAxisFor(this.discovered);
+    const shownFill = shownPosition === null ? 0 : axisDisplayValue(shownPosition, posAxis);
     const iconColor = this.stateColor ? coverStateColor(s.aggregate) : '';
     const controllable = !!s.target;
     const badgeWinners = this.showMemberBadges ? memberBadgeWinners(s.memberWinners) : [];
@@ -149,8 +155,10 @@ export class GroupTile extends LitElement {
                 aria-disabled=${controllable ? 'false' : 'true'}
                 aria-valuemin="0"
                 aria-valuemax="100"
-                aria-valuenow=${shownPosition ?? 0}
-                aria-valuetext=${formatPercent(shownPosition)}
+                aria-valuenow=${shownFill}
+                aria-valuetext=${t('covers.position_open_value', this.hass, {
+                  pct: formatPercent(shownPosition),
+                })}
                 aria-label=${t('group.position_slider_label', this.hass)}
                 ${tooltip(t('covers.click_to_set', this.hass))}
                 @click=${(e: MouseEvent) => this._onPosClick(e, s)}
@@ -161,10 +169,7 @@ export class GroupTile extends LitElement {
                 @keydown=${(e: KeyboardEvent) => this._onPosKeydown(e, s)}
               >
                 <div class="pos-bar">
-                  <div
-                    class="pos-fill"
-                    style=${`width:${shownPosition ?? 0}%;background:${iconColor || 'var(--primary-color)'}`}
-                  ></div>
+                  <div class="pos-fill" style=${`width:${shownFill}%`}></div>
                 </div>
               </div>`
             : nothing}
@@ -182,6 +187,7 @@ export class GroupTile extends LitElement {
                 .hass=${this.hass}
                 .label=${t('covers.tilt_title', this.hass)}
                 .actual=${s.tilt.value}
+                .openBlocksSun=${false}
                 @acp-tilt-set=${(e: CustomEvent<number>) => setGroupTilt(this.hass, s, e.detail)}
               ></acp-axis-bar>
             </div>`
@@ -253,13 +259,16 @@ export class GroupTile extends LitElement {
     (el as HTMLElement & { setPointerCapture?: (id: number) => void }).setPointerCapture?.(
       e.pointerId,
     );
-    this._posDrag = this._pctFromEvent(e, el);
+    this._posDrag = axisDisplayValue(this._pctFromEvent(e, el), positionAxisFor(this.discovered));
   }
 
   private _onPosPointerMove = (e: PointerEvent): void => {
     if (this._posDrag === null) return;
     e.stopPropagation();
-    this._posDrag = this._pctFromEvent(e, e.currentTarget as HTMLElement);
+    this._posDrag = axisDisplayValue(
+      this._pctFromEvent(e, e.currentTarget as HTMLElement),
+      positionAxisFor(this.discovered),
+    );
   };
 
   private _onPosPointerEnd = (e: PointerEvent): void => {
@@ -270,12 +279,27 @@ export class GroupTile extends LitElement {
   private _onPosClick(e: MouseEvent, s: GroupSnapshot): void {
     e.stopPropagation();
     if (!s.target) return;
-    setGroupPosition(this.hass, s, this._pctFromEvent(e, e.currentTarget as HTMLElement));
+    setGroupPosition(
+      this.hass,
+      s,
+      axisDisplayValue(
+        this._pctFromEvent(e, e.currentTarget as HTMLElement),
+        positionAxisFor(this.discovered),
+      ),
+    );
   }
 
   /** Standard WAI-ARIA slider keys: arrows ±1, Page ±10, Home/End to the ends. */
   private _onPosKeydown(e: KeyboardEvent, s: GroupSnapshot): void {
-    const current = s.position ?? 0;
+    // Stepped in the DRAWN direction so an arrow key moves the fill the way it
+    // points, then converted back at the commit — same contract as the cover
+    // tile's rails and the axis bars.
+    const posAxis = positionAxisFor(this.discovered);
+    // With no aggregate reading the rail draws EMPTY (line ~83), so stepping
+    // starts from the empty end. Using 0 meant the mirrored axis started from
+    // the FULL end, and one rightward key redrew an empty rail as completely
+    // full — the same defect fixed in acp-axis-bar.
+    const current = s.position === null ? 0 : axisDisplayValue(s.position, posAxis);
     let next: number;
     switch (e.key) {
       case 'ArrowRight':
@@ -304,7 +328,7 @@ export class GroupTile extends LitElement {
     e.preventDefault();
     e.stopPropagation();
     if (!s.target) return;
-    setGroupPosition(this.hass, s, Math.max(0, Math.min(100, next)));
+    setGroupPosition(this.hass, s, axisDisplayValue(Math.max(0, Math.min(100, next)), posAxis));
   }
 
   private _stop(e: Event): void {
@@ -494,6 +518,10 @@ export class GroupTile extends LitElement {
     .pos-fill {
       position: absolute;
       inset: 0 auto 0 0;
+      /* One constant color for every rail, never the cover's state color: a rail
+         that changed hue as it crossed open/closed read as a status light rather
+         than a measurement. Overridable per-theme via --acp-pos-fill-color. */
+      background: var(--acp-pos-fill-color, ${unsafeCSS(COVER_ACTIVE_COLOR)});
       opacity: 0.55;
       border-radius: 6px;
       transition: width 0.3s ease;

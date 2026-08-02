@@ -753,7 +753,16 @@ describe('adaptive-cover-pro-tile-card editor — schema', () => {
       'state_color',
       'show_motion_icon',
     ]);
-    expect(namesIn(1)).toEqual(['show_controls', 'show_position_bar', 'show_tilt']);
+    // `controls_cover` joins the Controls section whenever the entry manages
+    // more than one cover; `controls_axis` only when it exposes more than one
+    // axis. `covers` is deliberately absent — rail order is the sortable list
+    // rendered outside ha-form, not a schema field.
+    expect(namesIn(1)).toEqual([
+      'show_controls',
+      'show_position_bar',
+      'show_tilt',
+      'controls_cover',
+    ]);
     expect(namesIn(2)).toContain('show_badge');
     expect(namesIn(2)).toContain('badge_auto');
     expect(namesIn(3)).toEqual(['show_compass', 'show_elevation_chart', 'show_solar_calc']);
@@ -870,5 +879,176 @@ describe('adaptive-cover-pro-tile-card editor — schema', () => {
     const coverField = (haForm.schema ?? []).find((s) => s.name === 'cover')!;
     const sel = coverField.selector as { entity: { include_entities?: string[] } };
     expect(sel.entity.include_entities).toEqual(['cover.left', 'cover.right']);
+  });
+});
+
+// ── rail order widget ────────────────────────────────────────────────────────
+// `covers` is edited by a bespoke sortable list rather than an ha-form field:
+// HA's multi-entity selector can add and remove but not reorder, which is the
+// one thing this control exists to do. It emits config directly, so these pin
+// the state machine — every review pass found a defect in it.
+
+describe('adaptive-cover-pro-tile-card editor — rail order', () => {
+  /** Mount the editor with three managed covers. */
+  async function mountRails(
+    config: Partial<AdaptiveCoverProTileCardConfig> = {},
+  ): Promise<{ el: EditorLike; emitted: AdaptiveCoverProTileCardConfig[] }> {
+    const el = makeEditor();
+    (el.hass!.states as Record<string, unknown>)['sensor.cover_position'] = {
+      state: '42',
+      attributes: { actual_positions: { 'cover.a': 10, 'cover.b': 20, 'cover.c': 30 } },
+    };
+    for (const id of ['cover.a', 'cover.b', 'cover.c']) {
+      (el.hass!.states as Record<string, unknown>)[id] = {
+        state: 'open',
+        attributes: { friendly_name: id },
+      };
+    }
+    el.setConfig({ type: TYPE, entry_id: ENTRY, ...config } as AdaptiveCoverProTileCardConfig);
+    document.body.appendChild(el);
+    el._entries = [{ entry_id: ENTRY, title: 'Test' }];
+    el._registry = REGISTRY;
+    await el.updateComplete;
+    await el.updateComplete;
+    const emitted: AdaptiveCoverProTileCardConfig[] = [];
+    el.addEventListener('config-changed', (e) =>
+      emitted.push((e as CustomEvent).detail.config as AdaptiveCoverProTileCardConfig),
+    );
+    return { el, emitted };
+  }
+
+  const rows = (el: EditorLike): HTMLElement[] =>
+    Array.from(el.shadowRoot!.querySelectorAll('.rail-order li.rail')) as HTMLElement[];
+  const names = (el: EditorLike): string[] =>
+    rows(el).map((r) => r.querySelector('.rail-name')!.textContent!.trim());
+  const btn = (row: HTMLElement, i: number): HTMLButtonElement =>
+    row.querySelectorAll('.rail-btn')[i] as HTMLButtonElement;
+  /** Most recent emitted config. (`Array.prototype.at` is past this
+   *  project's lib target.) */
+  const last = (a: AdaptiveCoverProTileCardConfig[]): AdaptiveCoverProTileCardConfig =>
+    a[a.length - 1];
+
+  it('lists every managed cover in the integration’s order by default', async () => {
+    const { el } = await mountRails();
+    expect(names(el)).toEqual(['cover.a', 'cover.b', 'cover.c']);
+    expect(rows(el).every((r) => !r.classList.contains('hidden-rail'))).toBe(true);
+  });
+
+  it('shows only the pinned cover when `cover` is set, matching the tile', async () => {
+    // The widget disagreeing with the tile is what made hiding a rail ADD one.
+    const { el } = await mountRails({ cover: 'cover.b' });
+    const shown = rows(el).filter((r) => !r.classList.contains('hidden-rail'));
+    expect(shown.length).toBe(1);
+    expect(shown[0].querySelector('.rail-name')!.textContent!.trim()).toBe('cover.b');
+  });
+
+  it('does not render for an entry with fewer than two managed covers', async () => {
+    const el = makeEditor();
+    (el.hass!.states as Record<string, unknown>)['sensor.cover_position'] = {
+      state: '42',
+      attributes: { actual_positions: { 'cover.only': 10 } },
+    };
+    el.setConfig({ type: TYPE, entry_id: ENTRY } as AdaptiveCoverProTileCardConfig);
+    document.body.appendChild(el);
+    el._entries = [{ entry_id: ENTRY, title: 'Test' }];
+    el._registry = REGISTRY;
+    await el.updateComplete;
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('.rail-order')).toBeNull();
+  });
+
+  it('moves a rail down and persists the new order', async () => {
+    const { el, emitted } = await mountRails();
+    btn(rows(el)[0], 1).click(); // ↓ on the first row
+    expect(last(emitted).covers).toEqual(['cover.b', 'cover.a', 'cover.c']);
+  });
+
+  it('drops the `covers` key when the order returns to the default', async () => {
+    // An untouched card keeps a clean config rather than gaining a redundant key.
+    const { el, emitted } = await mountRails({ covers: ['cover.b', 'cover.a', 'cover.c'] });
+    btn(rows(el)[0], 1).click(); // ↓ on cover.b restores a, b, c
+    expect(last(emitted).covers).toBeUndefined();
+  });
+
+  it('hides a rail by removing it from `covers`', async () => {
+    const { el, emitted } = await mountRails();
+    btn(rows(el)[2], 2).click(); // eye on cover.c
+    expect(last(emitted).covers).toEqual(['cover.a', 'cover.b']);
+  });
+
+  it('hide-then-show is an involution — the rail returns to its own position', async () => {
+    // Appending on show made one accidental toggle a permanent reorder, and
+    // pinned a redundant `covers` key into the YAML.
+    const { el, emitted } = await mountRails();
+    btn(rows(el)[0], 2).click(); // hide cover.a
+    expect(last(emitted).covers).toEqual(['cover.b', 'cover.c']);
+
+    const { el: el2, emitted: emitted2 } = await mountRails({ covers: ['cover.b', 'cover.c'] });
+    const hidden = rows(el2).find((r) => r.classList.contains('hidden-rail'))!;
+    btn(hidden, 2).click(); // show cover.a again
+    expect(last(emitted2).covers).toBeUndefined(); // back to the default order
+  });
+
+  it('refuses to hide the last visible rail', async () => {
+    // A tile with no position bar is what `show_position_bar` is for; losing
+    // every rail here would leave no way back except editing YAML.
+    const { el, emitted } = await mountRails({ covers: ['cover.a'] });
+    const eye = btn(rows(el)[0], 2);
+    expect(eye.disabled).toBe(true);
+    eye.click();
+    expect(emitted.length).toBe(0);
+  });
+
+  it('disables the arrows on a hidden rail rather than no-opping', async () => {
+    // Only shown rails are persisted, so a move involving a hidden one could
+    // not be represented and silently snapped back.
+    const { el } = await mountRails({ covers: ['cover.a'] });
+    const hidden = rows(el).filter((r) => r.classList.contains('hidden-rail'));
+    expect(hidden.length).toBe(2);
+    for (const row of hidden) {
+      expect(btn(row, 0).disabled).toBe(true);
+      expect(btn(row, 1).disabled).toBe(true);
+      expect(row.getAttribute('draggable')).toBe('false');
+    }
+  });
+
+  it('disables ↓ on the last SHOWN rail, not the last row', async () => {
+    const { el } = await mountRails({ covers: ['cover.a', 'cover.b'] });
+    const shown = rows(el).filter((r) => !r.classList.contains('hidden-rail'));
+    expect(btn(shown[shown.length - 1], 1).disabled).toBe(true);
+    expect(btn(shown[0], 1).disabled).toBe(false);
+  });
+
+  it('keeps shown rails ahead of hidden ones so ↑ is never enabled over a no-op', async () => {
+    const { el } = await mountRails({ cover: 'cover.c' });
+    // cover.c is the only shown rail and must sit at index 0, or its ↑ button
+    // would be enabled over a move `_moveRail` refuses to make.
+    expect(rows(el)[0].classList.contains('hidden-rail')).toBe(false);
+    expect(btn(rows(el)[0], 0).disabled).toBe(true);
+  });
+
+  it('purges the cover-binding keys when the entry changes', async () => {
+    // They name entities of the OLD entry: `covers` would filter to nothing and
+    // `controls_cover` would aim ↑■↓ at another entry's cover.
+    const { el, emitted } = await mountRails({
+      covers: ['cover.a'],
+      cover: 'cover.a',
+      controls_cover: 'cover.a',
+      controls_axis: 'position',
+    });
+    const haForm = el.shadowRoot!.querySelector('ha-form')!;
+    haForm.dispatchEvent(
+      new CustomEvent('value-changed', {
+        detail: { value: { entry_id: 'entry_other' } },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+    const cfg = last(emitted);
+    expect(cfg.entry_id).toBe('entry_other');
+    expect(cfg.covers).toBeUndefined();
+    expect(cfg.cover).toBeUndefined();
+    expect(cfg.controls_cover).toBeUndefined();
+    expect(cfg.controls_axis).toBeUndefined();
   });
 });

@@ -11,6 +11,7 @@ import {
   coverMotorPosition,
   coverLinearPosition,
   coverMotorDivergence,
+  coverCommandTargets,
   coverLogicalActuals,
   logicalCoverPosition,
   logicalAxisValue,
@@ -314,6 +315,7 @@ describe('logical-frame axis values — issue #236', () => {
     unit: '%',
     stateAttr: 'current_tilt_position',
     inverted: true,
+    openBlocksSun: false,
   };
   /** The same axis on every non-inverse install — the helper is the identity. */
   const plainTilt: ResolvedAxis = { ...invertedTilt, inverted: false };
@@ -372,5 +374,77 @@ describe('logical-frame axis values — issue #236', () => {
       },
     });
     expect(logicalAxisValue(makeHass({ coverTilt: 65 }), tilt, COVER_ID)).toBe(35);
+  });
+});
+
+// ── per-cover command targets (multi-rail tiles) ─────────────────────────────
+// The entry-level pipeline target describes the abstract coverage, which is the
+// wrong scale for a rail whose dispatched value is a remap of it — a day/night
+// shade in the integration's `dual_entity` model folds the fabric blend into its
+// middle rail's absolute position. `position_verification.per_entity` is the
+// only per-cover target the integration publishes.
+
+describe('coverCommandTargets', () => {
+  const discovered: DiscoveredEntities = {
+    ...baseDiscovered,
+    entities: {
+      ...baseDiscovered.entities,
+      position_verification_sensor: 'sensor.position_verification',
+    },
+    managed_covers: ['cover.bottom', 'cover.middle'],
+  };
+
+  function hassWith(perEntity: unknown, extra: Record<string, unknown> = {}): HomeAssistant {
+    return {
+      states: {
+        'sensor.position_verification': { state: 'ok', attributes: { per_entity: perEntity } },
+        ...extra,
+      },
+    } as unknown as HomeAssistant;
+  }
+
+  it('reads each managed cover’s own dispatched target', () => {
+    const hass = hassWith({
+      'cover.bottom': { target: 60, actual: 60 },
+      'cover.middle': { target: 30, actual: 25 },
+    });
+    expect(coverCommandTargets(hass, discovered)).toEqual({
+      'cover.bottom': 60,
+      'cover.middle': 30,
+    });
+  });
+
+  it('omits an entry with no numeric target rather than mapping it to null', () => {
+    // An absent key and a null-valued key would mean the same thing to every
+    // caller, so only one of them is representable.
+    const hass = hassWith({
+      'cover.bottom': { target: 60 },
+      'cover.middle': { target: null },
+      'cover.other': {},
+    });
+    expect(coverCommandTargets(hass, discovered)).toEqual({ 'cover.bottom': 60 });
+  });
+
+  it('un-inverts into the logical frame on an inverse_state entry (#234)', () => {
+    // The map arrives in the cover frame, like `actual_positions`.
+    const inverted: DiscoveredEntities = {
+      ...discovered,
+      discovery: { axes: [{ id: 'position', supported: true, inverted: true }] },
+    };
+    const hass = hassWith({ 'cover.bottom': { target: 70 } });
+    expect(coverCommandTargets(hass, inverted)).toEqual({ 'cover.bottom': 30 });
+  });
+
+  it('is empty on an integration that publishes no per_entity map', () => {
+    expect(coverCommandTargets(hassWith(undefined), discovered)).toEqual({});
+  });
+
+  it('is empty when the entry exposes no position_verification sensor', () => {
+    const hass = hassWith({ 'cover.bottom': { target: 60 } });
+    expect(coverCommandTargets(hass, baseDiscovered)).toEqual({});
+  });
+
+  it('tolerates a non-object per_entity payload', () => {
+    expect(coverCommandTargets(hassWith('nonsense'), discovered)).toEqual({});
   });
 });

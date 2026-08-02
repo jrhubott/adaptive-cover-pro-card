@@ -1,7 +1,15 @@
 import type { HandlerName } from '../../src/const';
 import type { AcpNamePart, GroupAggregateState, GroupScene } from '../../src/types';
 
-export type CoverType = 'cover_blind' | 'cover_awning' | 'cover_tilt' | 'cover_venetian';
+export type CoverType =
+  | 'cover_blind'
+  | 'cover_awning'
+  | 'cover_tilt'
+  | 'cover_venetian'
+  /** Day/night dual-fabric shade. In the integration's `dual_entity` control
+   *  model one entry binds two rail cover entities, so the card must handle a
+   *  multi-cover entry that is not a Cover Group. */
+  | 'cover_day_night_shade';
 
 /**
  * Cover Group state a group HarnessEntry carries (issue #185). Mirrors the
@@ -102,6 +110,32 @@ export interface ManagedCoverCfg {
   /** HA state override, e.g. 'unavailable' — when set, wins over the
    *  position-derived open/closed state. */
   state?: string;
+  /** This cover's own command target in the logical frame, published on the
+   *  position_verification sensor's `per_entity` map and read by the tile's
+   *  rail target tick. Defaults to the entry target. Set it per cover to model
+   *  a rail whose dispatched value is a remap of the entry target — a day/night
+   *  shade's middle rail carries the fabric blend folded into an absolute
+   *  position.
+   *
+   *  Set it to `null` for the OTHER live shape: `per_entity[…].target` is a
+   *  RECONCILIATION record, so it stays null (alongside a null
+   *  `last_reconcile_time`) until the integration has actually dispatched to
+   *  that entity — and a cover already resting on the calculated position is
+   *  skipped as `same_position` and never dispatched to at all. A mirrored entry
+   *  driving several identical shades therefore publishes a number for the one
+   *  cover it reconciled and null for the rest.
+   *
+   *  The tile draws NO TICK on such a rail. It does not borrow the entry target,
+   *  because it cannot tell a mirrored rail (entry scale, borrowing would be
+   *  right) from a remapped one (own scale, borrowing would be wrong). The fix
+   *  belongs upstream — adaptive-cover-pro#1158. */
+  command_target?: number | null;
+  /** Battery charge for this cover, 0..100. Emits a `device_class: battery`
+   *  sensor on the cover's own device — the same shape a Zigbee shade motor
+   *  produces, and the only thing `resolveCoverBatteries` looks for. Omit for a
+   *  mains-powered cover (no battery entity at all, nothing renders); `null`
+   *  emits the sensor as `unknown`, which the card treats as low. */
+  battery?: number | null;
 }
 
 export interface HarnessEntry {
@@ -286,6 +320,15 @@ export interface TileCardOptions {
   show_position_bar: boolean;
   /** Render the mini tilt bar on dual-axis venetian tiles (default true). */
   show_tilt: boolean;
+  /** Which position rails to render, in order. Empty = every managed cover in
+   *  the integration's own order. */
+  covers: string[];
+  /** Which managed cover the ↑■↓ buttons drive. Empty = the tile's resolved
+   *  cover (today's behavior). Only meaningful on a multi-cover entry, e.g. a
+   *  day/night shade's two rails. */
+  controls_cover: string;
+  /** Which discovered axis the ↑■↓ buttons drive. Empty = `position`. */
+  controls_axis: string;
   /** Per-kind badge opt-in. All default on; only `false` hides the kind. */
   badges: {
     auto: boolean;

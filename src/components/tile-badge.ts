@@ -101,6 +101,10 @@ export class TileBadge extends LitElement {
       : this._label(kind, base);
     const icon = safetyVariant ? BADGE_ICONS.force : BADGE_ICONS[kind];
 
+    // Every branch below carries this, on whichever element owns the hit area
+    // that isn't already spoken for by an action hint.
+    const kindHint = this._hint(kind, safetyVariant);
+
     // Two-action branch (#229). A second tap target cannot live inside the
     // resumable branch below — that makes the *whole badge* a <button>, and a
     // nested <button> is invalid HTML that breaks both handlers. So the badge
@@ -112,13 +116,16 @@ export class TileBadge extends LitElement {
       // action glyphs the leading kind icon is the next thing to go — the badge
       // color already signals the kind (same rationale as `_label()`).
       const showKindIcon = !!icon && !this.compact;
+      // The kind hint goes on the LABEL, not the container: the container's
+      // hit area includes both action buttons, and a container tooltip would
+      // shadow their own "Extend"/"Resume" hints exactly where those matter.
       return html`<span
         class="badge kind-${kind} has-actions"
         style="background:${tokens.bg};color:${tokens.fg};"
         part="badge"
       >
         ${showKindIcon ? html`<ha-icon class="badge-icon" icon=${icon}></ha-icon>` : nothing}
-        <span class="badge-label">${label}</span>
+        <span class="badge-label" ${kindHint ? tooltip(kindHint) : nothing}>${label}</span>
         <button
           class="act extend"
           type="button"
@@ -151,12 +158,16 @@ export class TileBadge extends LitElement {
       : nothing}`;
     if (this.resumable) {
       const hint = this.hass ? t('tile.resume_aria', this.hass) : 'Resume automatic control';
+      // The whole badge is the resume button here, so there is one hit area for
+      // two things to say. Both get said, meaning first and action second —
+      // dropping the meaning would make this the one badge kind without it.
+      const tip = kindHint ? `${kindHint} — ${hint}` : hint;
       return html`<button
         class="badge kind-${kind} resumable"
         style="background:${tokens.bg};color:${tokens.fg};"
         part="badge"
         type="button"
-        ${tooltip(hint)}
+        ${tooltip(tip)}
         aria-label=${hint}
         @click=${this._onResumeClick}
         @pointerdown=${this._stop}
@@ -164,25 +175,71 @@ export class TileBadge extends LitElement {
         ${inner}
       </button>`;
     }
-    const groupHint = this._groupHint(kind);
     return html`<span
       class="badge kind-${kind}"
       style="background:${tokens.bg};color:${tokens.fg};"
       part="badge"
-      ${groupHint ? tooltip(groupHint) : nothing}
+      ${kindHint ? tooltip(kindHint) : nothing}
       >${inner}</span
     >`;
   }
 
-  /** Explanatory tooltip for the Cover Group count badge, whose "N/M" label is
-   *  the one badge that doesn't state its own meaning. Every other kind carries
-   *  it in the label text, so they get no tooltip. */
-  private _groupHint(kind: BadgeKind): string | null {
-    if (kind !== 'group') return null;
-    if (this.groupCount === undefined || this.groupTotal === undefined) return null;
-    // No `hass` guard: `t()` resolves to English for an undefined hass, so an
-    // isolated render still gets the hint — same fallback the label relies on.
-    return t('group.who_won', this.hass, { count: this.groupCount, total: this.groupTotal });
+  /**
+   * Explanatory tooltip for the badge — EVERY kind has one.
+   *
+   * The label alone is not self-explanatory even where it names its kind,
+   * because it is abbreviated for width: `_label()` drops the "Manual · "
+   * prefix once a countdown is available and the "Custom · " prefix once a slot
+   * name is, so those badges render as a bare clock and a bare slot name. A
+   * custom-position badge reading "Default · 40%" says nothing about being a
+   * custom position at all — that is the case this exists for.
+   *
+   * No `hass` guard anywhere below: `t()` resolves to English for an undefined
+   * hass, so an isolated render (the harness badge gallery) still gets the
+   * hint — the same fallback the label relies on.
+   */
+  private _hint(kind: BadgeKind, safetyVariant: boolean): string | null {
+    if (safetyVariant) return this._tip('safety');
+    if (kind === 'manual') {
+      const until = this.manualEndIso ? formatClock(this.manualEndIso) : null;
+      // formatClock returns the em-dash placeholder for an unparseable time;
+      // an "active until —" tooltip is worse than the undated sentence.
+      return until && until !== '—'
+        ? this._tip('manual_until', { time: until })
+        : this._tip('manual');
+    }
+    if (kind === 'custom_position') return this._customPositionHint();
+    if (kind === 'group' && this.groupCount !== undefined && this.groupTotal !== undefined) {
+      return t('group.who_won', this.hass, { count: this.groupCount, total: this.groupTotal });
+    }
+    return this._tip(kind);
+  }
+
+  /**
+   * The custom-position badge's tooltip, assembled from the parts its label
+   * compressed away. Built by sentence concatenation rather than one key per
+   * shape: slot name, percentage and floor mode are independently optional, so
+   * enumerating them would take eight keys per locale to say the same things.
+   */
+  private _customPositionHint(): string {
+    const parts = [this._tip('custom_position')];
+    const slot = this.slotName ?? (this.slotNumber !== undefined ? `#${this.slotNumber}` : null);
+    if (slot) parts.push(this._tip('custom_position_slot', { name: slot }));
+    if (this.pct !== undefined && this.pct !== null) {
+      parts.push(this._tip('custom_position_value', { pct: Math.round(this.pct) }));
+    }
+    if (this.minimumMode === true) parts.push(this._tip('custom_position_floor'));
+    return parts.filter((p): p is string => p !== null).join(' ');
+  }
+
+  /** Look up a `badge.tip.*` string, or null when the key is missing.
+   *  `t()` echoes an unknown key, and a raw `badge.tip.foo` in a tooltip is
+   *  worse than no tooltip — this is the guard for a BadgeKind added to
+   *  `const.ts` without a matching tip string. */
+  private _tip(name: string, params?: Record<string, unknown>): string | null {
+    const key = `badge.tip.${name}`;
+    const value = t(key, this.hass, params);
+    return value === key ? null : value;
   }
 
   private _stop(e: Event): void {
@@ -262,6 +319,27 @@ export class TileBadge extends LitElement {
       --mdc-icon-size: 14px;
       line-height: 0;
       flex: 0 0 auto;
+    }
+    /* Floating-tooltip cursor lifecycle, and it MUST be declared here rather
+       than inherited. The hosts that render badges make themselves clickable
+       (the tile card sets cursor: pointer on .tile-body), cursor is an
+       inherited property, and inheritance crosses the shadow boundary through
+       the host element — so without a rule of its own every badge showed a
+       pointer while the floor chip and title beside it showed the help cursor
+       from the tile card's own [data-tooltip] rule. A shadow root has to
+       restate this pair; it cannot borrow its host's.
+
+       Scoped to the NON-interactive anchors, mirroring header-pill's
+       .pill.readonly precedent: a resumable badge is a real button and keeps
+       cursor: pointer from the rule below, as do the Extend/Resume glyphs. The
+       .badge-label carrier is the two-button variant's label, which is inert. */
+    span.badge[data-tooltip]:hover,
+    .badge-label[data-tooltip]:hover {
+      cursor: help;
+    }
+    span.badge[data-tooltip][acp-tt-shown],
+    .badge-label[data-tooltip][acp-tt-shown] {
+      cursor: default;
     }
     button.badge {
       /* Inherit only the family — the font shorthand would reset font-size to

@@ -2554,8 +2554,10 @@ describe('adaptive-cover-pro-tile-card HA tile layout (detailed)', () => {
     expect(bar).toBeTruthy();
     const fill = bar.querySelector('.pos-fill') as HTMLElement;
     const marker = bar.querySelector('.pos-marker') as HTMLElement;
-    expect(fill.getAttribute('style') ?? '').toContain('width:60%');
-    expect(marker.getAttribute('style') ?? '').toContain('42%');
+    // The rail draws COVERAGE on a blind: 60% open is 40% blocking, and the 42%
+    // solar target sits at 58% along the track.
+    expect(fill.getAttribute('style') ?? '').toContain('width:40%');
+    expect(marker.getAttribute('style') ?? '').toContain('58%');
   });
 
   it('detailed: keeps the position bar when show_badge is false (bar is independent of badges)', async () => {
@@ -2912,7 +2914,8 @@ describe('adaptive-cover-pro-tile-card — position bar drag slider', () => {
     expect(slider.getAttribute('tabindex')).toBe('0');
     expect(slider.getAttribute('aria-valuemin')).toBe('0');
     expect(slider.getAttribute('aria-valuemax')).toBe('100');
-    expect(slider.getAttribute('aria-valuenow')).toBe('60');
+    // ARIA describes the visual, so valuenow is the drawn (coverage) value.
+    expect(slider.getAttribute('aria-valuenow')).toBe('40');
     expect(slider.getAttribute('aria-label')).toBeTruthy();
     // The visible rail stays nested inside, untouched.
     expect(slider.querySelector('.pos-bar')).toBeTruthy();
@@ -2935,10 +2938,12 @@ describe('adaptive-cover-pro-tile-card — position bar drag slider', () => {
     slider.dispatchEvent(up(80));
     slider.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: 80 }));
     await el.updateComplete;
+    // Released 80% along the track = 80% covered = position 20. The write stays
+    // in the integration's frame.
     expect(posCall(callService)).toEqual([
       INTEGRATION_DOMAIN,
       'set_axes',
-      { axes: { position: 80 } },
+      { axes: { position: 20 } },
       { entity_id: 'cover.left' },
     ]);
   });
@@ -2963,16 +2968,20 @@ describe('adaptive-cover-pro-tile-card — position bar drag slider', () => {
     );
     await el.updateComplete;
     expect(posCall(callService)).toBeUndefined();
-    expect(fillWidth(el)).toContain('width:60%');
+    // Back to server truth: 60% open draws as 40% blocking.
+    expect(fillWidth(el)).toContain('width:40%');
   });
 
+  // Keys step the DRAWN value so the fill moves the way the key points; on a
+  // blind that means a rightward key raises coverage, i.e. lowers the position.
+  // Home/End name the ends of the track, not of the axis.
   it.each([
-    ['ArrowRight', 61],
-    ['ArrowLeft', 59],
-    ['PageUp', 70],
-    ['PageDown', 50],
-    ['Home', 0],
-    ['End', 100],
+    ['ArrowRight', 59],
+    ['ArrowLeft', 61],
+    ['PageUp', 50],
+    ['PageDown', 70],
+    ['Home', 100],
+    ['End', 0],
   ])('commits %s from the keyboard as %i', async (key, expected) => {
     const { slider, callService } = await mountSlider();
     slider.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, composed: true, key }));
@@ -3399,5 +3408,518 @@ describe('adaptive-cover-pro-tile-card — icon_tap_action', () => {
     expect(css).toContain('border-radius: var(--ha-border-radius-pill, 9999px)');
     expect(css).toContain('opacity: 0.2');
     expect(css).toContain('opacity: 0.35');
+  });
+});
+
+// ── one rail per managed cover ───────────────────────────────────────────────
+// An entry that binds several covers (a day/night shade in the integration's
+// `dual_entity` model binds a bottom and a middle rail) previously rendered only
+// `managed_covers[0]`, leaving every other cover with no readout and no control
+// anywhere on the tile.
+
+describe('adaptive-cover-pro-tile-card — multi-cover rails', () => {
+  /** Two managed covers, each reporting its own position, plus a per-entity
+   *  command target for the second one. */
+  function twoRailHass(overrides: Record<string, unknown> = {}): HomeAssistant {
+    const h = makeHass() as unknown as { states: Record<string, unknown> };
+    h.states['sensor.cover_position'] = {
+      state: '42',
+      attributes: { actual_positions: { 'cover.left': 60, 'cover.right': 25 } },
+    };
+    h.states['cover.left'] = {
+      state: 'open',
+      attributes: { friendly_name: 'Living Room bottom rail', current_position: 60 },
+    };
+    h.states['cover.right'] = {
+      state: 'open',
+      attributes: { friendly_name: 'Living Room middle rail', current_position: 25 },
+    };
+    h.states['sensor.position_verification'] = {
+      state: 'ok',
+      attributes: { per_entity: { 'cover.right': { target: 30 } } },
+    };
+    Object.assign(h.states, overrides);
+    return h as unknown as HomeAssistant;
+  }
+
+  const REG = [
+    ...REGISTRY,
+    {
+      entity_id: 'sensor.position_verification',
+      unique_id: `${ENTRY}_position_verification`,
+      config_entry_id: ENTRY,
+      platform: 'adaptive_cover_pro',
+      device_id: null,
+    },
+  ];
+
+  async function mountRails(
+    config: Partial<AdaptiveCoverProTileCardConfig> = {},
+    hass = twoRailHass(),
+  ): Promise<CardLike> {
+    const el = makeCard();
+    el.setConfig({ type: TYPE, entry_id: ENTRY, ...config } as AdaptiveCoverProTileCardConfig);
+    el.hass = hass;
+    document.body.appendChild(el);
+    el._registry = REG;
+    await el.updateComplete;
+    return el;
+  }
+
+  function rails(el: CardLike): HTMLElement[] {
+    return Array.from(el.shadowRoot!.querySelectorAll('.pos-stack .pos-row')) as HTMLElement[];
+  }
+
+  it('renders one rail per managed cover, in the integration’s order', async () => {
+    const el = await mountRails();
+    expect(rails(el).length).toBe(2);
+  });
+
+  it('draws each rail from its OWN cover, not the resolved one', async () => {
+    const el = await mountRails();
+    const fills = el.shadowRoot!.querySelectorAll('.pos-stack .pos-fill');
+    // Blind polarity: 60 open → 40 blocking, 25 open → 75 blocking.
+    expect(fills[0].getAttribute('style')).toContain('width:40%');
+    expect(fills[1].getAttribute('style')).toContain('width:75%');
+  });
+
+  it('labels each rail with its cover glyph and keeps the name as a tooltip', async () => {
+    const el = await mountRails();
+    const glyphs = el.shadowRoot!.querySelectorAll('.pos-stack .pos-glyph');
+    expect(glyphs.length).toBe(2);
+    // The entry title is stripped off the friendly name, so two rails of one
+    // shade read as "bottom rail" / "middle rail" rather than repeating it.
+    expect(glyphs[0].getAttribute('data-tooltip')).toContain('bottom rail');
+    expect(glyphs[1].getAttribute('data-tooltip')).toContain('middle rail');
+  });
+
+  it('names each slider for its own rail so they are distinguishable', async () => {
+    const el = await mountRails();
+    const sliders = el.shadowRoot!.querySelectorAll('.pos-stack .pos-slider');
+    expect(sliders[0].getAttribute('aria-label')).toContain('bottom rail');
+    expect(sliders[1].getAttribute('aria-label')).toContain('middle rail');
+  });
+
+  it('drags one rail without moving the other', async () => {
+    const el = await mountRails();
+    const sliders = el.shadowRoot!.querySelectorAll('.pos-stack .pos-slider');
+    const first = sliders[0] as HTMLElement;
+    Object.defineProperty(first, 'getBoundingClientRect', {
+      value: () => ({ left: 0, width: 100, top: 0, bottom: 6, right: 100, height: 6 }),
+      configurable: true,
+    });
+    first.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, composed: true, clientX: 90, pointerId: 1 }),
+    );
+    await el.updateComplete;
+    const fills = el.shadowRoot!.querySelectorAll('.pos-stack .pos-fill');
+    // A single shared drag state used to paint both rails from whichever one
+    // had the finger on it.
+    expect(fills[0].getAttribute('style')).toContain('width:90%');
+    expect(fills[1].getAttribute('style')).toContain('width:75%');
+  });
+
+  it('commits a drag to the rail that was dragged', async () => {
+    const callService = vi.fn();
+    const hass = twoRailHass();
+    (hass as unknown as { callService: unknown }).callService = callService;
+    (hass as unknown as { services: unknown }).services = {
+      adaptive_cover_pro: { set_axes: {} },
+    };
+    const el = await mountRails({}, hass);
+    const second = el.shadowRoot!.querySelectorAll('.pos-stack .pos-slider')[1] as HTMLElement;
+    Object.defineProperty(second, 'getBoundingClientRect', {
+      value: () => ({ left: 0, width: 100, top: 0, bottom: 6, right: 100, height: 6 }),
+      configurable: true,
+    });
+    second.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: 80 }));
+    await el.updateComplete;
+    // 80% along a coverage track = position 20, written to the SECOND cover.
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { position: 20 } },
+      { entity_id: 'cover.right' },
+    );
+  });
+
+  it('ticks the resolved rail from the pipeline target and the rest per-entity', async () => {
+    const el = await mountRails();
+    const markers = el.shadowRoot!.querySelectorAll('.pos-stack .pos-marker');
+    // Resolved cover keeps the entry target (42 → 58 drawn); the second rail
+    // takes its own dispatched value (30 → 70 drawn), which is on a different
+    // scale precisely because it is a remap.
+    expect(markers[0].getAttribute('style')).toContain('58%');
+    expect(markers[1].getAttribute('style')).toContain('70%');
+  });
+
+  it('leaves a non-resolved rail tickless when the integration publishes no per-entity target', async () => {
+    const hass = twoRailHass();
+    delete (hass as unknown as { states: Record<string, unknown> }).states[
+      'sensor.position_verification'
+    ];
+    const el = await mountRails({}, hass);
+    const railEls = rails(el);
+    // Better tickless than borrowing the entry target, which is on the wrong
+    // scale for this rail.
+    expect(railEls[1].querySelector('.pos-marker')).toBeNull();
+    expect(railEls[0].querySelector('.pos-marker')).not.toBeNull();
+  });
+
+  it('collapses to a single rail when the tile is pinned with `cover`', async () => {
+    const el = await mountRails({ cover: 'cover.right' });
+    expect(el.shadowRoot!.querySelector('.pos-stack')).toBeNull();
+    const fill = el.shadowRoot!.querySelector('.pos-fill') as HTMLElement;
+    // The single-rail branch must read the PINNED cover, not the resolved one.
+    expect(fill.getAttribute('style')).toContain('width:75%');
+  });
+
+  it('orders and filters the rails from `covers`', async () => {
+    const el = await mountRails({ covers: ['cover.right', 'cover.left'] });
+    const glyphs = el.shadowRoot!.querySelectorAll('.pos-stack .pos-glyph');
+    expect(glyphs[0].getAttribute('data-tooltip')).toContain('middle rail');
+    expect(glyphs[1].getAttribute('data-tooltip')).toContain('bottom rail');
+  });
+
+  it('drops ids the entry does not manage', async () => {
+    const el = await mountRails({ covers: ['cover.right', 'cover.gone'] });
+    expect(el.shadowRoot!.querySelector('.pos-stack')).toBeNull();
+    expect(el.shadowRoot!.querySelector('.pos-fill')).not.toBeNull();
+  });
+
+  it('falls back to every rail when `covers` matches nothing at all', async () => {
+    // Every listed cover renamed or removed from the entry. Rendering no bar
+    // would be unrecoverable: the editor hides its repair widget below two
+    // managed covers, leaving only YAML.
+    const el = await mountRails({ covers: ['cover.gone', 'cover.also_gone'] });
+    expect(rails(el).length).toBe(2);
+  });
+});
+
+// ── retargetable ↑■↓ ─────────────────────────────────────────────────────────
+
+describe('adaptive-cover-pro-tile-card — controls_cover / controls_axis', () => {
+  function hassFor(callService: ReturnType<typeof vi.fn>): HomeAssistant {
+    const h = makeHass({
+      callService: callService as unknown as (...args: unknown[]) => unknown,
+    }) as unknown as {
+      states: Record<string, unknown>;
+      services?: unknown;
+    };
+    h.states['cover.left'] = {
+      state: 'open',
+      attributes: { friendly_name: 'Bottom', current_position: 60 },
+    };
+    h.states['cover.right'] = {
+      state: 'open',
+      attributes: { friendly_name: 'Middle', current_position: 100 },
+    };
+    h.services = { adaptive_cover_pro: { set_axes: {} } };
+    return h as unknown as HomeAssistant;
+  }
+
+  it('drives the resolved cover by default', async () => {
+    const callService = vi.fn();
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, hassFor(callService));
+    (el.shadowRoot!.querySelector('button.down') as HTMLButtonElement).click();
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { position: 0 } },
+      { entity_id: 'cover.left' },
+    );
+  });
+
+  it('retargets to the named cover', async () => {
+    const callService = vi.fn();
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, controls_cover: 'cover.right' },
+      hassFor(callService),
+    );
+    (el.shadowRoot!.querySelector('button.down') as HTMLButtonElement).click();
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { position: 0 } },
+      { entity_id: 'cover.right' },
+    );
+  });
+
+  it('gates at-open/at-closed on the retargeted cover, not the resolved one', async () => {
+    // `cover.right` is fully open, `cover.left` is at 60.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, controls_cover: 'cover.right' },
+      hassFor(vi.fn()),
+    );
+    expect((el.shadowRoot!.querySelector('button.up') as HTMLButtonElement).disabled).toBe(true);
+    expect((el.shadowRoot!.querySelector('button.down') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('ignores a controls_cover the entry does not manage', async () => {
+    // Unvalidated, this would fire set_axes at a cover in another config entry —
+    // the integration resolves the entity id, so it would physically move.
+    const callService = vi.fn();
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, controls_cover: 'cover.someone_elses' },
+      hassFor(callService),
+    );
+    (el.shadowRoot!.querySelector('button.down') as HTMLButtonElement).click();
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { position: 0 } },
+      { entity_id: 'cover.left' },
+    );
+  });
+});
+
+// ── Bar-only layout, rail geometry, battery + rail chrome (#260) ─────────────
+
+describe('tile card — bar-only layout (#260)', () => {
+  // The overlap fix: the bar-only grid special-case was deleted outright, so a
+  // bar-only tile uses the same `.has-chrome-row` grid as a badged one. The old
+  // rule spanned `.label` across both rows in the same column as `.chrome-line`,
+  // and `.tile-body`'s `align-items: center` then centered the label on top of
+  // the bottom-aligned bar. happy-dom does no layout, so the stylesheet text is
+  // the only assertable trace of the mechanism being gone.
+  const css = (): string => AdaptiveCoverProTileCard.styles.toString();
+
+  it('no longer spans the bar-only label across both grid rows', () => {
+    expect(css()).not.toContain('grid-row: 1 / -1');
+  });
+
+  it('has no bar-only grid override left at any breakpoint', () => {
+    expect(css()).not.toContain('.tile-body.detailed.bar-only');
+  });
+
+  it('still emits the bar-only class as a styling/test hook', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, show_badge: false },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    expect(body.classList.contains('bar-only')).toBe(true);
+  });
+
+  // The regression guard flagged during investigation: ~15 rules are scoped
+  // `.chrome-line .pos-*`, so the bar markup must stay under `.chrome-line`.
+  it('keeps .chrome-line as the bar’s wrapper, as a sibling of .label', async () => {
+    for (const showBadge of [true, false]) {
+      const el = await mount(
+        { type: TYPE, entry_id: ENTRY, show_badge: showBadge },
+        makeHass({ coverLeftCurrentPosition: 60 }),
+      );
+      const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+      expect(body.querySelector('.chrome-line .pos-bar')).toBeTruthy();
+      expect(body.querySelector('.label .chrome-line')).toBeFalsy();
+    }
+  });
+});
+
+describe('tile card — rail geometry (#260)', () => {
+  const css = (): string => AdaptiveCoverProTileCard.styles.toString();
+
+  // A lone rail and a stacked rail must be the same length. The stack is wider
+  // than a lone rail by exactly the glyph lane, so the glyphs hang to its LEFT
+  // instead of eating into the rails.
+  it('derives the glyph lane from the glyph size and row gap rather than hardcoding it', () => {
+    const text = css();
+    expect(text).toContain(
+      '--acp-rail-glyph-lane: calc(var(--acp-rail-glyph-size) + var(--acp-rail-glyph-gap))',
+    );
+    expect(text).toContain('calc(var(--acp-rail-basis) + var(--acp-rail-glyph-lane))');
+  });
+
+  it('sizes the glyph and the row gap from those same tokens, so the lane cannot drift', () => {
+    const text = css();
+    expect(text).toContain('width: var(--acp-rail-glyph-size)');
+    expect(text).toContain('gap: var(--acp-rail-glyph-gap)');
+  });
+
+  it('renders a bare rail with no glyph for a single cover', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    expect(body.querySelector('.pos-bar')).toBeTruthy();
+    expect(body.querySelector('.pos-stack')).toBeFalsy();
+    expect(body.querySelector('.pos-glyph')).toBeFalsy();
+  });
+
+  it('renders one glyph-led row per cover for a multi-cover entry', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
+    expect(body.querySelectorAll('.pos-stack .pos-row').length).toBe(2);
+    expect(body.querySelectorAll('.pos-stack .pos-row .pos-glyph').length).toBe(2);
+  });
+});
+
+describe('tile card — rail color is constant (#260)', () => {
+  const css = (): string => AdaptiveCoverProTileCard.styles.toString();
+
+  // A rail is a measurement, not a status light: it must not change hue as the
+  // cover crosses open/closed, and on a multi-rail tile the rails must agree.
+  it('paints the fill from the cover-active token, not the per-state one', () => {
+    const text = css();
+    expect(text).toContain('--acp-pos-fill-color');
+    expect(text).toContain('var(--state-cover-active-color');
+    expect(text).not.toContain('--state-cover-open-color');
+  });
+
+  it('never writes an inline background onto the fill', async () => {
+    for (const coverLeftState of ['open', 'closed']) {
+      const el = await mount(
+        { type: TYPE, entry_id: ENTRY },
+        makeHass({ coverLeftCurrentPosition: 60, coverLeftState }),
+      );
+      const fills = el.shadowRoot!.querySelectorAll('.pos-fill');
+      expect(fills.length).toBeGreaterThan(0);
+      for (const fill of fills) {
+        expect(fill.getAttribute('style') ?? '').not.toContain('background');
+      }
+    }
+  });
+});
+
+describe('tile card — low-battery overlay (#260)', () => {
+  /** `hass.entities` is the display registry the battery lookup walks; the
+   *  tile-card fixture has no reason to carry it otherwise. */
+  function withBattery(
+    hass: HomeAssistant,
+    level: string | null,
+    opts: { deviceClass?: string; entityId?: string } = {},
+  ): HomeAssistant {
+    const id = opts.entityId ?? 'sensor.left_battery';
+    const h = hass as unknown as {
+      states: Record<string, unknown>;
+      entities?: Record<string, { device_id?: string | null }>;
+    };
+    if (level !== null) {
+      h.states[id] = { state: level, attributes: { device_class: opts.deviceClass ?? 'battery' } };
+    }
+    h.entities = {
+      'cover.left': { device_id: 'dev_left' },
+      ...(level !== null ? { [id]: { device_id: 'dev_left' } } : {}),
+    };
+    return hass;
+  }
+
+  it('renders no overlay for a healthy battery', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
+      withBattery(makeHass({ coverLeftCurrentPosition: 60 }), '82'),
+    );
+    expect(el.shadowRoot!.querySelector('.battery-overlay')).toBeFalsy();
+  });
+
+  it('renders no overlay for a mains-powered cover with no battery entity', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
+      withBattery(makeHass({ coverLeftCurrentPosition: 60 }), null),
+    );
+    expect(el.shadowRoot!.querySelector('.battery-overlay')).toBeFalsy();
+  });
+
+  it('renders a level-appropriate overlay below the threshold', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
+      withBattery(makeHass({ coverLeftCurrentPosition: 60 }), '8'),
+    );
+    const overlay = el.shadowRoot!.querySelector('.battery-overlay')!;
+    expect(overlay).toBeTruthy();
+    expect(overlay.getAttribute('icon')).toBe('mdi:battery-outline');
+  });
+
+  // A battery sensor that has stopped reporting is exactly the warning case.
+  it('renders the alert overlay for an unknown level', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
+      withBattery(makeHass({ coverLeftCurrentPosition: 60 }), 'unavailable'),
+    );
+    expect(el.shadowRoot!.querySelector('.battery-overlay')!.getAttribute('icon')).toBe(
+      'mdi:battery-alert-variant-outline',
+    );
+  });
+
+  // Z-Wave/ZHA ship a binary_sensor battery alongside the percentage sensor.
+  it('ignores a binary_sensor battery instead of warning on its on/off state', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
+      withBattery(makeHass({ coverLeftCurrentPosition: 60 }), 'off', {
+        entityId: 'binary_sensor.left_battery',
+      }),
+    );
+    expect(el.shadowRoot!.querySelector('.battery-overlay')).toBeFalsy();
+  });
+
+  // Motion sits top-right, battery bottom-left, so both can show at once.
+  it('pins the two icon overlays to opposite corners', () => {
+    const text = AdaptiveCoverProTileCard.styles.toString();
+    expect(text).toMatch(/\.motion-overlay\s*\{[^}]*top:\s*-4px;[^}]*right:\s*-6px/);
+    expect(text).toMatch(/\.battery-overlay\s*\{[^}]*bottom:\s*-4px;[^}]*left:\s*-6px/);
+  });
+});
+
+describe('tile card — drag position readout (#260)', () => {
+  interface Draggable extends CardLike {
+    _posDrag: { id: string; pct: number } | null;
+  }
+
+  it('shows no readout when idle', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    );
+    expect(el.shadowRoot!.querySelector('.pos-readout')).toBeFalsy();
+  });
+
+  // The hover tooltip carries the same number, but a tooltip is mouse-only —
+  // on a phone the finger setting the position also covers the rail.
+  it('shows the live logical percentage on the dragged rail only', async () => {
+    const el = (await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    )) as Draggable;
+    el._posDrag = { id: 'cover.left', pct: 37 };
+    await el.updateComplete;
+
+    const readouts = el.shadowRoot!.querySelectorAll('.pos-readout');
+    expect(readouts.length).toBe(1);
+    expect(readouts[0].textContent!.trim()).toContain('37');
+  });
+
+  it('clears the readout when the drag ends', async () => {
+    const el = (await mount(
+      { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    )) as Draggable;
+    el._posDrag = { id: 'cover.left', pct: 37 };
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('.pos-readout')).toBeTruthy();
+
+    el._posDrag = null;
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('.pos-readout')).toBeFalsy();
+  });
+
+  // .pos-bar is overflow:hidden to clip the fill, so the readout must not live
+  // inside it, and it must never swallow the drag it reports on.
+  it('sits outside the clipped bar and is pointer-transparent', async () => {
+    const el = (await mount(
+      { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    )) as Draggable;
+    el._posDrag = { id: 'cover.left', pct: 37 };
+    await el.updateComplete;
+
+    expect(el.shadowRoot!.querySelector('.pos-slider > .pos-readout')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('.pos-bar .pos-readout')).toBeFalsy();
+    expect(AdaptiveCoverProTileCard.styles.toString()).toMatch(
+      /\.pos-readout\s*\{[^}]*pointer-events:\s*none/,
+    );
   });
 });

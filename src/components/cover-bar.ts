@@ -11,9 +11,9 @@ import {
   coverLogicalActuals,
   logicalAxisValue,
 } from '../lib/cover-position';
-import { formatPercent } from '../lib/formatters';
+import { formatCoverState, formatPercent } from '../lib/formatters';
 import { AXIS_LABEL_I18N_KEYS } from '../const';
-import { resolveAxes, type ResolvedAxis } from '../lib/axes';
+import { axisDisplayValue, positionAxisFor, resolveAxes, type ResolvedAxis } from '../lib/axes';
 import { setAxes } from '../lib/services';
 import { t } from '../lib/i18n';
 import { tooltip } from '../lib/tooltip';
@@ -28,6 +28,12 @@ export class CoverBar extends LitElement {
    *  closed segment to match the compass cover wedge. Null falls back to
    *  `--primary-color`, exactly like the compass in single-entry mode. */
   @property({ attribute: false }) public coverColor: string | null = null;
+
+  /** Explicit rail order/subset, threaded down from the tile card's `covers`.
+   *  Undefined leaves the integration's own order (the config flow's
+   *  entity-pick order) untouched, which is every other caller's behavior. Ids
+   *  the entry doesn't manage are ignored. */
+  @property({ attribute: false }) public coverOrder?: string[];
 
   /** Live client-side preview for a Position track drag/keyboard-in-progress —
    *  set on pointerdown/pointermove, cleared on pointerup/pointercancel. Drives
@@ -162,7 +168,15 @@ export class CoverBar extends LitElement {
     const overrideDivergence = isOverrideDivergence(this.hass, this.discovered);
     const motorDivergence = this._motorDivergence();
     const transit = this._transit();
-    const entries = Object.entries(covers);
+    // An order that matches nothing falls back to the integration's own order,
+    // for the same reason the tile does: a `covers` list whose entities were all
+    // renamed must not blank the surface out entirely.
+    const ordered = this.coverOrder?.length
+      ? this.coverOrder
+          .filter((id) => id in covers)
+          .map((id): [string, number | null] => [id, covers[id]])
+      : [];
+    const entries = ordered.length > 0 ? ordered : Object.entries(covers);
     if (entries.length === 0) {
       return html`<div class="placeholder">${t('covers.placeholder', this.hass)}</div>`;
     }
@@ -172,6 +186,10 @@ export class CoverBar extends LitElement {
     // the same position (+ optional tilt) set, so output is unchanged.
     const axes = resolveAxes(this.discovered);
     const secondaryAxes = axes.filter((a) => a.id !== 'position');
+    // Carries the rail polarity (`open_blocks_sun`), with the same synthesized
+    // fallback every other surface uses — a local copy is how the three
+    // fallbacks drifted apart in the first place.
+    const positionAxis = positionAxisFor(this.discovered);
     const secondaryTargets = new Map(secondaryAxes.map((a) => [a.id, this._axisTarget(a)]));
     return html`
       <div class="wrap" style=${this.coverColor ? `--acp-cover-color:${this.coverColor}` : nothing}>
@@ -209,6 +227,7 @@ export class CoverBar extends LitElement {
                 mismatched.has(id),
                 overrideDivergence,
                 transit[id] ?? null,
+                positionAxis,
               )}
               ${secondaryAxes.map(
                 (axis) =>
@@ -220,6 +239,7 @@ export class CoverBar extends LitElement {
                     .unit=${axis.unit}
                     .actual=${this._axisActual(axis, id)}
                     .target=${secondaryTargets.get(axis.id) ?? null}
+                    .openBlocksSun=${axis.openBlocksSun}
                     .coverColor=${this.coverColor}
                     .compact=${this.compact}
                     @acp-tilt-set=${(e: CustomEvent<number>) =>
@@ -240,17 +260,31 @@ export class CoverBar extends LitElement {
     mismatch: boolean,
     overrideDivergence: boolean,
     transitDir: 'opening' | 'closing' | null,
+    axis: ResolvedAxis,
   ): TemplateResult {
     const friendly =
       (this.hass.states[entityId]?.attributes?.friendly_name as string | undefined) ?? entityId;
-    const actualPct = actual ?? 0;
     const targetPct = target ?? 0;
     // A drag/keyboard gesture in progress for this row overrides the server-truth
     // percentage in the fill bar and the percent readout; every other row (and
     // this row once the drag ends) renders from `actual` unchanged.
     const dragPct = this._dragPreview?.entityId === entityId ? this._dragPreview.pct : null;
-    const fillPct = dragPct ?? actualPct;
     const numText = dragPct !== null ? formatPercent(dragPct) : formatPercent(actual);
+    // What the track paints: the sun-blocking fraction, per the axis's own
+    // `open_blocks_sun` polarity. The readout above stays the integration's
+    // position value — only the geometry flips. See `axisDisplayValue`.
+    // A cover with no reading draws EMPTY, not full: `actual ?? 0` fed through a
+    // mirrored axis yields a completely filled track, which would read as
+    // "fully blocking" for a cover that has told us nothing.
+    const drawnValue = dragPct ?? actual;
+    const fillPct = drawnValue === null ? 0 : axisDisplayValue(drawnValue, axis);
+    const markerPct = axisDisplayValue(targetPct, axis);
+    // "Open · 25%", the same readout the tile card shows. A no-feedback cover's
+    // in-transit direction is folded in as the state word ("Opening"), which is
+    // why the separate arrow glyph below only renders when there is no state
+    // text to say it — otherwise the row states the same thing twice.
+    // Null (and so omitted) for an unavailable cover, leaving the bare percent.
+    const stateText = formatCoverState(this.hass, entityId, transitDir ?? undefined);
     return html`
       <div class="cover ${mismatch ? 'mismatch' : ''}">
         <div
@@ -264,13 +298,15 @@ export class CoverBar extends LitElement {
           ${friendly}
         </div>
         <div class="num">
-          ${transitDir
+          ${transitDir && !stateText
             ? html`<ha-icon
                 class="transit transit-${transitDir}"
                 icon=${transitDir === 'opening' ? 'mdi:arrow-up-thin' : 'mdi:arrow-down-thin'}
                 ${tooltip(t('covers.' + transitDir, this.hass))}
               ></ha-icon>`
-            : nothing}${numText}
+            : nothing}${stateText
+            ? html`<span class="num-state">${stateText}</span><span class="num-sep"> · </span>`
+            : nothing}<span class="num-pct">${numText}</span>
         </div>
         <div
           class="track"
@@ -279,14 +315,14 @@ export class CoverBar extends LitElement {
           aria-valuemin="0"
           aria-valuemax="100"
           aria-valuenow=${fillPct}
-          aria-valuetext=${numText}
+          aria-valuetext=${t('covers.position_open_value', this.hass, { pct: numText })}
           aria-label=${t('covers.position_slider_label', this.hass)}
-          @click=${(e: MouseEvent) => this._handleTrackClick(e, entityId)}
-          @pointerdown=${(e: PointerEvent) => this._onTrackPointerDown(e, entityId)}
-          @pointermove=${(e: PointerEvent) => this._onTrackPointerMove(e, entityId)}
+          @click=${(e: MouseEvent) => this._handleTrackClick(e, entityId, axis)}
+          @pointerdown=${(e: PointerEvent) => this._onTrackPointerDown(e, entityId, axis)}
+          @pointermove=${(e: PointerEvent) => this._onTrackPointerMove(e, entityId, axis)}
           @pointerup=${() => this._onTrackPointerEnd(entityId)}
           @pointercancel=${() => this._onTrackPointerEnd(entityId)}
-          @keydown=${(e: KeyboardEvent) => this._onTrackKeydown(e, entityId, actualPct)}
+          @keydown=${(e: KeyboardEvent) => this._onTrackKeydown(e, entityId, fillPct, axis)}
           ${tooltip(t('covers.click_to_set', this.hass))}
         >
           <div class="fill" style="width:${fillPct}%"></div>
@@ -294,7 +330,7 @@ export class CoverBar extends LitElement {
           ${target !== null
             ? html`<div
                 class="marker"
-                style="left:clamp(1px, ${targetPct}%, calc(100% - 1px))"
+                style="left:clamp(1px, ${markerPct}%, calc(100% - 1px))"
                 ${tooltip(
                   t(
                     overrideDivergence ? 'covers.target_tooltip_override' : 'covers.target_tooltip',
@@ -334,30 +370,30 @@ export class CoverBar extends LitElement {
     return Math.max(0, Math.min(100, pct));
   }
 
-  private _handleTrackClick(e: MouseEvent, entityId: string): void {
+  private _handleTrackClick(e: MouseEvent, entityId: string, axis: ResolvedAxis): void {
     const track = e.currentTarget as HTMLElement;
     const clamped = this._pctFromEvent(e, track);
-    this._setAxis(entityId, 'position', clamped);
+    this._setAxis(entityId, 'position', axisDisplayValue(clamped, axis));
   }
 
   /** Begin a drag: capture the pointer (best-effort — happy-dom may not
    *  implement it) and start the live client-side preview for this row. No
    *  `preventDefault()` here — suppressing it would also suppress the
    *  trailing compatibility `click` the commit path depends on. */
-  private _onTrackPointerDown = (e: PointerEvent, entityId: string): void => {
+  private _onTrackPointerDown = (e: PointerEvent, entityId: string, axis: ResolvedAxis): void => {
     const track = e.currentTarget as HTMLElement;
     (track as HTMLElement & { setPointerCapture?: (id: number) => void }).setPointerCapture?.(
       e.pointerId,
     );
-    this._dragPreview = { entityId, pct: this._pctFromEvent(e, track) };
+    this._dragPreview = { entityId, pct: axisDisplayValue(this._pctFromEvent(e, track), axis) };
   };
 
   /** Update the live preview while dragging. No-op for any row other than the
    *  one that owns the current drag. */
-  private _onTrackPointerMove = (e: PointerEvent, entityId: string): void => {
+  private _onTrackPointerMove = (e: PointerEvent, entityId: string, axis: ResolvedAxis): void => {
     if (this._dragPreview?.entityId !== entityId) return;
     const track = e.currentTarget as HTMLElement;
-    this._dragPreview = { entityId, pct: this._pctFromEvent(e, track) };
+    this._dragPreview = { entityId, pct: axisDisplayValue(this._pctFromEvent(e, track), axis) };
   };
 
   /** End of gesture: clear the preview for this row. Never calls a service —
@@ -371,7 +407,12 @@ export class CoverBar extends LitElement {
   /** Standard WAI-ARIA slider keyboard pattern on the focused `.track`:
    *  Arrow keys step by 1, Page keys by 10, Home/End jump to the extremes.
    *  Commits immediately via `_setAxis` (no drag preview involved). */
-  private _onTrackKeydown(e: KeyboardEvent, entityId: string, current: number): void {
+  private _onTrackKeydown(
+    e: KeyboardEvent,
+    entityId: string,
+    current: number,
+    axis: ResolvedAxis,
+  ): void {
     let next: number;
     switch (e.key) {
       case 'ArrowRight':
@@ -399,7 +440,7 @@ export class CoverBar extends LitElement {
     }
     e.preventDefault();
     const clamped = Math.max(0, Math.min(100, next));
-    this._setAxis(entityId, 'position', clamped);
+    this._setAxis(entityId, 'position', axisDisplayValue(clamped, axis));
   }
 
   public static styles = css`
@@ -443,11 +484,35 @@ export class CoverBar extends LitElement {
       display: grid;
       /* Final column is fixed at the warn-icon size (16px) rather than auto so
          the track (3fr) keeps the same width whether or not the badge renders —
-         a toggling badge no longer reflows the bar graph (#158). */
-      grid-template-columns: minmax(80px, 1fr) 48px 3fr 16px;
+         a toggling badge no longer reflows the bar graph (#158).
+
+         The readout column carries "Open · 25%" and is FIXED, not minmax: every
+         row is its own grid, so an auto-sized track resolves to that row's own
+         max-content and two rows with different state words would put their
+         tracks at different x. A longer localized state (de "Geschlossen")
+         ellipsises the state word instead — .num-pct is never truncated, so the
+         percentage always survives. */
+      grid-template-columns: minmax(80px, 1fr) 11ch 3fr 16px;
       gap: 8px;
       align-items: center;
       font-size: 0.82rem;
+    }
+    /* Floating-tooltip cursor lifecycle for this shadow root's INERT tooltip
+       carriers: the transit arrow and the header target chip. Restated here
+       because a shadow root cannot borrow its host's copy of this pair.
+
+       Deliberately not a bare [data-tooltip] selector. The other three anchors
+       in here are interactive and already carry the right cursor — .name is a
+       role="button" that opens more-info, and .track / the tilt track are
+       drag-to-set sliders — so a blanket rule would replace three correct
+       pointers with a help cursor that promises information instead of action. */
+    .transit[data-tooltip]:hover,
+    .target[data-tooltip]:hover {
+      cursor: help;
+    }
+    .transit[data-tooltip][acp-tt-shown],
+    .target[data-tooltip][acp-tt-shown] {
+      cursor: default;
     }
     /* The cover name is a tap target that opens the entry's more-info dialog,
        so it carries a pointer cursor and a keyboard focus ring. It still hovers
@@ -489,19 +554,24 @@ export class CoverBar extends LitElement {
       display: none;
     }
     /* Both segments derive from the cover colour (override, else --primary-color),
-       distinguished by opacity: open is pale, closed is solid — "lighter = more
-       open" — matching the compass FOV (light) vs cover wedge (solid) of the same
-       hue. No gold, so nothing competes with the gold sun on the compass. */
+       distinguished by opacity: blocking is solid, clear is pale — "lighter =
+       more open" — matching the compass FOV (light) vs cover wedge (solid) of
+       the same hue. No gold, so nothing competes with the gold sun on the compass.
+
+       .fill is the LEADING segment and now carries the sun-blocking portion, so
+       the track fills from the left as the cover closes — the same polarity as
+       the tile rails and the compass wedge. Class names are kept (a rename buys
+       nothing the comment does not) but the colours swapped with the meaning. */
     .fill {
       height: 100%;
       flex-shrink: 0;
-      background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 18%, transparent);
+      background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 50%, transparent);
       transition: width 0.3s ease;
     }
     .fill-closed {
       height: 100%;
       flex-shrink: 0;
-      background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 50%, transparent);
+      background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 18%, transparent);
       transition: width 0.3s ease;
     }
     /* The marker is centred on its left value via translateX(-50%) and its
@@ -523,6 +593,20 @@ export class CoverBar extends LitElement {
       align-items: center;
       justify-content: flex-end;
       gap: 2px;
+      white-space: nowrap;
+      min-width: 0;
+      overflow: hidden;
+    }
+    /* The state word yields first; the percentage is the part that must never
+       be cut, so it holds its intrinsic width. */
+    .num-state {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .num-sep,
+    .num-pct {
+      flex: 0 0 auto;
     }
     /* In-transit motion indicator for no-feedback covers: a small direction
        arrow beside the percent, sized to the .num text. */
@@ -549,9 +633,10 @@ export class CoverBar extends LitElement {
       color: var(--warning-color, orange);
       --mdc-icon-size: 16px;
     }
-    /* On a position mismatch the open segment is already gold, so recoloring it
-       gold would be invisible — flag the divergence with the error colour and
-       lean on the warn icon at the end of the row. */
+    /* On a position mismatch, recolour the leading (sun-blocking) segment with
+       the error colour and lean on the warn icon at the end of the row. It is
+       the segment that carries the cover hue, so tinting it is what reads as a
+       divergence rather than as a second cover colour. */
     .mismatch .fill {
       background: color-mix(in srgb, var(--error-color, crimson) 35%, transparent);
     }
