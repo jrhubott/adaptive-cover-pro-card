@@ -635,8 +635,17 @@ export class MoreInfoDialog extends LitElement {
     this._navigate(`/config/devices/device/${deviceId}`);
   };
 
+  /** The `#config_entry=` hash is read by HA's own integration page, which
+   *  scrolls that row into view and highlights it — so the user lands on this
+   *  profile rather than an unsorted list, with HA's Configure cog one click
+   *  away. The options flow dialog itself can't be opened from a custom card:
+   *  its element is a lazy import inside HA's bundle graph. */
   private _openIntegrationPage = (): void => {
-    this._navigate(`/config/integrations/integration/${INTEGRATION_DOMAIN}`);
+    const entryId = this.discovered.entry_id;
+    this._navigate(
+      `/config/integrations/integration/${INTEGRATION_DOMAIN}` +
+        (entryId ? `#config_entry=${entryId}` : ''),
+    );
   };
 
   private _navigate(path: string): void {
