@@ -231,6 +231,7 @@ export const de: EnDict = {
     tilt_target: 'Neigung: {pct}',
     tilt_click_to_set: 'Klicken zum Festlegen der Neigung',
     tilt_target_tooltip: 'Neigungsziel {pct}%',
+    goto_target: 'Auf Ziel fahren ({pct}%) — automatische Steuerung bleibt aktiv',
   },
   decision: {
     placeholder: 'Entscheidungsprotokoll noch nicht befüllt.',
@@ -300,6 +301,9 @@ export const de: EnDict = {
     loading: 'Wird geladen…',
     entry_not_found: 'Adaptive Cover Pro-Eintrag {entry} nicht gefunden.',
     unavailable: 'Nicht verfügbar',
+    rails_layered: '{count} Behänge einer Beschattung',
+    rails_separate: '{count} Beschattungen',
+    rails_layered_hint: 'Behänge einer Beschattung',
   },
   formatters: {
     expired: 'abgelaufen',

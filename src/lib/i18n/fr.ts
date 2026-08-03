@@ -236,6 +236,7 @@ export const fr: EnDict = {
     tilt_target: 'Inclinaison : {pct}',
     tilt_click_to_set: "Cliquer pour définir l'inclinaison",
     tilt_target_tooltip: 'Cible inclinaison {pct}%',
+    goto_target: 'Aller à la cible ({pct}%) — le contrôle automatique est conservé',
   },
   decision: {
     placeholder: "La trace de décision n'est pas encore renseignée.",
@@ -305,6 +306,9 @@ export const fr: EnDict = {
     loading: 'Chargement…',
     entry_not_found: 'Instance Adaptive Cover Pro {entry} introuvable.',
     unavailable: 'Indisponible',
+    rails_layered: '{count} toiles d’un même store',
+    rails_separate: '{count} stores',
+    rails_layered_hint: 'Toiles d’un même store',
   },
   formatters: {
     expired: 'expiré',

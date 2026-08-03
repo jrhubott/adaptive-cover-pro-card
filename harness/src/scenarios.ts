@@ -2755,6 +2755,92 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'goto-target-button',
+    label: 'Snap to target — per-cover ⊙ button',
+    description:
+      'OPEN THE MORE-INFO DIALOG (tap the tile) and look at the COVERS section. Every cover row now ends with an mdi:target button between the track and the warn-icon column. It drives THAT cover to the value its own orange marker sits at — the entry\'s solar target — so the row visibly closes the gap between fill and marker. This entry is deliberately parked well away from its target (covers at 100/20/65 against a target of 45) so all three rows have somewhere to travel, and the three covers give the per-cover claim something to prove: press one button and exactly ONE row moves. WATCH THE SERVICE LOG — the call is set_axes with force:true, and that flag is the whole design decision. The integration reads force:true as "skip manual-override engagement", NOT "move harder": every other write in this component (drag, click, arrow keys) omits it, because a drag means the user picked a value ACP did not, so an override has to hold it. This button drives to the value ACP picked ITSELF, and engaging an override there would freeze automation at its own answer the instant you re-synced it. So the cover moves and the pipeline keeps control. The tooltip and the accessible name both say "keeps automatic control" for that reason — if that ever reads as "pin it here", the wording is wrong, not the flag. Check the GEOMETRY too: the button column is fixed at 22px, never auto. It empties out on an entry with no target, and an auto column would hand those pixels to the track and reflow the bar graph on every target change — the same reason the warn column next to it is fixed (#158). Switch this entry to a VENETIAN in the control panel to check the other half: the tilt row underneath is a SEPARATE grid that mirrors this one column-for-column, so it grew a matching 22px spacer. The tilt track must stay perfectly aligned with the position track above it — any offset means the two grids drifted. Tilt gets no button of its own: this one drives the position axis, and a tilt target is a different value.',
+    added: '2026-08-02',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'goto-target-button';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Dining Room Shade',
+          cover_type: 'cover_blind',
+          window_azimuth: 180,
+          color: '#42a5f5',
+          target_position: 45,
+          covers: [
+            { entity_id: 'cover.dining_left', friendly_name: 'Dining Left', position: 100 },
+            { entity_id: 'cover.dining_mid', friendly_name: 'Dining Middle', position: 20 },
+            { entity_id: 'cover.dining_right', friendly_name: 'Dining Right', position: 65 },
+          ],
+        }),
+      ];
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
+    id: 'layered-rails-vs-separate-covers',
+    label: 'Rail stack — layers of one cover vs. separate covers',
+    description:
+      'THE side-by-side repro. Both tiles render a stack of position rails and until now looked identical — same glyph, same spacing — even though they mean completely different things. Tile 1 is a day/night shade: TWO RAILS OF ONE PHYSICAL SHADE (bottom rail carries the coverage, middle rail the sheer-vs-blackout fabric split), bound by the integration\'s dual_entity control model. Tile 2 is an ordinary blind entry someone attached THREE SEPARATE WINDOWS to. Tile 1 must now draw a BRACE — a hairline down the lane between the glyph column and the rails, spanning rail-center to rail-center — and its rows sit tighter (2px vs 5px). Tile 2 must be pixel-identical to before: no brace, 5px gaps, nothing changed on the common path. Check the geometry too: the brace is absolutely positioned so it adds no layout width, and the layered stack widens its glyph GAP (6→10px) to make room, which moves the stack\'s LEFT edge out while the rails keep their length and their right edge — the alignment invariant from issue #260. Both stacks carry a role="group" with an accessible name ("2 rails of one cover" / "3 covers"), so the distinction reaches a screen reader and not just the eye. The discriminator is the integration cover_type, NOT the rail count: cover_day_night_shade and cover_dual_panel are the two types whose managed covers are layers of one opening; every other type takes one cover per window. Switch tile 1\'s cover type to cover_blind in the control panel and the brace must vanish, because two blinds on one entry are two windows. Narrow it to a single rail ("First rail only" under covers) and the brace goes with the stack — a lone rail is one cover, and bracketing it would say something untrue.',
+    added: '2026-08-02',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'layered-rails-vs-separate-covers';
+      c.entries = [
+        // Layers of ONE cover: the brace case.
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Side Yard Shade',
+          cover_type: 'cover_day_night_shade',
+          window_azimuth: 180,
+          color: '#7e57c2',
+          target_position: 60,
+          covers: [
+            {
+              entity_id: 'cover.side_yard_bottom',
+              friendly_name: 'Side Yard Shade bottom rail',
+              position: 60,
+              tilt: 0,
+            },
+            {
+              entity_id: 'cover.side_yard_middle',
+              friendly_name: 'Side Yard Shade middle rail',
+              position: 25,
+              tilt: 0,
+              icon: 'mdi:blinds-horizontal',
+              command_target: 30,
+            },
+          ],
+        }),
+        // Three SEPARATE windows on one entry: the unchanged case.
+        makeEntry({
+          entry_id: 'front_bank',
+          title: 'Front Shades',
+          cover_type: 'cover_blind',
+          window_azimuth: 170,
+          color: '#26a69a',
+          target_position: 40,
+          covers: [
+            { entity_id: 'cover.front_left', friendly_name: 'Front Shades left', position: 100 },
+            { entity_id: 'cover.front_mid', friendly_name: 'Front Shades middle', position: 100 },
+            { entity_id: 'cover.front_right', friendly_name: 'Front Shades right', position: 100 },
+          ],
+        }),
+      ];
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
     id: 'icon-tap-action-shape',
     label: 'Icon tap behavior — tinted shape',
     description:

@@ -9,7 +9,11 @@ export type CoverType =
   /** Day/night dual-fabric shade. In the integration's `dual_entity` control
    *  model one entry binds two rail cover entities, so the card must handle a
    *  multi-cover entry that is not a Cover Group. */
-  | 'cover_day_night_shade';
+  | 'cover_day_night_shade'
+  /** Sheer + blackout panels over ONE window. Like the day/night shade it binds
+   *  two cover entities per opening — the other cover type whose managed covers
+   *  are layers rather than separate windows. */
+  | 'cover_dual_panel';
 
 /**
  * Cover Group state a group HarnessEntry carries (issue #185). Mirrors the

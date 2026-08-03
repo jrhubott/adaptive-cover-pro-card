@@ -118,6 +118,26 @@ export class CoverBar extends LitElement {
     setAxes(this.hass, entityId, { [axisId]: value });
   }
 
+  /**
+   * Snap one cover to the target the row is already drawing a marker at.
+   *
+   * `force: true` — the integration reads that as "skip manual-override
+   * engagement", NOT "move harder". That is deliberately the opposite of every
+   * other write in this component: a drag means the user wants a value ACP did
+   * not pick, so it engages an override to hold it. This button drives to the
+   * value ACP picked ITSELF, and pinning automation at its own answer would
+   * freeze the cover the moment it was re-synced. So the move lands and the
+   * pipeline stays in charge to re-decide on its next run.
+   *
+   * Sends the LOGICAL target unconverted: the sensor already publishes it in the
+   * logical frame, and `axisDisplayValue` is only for turning a DRAWN fraction
+   * back into one (see `_handleTrackClick`). Running it through here would
+   * mirror the value on a blind and drive the cover to its complement.
+   */
+  private _gotoTarget(entityId: string, target: number): void {
+    setAxes(this.hass, entityId, { position: target }, { force: true });
+  }
+
   /** Solar target for an axis from its target sensor's state, or null when the
    *  sensor is absent / non-numeric. */
   private _axisTarget(axis: ResolvedAxis): number | null {
@@ -341,6 +361,17 @@ export class CoverBar extends LitElement {
               ></div>`
             : nothing}
         </div>
+        ${target !== null
+          ? html`<button
+              class="goto-target"
+              type="button"
+              aria-label=${t('covers.goto_target', this.hass, { pct: targetPct })}
+              ${tooltip(t('covers.goto_target', this.hass, { pct: targetPct }))}
+              @click=${() => this._gotoTarget(entityId, target)}
+            >
+              <ha-icon icon="mdi:target"></ha-icon>
+            </button>`
+          : html`<span class="goto-target-spacer"></span>`}
         ${mismatch && !overrideDivergence
           ? html`<ha-icon class="warn" icon="mdi:alert-circle-outline"></ha-icon>`
           : nothing}
@@ -491,11 +522,46 @@ export class CoverBar extends LitElement {
          max-content and two rows with different state words would put their
          tracks at different x. A longer localized state (de "Geschlossen")
          ellipsises the state word instead — .num-pct is never truncated, so the
-         percentage always survives. */
-      grid-template-columns: minmax(80px, 1fr) 11ch 3fr 16px;
+         percentage always survives.
+
+         The go-to-target column is FIXED for the same reason the warn column is:
+         it empties out whenever the entry has no target, and an auto column
+         would hand those pixels to the track and reflow the bar graph. A spacer
+         holds the cell instead. Keep in lock-step with acp-tilt-bar's .row.cover
+         grid — they are separate grids stacked in one .cover-group. */
+      grid-template-columns: minmax(80px, 1fr) 11ch 3fr 22px 16px;
       gap: 8px;
       align-items: center;
       font-size: 0.82rem;
+    }
+    /* Snap this cover to the marker's value. Sized and coloured like the row's
+       other glyphs rather than like a control, so a row of covers does not read
+       as a row of buttons — it lights up on hover/focus. */
+    .goto-target {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: none;
+      cursor: pointer;
+      color: var(--secondary-text-color);
+      --mdc-icon-size: 16px;
+      transition:
+        color 0.15s ease,
+        background 0.15s ease;
+    }
+    .goto-target:hover {
+      color: var(--accent-color, var(--primary-color));
+      background: color-mix(in srgb, currentColor 14%, transparent);
+    }
+    .goto-target:focus-visible {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 1px;
+      color: var(--accent-color, var(--primary-color));
     }
     /* Floating-tooltip cursor lifecycle for this shadow root's INERT tooltip
        carriers: the transit arrow and the header target chip. Restated here
@@ -549,6 +615,11 @@ export class CoverBar extends LitElement {
     :host([compact]) .cover {
       font-size: 0.75rem;
       gap: 6px;
+    }
+    :host([compact]) .goto-target {
+      width: 18px;
+      height: 18px;
+      --mdc-icon-size: 14px;
     }
     :host([compact]) .head {
       display: none;

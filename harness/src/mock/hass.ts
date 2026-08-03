@@ -181,6 +181,10 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'covers.target': 'Target: {pct}',
   'covers.target_solar': 'Solar target: {pct}',
   'covers.target_tooltip': 'Target {pct}%',
+  // Per-cover snap-to-target button. Its call carries force:true, which the
+  // integration reads as "skip manual-override engagement" — the wording has to
+  // say that, or the button reads as "pin it here".
+  'covers.goto_target': 'Move to target ({pct}%) — keeps automatic control',
   'covers.target_tooltip_override':
     'Would-be solar target {pct}% — cover is held by manual override',
   'covers.click_to_set': 'Click to set position',
@@ -210,6 +214,10 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'dialog.extend.tomorrow_suffix': ' (tomorrow)',
   'tile.motion_detected': 'Occupancy detected',
   'tile.motion_pending': 'Occupancy timeout',
+  // Rail-stack group label: layers of one cover vs. separate covers.
+  'tile.rails_layered': '{count} rails of one cover',
+  'tile.rails_separate': '{count} covers',
+  'tile.rails_layered_hint': 'Rails of one cover',
   'dialog.floor': '↥',
   'dialog.floor_tooltip': 'Custom position floor is raising the calculated value.',
   'badge.floor_suffix': ' ↥',

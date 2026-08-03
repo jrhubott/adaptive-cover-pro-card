@@ -583,7 +583,20 @@ export class AcpHarnessControlPanel extends LitElement {
                 cover_type: (ev.target as HTMLSelectElement).value as CoverType,
               })}
           >
-            ${(['cover_blind', 'cover_awning', 'cover_tilt', 'cover_venetian'] as CoverType[]).map(
+            ${(
+              [
+                'cover_blind',
+                'cover_awning',
+                'cover_tilt',
+                'cover_venetian',
+                // The two LAYERED types, whose managed covers are rails of one
+                // opening rather than separate windows. Listed so the rail-stack
+                // brace can be toggled on and off from the panel — it was only
+                // reachable by picking a scenario that hardcoded the type.
+                'cover_day_night_shade',
+                'cover_dual_panel',
+              ] as CoverType[]
+            ).map(
               (c) =>
                 html`<option value=${c} ?selected=${e.cover_type === c}>${c.slice(6)}</option>`,
             )}

@@ -230,6 +230,7 @@ export const en = {
     tilt_target: 'Tilt: {pct}',
     tilt_click_to_set: 'Click to set tilt',
     tilt_target_tooltip: 'Tilt target {pct}%',
+    goto_target: 'Move to target ({pct}%) — keeps automatic control',
   },
   decision: {
     placeholder: 'Decision trace not yet populated.',
@@ -299,6 +300,9 @@ export const en = {
     loading: 'Loading…',
     entry_not_found: 'Adaptive Cover Pro entry {entry} not found.',
     unavailable: 'Unavailable',
+    rails_layered: '{count} rails of one cover',
+    rails_separate: '{count} covers',
+    rails_layered_hint: 'Rails of one cover',
   },
   formatters: {
     expired: 'expired',

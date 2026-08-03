@@ -267,8 +267,13 @@ export class AxisBar extends LitElement {
       /* Must stay identical to acp-cover-bar's .cover grid — these are two
          separate grids stacked in one .cover-group, so any divergence offsets
          this track from the position track directly above it. Fixed, not
-         minmax: an auto track resolves per-grid to its own content. */
-      grid-template-columns: minmax(80px, 1fr) 11ch 3fr 16px;
+         minmax: an auto track resolves per-grid to its own content.
+
+         The 22px column is the position row's go-to-target button. This row has
+         no counterpart — the button drives the POSITION axis, and a tilt target
+         is a separate value — so the column is present here purely as a spacer
+         to keep the two tracks aligned. */
+      grid-template-columns: minmax(80px, 1fr) 11ch 3fr 22px 16px;
       gap: 8px;
       font-size: 0.82rem;
     }
