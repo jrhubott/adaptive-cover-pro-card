@@ -314,6 +314,9 @@ export interface TileCardOptions {
   show_automation: boolean;
   show_clear_overrides: boolean;
   show_member_badges: boolean;
+  /** Per-member roster display-name overrides, keyed by member entry_id (or a
+   *  generic cover's entity_id). Mirrors the card's `member_names`. */
+  member_names?: Record<string, string>;
   show_position: boolean;
   show_state: boolean;
   show_decision_summary: boolean;

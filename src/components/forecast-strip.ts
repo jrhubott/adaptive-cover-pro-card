@@ -282,11 +282,18 @@ export class ForecastStrip extends LitElement {
           <text class="axis-label" x="4" y=${TOP_PAD + 8} text-anchor="start">
             ${axisValueText(primary.max, primary)}
           </text>
-          ${ticks} ${trackCurves}
+          ${ticks}
+          <!-- Actual UNDER the forecast, deliberately. SVG paints in document
+               order and .actual-curve is the thicker stroke (1.75 vs 1.5), so
+               drawing it last hid the forecast completely wherever the two
+               agreed — which is most of a normal day, and read as "the blue line
+               is missing" rather than "the lines coincide". Underneath, the
+               extra width becomes a halo: agreement shows as a blue core in a
+               magenta casing, divergence still shows two separate lines. -->
           ${actualPoints
             ? svg`<polyline class="track actual-curve" points=${actualPoints} fill="none"></polyline>`
             : nothing}
-          ${eventGroups} ${hoverGuide} ${nowCursor}
+          ${trackCurves} ${eventGroups} ${hoverGuide} ${nowCursor}
         </svg>
         ${this._renderLegend(drawn, hasHistory)} ${hoverLabel}
       </div>

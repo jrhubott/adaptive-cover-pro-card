@@ -2755,6 +2755,121 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'group-spread-bar',
+    label: 'Group tile — spread bar, driven count, drag-only rail',
+    description:
+      'The Living Room group, rebuilt from the real install: five covers, three at 40% and two at 0%, so the aggregate sensor publishes 24% — the mean of two clusters, a number NO cover has ever been at. Three things change on the tile. (1) THE RAIL SHOWS THE SPREAD, not the mean: a solid fill to the least-covered member, a translucent band from there to the most-covered one, and a tick per DISTINCT member value. Two clusters draw two ticks, so "Mixed" stops being a word and becomes a picture. Set every member to the same position in the control panel and the band disappears and the ticks stack into one — that is the case where a plain fill was always honest, and it still looks like one. (2) THE STATE LINE SHOWS THE RANGE: "Mixed · 0–40%" instead of "Mixed · 24%". The aggregate 24% is the mean of two clusters and describes no cover at all; the range says what they are actually at, in the LOGICAL frame the covers report rather than the coverage frame the bar draws, which is mirrored on a blind. It collapses to a single number when they agree. An EXCEPTION takes the slot whenever there is one: park a member on a manual override and the line reads "1 held", make one unavailable and it reads "1 unavailable" — unavailable wins, being the harder failure. An earlier draft put the group-driven count here and it was useless: a group drives members only while a scene or the lock is active, so it read "0 of 5" permanently, and the N/M badge beside it already said so. (3) THE RAIL IS DRAG-ONLY. group_set_position flattens EVERY member onto one value and takes them all off solar, so a tap must not commit it. Tap the rail — nothing happens, no service call in the log. Now DRAG it: the spread visibly collapses into a single fill under your finger (deliberate — that collapse IS the preview of what the write does), and exactly one group_set_position fires on release. Drag less than 4px and it is still treated as a tap and does nothing. Keyboard is unchanged: the arrows were always deliberate, and they still commit. Check the accessible name too — with the members disagreeing the slider reads "0% to 40% across 5 covers" rather than a single fake number.',
+    added: '2026-08-03',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-spread-bar';
+      c.entries = [
+        makeGroupEntry({
+          entry_id: 'living_room',
+          title: 'Living Room',
+          group: {
+            member_positions: {
+              'cover.front_left': 40,
+              'cover.front_center': 40,
+              'cover.front_right': 40,
+              'cover.side_left': 0,
+              'cover.side_right': 0,
+            },
+            member_winners: {
+              'cover.front_left': 'solar',
+              'cover.front_center': 'solar',
+              'cover.front_right': 'solar',
+              'cover.side_left': 'solar',
+              'cover.side_right': 'solar',
+            },
+            // The mean the integration publishes, and the reason the old rail
+            // was wrong: no member is at 24.
+            aggregate_position: 24,
+            state: 'mixed',
+            active_scene: 'none',
+            scene_option: 'auto',
+            locked: false,
+            automation: true,
+            climate_mode: 'summer_mode',
+          },
+        }),
+      ];
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
+    id: 'group-multi-cover-member-names',
+    label: 'Group roster — one row per ENTRY, not per cover',
+    description:
+      'OPEN THE GROUP TILE and count the roster rows: TWO, not five. The group adopts five covers, but they belong to only two ACP entries — "Front Left Shade" driving front-left/center/right and "Side Left Shade" driving side-left/right — so the roster folds by owning entry and each row carries that entry\'s covers as its RAILS. It is the same thing the cover tile already renders for a multi-cover entry on a dashboard: three rails on the first row, two on the second. Before this, member_positions was mapped straight to rows, so an entry driving three covers contributed three rows that were by construction three views of the SAME entry — same title, same badges, same decision, same up/stop/down target, differing only in which rail moved. The visible symptom was the entry title repeated down the list (Front Left, Front Left, Front Left, Side Left, Side Left), because the title comes from the entry and every one of those rows WAS that entry. Check three things. (1) The rails are the GROUP\'s member covers, never the entry\'s full managed list — drop a cover from member_positions and its rail disappears from the row while the others stay, because a roster must not offer a rail the group cannot drive. (2) A generic (non-ACP) cover has no entry to fold into and still gets its own row, so an adopted cover is never merged with anything. (3) Row ORDER follows the roster: a row sits where the FIRST of its covers appeared, so adding a cover to an entry never reshuffles the list. The same grouping backs the dialog and the main-card group view through one shared helper, so the two rosters cannot drift.',
+    added: '2026-08-03',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-multi-cover-member-names';
+      const front = makeEntry({
+        entry_id: 'front_shades',
+        // Titled after its first cover, which is what makes the bug invisible
+        // on row 1 and obvious on rows 2-3.
+        title: 'Front Left Shade',
+        window_azimuth: 180,
+        target_position: 40,
+        covers: [
+          { entity_id: 'cover.front_left', friendly_name: 'Front Left Shade', position: 40 },
+          { entity_id: 'cover.front_center', friendly_name: 'Front Center Shade', position: 40 },
+          { entity_id: 'cover.front_right', friendly_name: 'Front Right Shade', position: 40 },
+        ],
+      });
+      const side = makeEntry({
+        entry_id: 'side_shades',
+        title: 'Side Left Shade',
+        window_azimuth: 250,
+        target_position: 0,
+        covers: [
+          { entity_id: 'cover.side_left', friendly_name: 'Side Left Shade', position: 0 },
+          { entity_id: 'cover.side_right', friendly_name: 'Side Right Shade', position: 0 },
+        ],
+      });
+      c.entries = [
+        front,
+        side,
+        makeGroupEntry({
+          entry_id: 'living_room',
+          title: 'Living Room',
+          group: {
+            member_positions: {
+              'cover.front_left': 40,
+              'cover.front_center': 40,
+              'cover.front_right': 40,
+              'cover.side_left': 0,
+              'cover.side_right': 0,
+            },
+            member_winners: {
+              'cover.front_left': 'solar',
+              'cover.front_center': 'solar',
+              'cover.front_right': 'solar',
+              'cover.side_left': 'solar',
+              'cover.side_right': 'solar',
+            },
+            aggregate_position: 24,
+            state: 'mixed',
+            active_scene: 'none',
+            scene_option: 'auto',
+            locked: false,
+            automation: true,
+            climate_mode: 'summer_mode',
+          },
+        }),
+      ];
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
     id: 'goto-target-button',
     label: 'Snap to target — per-cover ⊙ button',
     description:

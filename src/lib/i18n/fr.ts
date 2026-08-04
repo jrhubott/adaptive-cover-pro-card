@@ -93,6 +93,11 @@ export const fr: EnDict = {
     close: 'Fermer le groupe',
     stop: 'Arrêter le groupe',
     position_slider_label: 'Position du groupe',
+    range: '{min}–{max} %',
+    exception_held: '{count} maintenu(s)',
+    exception_unavailable: '{count} indisponible(s)',
+    drag_to_set_all: 'Glisser pour régler les {count} stores',
+    spread_value: 'de {min} % à {max} % sur {count} stores',
   },
   forecast: {
     event: {
@@ -470,6 +475,9 @@ export const fr: EnDict = {
       covers: 'Barres de position (ordre)',
       covers_hint:
         "Faites glisser une ligne, ou utilisez les flèches, pour définir l'ordre des barres de position. L'œil masque une barre sans dissocier le volet.",
+      member_names: 'Noms des membres',
+      member_names_hint:
+        "Renommer un membre du groupe tel qu'il appara\u00eet sur cette carte. Laisser vide pour utiliser le nom de l'instance.",
       covers_move_up: 'Monter',
       covers_move_down: 'Descendre',
       covers_hide: 'Masquer cette barre',

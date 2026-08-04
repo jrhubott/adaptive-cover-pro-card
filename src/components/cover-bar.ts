@@ -14,7 +14,7 @@ import {
 import { formatCoverState, formatPercent } from '../lib/formatters';
 import { AXIS_LABEL_I18N_KEYS } from '../const';
 import { axisDisplayValue, positionAxisFor, resolveAxes, type ResolvedAxis } from '../lib/axes';
-import { setAxes } from '../lib/services';
+import { setAxes, hasSetAxes } from '../lib/services';
 import { t } from '../lib/i18n';
 import { tooltip } from '../lib/tooltip';
 import './tilt-bar';
@@ -128,6 +128,12 @@ export class CoverBar extends LitElement {
    * value ACP picked ITSELF, and pinning automation at its own answer would
    * freeze the cover the moment it was re-synced. So the move lands and the
    * pipeline stays in charge to re-decide on its next run.
+   *
+   * Rendered only when the integration exposes `set_axes` (see the call site).
+   * `setAxes` forwards `force` on that branch alone; the legacy per-axis fan-out
+   * has no such flag, so on an older integration this button would have done the
+   * exact OPPOSITE of its label — engaging a manual override that pins the cover
+   * at ACP's own answer. A button that cannot keep its promise is not shown.
    *
    * Sends the LOGICAL target unconverted: the sensor already publishes it in the
    * logical frame, and `axisDisplayValue` is only for turning a DRAWN fraction
@@ -361,7 +367,7 @@ export class CoverBar extends LitElement {
               ></div>`
             : nothing}
         </div>
-        ${target !== null
+        ${target !== null && hasSetAxes(this.hass)
           ? html`<button
               class="goto-target"
               type="button"

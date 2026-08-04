@@ -337,6 +337,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
           .discovered=${discovered}
           .open=${this._dialogOpen}
           .name=${groupTitle}
+          .memberNames=${this._config.member_names}
           .icon=${this._config.icon}
           .stateColor=${this._config.state_color !== false}
           .showTilt=${this._config.show_tilt !== false}
@@ -427,8 +428,8 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
   private _renderTile(discovered: DiscoveredEntities): TemplateResult {
     const cfg = this._config!;
-    const title = resolveTileName(cfg.name, discovered);
     const cover = this._resolvedCover(discovered);
+    const title = resolveTileName(cfg.name, discovered);
     // Resolve the icon from the underlying HA cover entity so it matches HA's
     // native tile/more-info glyph: cfg.icon override → explicit entity icon →
     // device_class glyph → integration cover_type → generic fallback.

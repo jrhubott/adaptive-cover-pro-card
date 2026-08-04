@@ -90,6 +90,11 @@ export const de: EnDict = {
     close: 'Gruppe schließen',
     stop: 'Gruppe stoppen',
     position_slider_label: 'Gruppenposition',
+    range: '{min}\u2013{max}\u00a0%',
+    exception_held: '{count} gehalten',
+    exception_unavailable: '{count} nicht verf\u00fcgbar',
+    drag_to_set_all: 'Ziehen, um alle {count} Behänge zu setzen',
+    spread_value: '{min} % bis {max} % über {count} Behänge',
   },
   forecast: {
     event: {
@@ -461,6 +466,9 @@ export const de: EnDict = {
       covers: 'Positionsleisten (Reihenfolge)',
       covers_hint:
         'Ziehen Sie eine Zeile oder verwenden Sie die Pfeile, um die Reihenfolge der Positionsleisten festzulegen. Das Auge blendet eine Leiste aus, ohne den Behang zu entfernen.',
+      member_names: 'Mitgliedsnamen',
+      member_names_hint:
+        'Benennen Sie ein Gruppenmitglied nur f\u00fcr diese Karte um. Leer lassen, um den Namen des Eintrags zu verwenden.',
       covers_move_up: 'Nach oben',
       covers_move_down: 'Nach unten',
       covers_hide: 'Diese Leiste ausblenden',

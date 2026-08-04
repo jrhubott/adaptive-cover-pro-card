@@ -214,6 +214,16 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'dialog.extend.tomorrow_suffix': ' (tomorrow)',
   'tile.motion_detected': 'Occupancy detected',
   'tile.motion_pending': 'Occupancy timeout',
+  'editor.tile.member_names': 'Member names',
+  'editor.tile.member_names_hint':
+    'Rename a group member as it appears on this card. Leave blank to use the entry\u2019s own name.',
+  // Group tile: the state line leads with how many members the group drives,
+  // and the rail is drag-only because a group write flattens every member.
+  'group.range': '{min}–{max}%',
+  'group.exception_held': '{count} held',
+  'group.exception_unavailable': '{count} unavailable',
+  'group.drag_to_set_all': 'Drag to set all {count} covers',
+  'group.spread_value': '{min}% to {max}% across {count} covers',
   // Rail-stack group label: layers of one cover vs. separate covers.
   'tile.rails_layered': '{count} rails of one cover',
   'tile.rails_separate': '{count} covers',

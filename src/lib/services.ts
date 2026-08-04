@@ -255,7 +255,7 @@ const LEGACY_AXIS_SERVICES: Record<string, string> = {
   tilt: 'set_tilt',
 };
 
-function hasSetAxes(hass: HomeAssistant): boolean {
+export function hasSetAxes(hass: HomeAssistant): boolean {
   const services = (hass as unknown as { services?: Record<string, Record<string, unknown>> })
     .services;
   return !!services?.[INTEGRATION_DOMAIN]?.set_axes;
