@@ -2755,6 +2755,207 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'group-spread-bar',
+    label: 'Group tile — spread bar, driven count, drag-only rail',
+    description:
+      'The Living Room group, rebuilt from the real install: five covers, three at 40% and two at 0%, so the aggregate sensor publishes 24% — the mean of two clusters, a number NO cover has ever been at. Three things change on the tile. (1) THE RAIL SHOWS THE SPREAD, not the mean: a solid fill to the least-covered member, a translucent band from there to the most-covered one, and a tick per DISTINCT member value. Two clusters draw two ticks, so "Mixed" stops being a word and becomes a picture. Set every member to the same position in the control panel and the band disappears and the ticks stack into one — that is the case where a plain fill was always honest, and it still looks like one. (2) THE STATE LINE SHOWS THE RANGE: "Mixed · 0–40%" instead of "Mixed · 24%". The aggregate 24% is the mean of two clusters and describes no cover at all; the range says what they are actually at, in the LOGICAL frame the covers report rather than the coverage frame the bar draws, which is mirrored on a blind. It collapses to a single number when they agree. An EXCEPTION takes the slot whenever there is one: park a member on a manual override and the line reads "1 held", make one unavailable and it reads "1 unavailable" — unavailable wins, being the harder failure. An earlier draft put the group-driven count here and it was useless: a group drives members only while a scene or the lock is active, so it read "0 of 5" permanently, and the N/M badge beside it already said so. (3) THE RAIL IS DRAG-ONLY. group_set_position flattens EVERY member onto one value and takes them all off solar, so a tap must not commit it. Tap the rail — nothing happens, no service call in the log. Now DRAG it: the spread visibly collapses into a single fill under your finger (deliberate — that collapse IS the preview of what the write does), and exactly one group_set_position fires on release. Drag less than 4px and it is still treated as a tap and does nothing. Keyboard is unchanged: the arrows were always deliberate, and they still commit. Check the accessible name too — with the members disagreeing the slider reads "0% to 40% across 5 covers" rather than a single fake number.',
+    added: '2026-08-03',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-spread-bar';
+      c.entries = [
+        makeGroupEntry({
+          entry_id: 'living_room',
+          title: 'Living Room',
+          group: {
+            member_positions: {
+              'cover.front_left': 40,
+              'cover.front_center': 40,
+              'cover.front_right': 40,
+              'cover.side_left': 0,
+              'cover.side_right': 0,
+            },
+            member_winners: {
+              'cover.front_left': 'solar',
+              'cover.front_center': 'solar',
+              'cover.front_right': 'solar',
+              'cover.side_left': 'solar',
+              'cover.side_right': 'solar',
+            },
+            // The mean the integration publishes, and the reason the old rail
+            // was wrong: no member is at 24.
+            aggregate_position: 24,
+            state: 'mixed',
+            active_scene: 'none',
+            scene_option: 'auto',
+            locked: false,
+            automation: true,
+            climate_mode: 'summer_mode',
+          },
+        }),
+      ];
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
+    id: 'group-multi-cover-member-names',
+    label: 'Group roster — one row per ENTRY, not per cover',
+    description:
+      'OPEN THE GROUP TILE and count the roster rows: TWO, not five. The group adopts five covers, but they belong to only two ACP entries — "Front Left Shade" driving front-left/center/right and "Side Left Shade" driving side-left/right — so the roster folds by owning entry and each row carries that entry\'s covers as its RAILS. It is the same thing the cover tile already renders for a multi-cover entry on a dashboard: three rails on the first row, two on the second. Before this, member_positions was mapped straight to rows, so an entry driving three covers contributed three rows that were by construction three views of the SAME entry — same title, same badges, same decision, same up/stop/down target, differing only in which rail moved. The visible symptom was the entry title repeated down the list (Front Left, Front Left, Front Left, Side Left, Side Left), because the title comes from the entry and every one of those rows WAS that entry. Check three things. (1) The rails are the GROUP\'s member covers, never the entry\'s full managed list — drop a cover from member_positions and its rail disappears from the row while the others stay, because a roster must not offer a rail the group cannot drive. (2) A generic (non-ACP) cover has no entry to fold into and still gets its own row, so an adopted cover is never merged with anything. (3) Row ORDER follows the roster: a row sits where the FIRST of its covers appeared, so adding a cover to an entry never reshuffles the list. The same grouping backs the dialog and the main-card group view through one shared helper, so the two rosters cannot drift.',
+    added: '2026-08-03',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-multi-cover-member-names';
+      const front = makeEntry({
+        entry_id: 'front_shades',
+        // Titled after its first cover, which is what makes the bug invisible
+        // on row 1 and obvious on rows 2-3.
+        title: 'Front Left Shade',
+        window_azimuth: 180,
+        target_position: 40,
+        covers: [
+          { entity_id: 'cover.front_left', friendly_name: 'Front Left Shade', position: 40 },
+          { entity_id: 'cover.front_center', friendly_name: 'Front Center Shade', position: 40 },
+          { entity_id: 'cover.front_right', friendly_name: 'Front Right Shade', position: 40 },
+        ],
+      });
+      const side = makeEntry({
+        entry_id: 'side_shades',
+        title: 'Side Left Shade',
+        window_azimuth: 250,
+        target_position: 0,
+        covers: [
+          { entity_id: 'cover.side_left', friendly_name: 'Side Left Shade', position: 0 },
+          { entity_id: 'cover.side_right', friendly_name: 'Side Right Shade', position: 0 },
+        ],
+      });
+      c.entries = [
+        front,
+        side,
+        makeGroupEntry({
+          entry_id: 'living_room',
+          title: 'Living Room',
+          group: {
+            member_positions: {
+              'cover.front_left': 40,
+              'cover.front_center': 40,
+              'cover.front_right': 40,
+              'cover.side_left': 0,
+              'cover.side_right': 0,
+            },
+            member_winners: {
+              'cover.front_left': 'solar',
+              'cover.front_center': 'solar',
+              'cover.front_right': 'solar',
+              'cover.side_left': 'solar',
+              'cover.side_right': 'solar',
+            },
+            aggregate_position: 24,
+            state: 'mixed',
+            active_scene: 'none',
+            scene_option: 'auto',
+            locked: false,
+            automation: true,
+            climate_mode: 'summer_mode',
+          },
+        }),
+      ];
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
+    id: 'goto-target-button',
+    label: 'Snap to target — per-cover ⊙ button',
+    description:
+      'OPEN THE MORE-INFO DIALOG (tap the tile) and look at the COVERS section. Every cover row now ends with an mdi:target button between the track and the warn-icon column. It drives THAT cover to the value its own orange marker sits at — the entry\'s solar target — so the row visibly closes the gap between fill and marker. This entry is deliberately parked well away from its target (covers at 100/20/65 against a target of 45) so all three rows have somewhere to travel, and the three covers give the per-cover claim something to prove: press one button and exactly ONE row moves. WATCH THE SERVICE LOG — the call is set_axes with force:true, and that flag is the whole design decision. The integration reads force:true as "skip manual-override engagement", NOT "move harder": every other write in this component (drag, click, arrow keys) omits it, because a drag means the user picked a value ACP did not, so an override has to hold it. This button drives to the value ACP picked ITSELF, and engaging an override there would freeze automation at its own answer the instant you re-synced it. So the cover moves and the pipeline keeps control. The tooltip and the accessible name both say "keeps automatic control" for that reason — if that ever reads as "pin it here", the wording is wrong, not the flag. Check the GEOMETRY too: the button column is fixed at 22px, never auto. It empties out on an entry with no target, and an auto column would hand those pixels to the track and reflow the bar graph on every target change — the same reason the warn column next to it is fixed (#158). Switch this entry to a VENETIAN in the control panel to check the other half: the tilt row underneath is a SEPARATE grid that mirrors this one column-for-column, so it grew a matching 22px spacer. The tilt track must stay perfectly aligned with the position track above it — any offset means the two grids drifted. Tilt gets no button of its own: this one drives the position axis, and a tilt target is a different value.',
+    added: '2026-08-02',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'goto-target-button';
+      c.entries = [
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Dining Room Shade',
+          cover_type: 'cover_blind',
+          window_azimuth: 180,
+          color: '#42a5f5',
+          target_position: 45,
+          covers: [
+            { entity_id: 'cover.dining_left', friendly_name: 'Dining Left', position: 100 },
+            { entity_id: 'cover.dining_mid', friendly_name: 'Dining Middle', position: 20 },
+            { entity_id: 'cover.dining_right', friendly_name: 'Dining Right', position: 65 },
+          ],
+        }),
+      ];
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
+    id: 'layered-rails-vs-separate-covers',
+    label: 'Rail stack — layers of one cover vs. separate covers',
+    description:
+      'THE side-by-side repro. Both tiles render a stack of position rails and until now looked identical — same glyph, same spacing — even though they mean completely different things. Tile 1 is a day/night shade: TWO RAILS OF ONE PHYSICAL SHADE (bottom rail carries the coverage, middle rail the sheer-vs-blackout fabric split), bound by the integration\'s dual_entity control model. Tile 2 is an ordinary blind entry someone attached THREE SEPARATE WINDOWS to. Tile 1 must now draw a BRACE — a hairline down the lane between the glyph column and the rails, spanning rail-center to rail-center — and its rows sit tighter (2px vs 5px). Tile 2 must be pixel-identical to before: no brace, 5px gaps, nothing changed on the common path. Check the geometry too: the brace is absolutely positioned so it adds no layout width, and the layered stack widens its glyph GAP (6→10px) to make room, which moves the stack\'s LEFT edge out while the rails keep their length and their right edge — the alignment invariant from issue #260. Both stacks carry a role="group" with an accessible name ("2 rails of one cover" / "3 covers"), so the distinction reaches a screen reader and not just the eye. The discriminator is the integration cover_type, NOT the rail count: cover_day_night_shade and cover_dual_panel are the two types whose managed covers are layers of one opening; every other type takes one cover per window. Switch tile 1\'s cover type to cover_blind in the control panel and the brace must vanish, because two blinds on one entry are two windows. Narrow it to a single rail ("First rail only" under covers) and the brace goes with the stack — a lone rail is one cover, and bracketing it would say something untrue.',
+    added: '2026-08-02',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'layered-rails-vs-separate-covers';
+      c.entries = [
+        // Layers of ONE cover: the brace case.
+        makeEntry({
+          entry_id: 'south_window',
+          title: 'Side Yard Shade',
+          cover_type: 'cover_day_night_shade',
+          window_azimuth: 180,
+          color: '#7e57c2',
+          target_position: 60,
+          covers: [
+            {
+              entity_id: 'cover.side_yard_bottom',
+              friendly_name: 'Side Yard Shade bottom rail',
+              position: 60,
+              tilt: 0,
+            },
+            {
+              entity_id: 'cover.side_yard_middle',
+              friendly_name: 'Side Yard Shade middle rail',
+              position: 25,
+              tilt: 0,
+              icon: 'mdi:blinds-horizontal',
+              command_target: 30,
+            },
+          ],
+        }),
+        // Three SEPARATE windows on one entry: the unchanged case.
+        makeEntry({
+          entry_id: 'front_bank',
+          title: 'Front Shades',
+          cover_type: 'cover_blind',
+          window_azimuth: 170,
+          color: '#26a69a',
+          target_position: 40,
+          covers: [
+            { entity_id: 'cover.front_left', friendly_name: 'Front Shades left', position: 100 },
+            { entity_id: 'cover.front_mid', friendly_name: 'Front Shades middle', position: 100 },
+            { entity_id: 'cover.front_right', friendly_name: 'Front Shades right', position: 100 },
+          ],
+        }),
+      ];
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
     id: 'icon-tap-action-shape',
     label: 'Icon tap behavior — tinted shape',
     description:

@@ -84,7 +84,23 @@ function registryIdentity(registry: EntityRegistryEntry[]): number {
 @customElement('acp-group-member-row')
 export class GroupMemberRow extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
+  /** The row's lead cover: what resolves the owning entry, and the only cover a
+   *  generic (non-ACP) fallback row ever shows. */
   @property({ attribute: false }) public entityId!: string;
+  /** Every group member cover this row stands for — all the covers of one ACP
+   *  entry that the group adopts. Undefined means "just `entityId`", which is
+   *  what a generic member and any caller that predates entry-grouping pass.
+   *
+   *  Threaded into the tile as `covers`, NOT `cover`: `covers` picks the rail
+   *  set and keeps the row titled after the entry, which is what the row now
+   *  represents. Pinning with `cover` would name the row after one of its own
+   *  rails again — the very collapse grouping exists to undo. */
+  @property({ attribute: false }) public coverIds?: string[];
+  /** Display-name override for this row, from the card's `member_names`. Empty
+   *  or unset leaves the entry's own title in place. Handed to the nested tile
+   *  as its `name`, so the override travels through the same path a dashboard
+   *  tile's own title override does rather than being painted on afterwards. */
+  @property({ attribute: false }) public displayName?: string;
   /** Live position from the group's `member_positions`, null when unknown. */
   @property({ attribute: false }) public position: number | null = null;
   /** Winning handler for an ACP member; null/undefined for a generic cover. */
@@ -157,7 +173,8 @@ export class GroupMemberRow extends LitElement {
    *  null when the tile card isn't registered (it always is in the shipped
    *  bundle — this keeps the roster from throwing if that ever changes). */
   private _tileCard(entryId: string): TileCardElement | null {
-    const key = `${entryId}|${this.entityId}|${this.showTilt}`;
+    const rails = this.coverIds?.length ? this.coverIds : [this.entityId];
+    const key = `${entryId}|${rails.join(',')}|${this.displayName ?? ''}|${this.showTilt}`;
     if (this._tile && this._tileKey === key) {
       this._tile.hass = this.hass;
       return this._tile;
@@ -167,10 +184,12 @@ export class GroupMemberRow extends LitElement {
     el.setConfig({
       type: `custom:${TILE_CARD_NAME}`,
       entry_id: entryId,
-      // Pin the tile to THIS member. An entry can manage several covers and the
-      // tile otherwise defaults to `managed_covers[0]`, which would render the
-      // same cover for every row of a multi-cover entry.
-      cover: this.entityId,
+      // The rails are the group's OWN member covers for this entry, never the
+      // entry's full managed list: an entry can manage covers the group has not
+      // adopted, and the roster must not offer a rail the group cannot drive.
+      // Defaulting to `managed_covers` would draw exactly those phantom rails.
+      covers: rails,
+      ...(this.displayName ? { name: this.displayName } : {}),
       show_tilt: this.showTilt,
     });
     // Event boundary — see CONTAINED_TILE_EVENTS. Attached on the card element
@@ -197,7 +216,8 @@ export class GroupMemberRow extends LitElement {
   /** Generic member (no ACP entry to point a tile card at). */
   private _fallbackRow(): TemplateResult {
     const state = this.hass.states[this.entityId];
-    const friendly = (state?.attributes?.friendly_name as string | undefined) ?? this.entityId;
+    const friendly =
+      this.displayName || (state?.attributes?.friendly_name as string | undefined) || this.entityId;
     const offline = isOffline(state?.state);
     const tilt = this.showTilt && supportsTilt(this.hass, this.entityId);
     const liveTilt = tilt

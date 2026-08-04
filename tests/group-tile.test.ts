@@ -138,9 +138,35 @@ async function controlsRow(el: GroupTileLike): Promise<ShadowRoot> {
 }
 
 describe('acp-group-tile', () => {
-  it('renders the aggregate position from the group_position sensor', async () => {
+  it('states the position RANGE, not the aggregate mean', async () => {
+    // Members at 40/60/0 publish an aggregate of 50, a number no member holds.
+    // The tile reports what they are actually at, in the LOGICAL frame.
+    const el = await mount(
+      makeHass({ memberWinners: { 'cover.a': 'solar', 'cover.b': 'solar' } }),
+      makeDiscovered(),
+    );
+    const text = el.shadowRoot!.querySelector('.state')?.textContent ?? '';
+    expect(text).toContain('0');
+    expect(text).toContain('60');
+    expect(text).not.toContain('50');
+  });
+
+  it('collapses the range to one number when every member agrees', async () => {
+    const hass = makeHass({ memberWinners: { 'cover.a': 'solar', 'cover.b': 'solar' } });
+    const sensor = hass.states['sensor.group_position'];
+    sensor.attributes = {
+      ...sensor.attributes,
+      member_positions: { 'cover.a': 40, 'cover.b': 40, 'cover.generic': 40 },
+    };
+    const el = await mount(hass, makeDiscovered());
+    expect(el.shadowRoot!.querySelector('.state')?.textContent).toContain('40');
+  });
+
+  it('lets a held member take the slot from the range', async () => {
+    // The default fixture parks `cover.b` on a manual override. An exception is
+    // the one thing worth interrupting the range for.
     const el = await mount(makeHass(), makeDiscovered());
-    expect(el.shadowRoot!.querySelector('.state')?.textContent).toContain('50');
+    expect(el.shadowRoot!.querySelector('.state')?.textContent).toContain('1');
   });
 
   it('renders the aggregate state text from the group_state sensor', async () => {

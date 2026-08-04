@@ -247,9 +247,12 @@ describe('acp-cover-bar manual-override divergence — issue #158', () => {
     expect(el.shadowRoot!.querySelector('.cover ha-icon.warn')).not.toBeNull();
   });
 
-  it('reserves a fixed badge column so the track does not reflow', () => {
+  it('reserves fixed trailing columns so the track does not reflow', () => {
     const styles = (CoverBar as unknown as { styles: CSSResult }).styles.cssText;
-    expect(styles).toMatch(/grid-template-columns:[^;]*3fr\s+16px/);
+    // Two fixed columns after the track: the go-to-target button (22px) and the
+    // warn badge (16px). Both empty out on some rows, and an `auto` track would
+    // hand those pixels to the 3fr and reflow the bar graph (#158).
+    expect(styles).toMatch(/grid-template-columns:[^;]*3fr\s+22px\s+16px/);
     expect(styles).not.toMatch(/grid-template-columns:[^;]*3fr\s+auto/);
   });
 

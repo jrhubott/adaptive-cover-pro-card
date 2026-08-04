@@ -318,7 +318,7 @@ export class MoreInfoDialog extends LitElement {
               ${tooltip(configureLabel)}
               @click=${this._openIntegrationPage}
             >
-              <ha-icon icon="mdi:tune-variant"></ha-icon>
+              <ha-icon icon="mdi:cog"></ha-icon>
             </button>
             ${this.discovered.device_id
               ? html`<button
@@ -328,7 +328,7 @@ export class MoreInfoDialog extends LitElement {
                   ${tooltip(deviceLabel)}
                   @click=${this._openDevicePage}
                 >
-                  <ha-icon icon="mdi:cog"></ha-icon>
+                  <ha-icon icon="mdi:tune-variant"></ha-icon>
                 </button>`
               : nothing}
             <button class="close" type="button" aria-label=${closeLabel} @click=${this._emitClose}>

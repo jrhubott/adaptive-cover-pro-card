@@ -82,15 +82,18 @@ beforeEach(async () => {
 });
 
 describe('acp-group-member-row', () => {
-  it('renders the member as its own tile card, pinned to that member cover', async () => {
+  it("renders the member as its own entry's tile card, railed to its covers", async () => {
     const el = await mount();
     const tile = el.shadowRoot!.querySelector(TILE_CARD_NAME) as FakeTileCard | null;
     expect(tile).not.toBeNull();
-    const cfg = tile!.config as { entry_id: string; cover: string };
-    // Its OWN entry, not the group's — and pinned so a multi-cover entry doesn't
-    // render the same cover for every roster row.
+    const cfg = tile!.config as { entry_id: string; cover?: string; covers: string[] };
+    // Its OWN entry, not the group's.
     expect(cfg.entry_id).toBe('living_entry');
-    expect(cfg.cover).toBe(MEMBER);
+    // `covers`, never `cover`: a row now stands for the whole entry and takes
+    // the group's member covers as its rails. Pinning with `cover` would retitle
+    // the row after one of its own rails, which is what roster grouping undid.
+    expect(cfg.covers).toEqual([MEMBER]);
+    expect(cfg.cover).toBeUndefined();
   });
 
   // The regression this file exists for: `acp-dialog-close` is composed, so

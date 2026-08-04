@@ -17,6 +17,8 @@ import {
   type GroupSnapshot,
 } from '../lib/group-controls';
 import { t } from '../lib/i18n';
+import { createRosterMemo, rosterRowKey, rosterRowConfigKey } from '../lib/group-roster';
+import { getCachedRegistry } from '../lib/registry-store';
 
 import './cover-move-buttons';
 import './group-controls-row';
@@ -49,6 +51,12 @@ export class GroupDialog extends LitElement {
   @property({ type: Boolean }) public stateColor = true;
   @property({ attribute: false }) public name?: string;
   @property({ attribute: false }) public icon?: string;
+  /** Card `member_names` — per-row display overrides, keyed by
+   *  {@link rosterRowConfigKey}. */
+  @property({ attribute: false }) public memberNames?: Record<string, string>;
+
+  /** Per-instance roster memo — see `createRosterMemo`. */
+  private _roster = createRosterMemo();
 
   protected render(): TemplateResult | typeof nothing {
     if (!this.open || !this.hass || !this.discovered) return nothing;
@@ -141,16 +149,22 @@ export class GroupDialog extends LitElement {
                   ${t('group.member_placeholder', this.hass)}
                 </div>`
               : repeat(
-                  members,
-                  ([id]) => id,
-                  ([id, pos]) =>
+                  this._roster(
+                    this.hass,
+                    members.map(([id]) => id),
+                    getCachedRegistry() ?? undefined,
+                  ),
+                  rosterRowKey,
+                  (row) =>
                     html`<acp-group-member-row
                       .hass=${this.hass}
-                      .entityId=${id}
-                      .position=${pos}
-                      .winner=${s.memberWinners?.[id]}
+                      .entityId=${row.covers[0]}
+                      .coverIds=${row.covers}
+                      .position=${s.memberPositions[row.covers[0]] ?? null}
+                      .winner=${s.memberWinners?.[row.covers[0]]}
                       .openBlocksSun=${positionAxisFor(this.discovered).openBlocksSun}
-                      .acpManaged=${!!s.memberWinners && id in s.memberWinners}
+                      .acpManaged=${!!s.memberWinners && row.covers[0] in s.memberWinners}
+                      .displayName=${this.memberNames?.[rosterRowConfigKey(row)]}
                       .showTilt=${this.showTilt}
                     ></acp-group-member-row>`,
                 )}
