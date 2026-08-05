@@ -136,6 +136,7 @@ export function buildCoverDiscovery(
       cover_tilt: 'Tilt',
       cover_venetian: 'Venetian',
       cover_day_night_shade: 'Day/Night Shade',
+      cover_dual_panel: 'Dual-Panel Shade',
     } as Record<CoverType, string>
   )[coverType];
   const axes: Record<string, unknown>[] = [

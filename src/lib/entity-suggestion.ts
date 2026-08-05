@@ -104,9 +104,17 @@ export function resolveEntryIdForEntity(hass: HassLike, entityId: string): strin
  * sensor never publishes), and returns null for a generic cover with no ACP
  * pipeline — the caller's signal to fall back to a plain controllable row.
  */
-export function resolveCoverEntryId(hass: HassLike, coverEntityId: string): string | null {
+export function resolveCoverEntryId(
+  hass: HassLike,
+  coverEntityId: string,
+  /** Registry to resolve against. Defaults to the shared cache, which only the
+   *  CARD warms via its `entity_registry_updated` subscription. The card editor
+   *  fetches its own copy and must pass it, or every lookup silently returns
+   *  null until some card on the page happens to fill the shared cache. */
+  registryOverride?: EntityRegistryEntry[],
+): string | null {
   if (!coverEntityId.startsWith('cover.')) return null;
-  const registry = getCachedRegistry();
+  const registry = registryOverride ?? getCachedRegistry();
   if (!registry) return null;
   const byId = indexRegistry(registry);
 

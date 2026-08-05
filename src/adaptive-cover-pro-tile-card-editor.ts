@@ -13,7 +13,10 @@ import {
 } from './lib/entity-registry';
 import { discoverEntities } from './lib/entity-discovery';
 import { t } from './lib/i18n';
-import type { AdaptiveCoverProTileCardConfig } from './types';
+import type { AdaptiveCoverProTileCardConfig, DiscoveredEntities } from './types';
+import { readGroup } from './lib/group-controls';
+import { buildRoster, rosterRowConfigKey, type RosterRow } from './lib/group-roster';
+import { getCachedRegistry } from './lib/registry-store';
 
 interface ValueChangedEvent extends CustomEvent {
   detail: { value: AdaptiveCoverProTileCardConfig };
@@ -195,6 +198,22 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
   }
 
   private _ensureRegistry(): void {
+    // Seed from the SHARED store first. Every card on the dashboard behind this
+    // dialog subscribes to the entity registry and keeps that store warm, so the
+    // data is almost always already in memory — while the fetch below is a full
+    // registry round-trip that took seconds on a large install, during which the
+    // group member-name fields could not render at all (they need the registry
+    // to resolve each member cover to its entry).
+    //
+    // The fetch still runs: the store can be cold when no ACP card has mounted
+    // yet, and a refresh costs nothing once the fields are already up.
+    if (this._registry === null) {
+      const cached = getCachedRegistry();
+      if (cached) {
+        this._registry = cached;
+        this._refreshManagedCovers();
+      }
+    }
     if (this._registry === null && !this._registryFetchInFlight) {
       this._registryFetchInFlight = true;
       fetchEntityRegistry(this.hass)
@@ -262,12 +281,46 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     );
     this._managedCovers = discovered?.managed_covers ?? [];
     this._isGroupEntry = !!discovered?.is_group;
+    this._groupDiscovered = discovered?.is_group ? discovered : null;
+    this._memberLabels.clear();
+    // Seed the name drafts HERE, never in render(): assigning reactive state
+    // during a render schedules an update from inside an update, which Lit warns
+    // about and which re-entered often enough to keep resetting the inputs.
+    const entryId = this._config?.entry_id ?? '';
+    if (this._memberDrafts === null || this._memberDraftsFor !== entryId) {
+      this._memberDrafts = { ...(this._config?.member_names ?? {}) };
+      this._memberDraftsFor = entryId;
+    }
   }
 
   /** True for a Cover Group entry. The group tile ignores every cover-tile
    *  option, so the rail-order widget must not offer one — same rationale as
    *  the group branch of {@link _schema}. */
   @state() private _isGroupEntry = false;
+
+  /** The discovered group entry, kept so {@link _renderMemberNames} can build
+   *  the same roster the dialog does instead of guessing at the member list. */
+  @state() private _groupDiscovered: DiscoveredEntities | null = null;
+
+  /**
+   * In-progress text for the member-name fields, keyed by
+   * {@link rosterRowConfigKey}.
+   *
+   * The fields cannot bind `.value` to the config directly. HA hands this editor
+   * a fresh `hass` on every state tick, so it re-renders about once a second,
+   * and each render would push the STORED value back into the input. `change`
+   * only fires on blur, so every keystroke was reverted before it could be
+   * committed and the field read as uneditable.
+   *
+   * Drafts absorb that: typing updates the draft (no config write), blur commits
+   * it. Seeded from the config on first render and re-seeded when the edited
+   * entry changes, which is the only time an outside edit can be in flight.
+   */
+  @state() private _memberDrafts: Record<string, string> | null = null;
+
+  /** entry_id the drafts were seeded for, so switching the edited card reseeds
+   *  them instead of carrying another entry's half-typed names across. */
+  private _memberDraftsFor: string | null = null;
 
   private _computeLabel = (schema: HaFormSchemaItem): string => {
     const key = LABEL_KEYS[schema.name];
@@ -421,7 +474,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
         ${this._managedCovers.length > 1 && !this._config?.cover
           ? html`<div class="hint">${t('editor.tile.cover_blank_hint', this.hass)}</div>`
           : nothing}
-        ${this._renderRailOrder()} ${renderEditorFooter(this.hass)}
+        ${this._renderRailOrder()} ${this._renderMemberNames()} ${renderEditorFooter(this.hass)}
       </div>
     `;
   }
@@ -518,6 +571,107 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
     const restored = [...shown];
     restored.splice(at, 0, { ...target, shown: true });
     this._emitRails(restored);
+  }
+
+  /**
+   * Per-member display names for a Cover Group roster.
+   *
+   * A plain `ha-form` field cannot express this: the keys are entry ids the user
+   * has never seen and could not type, so the widget lists the roster itself and
+   * labels each field with the name the row resolves to today. Leaving a field
+   * empty removes the override rather than storing an empty string, so the
+   * entry's own title comes back instead of a blank row.
+   */
+  private _renderMemberNames(): TemplateResult | typeof nothing {
+    const discovered = this._groupDiscovered;
+    if (!discovered || !this.hass) return nothing;
+    const snapshot = readGroup(this.hass, discovered);
+    const rows = buildRoster(
+      this.hass,
+      Object.keys(snapshot.memberPositions),
+      this._registry ?? undefined,
+    );
+    if (rows.length === 0) return nothing;
+    const drafts = this._memberDrafts ?? {};
+    return html`
+      <div class="rail-order">
+        <div class="rail-order-title">${t('editor.tile.member_names', this.hass)}</div>
+        <div class="hint">${t('editor.tile.member_names_hint', this.hass)}</div>
+        <ha-form
+          .hass=${this.hass}
+          .data=${drafts}
+          .schema=${rows.map((row) => ({
+            name: rosterRowConfigKey(row),
+            selector: { text: {} },
+          }))}
+          .computeLabel=${(field: HaFormSchemaItem) => this._memberFieldLabel(field.name, rows)}
+          @value-changed=${(e: CustomEvent<{ value: Record<string, string> }>) =>
+            this._memberNamesChanged(e.detail.value)}
+        ></ha-form>
+      </div>
+    `;
+  }
+
+  /** What this row is called today: its ACP entry's title, or a generic cover's
+   *  friendly name. Shown as the field label AND as the placeholder, so an empty
+   *  field reads as "this is what you will get" rather than as missing data. */
+  private _memberRowLabel(row: RosterRow): string {
+    const cached = this._memberLabels.get(row.entryId ?? row.covers[0]);
+    if (cached !== undefined) return cached;
+    let label: string | undefined;
+    if (row.entryId && this._registry) {
+      const d = discoverEntities(
+        this.hass,
+        { type: this._config!.type, entry_id: row.entryId },
+        this._registry,
+      );
+      label = d?.entry_title;
+    }
+    if (!label) {
+      const st = this.hass.states[row.covers[0]];
+      label = (st?.attributes?.friendly_name as string | undefined) ?? row.covers[0];
+    }
+    this._memberLabels.set(row.entryId ?? row.covers[0], label);
+    return label;
+  }
+
+  /**
+   * Resolved row labels, cached across renders.
+   *
+   * Each miss costs a full `discoverEntities` walk of the entity registry, and
+   * this editor re-renders on every hass tick — so an uncached lookup was one
+   * registry walk per member per second while the config dialog sat open.
+   * Cleared whenever the registry is replaced, which is the only thing that can
+   * change an entry's resolved title.
+   */
+  private _memberLabels = new Map<string, string>();
+
+  /** Label for one member field: the name that row resolves to today. */
+  private _memberFieldLabel(key: string, rows: RosterRow[]): string {
+    const row = rows.find((r) => rosterRowConfigKey(r) === key);
+    return row ? this._memberRowLabel(row) : key;
+  }
+
+  /**
+   * Commit the whole member-name map from `ha-form`.
+   *
+   * `ha-form` hands back every field each time, so this replaces the map rather
+   * than patching one key. Blank fields are DROPPED instead of stored as "" —
+   * an empty string is a name, and would blank the roster row instead of
+   * restoring the entry's own title.
+   */
+  private _memberNamesChanged(value: Record<string, string>): void {
+    const next: Record<string, string> = {};
+    for (const [key, raw] of Object.entries(value ?? {})) {
+      const trimmed = typeof raw === 'string' ? raw.trim() : '';
+      if (trimmed) next[key] = trimmed;
+    }
+    this._memberDrafts = { ...value };
+    this._memberDraftsFor = this._config?.entry_id ?? '';
+    const config = { ...this._config! };
+    if (Object.keys(next).length > 0) config.member_names = next;
+    else delete config.member_names;
+    this._emit(config);
   }
 
   /**

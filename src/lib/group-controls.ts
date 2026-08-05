@@ -2,6 +2,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 
 import { normalizeHandler } from './decision-summary';
 import { coverStateIcon } from './icons';
+import { isOffline } from './formatters';
 import { rollupMemberAutomation, type MemberAutomationRollup } from './member-automation';
 import { getCachedRegistry } from './registry-store';
 import {
@@ -188,6 +189,65 @@ export function groupIcon(snapshot: GroupSnapshot, position: number | null): str
  * notes: force (legacy top), weather 90, group_scene 85, manual 80,
  * group_lock 100, custom_position 100. Everything else is below 80.
  */
+/**
+ * Handlers that mean a member is being HELD away from whatever the pipeline
+ * would otherwise choose — a person, or a rule standing in for one.
+ *
+ * Narrower than {@link MASKS_MANUAL}, which answers a different question (what
+ * a group scene would have to mask). `custom_position` and `group_lock` are
+ * deliberately absent: those are configured behaviour doing its job, not an
+ * exception worth interrupting the tile's one-line summary for.
+ */
+const HELD_HANDLERS: ReadonlySet<string> = new Set(['manual', 'force']);
+
+/** The one thing about a roster worth saying instead of its position range. */
+export interface MemberException {
+  kind: 'unavailable' | 'held';
+  count: number;
+}
+
+/**
+ * The most important deviation in the roster, or null when nothing is off.
+ *
+ * The group tile has ONE line for a roster of any size, so this picks a single
+ * thing to say rather than composing a list. Unavailable wins over held: a cover
+ * that cannot be reached is a harder failure than one deliberately parked, and a
+ * roster with both has the unreachable one as its real problem.
+ *
+ * Returns null for the ordinary case, which is the point — the caller then falls
+ * back to the position range, so the line is never spent on a non-event. The old
+ * "N of M driven" text failed exactly here: the group drives members only while
+ * a scene or the lock is active, so it read "0 of 5" almost permanently.
+ */
+export function memberException(
+  hass: HomeAssistant,
+  snapshot: Pick<GroupSnapshot, 'memberPositions' | 'memberWinners'>,
+): MemberException | null {
+  let unavailable = 0;
+  for (const [id, pos] of Object.entries(snapshot.memberPositions)) {
+    // A null position is the group sensor saying it could not read the member;
+    // an explicitly offline state is HA saying the same thing one layer down.
+    // Either counts, and a member can present both, so this must not double-count.
+    //
+    // A MISSING state is neither. `hass.states` is filtered per user by entity
+    // permissions and lags on frontend startup, so `isOffline(undefined)` (true,
+    // since it tests `!state`) counted a perfectly healthy roster as entirely
+    // unavailable for any non-admin — permanently replacing the range readout
+    // that `memberSpread` had computed correctly from the attribute alone.
+    const st = hass.states[id];
+    if (pos === null || (st !== undefined && isOffline(st.state))) unavailable += 1;
+  }
+  if (unavailable > 0) return { kind: 'unavailable', count: unavailable };
+
+  const winners = snapshot.memberWinners;
+  if (!winners) return null;
+  let held = 0;
+  for (const w of Object.values(winners)) {
+    if (w && HELD_HANDLERS.has(normalizeHandler(w))) held += 1;
+  }
+  return held > 0 ? { kind: 'held', count: held } : null;
+}
+
 const MASKS_MANUAL: ReadonlySet<string> = new Set([
   'force',
   'weather',

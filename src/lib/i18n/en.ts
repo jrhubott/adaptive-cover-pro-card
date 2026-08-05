@@ -90,6 +90,11 @@ export const en = {
     close: 'Close group',
     stop: 'Stop group',
     position_slider_label: 'Group position',
+    range: '{min}\u2013{max}%',
+    exception_held: '{count} held',
+    exception_unavailable: '{count} unavailable',
+    drag_to_set_all: 'Drag to set all {count} covers',
+    spread_value: '{min}% to {max}% across {count} covers',
   },
   forecast: {
     event: {
@@ -230,6 +235,7 @@ export const en = {
     tilt_target: 'Tilt: {pct}',
     tilt_click_to_set: 'Click to set tilt',
     tilt_target_tooltip: 'Tilt target {pct}%',
+    goto_target: 'Move to target ({pct}%) — keeps automatic control',
   },
   decision: {
     placeholder: 'Decision trace not yet populated.',
@@ -299,6 +305,9 @@ export const en = {
     loading: 'Loading…',
     entry_not_found: 'Adaptive Cover Pro entry {entry} not found.',
     unavailable: 'Unavailable',
+    rails_layered: '{count} rails of one cover',
+    rails_separate: '{count} covers',
+    rails_layered_hint: 'Rails of one cover',
   },
   formatters: {
     expired: 'expired',
@@ -452,6 +461,9 @@ export const en = {
       covers: 'Position bars (order)',
       covers_hint:
         'Drag a row, or use the arrows, to set the order the position bars appear in. The eye hides a bar without unbinding the cover.',
+      member_names: 'Member names',
+      member_names_hint:
+        'Rename a group member as it appears on this card. Leave blank to use the entry\u2019s own name.',
       covers_move_up: 'Move up',
       covers_move_down: 'Move down',
       covers_hide: 'Hide this bar',

@@ -397,6 +397,7 @@ export class AdaptiveCoverProCard extends LitElement {
             <acp-group-view
               .hass=${this.hass}
               .discovered=${discovered}
+              .memberNames=${this._config.member_names}
               ?compact=${!!this._config.compact}
             ></acp-group-view>
           </div>

@@ -206,6 +206,15 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   /** Roll member overrides up onto the group as badges beside the "N/M"
    *  who-won count (default true). See `memberBadgeWinners`. */
   show_member_badges?: boolean;
+  /** Per-member display-name overrides for a Cover Group's roster, keyed by the
+   *  member's ACP `entry_id` (or, for a generic adopted cover with no entry, its
+   *  `cover.*` entity_id). Overrides only what the ROSTER ROW is labelled; the
+   *  member's own tile elsewhere on the dashboard is untouched.
+   *
+   *  A row is named from its ACP entry, which is the right default but is not
+   *  always the label you want on a given dashboard, and it cannot be changed
+   *  per-card without renaming the entry for everyone. */
+  member_names?: Record<string, string>;
   /** Card-owned floating tooltip behavior. Defaults: enabled, offset [12,16],
    *  delay 400ms. Set `enabled: false` to use native browser tooltips. */
   tooltips?: TooltipsConfig;

@@ -389,6 +389,7 @@ export class AcpHarnessCardStage extends LitElement {
       show_automation: t.show_automation,
       show_clear_overrides: t.show_clear_overrides,
       show_member_badges: t.show_member_badges,
+      ...(t.member_names ? { member_names: t.member_names } : {}),
       ...(Object.keys(badges).length > 0 ? { badges } : {}),
       show_compass: t.show_compass,
       show_elevation_chart: t.show_elevation_chart,

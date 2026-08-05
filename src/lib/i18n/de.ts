@@ -90,6 +90,11 @@ export const de: EnDict = {
     close: 'Gruppe schließen',
     stop: 'Gruppe stoppen',
     position_slider_label: 'Gruppenposition',
+    range: '{min}\u2013{max}\u00a0%',
+    exception_held: '{count} gehalten',
+    exception_unavailable: '{count} nicht verf\u00fcgbar',
+    drag_to_set_all: 'Ziehen, um alle {count} Behänge zu setzen',
+    spread_value: '{min} % bis {max} % über {count} Behänge',
   },
   forecast: {
     event: {
@@ -231,6 +236,7 @@ export const de: EnDict = {
     tilt_target: 'Neigung: {pct}',
     tilt_click_to_set: 'Klicken zum Festlegen der Neigung',
     tilt_target_tooltip: 'Neigungsziel {pct}%',
+    goto_target: 'Auf Ziel fahren ({pct}%) — automatische Steuerung bleibt aktiv',
   },
   decision: {
     placeholder: 'Entscheidungsprotokoll noch nicht befüllt.',
@@ -300,6 +306,9 @@ export const de: EnDict = {
     loading: 'Wird geladen…',
     entry_not_found: 'Adaptive Cover Pro-Eintrag {entry} nicht gefunden.',
     unavailable: 'Nicht verfügbar',
+    rails_layered: '{count} Behänge einer Beschattung',
+    rails_separate: '{count} Beschattungen',
+    rails_layered_hint: 'Behänge einer Beschattung',
   },
   formatters: {
     expired: 'abgelaufen',
@@ -457,6 +466,9 @@ export const de: EnDict = {
       covers: 'Positionsleisten (Reihenfolge)',
       covers_hint:
         'Ziehen Sie eine Zeile oder verwenden Sie die Pfeile, um die Reihenfolge der Positionsleisten festzulegen. Das Auge blendet eine Leiste aus, ohne den Behang zu entfernen.',
+      member_names: 'Mitgliedsnamen',
+      member_names_hint:
+        'Benennen Sie ein Gruppenmitglied nur f\u00fcr diese Karte um. Leer lassen, um den Namen des Eintrags zu verwenden.',
       covers_move_up: 'Nach oben',
       covers_move_down: 'Nach unten',
       covers_hide: 'Diese Leiste ausblenden',

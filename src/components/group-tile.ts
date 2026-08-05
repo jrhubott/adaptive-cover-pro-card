@@ -5,10 +5,12 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities } from '../types';
 import { memberBadgeWinners } from '../lib/badge-visibility';
 import { axisDisplayValue, positionAxisFor } from '../lib/axes';
+import { memberSpread } from '../lib/group-spread';
 import { formatPercent } from '../lib/formatters';
 import { coverStateColor, COVER_ACTIVE_COLOR } from '../lib/icons';
 import {
   groupIcon,
+  memberException,
   readGroup,
   setGroupPosition,
   setGroupTilt,
@@ -83,6 +85,37 @@ export class GroupTile extends LitElement {
     const shownFill = shownPosition === null ? 0 : axisDisplayValue(shownPosition, posAxis);
     const iconColor = this.stateColor ? coverStateColor(s.aggregate) : '';
     const controllable = !!s.target;
+    // Where the members ACTUALLY are, versus the mean the sensor publishes.
+    const spread = memberSpread(s.memberPositions, posAxis);
+    // Mid-drag the rail previews a SINGLE value, deliberately: the drag is about
+    // to flatten every member onto it, and collapsing the spread as the finger
+    // moves is the clearest possible statement of that.
+    const dragging = this._posDrag !== null;
+    // Second line: what the covers are ACTUALLY at, or the one thing that is
+    // wrong with them.
+    //
+    // Not the driven count it replaced ("0 of 5 driven"): a group drives members
+    // only while a scene or the lock is active, so that read "0 of N" nearly
+    // always — a near-constant occupying the tile's only free line, and one the
+    // N/M badge beside it already stated.
+    //
+    // Range beats the aggregate percentage for the same reason the spread bar
+    // does: the sensor publishes a mean, and a mean of 40/40/40/0/0 is 24, which
+    // describes none of them. Shown in the LOGICAL frame — these are readouts,
+    // and every other readout in the card reports what the cover reports.
+    const exception = memberException(this.hass, s);
+    const stateDetail = dragging
+      ? formatPercent(shownPosition)
+      : exception
+        ? t(`group.exception_${exception.kind}`, this.hass, { count: exception.count })
+        : spread
+          ? spread.aligned
+            ? formatPercent(spread.logicalMin)
+            : t('group.range', this.hass, {
+                min: Math.round(spread.logicalMin),
+                max: Math.round(spread.logicalMax),
+              })
+          : formatPercent(shownPosition);
     const badgeWinners = this.showMemberBadges ? memberBadgeWinners(s.memberWinners) : [];
 
     return html`
@@ -111,7 +144,7 @@ export class GroupTile extends LitElement {
 
         <div class="label">
           <div class="title">${this.name ?? this.discovered.entry_title}</div>
-          <div class="state">${stateText} · ${formatPercent(shownPosition)}</div>
+          <div class="state">${stateText} · ${stateDetail}</div>
         </div>
 
         ${this.showControls
@@ -155,21 +188,52 @@ export class GroupTile extends LitElement {
                 aria-disabled=${controllable ? 'false' : 'true'}
                 aria-valuemin="0"
                 aria-valuemax="100"
-                aria-valuenow=${shownFill}
-                aria-valuetext=${t('covers.position_open_value', this.hass, {
-                  pct: formatPercent(shownPosition),
-                })}
+                aria-valuenow=${spread && !dragging ? spread.min : shownFill}
+                aria-valuetext=${spread && !spread.aligned && !dragging
+                  ? // LOGICAL, like every other readout. `min`/`max` are coverage
+                    // coordinates for drawing and are mirrored on a blind, so
+                    // reading them out told a screen-reader user 60-100% while the
+                    // screen said 0-40%.
+                    t('group.spread_value', this.hass, {
+                      min: Math.round(spread.logicalMin),
+                      max: Math.round(spread.logicalMax),
+                      count: spread.readable,
+                    })
+                  : t('covers.position_open_value', this.hass, {
+                      pct: formatPercent(shownPosition),
+                    })}
                 aria-label=${t('group.position_slider_label', this.hass)}
-                ${tooltip(t('covers.click_to_set', this.hass))}
-                @click=${(e: MouseEvent) => this._onPosClick(e, s)}
+                ${tooltip(t('group.drag_to_set_all', this.hass, { count: s.rosterTotal }))}
+                @click=${this._stop}
                 @pointerdown=${(e: PointerEvent) => this._onPosPointerDown(e, controllable)}
                 @pointermove=${this._onPosPointerMove}
-                @pointerup=${this._onPosPointerEnd}
-                @pointercancel=${this._onPosPointerEnd}
+                @pointerup=${(e: PointerEvent) => this._onPosPointerEnd(e, s)}
+                @pointercancel=${this._onPosCancel}
                 @keydown=${(e: KeyboardEvent) => this._onPosKeydown(e, s)}
               >
                 <div class="pos-bar">
-                  <div class="pos-fill" style=${`width:${shownFill}%`}></div>
+                  ${dragging || !spread
+                    ? html`<div class="pos-fill" style=${`width:${shownFill}%`}></div>`
+                    : html`
+                        <!-- Solid to the LEAST-covered member: the coverage every
+                             member has reached. Band on top spans to the most-
+                             covered one, so the gap between them IS the disagreement
+                             the word "Mixed" was gesturing at. -->
+                        <div class="pos-fill" style=${`width:${spread.min}%`}></div>
+                        ${spread.aligned
+                          ? nothing
+                          : html`<div
+                              class="pos-band"
+                              style=${`left:${spread.min}%;width:${spread.max - spread.min}%`}
+                            ></div>`}
+                        ${spread.ticks.map(
+                          (v) =>
+                            html`<div
+                              class="pos-tick"
+                              style=${`left:clamp(1px, ${v}%, calc(100% - 1px))`}
+                            ></div>`,
+                        )}
+                      `}
                 </div>
               </div>`
             : nothing}
@@ -252,6 +316,17 @@ export class GroupTile extends LitElement {
     return Math.max(0, Math.min(100, pct));
   }
 
+  /** How far the pointer must travel before the gesture counts as a deliberate
+   *  drag. A group write is not like a cover write: `group_set_position` flattens
+   *  EVERY member onto one value and takes them off their own solar targets, so
+   *  a stray tap while reaching for the tile must not commit it. Below this it is
+   *  a tap, and a tap on a group rail now does nothing at all. */
+  private static readonly DRAG_THRESHOLD_PX = 4;
+
+  /** Pointer x at gesture start, and whether it has since passed the threshold. */
+  private _posDownX: number | null = null;
+  private _posMoved = false;
+
   private _onPosPointerDown(e: PointerEvent, controllable: boolean): void {
     e.stopPropagation();
     if (!controllable) return;
@@ -259,35 +334,47 @@ export class GroupTile extends LitElement {
     (el as HTMLElement & { setPointerCapture?: (id: number) => void }).setPointerCapture?.(
       e.pointerId,
     );
-    this._posDrag = axisDisplayValue(this._pctFromEvent(e, el), positionAxisFor(this.discovered));
+    this._posDownX = e.clientX;
+    this._posMoved = false;
+    // Deliberately NO preview yet. The rail commits only past the threshold, so
+    // previewing on contact showed a committed-looking flatten for a tap that
+    // does nothing — the spread collapsed and the state line changed, then both
+    // sprang back on release.
   }
 
   private _onPosPointerMove = (e: PointerEvent): void => {
-    if (this._posDrag === null) return;
+    if (this._posDownX === null) return;
     e.stopPropagation();
+    if (Math.abs(e.clientX - this._posDownX) >= GroupTile.DRAG_THRESHOLD_PX) {
+      this._posMoved = true;
+    }
+    if (!this._posMoved) return;
     this._posDrag = axisDisplayValue(
       this._pctFromEvent(e, e.currentTarget as HTMLElement),
       positionAxisFor(this.discovered),
     );
   };
 
-  private _onPosPointerEnd = (e: PointerEvent): void => {
+  /** Commit on release, and ONLY when the gesture actually travelled. The commit
+   *  moved here from the trailing `click` precisely so a tap can be distinguished
+   *  from a drag — `click` fires for both and cannot tell them apart. */
+  private _onPosPointerEnd = (e: PointerEvent, s: GroupSnapshot): void => {
     e.stopPropagation();
+    const value = this._posDrag;
+    const moved = this._posMoved;
     this._posDrag = null;
+    this._posDownX = null;
+    this._posMoved = false;
+    if (!moved || value === null || !s.target) return;
+    setGroupPosition(this.hass, s, value);
   };
 
-  private _onPosClick(e: MouseEvent, s: GroupSnapshot): void {
+  private _onPosCancel = (e: PointerEvent): void => {
     e.stopPropagation();
-    if (!s.target) return;
-    setGroupPosition(
-      this.hass,
-      s,
-      axisDisplayValue(
-        this._pctFromEvent(e, e.currentTarget as HTMLElement),
-        positionAxisFor(this.discovered),
-      ),
-    );
-  }
+    this._posDrag = null;
+    this._posDownX = null;
+    this._posMoved = false;
+  };
 
   /** Standard WAI-ARIA slider keys: arrows ±1, Page ±10, Home/End to the ends. */
   private _onPosKeydown(e: KeyboardEvent, s: GroupSnapshot): void {
@@ -299,7 +386,13 @@ export class GroupTile extends LitElement {
     // starts from the empty end. Using 0 meant the mirrored axis started from
     // the FULL end, and one rightward key redrew an empty rail as completely
     // full — the same defect fixed in acp-axis-bar.
-    const current = s.position === null ? 0 : axisDisplayValue(s.position, posAxis);
+    // Never the aggregate mean: on a 40/40/40/0/0 roster that is 24, a value no
+    // member holds and which appears nowhere on the tile, so one arrow press
+    // flattened all five onto 25. Step from the drawn MINIMUM instead — the
+    // solid part of the rail, the coverage every member has actually reached.
+    const spread = memberSpread(s.memberPositions, posAxis);
+    const current =
+      spread?.min ?? (s.position === null ? 0 : axisDisplayValue(s.position, posAxis));
     let next: number;
     switch (e.key) {
       case 'ArrowRight':
@@ -525,6 +618,43 @@ export class GroupTile extends LitElement {
       opacity: 0.55;
       border-radius: 6px;
       transition: width 0.3s ease;
+    }
+    /* Disagreement band: from the least-covered member to the most-covered one.
+       Same hue as the fill at a lower opacity, so it reads as "some of them are
+       also this far" rather than as a second measurement. Zero-width when the
+       members agree, which is why it isn't rendered at all in that case. */
+    .pos-band {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      background: var(--acp-pos-fill-color, ${unsafeCSS(COVER_ACTIVE_COLOR)});
+      opacity: 0.22;
+      transition:
+        left 0.3s ease,
+        width 0.3s ease;
+    }
+    /* One tick per DISTINCT member value. Two clusters of covers draw two ticks,
+       which is the whole point: "Mixed" stops being a word and becomes a picture
+       of where they actually are. Clamped inside the rail (inline) so the 2px box
+       survives .pos-bar's overflow:hidden at either extreme, same as the cover
+       bar's target marker. */
+    .pos-tick {
+      position: absolute;
+      top: -2px;
+      width: 2px;
+      height: 10px;
+      border-radius: 1px;
+      background: var(--acp-pos-fill-color, ${unsafeCSS(COVER_ACTIVE_COLOR)});
+      transform: translateX(-50%);
+      transition: left 0.3s ease;
+    }
+    /* The rail has to show the ticks that overhang it. Only the FILL and BAND
+       need clipping to the rounded ends, so they round themselves instead. */
+    .pos-bar {
+      overflow: visible;
+    }
+    .pos-band {
+      border-radius: 6px;
     }
     /* The ease above smooths server-driven updates; mid-drag it reads as lag. */
     .pos-slider.dragging .pos-fill {

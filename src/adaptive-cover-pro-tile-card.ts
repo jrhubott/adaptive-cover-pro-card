@@ -28,6 +28,7 @@ import { createDiscoveryMemo } from './lib/entity-discovery';
 import { resolveTileName, isValidAcpName } from './lib/name-parts';
 import { makeEntitySuggestion } from './lib/entity-suggestion';
 import { axisDisplayValue, positionAxisFor, resolveAxes, type ResolvedAxis } from './lib/axes';
+import { railsAreOneCover } from './lib/rail-model';
 import { setAxes, engageManualOverride, hasEngageManualOverride } from './lib/services';
 import { buildOverridePresets } from './lib/override-presets';
 import './components/extend-override-dialog';
@@ -336,6 +337,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
           .discovered=${discovered}
           .open=${this._dialogOpen}
           .name=${groupTitle}
+          .memberNames=${this._config.member_names}
           .icon=${this._config.icon}
           .stateColor=${this._config.state_color !== false}
           .showTilt=${this._config.show_tilt !== false}
@@ -426,8 +428,8 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
   private _renderTile(discovered: DiscoveredEntities): TemplateResult {
     const cfg = this._config!;
-    const title = resolveTileName(cfg.name, discovered);
     const cover = this._resolvedCover(discovered);
+    const title = resolveTileName(cfg.name, discovered);
     // Resolve the icon from the underlying HA cover entity so it matches HA's
     // native tile/more-info glyph: cfg.icon override → explicit entity icon →
     // device_class glyph → integration cover_type → generic fallback.
@@ -729,6 +731,12 @@ export class AdaptiveCoverProTileCard extends LitElement {
         : cfg.covers
       : [];
     const barCovers = listed.length > 0 ? listed : defaultCovers;
+    // Are the stacked rails layers of ONE cover, or separate covers? Both arrive
+    // here as a plain id list and rendered identically, which made a day/night
+    // shade's two rails indistinguishable from an entry someone attached three
+    // windows to. Keyed off the tile's own rail list, not the entry's, so
+    // narrowing a dual-rail shade to one rail drops the bracket with the stack.
+    const layeredRails = railsAreOneCover(discovered, barCovers.length);
     // Low-battery overlay on the tile icon, sibling to the motion overlay. Keyed
     // off the tile's OWN cover list, not the entry's: a tile narrowed to one rail
     // of a dual-rail shade must not warn about the battery of a cover it doesn't
@@ -787,7 +795,14 @@ export class AdaptiveCoverProTileCard extends LitElement {
           // here painted the RESOLVED cover's value onto whatever cover
           // `covers[0]` names, while clicks/drags wrote to `covers[0]`.
           this._posBar(barCovers[0], railLive(barCovers[0]), railTarget(barCovers[0]), positionAxis)
-        : html`<div class="pos-stack">
+        : html`<div
+            class=${`pos-stack${layeredRails ? ' layered' : ''}`}
+            role="group"
+            aria-label=${t(layeredRails ? 'tile.rails_layered' : 'tile.rails_separate', this.hass, {
+              count: barCovers.length,
+            })}
+            ${layeredRails ? tooltip(t('tile.rails_layered_hint', this.hass)) : nothing}
+          >
             ${barCovers.map((id) => {
               const live = railLive(id);
               const railName = this._coverShortName(id, discovered);
@@ -1611,6 +1626,46 @@ export class AdaptiveCoverProTileCard extends LitElement {
       align-items: center;
       gap: var(--acp-rail-glyph-gap);
       min-width: 0;
+    }
+    /* Layers of ONE cover vs. separate covers. A day/night shade's two rails and
+       a blind entry with three windows attached both render as a rail stack, and
+       until now looked identical — same glyph, same spacing, same everything.
+
+       Layered rails get a BRACE: a hairline down the glyph lane's gap, tying the
+       rails into one object. Separate covers keep today's rendering untouched,
+       so the common path has nothing to regress.
+
+       The brace is absolutely positioned, so it costs no layout width — but the
+       6px gap is too tight to sit a line in with air either side, so the layered
+       stack widens its gap. That widens the derived glyph lane, which moves the
+       stack's LEFT edge out; the rails keep their length and their right edge,
+       which is the invariant issue #260 established. */
+    .chrome-line .pos-stack.layered {
+      --acp-rail-glyph-gap: 10px;
+      /* Re-declare the lane HERE, not just the gap. A custom property is
+         substituted at computed-value time on the element that DECLARES it, so
+         the lane inherited from .chrome-line is already frozen at the 6px gap —
+         overriding the gap alone would leave the flex basis 4px short and the
+         rails 4px stubbier than a lone rail. Redeclaring recomputes it against
+         the local gap, which is the whole point of deriving it. */
+      --acp-rail-glyph-lane: calc(var(--acp-rail-glyph-size) + var(--acp-rail-glyph-gap));
+      position: relative;
+      gap: 2px;
+    }
+    .chrome-line .pos-stack.layered::before {
+      content: '';
+      position: absolute;
+      /* Centered in the gap between the glyph column and the rails. */
+      left: calc(var(--acp-rail-glyph-size) + (var(--acp-rail-glyph-gap) / 2) - 1px);
+      width: 2px;
+      /* Span rail-center to rail-center rather than the full box, so the brace
+         reads as joining the rails instead of boxing the stack. A row is the
+         glyph's height, so half of one is the inset at each end. */
+      top: calc(var(--acp-rail-glyph-size) / 2);
+      bottom: calc(var(--acp-rail-glyph-size) / 2);
+      border-radius: 1px;
+      background: var(--secondary-text-color);
+      opacity: 0.45;
     }
     /* Per-rail glyph in place of a name: two rails of one shade have long,
        near-identical names that ate the rail's width.
