@@ -192,6 +192,16 @@ async function mountTilt(
   return el;
 }
 
+/** The tile's stylesheet as one string. `styles` is an ARRAY since the rail
+ *  overlay's shared fragment was factored out, so a single `.cssText` no longer
+ *  covers it — joining keeps these assertions checking the whole sheet. */
+function tileCss(): string {
+  const styles = AdaptiveCoverProTileCard.styles as unknown as
+    | { cssText: string }
+    | { cssText: string }[];
+  return Array.isArray(styles) ? styles.map((s) => s.cssText).join('\n') : styles.cssText;
+}
+
 describe('adaptive-cover-pro-tile-card setConfig', () => {
   it('throws when entry_id is missing', () => {
     const el = makeCard();
@@ -2072,12 +2082,12 @@ describe('adaptive-cover-pro-tile-card narrow-column responsiveness (#136)', () 
   });
 
   it('declares an inline-size container so the column width drives the layout', () => {
-    const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
+    const css = tileCss();
     expect(css).toContain('container-type: inline-size');
   });
 
   it('reflows the detailed controls onto their own full-width row at a narrow breakpoint', () => {
-    const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
+    const css = tileCss();
     expect(css).toContain('@container');
     // The narrow detailed grid (2 columns) moves controls to a row of their own
     // — this 'controls'-spanning template area exists only in the narrow reflow.
@@ -2089,7 +2099,7 @@ describe('adaptive-cover-pro-tile-card narrow-column responsiveness (#136)', () 
     // desktop dashboard — so a bare container query can't tell them apart and a
     // blanket raise made laptop tiles grow a control row. The phone reflow is
     // gated on a narrow *viewport* (≤500px) so only real phones trigger it.
-    const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
+    const css = tileCss();
     expect(css).toContain('@media (max-width: 500px)');
     expect(css).toContain('max-width: 480px');
   });
@@ -2097,7 +2107,7 @@ describe('adaptive-cover-pro-tile-card narrow-column responsiveness (#136)', () 
   it('still reflows a genuinely narrow desktop column via the container query (#136)', () => {
     // #136 is a column-driven squeeze on a wide viewport, where @media can't see
     // the narrow tile — the bare container query at ≤340px must remain.
-    const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
+    const css = tileCss();
     expect(css).toContain('@container (max-width: 340px)');
   });
 });
@@ -2532,7 +2542,7 @@ describe('adaptive-cover-pro-tile-card HA tile layout (detailed)', () => {
   });
 
   it('links detailed controls to HA ha-control-button CSS tokens', () => {
-    const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
+    const css = tileCss();
     // 36px is HA's inline-features thickness (--feature-height: --ha-space-9),
     // which is what ha-tile-container sets for a features block beside the
     // info column — not the 42px of a full-width bottom feature row.
@@ -3008,7 +3018,7 @@ describe('adaptive-cover-pro-tile-card — position bar drag slider', () => {
   });
 
   it('declares an expanded touch target and owns the touch gesture', () => {
-    const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
+    const css = tileCss();
     expect(css).toContain('touch-action: none');
     // The 6px rail is too thin to grab; an invisible ::before widens the hit
     // area without adding layout height.
@@ -3404,7 +3414,7 @@ describe('adaptive-cover-pro-tile-card — icon_tap_action', () => {
   });
 
   it('exposes the pill and 0.2 tint in the stylesheet', () => {
-    const css = (AdaptiveCoverProTileCard.styles as { cssText: string }).cssText;
+    const css = tileCss();
     expect(css).toContain('border-radius: var(--ha-border-radius-pill, 9999px)');
     expect(css).toContain('opacity: 0.2');
     expect(css).toContain('opacity: 0.35');
@@ -3921,5 +3931,90 @@ describe('tile card — drag position readout (#260)', () => {
     expect(AdaptiveCoverProTileCard.styles.toString()).toMatch(
       /\.pos-readout\s*\{[^}]*pointer-events:\s*none/,
     );
+  });
+});
+
+/**
+ * Two-rail readout for a LAYERED entry (day/night + dual-panel shades).
+ *
+ * The single readout describes the resolved cover only, so a shade whose two
+ * fabrics sit at different positions read exactly like one at a single
+ * position. These pin both halves of the rule: the split appears when the
+ * fabrics disagree, and does NOT appear when they agree or when the two rails
+ * are separate windows rather than layers of one opening.
+ */
+const LAYERED_REGISTRY: EntityRegistryEntry[] = [
+  ...REGISTRY,
+  {
+    entity_id: 'sensor.control_status',
+    unique_id: `${ENTRY}_control_status`,
+    config_entry_id: ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+];
+
+function layeredHass(opts: {
+  leftState: string;
+  leftPos: number;
+  rightState: string;
+  rightPos: number;
+  coverType?: string;
+}): HomeAssistant {
+  const h = makeHass();
+  const s = h.states as unknown as Record<string, unknown>;
+  s['sensor.control_status'] = {
+    state: 'auto',
+    attributes: { cover_type: opts.coverType ?? 'cover_day_night_shade' },
+  };
+  s['sensor.cover_position'] = {
+    state: String(opts.leftPos),
+    attributes: { actual_positions: { 'cover.left': opts.leftPos, 'cover.right': opts.rightPos } },
+  };
+  s['cover.left'] = { state: opts.leftState, attributes: { current_position: opts.leftPos } };
+  s['cover.right'] = { state: opts.rightState, attributes: { current_position: opts.rightPos } };
+  return h;
+}
+
+async function mountLayered(hass: HomeAssistant): Promise<CardLike> {
+  const el = makeCard();
+  el.setConfig({ type: TYPE, entry_id: ENTRY, layout: 'detailed' });
+  el.hass = hass;
+  document.body.appendChild(el);
+  el._registry = LAYERED_REGISTRY;
+  await el.updateComplete;
+  return el;
+}
+
+describe('tile readout — layered two-rail entries', () => {
+  it('splits into per-rail state + position when the fabrics disagree', async () => {
+    const el = await mountLayered(
+      layeredHass({ leftState: 'open', leftPos: 100, rightState: 'closed', rightPos: 50 }),
+    );
+    expect(el.shadowRoot!.querySelector('.state')?.textContent?.trim()).toBe(
+      'Open 100% · Closed 50%',
+    );
+  });
+
+  it('keeps the single readout when the fabrics agree', async () => {
+    const el = await mountLayered(
+      layeredHass({ leftState: 'open', leftPos: 100, rightState: 'open', rightPos: 100 }),
+    );
+    expect(el.shadowRoot!.querySelector('.state')?.textContent?.trim()).toBe('Open · 100%');
+  });
+
+  it('leaves SEPARATE-cover entries alone even when their rails differ', async () => {
+    // Two windows on one entry, not two layers of one opening. They disagree by
+    // a couple of percent all the time; splitting the line there would be noise.
+    const el = await mountLayered(
+      layeredHass({
+        leftState: 'open',
+        leftPos: 42,
+        rightState: 'open',
+        rightPos: 45,
+        coverType: 'cover_blind',
+      }),
+    );
+    expect(el.shadowRoot!.querySelector('.state')?.textContent?.trim()).toBe('Open · 42%');
   });
 });

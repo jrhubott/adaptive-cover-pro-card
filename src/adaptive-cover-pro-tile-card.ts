@@ -29,6 +29,8 @@ import { resolveTileName, isValidAcpName } from './lib/name-parts';
 import { makeEntitySuggestion } from './lib/entity-suggestion';
 import { axisDisplayValue, positionAxisFor, resolveAxes, type ResolvedAxis } from './lib/axes';
 import { railsAreOneCover } from './lib/rail-model';
+import { PendingMoves, isMovingState, isPendingVisible } from './lib/pending-move';
+import { renderRailOverlay, railOverlayStyles } from './components/rail-overlay';
 import { setAxes, engageManualOverride, hasEngageManualOverride } from './lib/services';
 import { buildOverridePresets } from './lib/override-presets';
 import './components/extend-override-dialog';
@@ -201,8 +203,17 @@ export class AdaptiveCoverProTileCard extends LitElement {
     }
   }
 
+  /** Moves this card commanded, keyed by cover id — see `lib/pending-move.ts`. */
+  private _posPending = new PendingMoves(this);
+
+  /** Live value per rail as of the last render. A plain field, deliberately not
+   *  `@state`: `updated()` reads it to retire arrived moves, and writing it must
+   *  not schedule another render. */
+  private _lastRailLive = new Map<string, number | null>();
+
   protected updated(changed: Map<string, unknown>): void {
     if (changed.has('hass') && this.hass) this._ensureRegistry();
+    this._posPending.settle((cover) => this._lastRailLive.get(cover) ?? null);
   }
 
   // Re-render only on hass ticks that touched one of this entry's entities (the union
@@ -317,6 +328,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
             .hass=${this.hass}
             .discovered=${discovered}
             .name=${groupTitle}
+            .members=${this._config.members}
             .icon=${this._config.icon}
             .stateColor=${this._config.state_color !== false}
             .showControls=${this._config.show_controls !== false}
@@ -338,6 +350,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
           .open=${this._dialogOpen}
           .name=${groupTitle}
           .memberNames=${this._config.member_names}
+          .members=${this._config.members}
           .icon=${this._config.icon}
           .stateColor=${this._config.state_color !== false}
           .showTilt=${this._config.show_tilt !== false}
@@ -611,6 +624,54 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // Dedupe: when the winner badge is itself `auto` (default winner), render
     // the Auto line only and suppress the inline winner badge.
     const inlineWinnerBadge = !(showAutoBadge && winnerKind === 'auto');
+    // Rails are resolved HERE, above the readout, because the readout now
+    // describes them (see `railReadout`). The bar section below consumes the
+    // same two values rather than re-deriving them, so the text and the bars
+    // can never disagree about which covers the tile is showing or where they
+    // are.
+    //
+    // Default rails: the `cover` pin alone when one is set, else every managed
+    // cover. The editor's rail widget must agree with this exactly.
+    const defaultCovers = cfg.cover
+      ? [cfg.cover]
+      : discovered.managed_covers.length > 0
+        ? discovered.managed_covers
+        : cover
+          ? [cover]
+          : [];
+    // An explicit `covers` list picks the rails and their order; ids the entry
+    // no longer manages are dropped. If that leaves NOTHING — every listed cover
+    // was renamed or removed from the entry — fall back to the default rather
+    // than rendering a tile with no position bar: the editor hides its repair
+    // widget below two managed covers, so an empty result would be escapable
+    // only by hand-editing YAML.
+    const listed = cfg.covers?.length
+      ? discovered.managed_covers.length > 0
+        ? cfg.covers.filter((id) => discovered.managed_covers.includes(id))
+        : cfg.covers
+      : [];
+    const barCovers = listed.length > 0 ? listed : defaultCovers;
+    // Are the stacked rails layers of ONE cover, or separate covers? Keyed off
+    // the tile's own rail list, not the entry's, so narrowing a dual-rail shade
+    // to one rail drops the treatment with the stack.
+    const layeredRails = railsAreOneCover(discovered, barCovers.length);
+    // Live value for any rail. The resolved cover keeps the value the rest of
+    // the tile (icon, readout, controls) already agrees on; every other rail
+    // reproduces the same resolution for ITSELF rather than reading a raw
+    // attribute: the `unknown`-state gate from issue #232 (a stale
+    // `current_position` is not live truth), then the integration's own
+    // snapshot — which carries the assumed position for a no-feedback cover, and
+    // is exactly what the dialog's cover bars read, so the two agree.
+    const logicalActuals = coverLogicalActuals(this.hass, discovered);
+    const railLive = (id: string): number | null => {
+      if (id === cover) return livePosition;
+      const st = this.hass.states[id];
+      if (isOffline(st?.state)) return null;
+      const reported = isUnavailable(st?.state)
+        ? null
+        : logicalCoverPosition(this.hass, discovered, id);
+      return reported ?? logicalActuals[id] ?? null;
+    };
     // No-feedback covers publish an in-transit direction; surface it as the same
     // localized "Opening"/"Closing" state text a real position cover shows, by
     // overriding the entity's (final open/closed) state in the readout.
@@ -624,8 +685,56 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // One-line has no room for the bar, so fold tilt into the readout as ⟂30%.
     const tiltText =
       showTilt && !detailed && liveTilt !== null ? `⟂${formatPercent(liveTilt)}` : null;
-    const labelParts = [stateText, positionText, tiltText].filter((p): p is string => !!p);
-    const hasStateLabel = !!stateText;
+    /**
+     * Per-rail readout for a LAYERED two-rail entry — a day/night shade's two
+     * fabrics, a dual-panel window's sheer and blackout.
+     *
+     * Layered only, deliberately. Two rails can also mean two separate windows
+     * on one entry, and those disagree constantly by a percent or two; giving
+     * them a permanent two-segment line would be noise, not information. A
+     * layered pair is one opening whose two fabrics are genuinely two axes of
+     * the same thing, which is the case with no other textual readout.
+     *
+     * The ordinary readout describes the RESOLVED cover only, so the second
+     * rail's state and position appeared nowhere in text: a shade whose fabrics
+     * sit at open-100% and closed-50% read exactly like one at open-100%.
+     *
+     * Rendered ONLY when the rails actually disagree. A tile whose fabrics are
+     * in sync keeps the shorter line it has always had, so the longer form is a
+     * signal rather than permanent noise.
+     *
+     * Detailed layout only — one-line has no room for two segments and already
+     * folds a venetian's tilt in as ⟂30%. A venetian is deliberately not
+     * covered here at all: its second axis is drawn as a bar immediately below
+     * this line, and repeating that number 20px above it states nothing new.
+     * This is about a second COVER, which has no other textual readout.
+     */
+    const railReadout = (): string[] | null => {
+      if (!detailed || offline || !layeredRails || barCovers.length !== 2) return null;
+      const parts = barCovers.map((id) => {
+        const state = isOffline(this.hass.states[id]?.state)
+          ? t('tile.unavailable', this.hass)
+          : formatCoverState(this.hass, id, id === cover ? (transitDir ?? undefined) : undefined);
+        const pos = railLive(id);
+        return {
+          state,
+          pos,
+          text: [showState ? state : null, showPosition && pos !== null ? formatPercent(pos) : null]
+            .filter((p): p is string => !!p)
+            .join(' '),
+        };
+      });
+      // Nothing to say for one of them (both readouts switched off, or a rail
+      // with neither a state nor a position) — fall back rather than render a
+      // lone segment that looks like the old line with a stray separator.
+      if (parts.some((p) => !p.text)) return null;
+      if (parts[0].state === parts[1].state && parts[0].pos === parts[1].pos) return null;
+      return parts.map((p) => p.text);
+    };
+    const railParts = railReadout();
+    const labelParts =
+      railParts ?? [stateText, positionText, tiltText].filter((p): p is string => !!p);
+    const hasStateLabel = railParts ? true : !!stateText;
 
     const activeFloor = resolveActiveMinModeFloor(traceAttrs, this.hass.states, calculatedPosition);
     const winnerNormalized = normalizeHandler(winner);
@@ -710,33 +819,6 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // the config flow's entity-pick order, which the card cannot influence.
     // Unknown ids are dropped rather than rendered as dead rails. Failing that,
     // `cover` pins the tile to its single rail, as before.
-    // Default rails: the `cover` pin alone when one is set, else every managed
-    // cover. The editor's rail widget must agree with this exactly.
-    const defaultCovers = cfg.cover
-      ? [cfg.cover]
-      : discovered.managed_covers.length > 0
-        ? discovered.managed_covers
-        : cover
-          ? [cover]
-          : [];
-    // An explicit `covers` list picks the rails and their order; ids the entry
-    // no longer manages are dropped. If that leaves NOTHING — every listed cover
-    // was renamed or removed from the entry — fall back to the default rather
-    // than rendering a tile with no position bar: the editor hides its repair
-    // widget below two managed covers, so an empty result would be escapable
-    // only by hand-editing YAML.
-    const listed = cfg.covers?.length
-      ? discovered.managed_covers.length > 0
-        ? cfg.covers.filter((id) => discovered.managed_covers.includes(id))
-        : cfg.covers
-      : [];
-    const barCovers = listed.length > 0 ? listed : defaultCovers;
-    // Are the stacked rails layers of ONE cover, or separate covers? Both arrive
-    // here as a plain id list and rendered identically, which made a day/night
-    // shade's two rails indistinguishable from an entry someone attached three
-    // windows to. Keyed off the tile's own rail list, not the entry's, so
-    // narrowing a dual-rail shade to one rail drops the bracket with the stack.
-    const layeredRails = railsAreOneCover(discovered, barCovers.length);
     // Low-battery overlay on the tile icon, sibling to the motion overlay. Keyed
     // off the tile's OWN cover list, not the entry's: a tile narrowed to one rail
     // of a dual-rail shade must not warn about the battery of a cover it doesn't
@@ -745,23 +827,6 @@ export class AdaptiveCoverProTileCard extends LitElement {
       const worst = lowestBattery(resolveCoverBatteries(this.hass, barCovers));
       return isLowBattery(worst) ? worst : null;
     })();
-    // Live value for any rail. The resolved cover keeps the value the rest of
-    // the tile (icon, readout, controls) already agrees on; every other rail
-    // reproduces the same resolution for ITSELF rather than reading a raw
-    // attribute: the `unknown`-state gate from issue #232 (a stale
-    // `current_position` is not live truth), then the integration's own
-    // snapshot — which carries the assumed position for a no-feedback cover, and
-    // is exactly what the dialog's cover bars read, so the two agree.
-    const logicalActuals = coverLogicalActuals(this.hass, discovered);
-    const railLive = (id: string): number | null => {
-      if (id === cover) return livePosition;
-      const st = this.hass.states[id];
-      if (isOffline(st?.state)) return null;
-      const reported = isUnavailable(st?.state)
-        ? null
-        : logicalCoverPosition(this.hass, discovered, id);
-      return reported ?? logicalActuals[id] ?? null;
-    };
     // The resolved cover's tick stays the entry's pipeline target — the number
     // this tile has always shown, and the one the dialog's marker still shows.
     // Only the OTHER rails take the per-cover command target, because the entry
@@ -1061,6 +1126,21 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // normalize here too.
     const shownFill = shown === null ? 0 : axisDisplayValue(shown, axis);
     const targetFill = target === null ? null : axisDisplayValue(target, axis);
+    // Remembered for `updated()`'s arrival check — see `_lastRailLive`.
+    this._lastRailLive.set(id, live);
+    // Suppressed mid-drag: the drag preview already paints where the finger is,
+    // and a band to the previous command underneath it is a second answer to
+    // the same question.
+    // An AUTOMATIC move has no command echo to latch onto — the pipeline moved
+    // the cover without this card asking — so the evidence is the entity saying
+    // it is in motion, and the destination is the tick the rail already draws.
+    // An explicit command from this card wins: if both are live, the value the
+    // user chose is the one they are waiting on.
+    const autoMoving = isMovingState(this.hass.states[id]?.state) ? target : null;
+    const commanded = dragging ? null : (this._posPending.get(id) ?? autoMoving);
+    // See `acp-axis-bar`: a destination the cover is already at never settles.
+    const pending = isPendingVisible(live, commanded) ? commanded : null;
+    const pendingFill = pending === null ? null : axisDisplayValue(pending, axis);
     const tip =
       target !== null
         ? `${formatPercent(shown)} · ${t('dialog.target', this.hass)} ${formatPercent(target)}`
@@ -1087,6 +1167,15 @@ export class AdaptiveCoverProTileCard extends LitElement {
     >
       <div class="pos-bar" ${tooltip(tip)}>
         <div class="pos-fill" style=${`width:${shownFill}%`}></div>
+        ${pending !== null && pendingFill !== null
+          ? renderRailOverlay({
+              hass: this.hass,
+              liveFrac: shownFill,
+              pendingFrac: pendingFill,
+              pending,
+              prefix: 'pos-',
+            })
+          : nothing}
         ${targetFill !== null
           ? html`<div
               class="pos-marker"
@@ -1224,6 +1313,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
   private _stopCover(cover: string | undefined): void {
     if (!cover) return;
+    // Stop cancels the destination rather than becoming one: wherever the cover
+    // halts IS its position now, so an indicator still pointing somewhere else
+    // would promise a move that was just abandoned.
+    this._posPending.clear(cover);
     this.hass.callService(INTEGRATION_DOMAIN, 'stop', {}, { entity_id: cover });
   }
 
@@ -1232,6 +1325,13 @@ export class AdaptiveCoverProTileCard extends LitElement {
    *  service default preserves today's override semantics. */
   private _setAxis(cover: string | undefined, axisId: string, value: number): void {
     if (!cover) return;
+    // Arm the "moving to" indicator HERE rather than at the rail, because this
+    // is the one funnel every position command passes through: rail tap, drag
+    // release (which rides the trailing click), arrow keys, AND the ↑/↓
+    // buttons, which drive the axis straight to its max/min without going near
+    // the rail. Position only — a secondary axis is drawn by `acp-axis-bar`,
+    // which arms its own.
+    if (axisId === 'position') this._posPending.start(cover, value);
     setAxes(this.hass, cover, { [axisId]: value });
   }
 
@@ -1410,99 +1510,101 @@ export class AdaptiveCoverProTileCard extends LitElement {
     e.stopPropagation();
   }
 
-  public static styles = css`
-    :host {
-      display: block;
-      height: 100%;
-    }
-    ha-card {
-      padding: 6px 10px;
-      overflow: hidden;
-      height: 100%;
-      box-sizing: border-box;
-      /* Center the tile body vertically so a taller-than-default grid cell
+  public static styles = [
+    railOverlayStyles,
+    css`
+      :host {
+        display: block;
+        height: 100%;
+      }
+      ha-card {
+        padding: 6px 10px;
+        overflow: hidden;
+        height: 100%;
+        box-sizing: border-box;
+        /* Center the tile body vertically so a taller-than-default grid cell
          (Sections drag-resize) keeps the content centered rather than top-aligned. */
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      /* In HA's "Sections" view the tile width is driven by the dashboard
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        /* In HA's "Sections" view the tile width is driven by the dashboard
          column, not the viewport, so @media can't see the squeeze. Make the
          card a query container (issue #136) so the detailed layout can reflow
          its controls onto their own row once the column gets narrow. */
-      container-type: inline-size;
-    }
-    .tile-body {
-      display: grid;
-      /* Position column is fixed-width so the controls land at the same x
+        container-type: inline-size;
+      }
+      .tile-body {
+        display: grid;
+        /* Position column is fixed-width so the controls land at the same x
          across stacked tiles regardless of the digit count (87% vs 100%). */
-      grid-template-columns: 24px minmax(0, 1fr) 3rem auto auto;
-      grid-template-areas: 'icon label position controls badge';
-      align-items: center;
-      column-gap: 8px;
-      row-gap: 2px;
-      cursor: pointer;
-      user-select: none;
-      min-width: 0;
-    }
-    /* When the state label is rendered ("Open · 12%") the position cell needs
+        grid-template-columns: 24px minmax(0, 1fr) 3rem auto auto;
+        grid-template-areas: 'icon label position controls badge';
+        align-items: center;
+        column-gap: 8px;
+        row-gap: 2px;
+        cursor: pointer;
+        user-select: none;
+        min-width: 0;
+      }
+      /* When the state label is rendered ("Open · 12%") the position cell needs
        to grow to fit variable-width text. Strict tile-to-tile alignment of the
        ▲ ■ ▼ controls is impossible once the label is variable, so we let
        the cell auto-size. */
-    .tile-body.has-state-label {
-      grid-template-columns: 24px minmax(0, 1fr) auto auto auto;
-    }
-    /* Detailed layout matches HA's native tile card: a tinted icon shape, a
+      .tile-body.has-state-label {
+        grid-template-columns: 24px minmax(0, 1fr) auto auto auto;
+      }
+      /* Detailed layout matches HA's native tile card: a tinted icon shape, a
        name-over-state label column, and inline control buttons on the right —
        all on one row. ACP's own chrome (Auto / winner / floor badges) and the
        position bar share a second row (.chrome-line): badges left, bar right.
        The icon spans both rows so it stays vertically centered (issue #208). */
-    .tile-body.detailed {
-      grid-template-columns: 36px minmax(0, 1fr) auto;
-      grid-template-rows: auto;
-      grid-template-areas: 'icon label controls';
-      align-items: center;
-      /* HA's ha-tile-container .content uses a 10px gap and a 56px row floor. */
-      column-gap: 10px;
-      min-height: var(--row-height, 56px);
-      /* Tight row gap pulls the chrome row (badges + position bar) up snug under
+      .tile-body.detailed {
+        grid-template-columns: 36px minmax(0, 1fr) auto;
+        grid-template-rows: auto;
+        grid-template-areas: 'icon label controls';
+        align-items: center;
+        /* HA's ha-tile-container .content uses a 10px gap and a 56px row floor. */
+        column-gap: 10px;
+        min-height: var(--row-height, 56px);
+        /* Tight row gap pulls the chrome row (badges + position bar) up snug under
          the name/state so the tile stays as short as possible when badges are
          present (issue #208). */
-      row-gap: 2px;
-    }
-    /* HA's inline features block is a hard 50% of the card, not a content-sized
+        row-gap: 2px;
+      }
+      /* HA's inline features block is a hard 50% of the card, not a content-sized
        or equal-share column — see the .controls rule below. The 12px subtrahend
        is its --ha-space-3 inline-end padding. Gated on .has-controls: with
        show_controls false the track is empty, and a 50% track would reserve half
        the tile for nothing where the auto above collapses to zero. */
-    .tile-body.detailed.has-controls {
-      grid-template-columns: 36px minmax(0, 1fr) calc(50% - 12px);
-    }
-    /* Row 2 = the chrome row: Auto/winner/floor badges on the left, position bar
+      .tile-body.detailed.has-controls {
+        grid-template-columns: 36px minmax(0, 1fr) calc(50% - 12px);
+      }
+      /* Row 2 = the chrome row: Auto/winner/floor badges on the left, position bar
        right-aligned. The icon spans both rows (grid-area repeated) so it stays
        vertically centered in the tile rather than pinned to the name row
        (issue #208). */
-    .tile-body.detailed.has-chrome-row {
-      grid-template-rows: auto auto;
-      grid-template-areas:
-        'icon label  controls'
-        'icon chrome chrome';
-    }
-    /* Row 2 (or 3) = the venetian tilt slider, indented under label; icon still
+      .tile-body.detailed.has-chrome-row {
+        grid-template-rows: auto auto;
+        grid-template-areas:
+          'icon label  controls'
+          'icon chrome chrome';
+      }
+      /* Row 2 (or 3) = the venetian tilt slider, indented under label; icon still
        spans every row so it stays centered. */
-    .tile-body.detailed.has-tilt {
-      grid-template-rows: auto auto;
-      grid-template-areas:
-        'icon label controls'
-        'icon tilt  tilt';
-    }
-    .tile-body.detailed.has-chrome-row.has-tilt {
-      grid-template-rows: auto auto auto;
-      grid-template-areas:
-        'icon label  controls'
-        'icon chrome chrome'
-        'icon tilt   tilt';
-    }
-    /* Bar-only (position bar, no badges) gets NO grid special-case: it uses the
+      .tile-body.detailed.has-tilt {
+        grid-template-rows: auto auto;
+        grid-template-areas:
+          'icon label controls'
+          'icon tilt  tilt';
+      }
+      .tile-body.detailed.has-chrome-row.has-tilt {
+        grid-template-rows: auto auto auto;
+        grid-template-areas:
+          'icon label  controls'
+          'icon chrome chrome'
+          'icon tilt   tilt';
+      }
+      /* Bar-only (position bar, no badges) gets NO grid special-case: it uses the
        same .has-chrome-row grid as a badged tile, so the bar spans label+controls
        at full tile width and the name/state sit in row 1. The old special-case
        confined the bar to the label column and spanned .label across both rows to
@@ -1510,98 +1612,98 @@ export class AdaptiveCoverProTileCard extends LitElement {
        bar then shared one cell and overlapped (issue #260), and the confined bar
        read as a different component from the badged tile's full-width one. A
        bar-only tile is now a badged tile minus the badges. */
-    /* Name over state, vertically centered against the icon (HA ha-tile-info).
+      /* Name over state, vertically centered against the icon (HA ha-tile-info).
        No gap: HA's .info stacks the two lines with no gap and lets the primary
        line-height (normal, 1.6) do the spacing. */
-    .tile-body.detailed .label {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-    /* Match HA's ha-tile-info text through the same theme tokens the native
+      .tile-body.detailed .label {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      /* Match HA's ha-tile-info text through the same theme tokens the native
        tile card uses, so ACP inherits any theme font-scaling/recoloring
        instead of drifting with hardcoded values. Fallbacks are HA's own
        defaults: name 14px/500 at line-height normal with 0.1px tracking, state
        12px/400 at condensed with 0.4px. Note the primary and secondary lines
        use DIFFERENT line-heights upstream — normal for the name, condensed for
        the state. */
-    .tile-body.detailed .title {
-      font-size: var(--ha-font-size-m, 0.875rem);
-      font-weight: var(--ha-font-weight-medium, 500);
-      line-height: var(--ha-line-height-normal, 1.6);
-      letter-spacing: 0.1px;
-      color: var(--primary-text-color);
-    }
-    .tile-body.detailed .state {
-      font-size: var(--ha-font-size-s, 0.75rem);
-      font-weight: var(--ha-font-weight-normal, 400);
-      line-height: var(--ha-line-height-condensed, 1.2);
-      letter-spacing: 0.4px;
-      color: var(--secondary-text-color);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      min-width: 0;
-    }
-    /* Chrome row: Auto/winner/floor badges (left) and the position bar (right)
+      .tile-body.detailed .title {
+        font-size: var(--ha-font-size-m, 0.875rem);
+        font-weight: var(--ha-font-weight-medium, 500);
+        line-height: var(--ha-line-height-normal, 1.6);
+        letter-spacing: 0.1px;
+        color: var(--primary-text-color);
+      }
+      .tile-body.detailed .state {
+        font-size: var(--ha-font-size-s, 0.75rem);
+        font-weight: var(--ha-font-weight-normal, 400);
+        line-height: var(--ha-line-height-condensed, 1.2);
+        letter-spacing: 0.4px;
+        color: var(--secondary-text-color);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+      }
+      /* Chrome row: Auto/winner/floor badges (left) and the position bar (right)
        share one row under the name/state. Kept on a single line (nowrap): the
        badges hold their size and the position bar shrinks to absorb the squeeze,
        so badges never spill onto a second row before the bar has given up its
        width (issue #208). */
-    .chrome-line {
-      grid-area: chrome;
-      display: flex;
-      flex-wrap: nowrap;
-      align-items: center;
-      gap: 6px;
-      min-width: 0;
-      /* Rail geometry, shared by the lone rail and the multi-cover stack so the
+      .chrome-line {
+        grid-area: chrome;
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+        /* Rail geometry, shared by the lone rail and the multi-cover stack so the
          two stay the same length — see the .pos-stack note (issue #260). The
          glyph lane is the per-rail glyph plus the .pos-row gap that separates it
          from the rail. */
-      --acp-rail-basis: 170px;
-      --acp-rail-max: 55%;
-      --acp-rail-glyph-size: 15px;
-      --acp-rail-glyph-gap: 6px;
-      --acp-rail-glyph-lane: calc(var(--acp-rail-glyph-size) + var(--acp-rail-glyph-gap));
-      /* Reserve the badge pill's height even when no badge is present, so a
+        --acp-rail-basis: 170px;
+        --acp-rail-max: 55%;
+        --acp-rail-glyph-size: 15px;
+        --acp-rail-glyph-gap: 6px;
+        --acp-rail-glyph-lane: calc(var(--acp-rail-glyph-size) + var(--acp-rail-glyph-gap));
+        /* Reserve the badge pill's height even when no badge is present, so a
          bar-only tile is the same height as one with badges — the position bar
          just centers in the reserved space (issue #208). Matches the tile-badge
          height (0.75rem × 1.4 line + 2px×2 padding ≈ 22px). */
-      min-height: 22px;
-    }
-    /* Badges hold their intrinsic width so the bar (not the badges) absorbs any
+        min-height: 22px;
+      }
+      /* Badges hold their intrinsic width so the bar (not the badges) absorbs any
        shortage of room on the single chrome line. */
-    .chrome-line acp-tile-badge {
-      overflow: visible;
-      flex: 0 0 auto;
-    }
-    .chrome-line .acp-floor-chip {
-      flex: 0 0 auto;
-    }
-    /* Target-vs-actual mini bar: right-aligned (margin-left:auto) so it fills the
+      .chrome-line acp-tile-badge {
+        overflow: visible;
+        flex: 0 0 auto;
+      }
+      .chrome-line .acp-floor-chip {
+        flex: 0 0 auto;
+      }
+      /* Target-vs-actual mini bar: right-aligned (margin-left:auto) so it fills the
        otherwise-empty space beneath the ↑■↓ buttons. Fill = live openness in the
        state color; the tick marks the auto/solar target. */
-    /* Interactive wrapper: carries the flex sizing the rail used to own, so the
+      /* Interactive wrapper: carries the flex sizing the rail used to own, so the
        visible 6px rail below is unchanged while the gesture target is bigger. */
-    .chrome-line .pos-slider {
-      margin-left: auto;
-      align-self: center;
-      position: relative;
-      flex: 0 1 var(--acp-rail-basis);
-      max-width: var(--acp-rail-max);
-      cursor: pointer;
-      /* A touch-drag must move the fill, not scroll the dashboard. */
-      touch-action: none;
-    }
-    /* The rail is 6px tall — too thin to grab on a phone. Widen the hit area
+      .chrome-line .pos-slider {
+        margin-left: auto;
+        align-self: center;
+        position: relative;
+        flex: 0 1 var(--acp-rail-basis);
+        max-width: var(--acp-rail-max);
+        cursor: pointer;
+        /* A touch-drag must move the fill, not scroll the dashboard. */
+        touch-action: none;
+      }
+      /* The rail is 6px tall — too thin to grab on a phone. Widen the hit area
        vertically with an invisible absolute box, which adds no layout height. */
-    .chrome-line .pos-slider::before {
-      content: '';
-      position: absolute;
-      inset: -8px 0;
-    }
-    /* Multi-cover entry: the rails stack in the slot the single rail occupies,
+      .chrome-line .pos-slider::before {
+        content: '';
+        position: absolute;
+        inset: -8px 0;
+      }
+      /* Multi-cover entry: the rails stack in the slot the single rail occupies,
        each labelled with its cover's glyph. The stack owns the flex sizing so
        each rail below it can size itself to the full stack width.
 
@@ -1611,23 +1713,23 @@ export class AdaptiveCoverProTileCard extends LitElement {
        the left — a stacked rail and a lone rail are the same length and start at
        the same x (issue #260). Derive, never hardcode: the lane is the glyph's
        own width plus the .pos-row gap. */
-    .chrome-line .pos-stack {
-      margin-left: auto;
-      align-self: center;
-      flex: 0 1 calc(var(--acp-rail-basis) + var(--acp-rail-glyph-lane));
-      max-width: calc(var(--acp-rail-max) + var(--acp-rail-glyph-lane));
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
-    .chrome-line .pos-stack .pos-row {
-      display: flex;
-      align-items: center;
-      gap: var(--acp-rail-glyph-gap);
-      min-width: 0;
-    }
-    /* Layers of ONE cover vs. separate covers. A day/night shade's two rails and
+      .chrome-line .pos-stack {
+        margin-left: auto;
+        align-self: center;
+        flex: 0 1 calc(var(--acp-rail-basis) + var(--acp-rail-glyph-lane));
+        max-width: calc(var(--acp-rail-max) + var(--acp-rail-glyph-lane));
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .chrome-line .pos-stack .pos-row {
+        display: flex;
+        align-items: center;
+        gap: var(--acp-rail-glyph-gap);
+        min-width: 0;
+      }
+      /* Layers of ONE cover vs. separate covers. A day/night shade's two rails and
        a blind entry with three windows attached both render as a rail stack, and
        until now looked identical — same glyph, same spacing, same everything.
 
@@ -1640,134 +1742,134 @@ export class AdaptiveCoverProTileCard extends LitElement {
        stack widens its gap. That widens the derived glyph lane, which moves the
        stack's LEFT edge out; the rails keep their length and their right edge,
        which is the invariant issue #260 established. */
-    .chrome-line .pos-stack.layered {
-      --acp-rail-glyph-gap: 10px;
-      /* Re-declare the lane HERE, not just the gap. A custom property is
+      .chrome-line .pos-stack.layered {
+        --acp-rail-glyph-gap: 10px;
+        /* Re-declare the lane HERE, not just the gap. A custom property is
          substituted at computed-value time on the element that DECLARES it, so
          the lane inherited from .chrome-line is already frozen at the 6px gap —
          overriding the gap alone would leave the flex basis 4px short and the
          rails 4px stubbier than a lone rail. Redeclaring recomputes it against
          the local gap, which is the whole point of deriving it. */
-      --acp-rail-glyph-lane: calc(var(--acp-rail-glyph-size) + var(--acp-rail-glyph-gap));
-      position: relative;
-      gap: 2px;
-    }
-    .chrome-line .pos-stack.layered::before {
-      content: '';
-      position: absolute;
-      /* Centered in the gap between the glyph column and the rails. */
-      left: calc(var(--acp-rail-glyph-size) + (var(--acp-rail-glyph-gap) / 2) - 1px);
-      width: 2px;
-      /* Span rail-center to rail-center rather than the full box, so the brace
+        --acp-rail-glyph-lane: calc(var(--acp-rail-glyph-size) + var(--acp-rail-glyph-gap));
+        position: relative;
+        gap: 2px;
+      }
+      .chrome-line .pos-stack.layered::before {
+        content: '';
+        position: absolute;
+        /* Centered in the gap between the glyph column and the rails. */
+        left: calc(var(--acp-rail-glyph-size) + (var(--acp-rail-glyph-gap) / 2) - 1px);
+        width: 2px;
+        /* Span rail-center to rail-center rather than the full box, so the brace
          reads as joining the rails instead of boxing the stack. A row is the
          glyph's height, so half of one is the inset at each end. */
-      top: calc(var(--acp-rail-glyph-size) / 2);
-      bottom: calc(var(--acp-rail-glyph-size) / 2);
-      border-radius: 1px;
-      background: var(--secondary-text-color);
-      opacity: 0.45;
-    }
-    /* Per-rail glyph in place of a name: two rails of one shade have long,
+        top: calc(var(--acp-rail-glyph-size) / 2);
+        bottom: calc(var(--acp-rail-glyph-size) / 2);
+        border-radius: 1px;
+        background: var(--secondary-text-color);
+        opacity: 0.45;
+      }
+      /* Per-rail glyph in place of a name: two rails of one shade have long,
        near-identical names that ate the rail's width.
 
        ha-icon defaults to inline-flex and inherits the tile's line-height, so
        its glyph sits low inside its own box even though the row centers that
        box. Making it a zero-line-height flex box centers the glyph on the rail
        rather than on a text baseline the rail knows nothing about. */
-    .chrome-line .pos-stack .pos-glyph {
-      flex: 0 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      align-self: center;
-      line-height: 0;
-      --mdc-icon-size: var(--acp-rail-glyph-size);
-      width: var(--acp-rail-glyph-size);
-      height: var(--acp-rail-glyph-size);
-      color: var(--secondary-text-color);
-    }
-    .chrome-line .pos-stack .pos-slider {
-      margin-left: 0;
-      flex: 1 1 auto;
-      max-width: none;
-    }
-    /* Rails sit tight in the stack, so the ±8px grab boxes would overlap and
+      .chrome-line .pos-stack .pos-glyph {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        align-self: center;
+        line-height: 0;
+        --mdc-icon-size: var(--acp-rail-glyph-size);
+        width: var(--acp-rail-glyph-size);
+        height: var(--acp-rail-glyph-size);
+        color: var(--secondary-text-color);
+      }
+      .chrome-line .pos-stack .pos-slider {
+        margin-left: 0;
+        flex: 1 1 auto;
+        max-width: none;
+      }
+      /* Rails sit tight in the stack, so the ±8px grab boxes would overlap and
        the upper rail would swallow the lower rail's top half. */
-    .chrome-line .pos-stack .pos-slider::before {
-      inset: -2px 0;
-    }
-    .chrome-line .pos-slider:focus-visible {
-      outline: 2px solid var(--primary-color);
-      outline-offset: 3px;
-      border-radius: 6px;
-    }
-    /* The 0.3s ease below smooths server-driven updates; mid-drag it would read
+      .chrome-line .pos-stack .pos-slider::before {
+        inset: -2px 0;
+      }
+      .chrome-line .pos-slider:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 3px;
+        border-radius: 6px;
+      }
+      /* The 0.3s ease below smooths server-driven updates; mid-drag it would read
        as the fill lagging behind the finger. */
-    .chrome-line .pos-slider.dragging .pos-fill {
-      transition: none;
-    }
-    /* Live percentage while a drag is in flight. The hover tooltip carries the
+      .chrome-line .pos-slider.dragging .pos-fill {
+        transition: none;
+      }
+      /* Live percentage while a drag is in flight. The hover tooltip carries the
        same number, but a tooltip is mouse-only — on a phone, the finger setting
        the position is also the thing covering the rail, so without this the user
        is dragging blind. Sits in .pos-slider, NOT .pos-bar: the bar is
        overflow:hidden to clip the fill, which would clip this too. Pointer-events
        off so it never eats the drag it is reporting on. */
-    .chrome-line .pos-readout {
-      position: absolute;
-      bottom: calc(100% + 6px);
-      transform: translateX(-50%);
-      padding: 1px 5px;
-      border-radius: 4px;
-      background: var(--secondary-background-color, rgba(127, 127, 127, 0.9));
-      color: var(--primary-text-color);
-      font-size: var(--ha-font-size-s, 0.75rem);
-      line-height: var(--ha-line-height-condensed, 1.2);
-      white-space: nowrap;
-      pointer-events: none;
-      z-index: 2;
-    }
-    .chrome-line .pos-bar {
-      position: relative;
-      width: 100%;
-      height: 6px;
-      border-radius: 6px;
-      background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
-      overflow: hidden;
-    }
-    .chrome-line .pos-fill {
-      position: absolute;
-      inset: 0 auto 0 0;
-      /* One constant color for every rail, never the cover's state color: a rail
+      .chrome-line .pos-readout {
+        position: absolute;
+        bottom: calc(100% + 6px);
+        transform: translateX(-50%);
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: var(--secondary-background-color, rgba(127, 127, 127, 0.9));
+        color: var(--primary-text-color);
+        font-size: var(--ha-font-size-s, 0.75rem);
+        line-height: var(--ha-line-height-condensed, 1.2);
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 2;
+      }
+      .chrome-line .pos-bar {
+        position: relative;
+        width: 100%;
+        height: 6px;
+        border-radius: 6px;
+        background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
+        overflow: hidden;
+      }
+      .chrome-line .pos-fill {
+        position: absolute;
+        inset: 0 auto 0 0;
+        /* One constant color for every rail, never the cover's state color: a rail
          that changed hue as it crossed open/closed read as a status light rather
          than a measurement, and on a multi-rail tile the rails disagreed with
          each other. The icon still carries state color (the state_color option),
          which is where that signal belongs. Overridable per-theme via
          --acp-pos-fill-color. */
-      background: var(--acp-pos-fill-color, ${unsafeCSS(COVER_ACTIVE_COLOR)});
-      opacity: 0.55;
-      border-radius: 6px;
-      transition: width 0.3s ease;
-    }
-    .chrome-line .pos-marker {
-      position: absolute;
-      top: 0;
-      width: 2px;
-      height: 100%;
-      background: var(--accent-color, #ff9800);
-      transform: translateX(-50%);
-      transition: left 0.3s ease;
-    }
-    .tilt-line {
-      grid-area: tilt;
-      min-width: 0;
-      margin-top: 2px;
-      cursor: default;
-    }
-    /* Optional decision summary stacks as a dim third line under the state. */
-    .tile-body.detailed .label .summary {
-      font-size: 0.72rem;
-    }
-    /* Mirror HA's tile card in features_position: inline mode, whose spec
+        background: var(--acp-pos-fill-color, ${unsafeCSS(COVER_ACTIVE_COLOR)});
+        opacity: 0.55;
+        border-radius: 6px;
+        transition: width 0.3s ease;
+      }
+      .chrome-line .pos-marker {
+        position: absolute;
+        top: 0;
+        width: 2px;
+        height: 100%;
+        background: var(--accent-color, #ff9800);
+        transform: translateX(-50%);
+        transition: left 0.3s ease;
+      }
+      .tilt-line {
+        grid-area: tilt;
+        min-width: 0;
+        margin-top: 2px;
+        cursor: default;
+      }
+      /* Optional decision summary stacks as a dim third line under the state. */
+      .tile-body.detailed .label .summary {
+        font-size: 0.72rem;
+      }
+      /* Mirror HA's tile card in features_position: inline mode, whose spec
        differs from the bottom feature row. ha-tile-container's
        .container.horizontal rule for the features slot sets
        --feature-height: var(--ha-space-9) — 36px, not the 42px of a bottom row —
@@ -1778,202 +1880,202 @@ export class AdaptiveCoverProTileCard extends LitElement {
        ha-control-button contributes a 20px glyph and a --disabled-color fill at
        20% opacity. Buttons are flex: 1 inside that block, so they widen with the
        tile exactly as HA's do. */
-    .tile-body.detailed .controls {
-      align-self: center;
-      /* --feature-button-spacing */
-      gap: 12px;
-      width: 100%;
-    }
-    .tile-body.detailed .controls button {
-      flex: 1 1 0;
-      width: auto;
-      height: var(--control-button-group-thickness, 36px);
-      border-radius: var(--control-button-border-radius, 12px);
-      border: none;
-      background: color-mix(
-        in srgb,
-        var(--control-button-background-color, var(--disabled-color, #7f7f7f)) 20%,
-        transparent
-      );
-    }
-    .tile-body.detailed .controls button ha-icon {
-      --mdc-icon-size: 20px;
-      color: var(--primary-text-color);
-    }
-    .tile-body.detailed .controls button:hover {
-      background: color-mix(
-        in srgb,
-        var(--control-button-background-color, var(--disabled-color, #7f7f7f)) 32%,
-        transparent
-      );
-    }
-    /* Bare 36px glyph by default — the state color carries the cover's status
+      .tile-body.detailed .controls {
+        align-self: center;
+        /* --feature-button-spacing */
+        gap: 12px;
+        width: 100%;
+      }
+      .tile-body.detailed .controls button {
+        flex: 1 1 0;
+        width: auto;
+        height: var(--control-button-group-thickness, 36px);
+        border-radius: var(--control-button-border-radius, 12px);
+        border: none;
+        background: color-mix(
+          in srgb,
+          var(--control-button-background-color, var(--disabled-color, #7f7f7f)) 20%,
+          transparent
+        );
+      }
+      .tile-body.detailed .controls button ha-icon {
+        --mdc-icon-size: 20px;
+        color: var(--primary-text-color);
+      }
+      .tile-body.detailed .controls button:hover {
+        background: color-mix(
+          in srgb,
+          var(--control-button-background-color, var(--disabled-color, #7f7f7f)) 32%,
+          transparent
+        );
+      }
+      /* Bare 36px glyph by default — the state color carries the cover's status
        with nothing behind it. HA does the same for covers, though by a
        different route: its shape is drawn only when the icon is interactive,
        and getEntityDefaultTileIconAction returns none for the cover domain.
        Setting icon_tap_action opts into the shape via .background below. */
-    .tile-body.detailed .cover-icon-wrap {
-      place-self: center;
-      width: 36px;
-      height: 36px;
-    }
-    /* HA's ha-tile-icon shape: a pill at --ha-border-radius-pill filled with the
+      .tile-body.detailed .cover-icon-wrap {
+        place-self: center;
+        width: 36px;
+        height: 36px;
+      }
+      /* HA's ha-tile-icon shape: a pill at --ha-border-radius-pill filled with the
        icon's own color at 0.2 opacity (0.35 on hover), painted as a ::before so
        the tint never dims the glyph on top of it. --acp-tile-icon-color is set
        inline from coverStateColor, so shape and glyph always agree. */
-    /* Scoped to .detailed: the one-line layout's glyph box is 24px around a 22px
+      /* Scoped to .detailed: the one-line layout's glyph box is 24px around a 22px
        icon, so a pill there would be a hairline of tint around the glyph. The
        tap action still works in one-line — only the shape is detailed-only. */
-    .tile-body.detailed .cover-icon-wrap.background {
-      position: relative;
-      border-radius: var(--ha-border-radius-pill, 9999px);
-      overflow: hidden;
-      cursor: pointer;
-    }
-    .tile-body.detailed .cover-icon-wrap.background::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background-color: var(--acp-tile-icon-color, var(--disabled-color, #7f7f7f));
-      opacity: 0.2;
-      transition: opacity 180ms ease-in-out;
-    }
-    .tile-body.detailed .cover-icon-wrap.background:hover::before {
-      opacity: 0.35;
-    }
-    .cover-icon-wrap.background:focus-visible {
-      outline: none;
-      box-shadow: 0 0 0 2px var(--acp-tile-icon-color, var(--primary-text-color));
-      border-radius: var(--ha-border-radius-pill, 9999px);
-    }
-    /* The glyph must sit above the ::before wash. */
-    .tile-body.detailed .cover-icon-wrap.background .cover-icon {
-      position: relative;
-    }
-    .tile-body.detailed .cover-icon {
-      --mdc-icon-size: 24px;
-    }
-    .tile-body[role='group'] {
-      cursor: default;
-    }
-    /* Offline/unresponsive cover (issue #212): dim the whole tile so it reads
+      .tile-body.detailed .cover-icon-wrap.background {
+        position: relative;
+        border-radius: var(--ha-border-radius-pill, 9999px);
+        overflow: hidden;
+        cursor: pointer;
+      }
+      .tile-body.detailed .cover-icon-wrap.background::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-color: var(--acp-tile-icon-color, var(--disabled-color, #7f7f7f));
+        opacity: 0.2;
+        transition: opacity 180ms ease-in-out;
+      }
+      .tile-body.detailed .cover-icon-wrap.background:hover::before {
+        opacity: 0.35;
+      }
+      .cover-icon-wrap.background:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 2px var(--acp-tile-icon-color, var(--primary-text-color));
+        border-radius: var(--ha-border-radius-pill, 9999px);
+      }
+      /* The glyph must sit above the ::before wash. */
+      .tile-body.detailed .cover-icon-wrap.background .cover-icon {
+        position: relative;
+      }
+      .tile-body.detailed .cover-icon {
+        --mdc-icon-size: 24px;
+      }
+      .tile-body[role='group'] {
+        cursor: default;
+      }
+      /* Offline/unresponsive cover (issue #212): dim the whole tile so it reads
        as unavailable at a glance, matching HA's own unavailable-entity dimming. */
-    .tile-body.unavailable {
-      opacity: 0.5;
-    }
-    .cover-icon-wrap {
-      grid-area: icon;
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 24px;
-      height: 24px;
-    }
-    .cover-icon {
-      --mdc-icon-size: 22px;
-      color: var(--primary-text-color);
-    }
-    .motion-overlay {
-      position: absolute;
-      top: -4px;
-      right: -6px;
-      --mdc-icon-size: 12px;
-      color: var(--warning-color, #f1c232);
-      background: var(--card-background-color, white);
-      border-radius: 50%;
-      padding: 1px;
-      line-height: 0;
-    }
-    /* Sibling of .motion-overlay, pinned to the opposite corner so a cover that
+      .tile-body.unavailable {
+        opacity: 0.5;
+      }
+      .cover-icon-wrap {
+        grid-area: icon;
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+      }
+      .cover-icon {
+        --mdc-icon-size: 22px;
+        color: var(--primary-text-color);
+      }
+      .motion-overlay {
+        position: absolute;
+        top: -4px;
+        right: -6px;
+        --mdc-icon-size: 12px;
+        color: var(--warning-color, #f1c232);
+        background: var(--card-background-color, white);
+        border-radius: 50%;
+        padding: 1px;
+        line-height: 0;
+      }
+      /* Sibling of .motion-overlay, pinned to the opposite corner so a cover that
        is both occupied and low on battery shows both without them colliding —
        motion top-right, battery bottom-left. */
-    .battery-overlay {
-      position: absolute;
-      bottom: -4px;
-      left: -6px;
-      --mdc-icon-size: 12px;
-      color: var(--error-color, #db4437);
-      background: var(--card-background-color, white);
-      border-radius: 50%;
-      padding: 1px;
-      line-height: 0;
-    }
-    .label {
-      grid-area: label;
-      min-width: 0;
-    }
-    .title {
-      font-size: 0.95rem;
-      font-weight: 500;
-      color: var(--primary-text-color);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .summary {
-      font-size: 0.78rem;
-      color: var(--secondary-text-color);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      min-width: 0;
-    }
-    .position {
-      grid-area: position;
-      font-size: 0.85rem;
-      font-variant-numeric: tabular-nums;
-      color: var(--primary-text-color);
-      padding: 0 4px;
-      /* Right-align the digits so the % sign sits flush against the controls
+      .battery-overlay {
+        position: absolute;
+        bottom: -4px;
+        left: -6px;
+        --mdc-icon-size: 12px;
+        color: var(--error-color, #db4437);
+        background: var(--card-background-color, white);
+        border-radius: 50%;
+        padding: 1px;
+        line-height: 0;
+      }
+      .label {
+        grid-area: label;
+        min-width: 0;
+      }
+      .title {
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: var(--primary-text-color);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .summary {
+        font-size: 0.78rem;
+        color: var(--secondary-text-color);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+      }
+      .position {
+        grid-area: position;
+        font-size: 0.85rem;
+        font-variant-numeric: tabular-nums;
+        color: var(--primary-text-color);
+        padding: 0 4px;
+        /* Right-align the digits so the % sign sits flush against the controls
          column edge — combined with the fixed-width position grid column, this
          keeps the ▲ ■ ▼ row aligned across stacked tiles. */
-      text-align: right;
-    }
-    .controls {
-      grid-area: controls;
-      display: inline-flex;
-      gap: 2px;
-    }
-    .controls button {
-      width: 26px;
-      height: 26px;
-      border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
-      border-radius: 4px;
-      background: var(--card-background-color, white);
-      color: var(--primary-text-color);
-      cursor: pointer;
-      font-size: 0.8rem;
-      line-height: 1;
-      padding: 0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .controls button ha-icon {
-      --mdc-icon-size: 16px;
-      color: var(--primary-text-color);
-      line-height: 0;
-    }
-    .controls button:hover {
-      background: var(--secondary-background-color);
-    }
-    .controls button:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-    acp-tile-badge {
-      grid-area: badge;
-      min-width: 0;
-      overflow: hidden;
-    }
-    .acp-floor-chip {
-      grid-area: floor-chip;
-      font-size: 0.7rem;
-      padding: 1px 6px;
-      border-radius: 999px;
-      background: color-mix(in srgb, var(--acp-floor-accent) ${ACCENT_BG_ALPHA}%, transparent);
-      /* The custom-position purple resolved AGAINST THE THEME'S OWN TEXT COLOR
+        text-align: right;
+      }
+      .controls {
+        grid-area: controls;
+        display: inline-flex;
+        gap: 2px;
+      }
+      .controls button {
+        width: 26px;
+        height: 26px;
+        border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+        border-radius: 4px;
+        background: var(--card-background-color, white);
+        color: var(--primary-text-color);
+        cursor: pointer;
+        font-size: 0.8rem;
+        line-height: 1;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .controls button ha-icon {
+        --mdc-icon-size: 16px;
+        color: var(--primary-text-color);
+        line-height: 0;
+      }
+      .controls button:hover {
+        background: var(--secondary-background-color);
+      }
+      .controls button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      acp-tile-badge {
+        grid-area: badge;
+        min-width: 0;
+        overflow: hidden;
+      }
+      .acp-floor-chip {
+        grid-area: floor-chip;
+        font-size: 0.7rem;
+        padding: 1px 6px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--acp-floor-accent) ${ACCENT_BG_ALPHA}%, transparent);
+        /* The custom-position purple resolved AGAINST THE THEME'S OWN TEXT COLOR
          rather than pinned to a literal. The literal it replaces (#6a1b9a) is a
          dark purple chosen for a light background; on HA's dark theme it landed
          at 1.6:1 filled and 1.3:1 hollow — the chip was legible only if you knew
@@ -1987,65 +2089,65 @@ export class AdaptiveCoverProTileCard extends LitElement {
          and is not — it lands at 4.35:1 on HA dark, under the 4.5:1 floor the
          badges beside it clear at 40%. Importing the constants is what stops the
          chip and the badges from drifting apart again. */
-      --acp-floor-accent: #9c27b0;
-      color: color-mix(
-        in srgb,
-        var(--acp-floor-accent) ${FG_ACCENT_MIX}%,
-        var(--primary-text-color, #212121)
-      );
-      /* Reserve the border so the outline (is-armed) state doesn't shift layout. */
-      border: 1px solid transparent;
-      white-space: nowrap;
-      align-self: center;
-    }
-    /* Floating-tooltip cursor lifecycle for the tooltip carriers inside the
+        --acp-floor-accent: #9c27b0;
+        color: color-mix(
+          in srgb,
+          var(--acp-floor-accent) ${FG_ACCENT_MIX}%,
+          var(--primary-text-color, #212121)
+        );
+        /* Reserve the border so the outline (is-armed) state doesn't shift layout. */
+        border: 1px solid transparent;
+        white-space: nowrap;
+        align-self: center;
+      }
+      /* Floating-tooltip cursor lifecycle for the tooltip carriers inside the
        tile (floor chip, title, inline summary, motion overlay). Help hint on
        hover, default once OUR bubble appears. */
-    [data-tooltip]:hover {
-      cursor: help;
-    }
-    [data-tooltip][acp-tt-shown] {
-      cursor: default;
-    }
-    /* Clamping axis: not-clamping → hollow/outline (transparent fill + purple border). */
-    .acp-floor-chip.is-armed {
-      background: transparent;
-      border-color: color-mix(in srgb, var(--acp-floor-accent) 60%, transparent);
-    }
-    /* Priority axis: bypassable (priority ≤ 80) → subdued.
+      [data-tooltip]:hover {
+        cursor: help;
+      }
+      [data-tooltip][acp-tt-shown] {
+        cursor: default;
+      }
+      /* Clamping axis: not-clamping → hollow/outline (transparent fill + purple border). */
+      .acp-floor-chip.is-armed {
+        background: transparent;
+        border-color: color-mix(in srgb, var(--acp-floor-accent) 60%, transparent);
+      }
+      /* Priority axis: bypassable (priority ≤ 80) → subdued.
        NOT opacity any more. Opacity multiplies into the TEXT as much as the
        chrome, and stacked on the hollow variant it was what took this chip to
        1.3:1 — a legibility cost paid to signal a secondary attribute. The
        priority axis already has a non-destructive carrier in font-weight (see
        .resists-manual), so bypassable states itself by NOT being emphasized,
        and softens its outline instead. Text contrast is untouched. */
-    .acp-floor-chip.is-bypassable {
-      font-weight: 400;
-    }
-    /* Scoped to the hollow variant on purpose: the filled one has a deliberately
+      .acp-floor-chip.is-bypassable {
+        font-weight: 400;
+      }
+      /* Scoped to the hollow variant on purpose: the filled one has a deliberately
        transparent border, and softening a border that isn't drawn would instead
        make one appear. */
-    .acp-floor-chip.is-armed.is-bypassable {
-      border-color: color-mix(in srgb, var(--acp-floor-accent) 35%, transparent);
-    }
-    /* Priority axis: resists manual ↓ (priority > 80) → emphasized. */
-    .acp-floor-chip.resists-manual {
-      font-weight: 600;
-    }
-    /* One-line layout: add a second row for the floor chip under the position cell */
-    .tile-body.has-floor-chip {
-      grid-template-rows: auto auto;
-      grid-template-areas:
-        'icon label     position  controls badge resume'
-        'icon label     floor-chip .        .     .';
-    }
-    .tile-body.has-state-label.has-floor-chip {
-      grid-template-rows: auto auto;
-      grid-template-areas:
-        'icon label     position  controls badge resume'
-        'icon label     floor-chip .        .     .';
-    }
-    /* Reflow (issues #136, #154): drop the ↑■▼ controls onto their own
+      .acp-floor-chip.is-armed.is-bypassable {
+        border-color: color-mix(in srgb, var(--acp-floor-accent) 35%, transparent);
+      }
+      /* Priority axis: resists manual ↓ (priority > 80) → emphasized. */
+      .acp-floor-chip.resists-manual {
+        font-weight: 600;
+      }
+      /* One-line layout: add a second row for the floor chip under the position cell */
+      .tile-body.has-floor-chip {
+        grid-template-rows: auto auto;
+        grid-template-areas:
+          'icon label     position  controls badge resume'
+          'icon label     floor-chip .        .     .';
+      }
+      .tile-body.has-state-label.has-floor-chip {
+        grid-template-rows: auto auto;
+        grid-template-areas:
+          'icon label     position  controls badge resume'
+          'icon label     floor-chip .        .     .';
+      }
+      /* Reflow (issues #136, #154): drop the ↑■▼ controls onto their own
        full-width row beneath the name so the cover name gets the whole column,
        with the badge and tilt rows stacked between. The same reflow fires from
        two independent triggers, because "the tile is narrow" alone can't tell a
@@ -2065,17 +2167,61 @@ export class AdaptiveCoverProTileCard extends LitElement {
        sync. Each detailed grid variant is re-asserted (placed after the wide
        rules so it wins when a query matches — the grid rules rely on source
        order, not just specificity). */
-    @media (max-width: 500px) {
-      @container (max-width: 480px) {
+      @media (max-width: 500px) {
+        @container (max-width: 480px) {
+          .tile-body.detailed {
+            grid-template-columns: 36px minmax(0, 1fr);
+            grid-template-areas:
+              'icon label'
+              'controls controls';
+          }
+          /* The 50% has-controls track is (0,3,0) and a query adds no specificity,
+           so without this it would keep a third column alive here and strand the
+           reflowed full-width controls row beside it. */
+          .tile-body.detailed.has-controls {
+            grid-template-columns: 36px minmax(0, 1fr);
+          }
+          .tile-body.detailed.has-chrome-row {
+            grid-template-areas:
+              'icon label'
+              'icon chrome'
+              'controls controls';
+          }
+          .tile-body.detailed.has-tilt {
+            grid-template-areas:
+              'icon label'
+              'icon tilt'
+              'controls controls';
+          }
+          .tile-body.detailed.has-chrome-row.has-tilt {
+            grid-template-areas:
+              'icon label'
+              'icon chrome'
+              'icon tilt'
+              'controls controls';
+          }
+          /* No bar-only re-assertion needed: the wide layout no longer special-cases
+           bar-only, so the .has-chrome-row reflow above already applies (#260). */
+          .tile-body.detailed .controls {
+            margin-top: 4px;
+            gap: 8px;
+            justify-content: space-between;
+          }
+          .tile-body.detailed .controls button {
+            flex: 1 1 0;
+            width: auto;
+            height: var(--control-button-group-thickness, 36px);
+          }
+        }
+      }
+      @container (max-width: 340px) {
         .tile-body.detailed {
           grid-template-columns: 36px minmax(0, 1fr);
           grid-template-areas:
             'icon label'
             'controls controls';
         }
-        /* The 50% has-controls track is (0,3,0) and a query adds no specificity,
-           so without this it would keep a third column alive here and strand the
-           reflowed full-width controls row beside it. */
+        /* Same re-assertion as the 480px block — see the note there. */
         .tile-body.detailed.has-controls {
           grid-template-columns: 36px minmax(0, 1fr);
         }
@@ -2095,11 +2241,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
           grid-template-areas:
             'icon label'
             'icon chrome'
-            'icon tilt'
+            'tilt tilt'
             'controls controls';
         }
-        /* No bar-only re-assertion needed: the wide layout no longer special-cases
-           bar-only, so the .has-chrome-row reflow above already applies (#260). */
+        /* Same as the 480px block: no bar-only re-assertion needed (#260). */
         .tile-body.detailed .controls {
           margin-top: 4px;
           gap: 8px;
@@ -2111,58 +2256,16 @@ export class AdaptiveCoverProTileCard extends LitElement {
           height: var(--control-button-group-thickness, 36px);
         }
       }
-    }
-    @container (max-width: 340px) {
-      .tile-body.detailed {
-        grid-template-columns: 36px minmax(0, 1fr);
-        grid-template-areas:
-          'icon label'
-          'controls controls';
+      .empty {
+        padding: 12px;
+        text-align: center;
       }
-      /* Same re-assertion as the 480px block — see the note there. */
-      .tile-body.detailed.has-controls {
-        grid-template-columns: 36px minmax(0, 1fr);
+      .dim {
+        color: var(--secondary-text-color);
+        margin: 0;
       }
-      .tile-body.detailed.has-chrome-row {
-        grid-template-areas:
-          'icon label'
-          'icon chrome'
-          'controls controls';
-      }
-      .tile-body.detailed.has-tilt {
-        grid-template-areas:
-          'icon label'
-          'icon tilt'
-          'controls controls';
-      }
-      .tile-body.detailed.has-chrome-row.has-tilt {
-        grid-template-areas:
-          'icon label'
-          'icon chrome'
-          'tilt tilt'
-          'controls controls';
-      }
-      /* Same as the 480px block: no bar-only re-assertion needed (#260). */
-      .tile-body.detailed .controls {
-        margin-top: 4px;
-        gap: 8px;
-        justify-content: space-between;
-      }
-      .tile-body.detailed .controls button {
-        flex: 1 1 0;
-        width: auto;
-        height: var(--control-button-group-thickness, 36px);
-      }
-    }
-    .empty {
-      padding: 12px;
-      text-align: center;
-    }
-    .dim {
-      color: var(--secondary-text-color);
-      margin: 0;
-    }
-  `;
+    `,
+  ];
 }
 
 declare global {

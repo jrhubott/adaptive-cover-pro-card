@@ -157,6 +157,94 @@ export function readGroup(hass: HomeAssistant, discovered: DiscoveredEntities): 
   };
 }
 
+/** The handlers the integration's group who-won sensor counts — its
+ *  `_GROUP_HANDLER_NAMES`. Kept here so {@link restrictSnapshot} can recount
+ *  that scalar over a subset instead of trusting a total taken over all
+ *  members. */
+const GROUP_DRIVEN_HANDLERS: ReadonlySet<string> = new Set(['group_scene', 'group_lock']);
+
+/**
+ * A snapshot with the hidden members removed — positions, winners, and every
+ * scalar the integration published over the FULL roster.
+ *
+ * The scalars are the reason this exists. `position`, `aggregate` and
+ * `whoWonCount` arrive as finished numbers from three sensors that know nothing
+ * about a per-card `members` key, so dropping keys from `memberPositions` alone
+ * would leave a tile reading "Mixed · 1 unavailable · 0/6" over a roster of two.
+ * Each is therefore recomputed from the surviving members using the same rule
+ * the integration uses: the aggregate percentage is their mean, the aggregate
+ * state is unanimity-or-mixed, and the who-won count is how many of them a
+ * group handler currently owns.
+ *
+ * A no-op when nothing is hidden — the common case keeps the integration's own
+ * numbers rather than round-tripping them through arithmetic that could only
+ * introduce disagreement.
+ */
+export function restrictSnapshot(
+  hass: HomeAssistant,
+  snapshot: GroupSnapshot,
+  hidden: ReadonlySet<string>,
+): GroupSnapshot {
+  if (hidden.size === 0) return snapshot;
+
+  const memberPositions: Record<string, number | null> = {};
+  for (const [id, pos] of Object.entries(snapshot.memberPositions)) {
+    if (!hidden.has(id)) memberPositions[id] = pos;
+  }
+
+  // Undefined and {} mean different things to `hasMemberOverrides`, so an
+  // absent map stays absent rather than collapsing to empty.
+  let memberWinners: Record<string, string | null> | undefined;
+  if (snapshot.memberWinners) {
+    memberWinners = {};
+    for (const [id, winner] of Object.entries(snapshot.memberWinners)) {
+      if (!hidden.has(id)) memberWinners[id] = winner;
+    }
+  }
+
+  const visible = Object.keys(memberPositions);
+  const known = visible.map((id) => memberPositions[id]).filter((p): p is number => p !== null);
+  const position = known.length ? known.reduce((a, b) => a + b, 0) / known.length : null;
+
+  // Unanimity or "mixed", read from the covers themselves — the group state
+  // sensor's answer describes members that are no longer on this card.
+  const states = new Set(visible.map((id) => hass.states[id]?.state));
+  const aggregate: GroupAggregateState =
+    states.size === 1 && (states.has('open') || states.has('closed'))
+      ? ([...states][0] as GroupAggregateState)
+      : visible.length === 0
+        ? 'unknown'
+        : 'mixed';
+
+  const classes = new Set<string>();
+  for (const id of visible) {
+    const dc = hass.states[id]?.attributes?.device_class as string | undefined;
+    if (dc) classes.add(dc);
+  }
+
+  return {
+    ...snapshot,
+    memberPositions,
+    memberWinners,
+    position,
+    aggregate,
+    rosterTotal: visible.length,
+    // NaN stays NaN: it is the "no who-won sensor" signal every surface gates
+    // its badge on, and 0 would render a live-looking "0/N" instead.
+    whoWonCount: Number.isNaN(snapshot.whoWonCount)
+      ? snapshot.whoWonCount
+      : Object.values(memberWinners ?? {}).filter(
+          (w) => w && GROUP_DRIVEN_HANDLERS.has(normalizeHandler(w)),
+        ).length,
+    memberAutomation: rollupMemberAutomation(
+      hass,
+      getCachedRegistry(),
+      Object.keys(memberWinners ?? {}),
+    ),
+    deviceClass: classes.size === 1 ? [...classes][0] : undefined,
+  };
+}
+
 /**
  * Glyph for a group, derived from its members.
  *
@@ -235,7 +323,16 @@ export function memberException(
     // unavailable for any non-admin — permanently replacing the range readout
     // that `memberSpread` had computed correctly from the attribute alone.
     const st = hass.states[id];
-    if (pos === null || (st !== undefined && isOffline(st.state))) unavailable += 1;
+    // HA's own verdict wins whenever there is one. A null position used to
+    // count on its own, which mislabelled every ONE-WAY / assumed-state cover:
+    // a Somfy-style RTS awning sits at `closed` with no `current_position` at
+    // all, so the group sensor has nothing to publish for it and the tile
+    // reported a perfectly reachable cover as unavailable, permanently. A
+    // missing position is "no position", not "no cover".
+    //
+    // The null still counts when HA has no state for the entity either — then
+    // nothing anywhere can see the member and unavailable is the honest word.
+    if (st === undefined ? pos === null : isOffline(st.state)) unavailable += 1;
   }
   if (unavailable > 0) return { kind: 'unavailable', count: unavailable };
 

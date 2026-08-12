@@ -117,6 +117,7 @@ export const fr: EnDict = {
     battery: 'Batterie {level}%',
     battery_named: '{name} : {level}%',
     battery_unknown: 'Niveau de batterie inconnu',
+    battery_history: "Ouvrir l'historique de la batterie",
     extend: {
       title: 'Prolonger la dérogation manuelle',
       presets_label: "Jusqu'à",
@@ -228,6 +229,7 @@ export const fr: EnDict = {
     target: 'Cible : {pct}',
     target_solar: 'Cible solaire : {pct}',
     click_to_set: 'Cliquer pour définir la position',
+    moving_to: 'En route vers {pct}%',
     position_slider_label: 'Curseur de position du store',
     position_open_value: '{pct} ouvert',
     opening: 'Ouverture…',
@@ -475,9 +477,11 @@ export const fr: EnDict = {
       covers: 'Barres de position (ordre)',
       covers_hint:
         "Faites glisser une ligne, ou utilisez les flèches, pour définir l'ordre des barres de position. L'œil masque une barre sans dissocier le volet.",
-      member_names: 'Noms des membres',
+      member_names: 'Membres',
       member_names_hint:
-        "Renommer un membre du groupe tel qu'il appara\u00eet sur cette carte. Laisser vide pour utiliser le nom de l'instance.",
+        "Faites glisser une ligne, ou utilisez les fl\u00e8ches, pour d\u00e9finir l'ordre des membres. L'\u0153il masque un membre sur cette carte sans le retirer du groupe. Saisissez un texte pour renommer un membre ; laisser vide pour utiliser le nom de l'instance.",
+      members_hide: 'Masquer ce membre',
+      members_show: 'Afficher ce membre',
       covers_move_up: 'Monter',
       covers_move_down: 'Descendre',
       covers_hide: 'Masquer cette barre',

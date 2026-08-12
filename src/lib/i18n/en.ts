@@ -114,6 +114,7 @@ export const en = {
     battery: '{level}% battery',
     battery_named: '{name}: {level}%',
     battery_unknown: 'Battery level unknown',
+    battery_history: 'Open battery history',
     extend: {
       title: 'Extend manual override',
       presets_label: 'Until',
@@ -223,6 +224,7 @@ export const en = {
     target: 'Target: {pct}',
     target_solar: 'Solar target: {pct}',
     click_to_set: 'Click to set position',
+    moving_to: 'Moving to {pct}%',
     position_slider_label: 'Cover position slider',
     position_open_value: '{pct} open',
     opening: 'Opening…',
@@ -461,9 +463,11 @@ export const en = {
       covers: 'Position bars (order)',
       covers_hint:
         'Drag a row, or use the arrows, to set the order the position bars appear in. The eye hides a bar without unbinding the cover.',
-      member_names: 'Member names',
+      member_names: 'Members',
       member_names_hint:
-        'Rename a group member as it appears on this card. Leave blank to use the entry\u2019s own name.',
+        'Drag a row, or use the arrows, to set the order members appear in. The eye hides a member from this card without removing it from the group. Type to rename a member here; leave blank to use the entry\u2019s own name.',
+      members_hide: 'Hide this member',
+      members_show: 'Show this member',
       covers_move_up: 'Move up',
       covers_move_down: 'Move down',
       covers_hide: 'Hide this bar',

@@ -15,7 +15,13 @@ import { discoverEntities } from './lib/entity-discovery';
 import { t } from './lib/i18n';
 import type { AdaptiveCoverProTileCardConfig, DiscoveredEntities } from './types';
 import { readGroup } from './lib/group-controls';
-import { buildRoster, rosterRowConfigKey, type RosterRow } from './lib/group-roster';
+import {
+  applyMemberOrder,
+  buildRoster,
+  rosterRowConfigKey,
+  rosterRowKey,
+  type RosterRow,
+} from './lib/group-roster';
 import { getCachedRegistry } from './lib/registry-store';
 
 interface ValueChangedEvent extends CustomEvent {
@@ -574,42 +580,201 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
   }
 
   /**
-   * Per-member display names for a Cover Group roster.
+   * The Cover Group roster: per-row display name, order, and visibility in one
+   * widget.
    *
-   * A plain `ha-form` field cannot express this: the keys are entry ids the user
-   * has never seen and could not type, so the widget lists the roster itself and
-   * labels each field with the name the row resolves to today. Leaving a field
-   * empty removes the override rather than storing an empty string, so the
-   * entry's own title comes back instead of a blank row.
+   * A plain `ha-form` field cannot express any of it — the keys are entry ids
+   * the user has never seen and could not type — so the widget lists the roster
+   * itself and labels each row with the name it resolves to today. Order and
+   * visibility use the same list as the rail widget below (drag, ↑/↓, eye)
+   * because they are the same problem; the name input just rides along on each
+   * row, which is why naming and sorting are one section rather than two that
+   * disagree about what a row is.
+   *
+   * Leaving a name empty removes the override rather than storing an empty
+   * string, so the entry's own title comes back instead of a blank row.
    */
   private _renderMemberNames(): TemplateResult | typeof nothing {
-    const discovered = this._groupDiscovered;
-    if (!discovered || !this.hass) return nothing;
-    const snapshot = readGroup(this.hass, discovered);
-    const rows = buildRoster(
-      this.hass,
-      Object.keys(snapshot.memberPositions),
-      this._registry ?? undefined,
-    );
+    const rows = this._memberRows();
     if (rows.length === 0) return nothing;
     const drafts = this._memberDrafts ?? {};
+    const shownCount = rows.filter((r) => r.shown).length;
     return html`
       <div class="rail-order">
         <div class="rail-order-title">${t('editor.tile.member_names', this.hass)}</div>
         <div class="hint">${t('editor.tile.member_names_hint', this.hass)}</div>
-        <ha-form
-          .hass=${this.hass}
-          .data=${drafts}
-          .schema=${rows.map((row) => ({
-            name: rosterRowConfigKey(row),
-            selector: { text: {} },
-          }))}
-          .computeLabel=${(field: HaFormSchemaItem) => this._memberFieldLabel(field.name, rows)}
-          @value-changed=${(e: CustomEvent<{ value: Record<string, string> }>) =>
-            this._memberNamesChanged(e.detail.value)}
-        ></ha-form>
+        <ul>
+          ${rows.map((row, i) => {
+            const key = rosterRowConfigKey(row.row);
+            const label = this._memberRowLabel(row.row);
+            return html`
+              <li
+                class=${`rail member-row${row.shown ? '' : ' hidden-rail'}${
+                  this._memberDragFrom === i ? ' dragging' : ''
+                }`}
+                draggable=${row.shown ? 'true' : 'false'}
+                @dragstart=${() => (this._memberDragFrom = i)}
+                @dragend=${() => (this._memberDragFrom = null)}
+                @dragover=${(e: DragEvent) => {
+                  if (row.shown) e.preventDefault();
+                }}
+                @drop=${(e: DragEvent) => {
+                  e.preventDefault();
+                  if (this._memberDragFrom !== null && row.shown)
+                    this._moveMember(this._memberDragFrom, i);
+                  this._memberDragFrom = null;
+                }}
+              >
+                <ha-icon class="grip" icon="mdi:drag-horizontal-variant"></ha-icon>
+                <input
+                  class="member-name"
+                  type="text"
+                  .value=${drafts[key] ?? ''}
+                  placeholder=${label}
+                  aria-label=${label}
+                  @change=${(e: Event) =>
+                    this._memberNameChanged(key, (e.target as HTMLInputElement).value)}
+                />
+                <button
+                  type="button"
+                  class="rail-btn"
+                  aria-label=${t('editor.tile.covers_move_up', this.hass)}
+                  ?disabled=${!row.shown || i === 0}
+                  @click=${() => this._moveMember(i, i - 1)}
+                >
+                  <ha-icon icon="mdi:arrow-up"></ha-icon>
+                </button>
+                <button
+                  type="button"
+                  class="rail-btn"
+                  aria-label=${t('editor.tile.covers_move_down', this.hass)}
+                  ?disabled=${!row.shown || i >= shownCount - 1}
+                  @click=${() => this._moveMember(i, i + 1)}
+                >
+                  <ha-icon icon="mdi:arrow-down"></ha-icon>
+                </button>
+                <button
+                  type="button"
+                  class="rail-btn"
+                  aria-label=${t(
+                    row.shown ? 'editor.tile.members_hide' : 'editor.tile.members_show',
+                    this.hass,
+                  )}
+                  aria-pressed=${row.shown ? 'true' : 'false'}
+                  @click=${() => this._toggleMember(i)}
+                >
+                  <ha-icon icon=${row.shown ? 'mdi:eye' : 'mdi:eye-off'}></ha-icon>
+                </button>
+              </li>
+            `;
+          })}
+        </ul>
       </div>
     `;
+  }
+
+  /** Index currently being dragged in the member list, or null. Separate from
+   *  `_dragFrom`: both lists can be on screen for a group entry, and sharing
+   *  one index made a drag in either highlight a row in the other. */
+  @state() private _memberDragFrom: number | null = null;
+
+  /** The live roster in the order the card renders it. Shown rows first, in the
+   *  configured `members` order; then everything the key leaves out, which is
+   *  exactly the hidden set. Same shape as {@link _railRows} so the two lists
+   *  behave identically. */
+  private _memberRows(): { row: RosterRow; shown: boolean }[] {
+    const roster = this._naturalRoster();
+    const configured = this._config?.members;
+    if (!configured?.length) return roster.map((row) => ({ row, shown: true }));
+    const visible = new Set(configured);
+    // `applyMemberOrder` trims each row to its listed covers; the editor lists
+    // WHOLE rows, so re-attach the untrimmed row it came from — hiding and
+    // showing operate on the row, not on one of its rails.
+    const byKey = new Map(roster.map((row) => [rosterRowKey(row), row]));
+    const shown = applyMemberOrder(roster, configured).map((row) => ({
+      row: byKey.get(rosterRowKey(row)) ?? row,
+      shown: true,
+    }));
+    const hidden = roster
+      .filter((row) => !row.covers.some((id) => visible.has(id)))
+      .map((row) => ({ row, shown: false }));
+    return [...shown, ...hidden];
+  }
+
+  /** The roster in the integration's own order — the baseline both "is this
+   *  still the default?" and "where does a re-shown row go back to?" measure
+   *  against. Must NOT be `_memberRows()`, which is already re-ordered. */
+  private _naturalRoster(): RosterRow[] {
+    const discovered = this._groupDiscovered;
+    if (!discovered || !this.hass) return [];
+    return buildRoster(
+      this.hass,
+      Object.keys(readGroup(this.hass, discovered).memberPositions),
+      this._registry ?? undefined,
+    );
+  }
+
+  /** Write a reordered/re-filtered roster back to `members`. An all-shown list
+   *  in the integration's own order drops the key, so an untouched card keeps a
+   *  clean config — same rule as {@link _emitRails}. */
+  private _emitMembers(rows: { row: RosterRow; shown: boolean }[]): void {
+    if (!this._config) return;
+    // COVER ids, not row keys — see `hiddenMemberCovers`. A row key is the
+    // owning entry_id only while that cover's owner resolves, and an
+    // unavailable member (the kind most likely to be hidden) resolves to
+    // nothing, so a row-keyed list silently stopped matching.
+    const members = rows.filter((r) => r.shown).flatMap((r) => r.row.covers);
+    const fallback = this._naturalRoster().flatMap((row) => row.covers);
+    const isDefault =
+      members.length === fallback.length && members.every((id, i) => id === fallback[i]);
+    const { members: _drop, ...rest } = this._config;
+    this._emit(isDefault ? rest : { ...rest, members });
+  }
+
+  /** Reorder within the SHOWN block only — a hidden row has no position in the
+   *  persisted list, so moving it could not be represented. */
+  private _moveMember(from: number, to: number): void {
+    const rows = this._memberRows();
+    const shownCount = rows.filter((r) => r.shown).length;
+    if (to < 0 || to >= shownCount || from >= shownCount || from === to) return;
+    const next = [...rows];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    this._emitMembers(next);
+  }
+
+  /**
+   * Hide or re-show one roster row.
+   *
+   * Unlike a rail, the LAST member may be hidden: a group dialog with no roster
+   * still carries the aggregate readout, the position track and the control
+   * row, so hiding everything leaves a usable card rather than an empty one.
+   *
+   * Re-showing restores the row to its place in the integration's own roster
+   * order rather than appending, so hide-then-show is a round trip instead of a
+   * silent reorder.
+   */
+  private _toggleMember(index: number): void {
+    const rows = this._memberRows();
+    const target = rows[index];
+    if (!target) return;
+    if (target.shown) {
+      this._emitMembers(rows.map((r, i) => (i === index ? { ...r, shown: false } : r)));
+      return;
+    }
+    const natural = this._naturalRoster().map(rosterRowKey);
+    const home = natural.indexOf(rosterRowKey(target.row));
+    const shown = rows.filter((r) => r.shown);
+    const at = shown.filter((r) => natural.indexOf(rosterRowKey(r.row)) < home).length;
+    const restored = [...shown];
+    restored.splice(at, 0, { ...target, shown: true });
+    this._emitMembers(restored);
+  }
+
+  /** One member's name override. `ha-form` used to hand back the whole map at
+   *  once; a per-row input hands back one key, so patch rather than replace. */
+  private _memberNameChanged(key: string, raw: string): void {
+    this._memberNamesChanged({ ...(this._memberDrafts ?? {}), [key]: raw });
   }
 
   /** What this row is called today: its ACP entry's title, or a generic cover's
@@ -645,12 +810,6 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
    * change an entry's resolved title.
    */
   private _memberLabels = new Map<string, string>();
-
-  /** Label for one member field: the name that row resolves to today. */
-  private _memberFieldLabel(key: string, rows: RosterRow[]): string {
-    const row = rows.find((r) => rosterRowConfigKey(r) === key);
-    return row ? this._memberRowLabel(row) : key;
-  }
 
   /**
    * Commit the whole member-name map from `ha-form`.
@@ -1020,6 +1179,40 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    /* The member row's name field stands in for .rail-name, so it takes the
+       same flex slot. Borderless until hovered/focused so the list reads as a
+       list rather than as a stack of form fields. */
+    .rail-order .member-name {
+      flex: 1 1 auto;
+      min-width: 0;
+      font: inherit;
+      font-size: 0.88rem;
+      color: var(--primary-text-color);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      padding: 3px 6px;
+    }
+    .rail-order .member-name::placeholder {
+      color: var(--secondary-text-color);
+      opacity: 1;
+    }
+    .rail-order .member-name:hover {
+      border-color: var(--divider-color);
+    }
+    .rail-order .member-name:focus {
+      outline: none;
+      border-color: var(--primary-color);
+    }
+    .rail-order li.rail.hidden-rail .member-name {
+      opacity: 0.45;
+      text-decoration: line-through;
+    }
+    /* A text field inside a draggable row swallows click-to-place-caret on some
+       browsers unless the row's grab cursor yields to it. */
+    .rail-order li.member-row .member-name {
+      cursor: text;
     }
     .rail-order .rail-btn {
       flex: 0 0 auto;

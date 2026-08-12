@@ -215,6 +215,18 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
    *  always the label you want on a given dashboard, and it cannot be changed
    *  per-card without renaming the entry for everyone. */
   member_names?: Record<string, string>;
+  /** Which Cover Group members to render, in order, as COVER entity ids.
+   *  Absent means the integration's own roster order with every member shown;
+   *  present means EXACTLY these covers, so one left out is hidden — from the
+   *  roster AND from every aggregate the card derives from it. Mirrors how
+   *  `covers` carries rail order and subset for a cover entry, including the
+   *  consequence: a member the group gains after this key is written stays
+   *  hidden until it is added here.
+   *
+   *  Deliberately NOT keyed like {@link member_names}: those keys are per-ROW
+   *  and resolve to an owning `entry_id` only while the cover's owner can be
+   *  found, which fails for an unavailable member — see `hiddenMemberCovers`. */
+  members?: string[];
   /** Card-owned floating tooltip behavior. Defaults: enabled, offset [12,16],
    *  delay 400ms. Set `enabled: false` to use native browser tooltips. */
   tooltips?: TooltipsConfig;
@@ -629,7 +641,13 @@ export interface SunPositionAttributes {
   in_fov: boolean;
   min_elevation?: number;
   max_elevation?: number;
+  /** Slot 1's blind spot alone. The integration keeps emitting it for cards
+   *  that predate {@link blind_spot_ranges}; prefer the list. */
   blind_spot_range?: [number, number];
+  /** One `[lower, upper]` signed-gamma pair per CONFIGURED blind-spot slot —
+   *  the integration has had three since its #701. A card that reads only
+   *  `blind_spot_range` draws slot 1 and silently loses the rest. */
+  blind_spot_ranges?: Array<[number, number]>;
 }
 
 export interface StartEndSunAttributes {

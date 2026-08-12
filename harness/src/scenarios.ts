@@ -137,6 +137,7 @@ function makeEntry(
     min_elevation: overrides.min_elevation,
     max_elevation: overrides.max_elevation,
     blind_spot_range: overrides.blind_spot_range,
+    blind_spot_ranges: overrides.blind_spot_ranges,
     target_position: overrides.target_position ?? 40,
     target_tilt: overrides.target_tilt ?? 50,
     covers: overrides.covers ?? [
@@ -2358,7 +2359,7 @@ export const SCENARIOS: Scenario[] = [
     added: '2026-07-31',
     issue: 260,
     description:
-      "Battery reporting across all three states the card distinguishes. A cover's battery is NOT an ACP entity — it is a separate `device_class: battery` sensor on the cover's OWN device — so the card resolves it by walking `hass.entities` for the cover's device_id and finding the battery sensor beside it. That is why this scenario gives each cover its own mock device. Three entries: 'Healthy' at 82% (no overlay — the tile icon must stay clean, and the dialog's battery button shows a full-ish glyph reading '82% battery'); 'Low' at 8% (the tile icon gains a RED battery overlay at its BOTTOM-LEFT, diagonally opposite the occupancy symbol's top-right so the two never collide, tooltip 'Low battery — 8%'); and 'Unknown' whose sensor reads `unknown` (treated as LOW deliberately — a battery that has stopped reporting is exactly what a warning is for — so it also overlays, with mdi:battery-alert-variant-outline). The threshold is LOW_BATTERY_PCT = 20 in src/lib/battery.ts, shared by the tile overlay and the dialog readout so they cannot drift. Check the multi-cover path too: 'Low' has two covers at 8% and 64%, so the icon must follow the WORST cell while the dialog tooltip names both ('Left: 8% · Right: 64%'). Set any of it live from Managed covers → the batt: select (none/level/unknown) in the control panel. A mains-powered cover (batt: none) emits no sensor at all and must render nothing anywhere.",
+      "Battery reporting across all three states the card distinguishes. A cover's battery is NOT an ACP entity — it is a separate `device_class: battery` sensor on the cover's OWN device — so the card resolves it by walking `hass.entities` for the cover's device_id and finding the battery sensor beside it. That is why this scenario gives each cover its own mock device. Three entries: 'Healthy' at 82% (no overlay — the tile icon must stay clean, and the dialog's battery button shows a full-ish glyph reading '82% battery'); 'Low' at 8% (the tile icon gains a RED battery overlay at its BOTTOM-LEFT, diagonally opposite the occupancy symbol's top-right so the two never collide, tooltip 'Low battery — 8%'); and 'Unknown' whose sensor reads `unknown` (treated as LOW deliberately — a battery that has stopped reporting is exactly what a warning is for — so it also overlays, with mdi:battery-alert-variant-outline). The threshold is LOW_BATTERY_PCT = 20 in src/lib/battery.ts, shared by the tile overlay and the dialog readout so they cannot drift. Check the multi-cover path too: 'Low' has two covers at 8% and 64%, so the icon must follow the WORST cell while the dialog tooltip names both ('Left: 8% · Right: 64%'). Set any of it live from Managed covers → the batt: select (none/level/unknown) in the control panel. A mains-powered cover (batt: none) emits no sensor at all and must render nothing anywhere. The dialog battery is a BUTTON, not a readout: clicking it leaves for HA's own History panel at `/history?entity_id=…` with every battery source in the set comma-joined, and closes the dialog on the way out (in the harness there is no HA router, so the URL changes and nothing navigates — check the address bar). The fourth entry, 'Battery Group', is a Cover Group over all four battery covers from the three entries above, and its dialog header carries the SAME indicator — worst-cell glyph (here the unknown one), tooltip naming every member, and the same history link listing all four sensors.",
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'cover-battery';
@@ -2418,6 +2419,124 @@ export const SCENARIOS: Scenario[] = [
               battery: null,
             },
           ],
+        }),
+        // A group over the three battery entries above, so the group dialog's
+        // battery indicator has a mixed roster to summarize: healthy, low and
+        // unknown together must resolve to the unknown cell.
+        makeGroupEntry({
+          entry_id: 'battery_group',
+          title: 'Battery Group',
+          group: {
+            member_positions: {
+              'cover.healthy_shade': 70,
+              'cover.low_left': 40,
+              'cover.low_right': 40,
+              'cover.unknown_shade': 55,
+            },
+            member_winners: {
+              'cover.healthy_shade': 'solar',
+              'cover.low_left': 'solar',
+            },
+            aggregate_position: 51,
+            state: 'open',
+            active_scene: 'none',
+            scene_option: 'auto',
+            locked: false,
+            automation: true,
+            climate_mode: 'summer_mode',
+          },
+        }),
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'moving-to-indicator',
+    label: 'Moving to — destination shown while a cover travels',
+    added: '2026-08-12',
+    description:
+      "Setting a position returns immediately, but the cover takes seconds to get there — and every rail draws the LIVE value, so the instant a drag preview is released the rail snapped back to where the cover still was and the number just chosen vanished. The command was in flight with nothing on screen to say so. Now the destination stays: a STRIPED travel band spans the gap between where the cover is and where it is heading, capped by a diamond pip. Tap, drag, arrow-key or press the ↑/↓ buttons on any rail here and watch it — the harness has no real covers, so nothing travels and the band simply persists until it times out, which is exactly what a no-feedback cover looks like in the wild. STOP clears the indicator instead of setting one: wherever a cover halts IS its position, so a pip still pointing elsewhere would promise a move that was just abandoned. Four rails carry it and must look identical: the tile rail here, the tile's tilt track, the more-info dialog's Position bars, and the group tile's rail (open the group entry). The band is striped, never a flat tint, so it can never be mistaken for a second fill — the solid fill beside it is the only thing claiming the cover's real position. The pip is a different SHAPE from the orange solar-target marker, not merely a different colour, because the two share one track and colour alone would not separate them for a colour-blind user. Two rules worth checking: commanding a value the cover is ALREADY at draws NOTHING (a zero-width band and a stray pip would otherwise sit there for the full 60s, since a cover that does not move never reports arrival), and a value within 2% counts as arrived for the same reason — covers routinely stop a percent short. An AUTOMATIC move shows it too, without any command: set a cover's state to `opening` or `closing` in the control panel and its rail draws the band toward the target tick, because a pipeline move has no command echo to latch onto and the entity being in motion is the only evidence there is.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'moving-to-indicator';
+      c.tile.layout = 'detailed';
+      c.entries = [
+        makeEntry({
+          entry_id: 'travelling',
+          title: 'Travelling Shade',
+          window_azimuth: 180,
+          target_position: 40,
+          covers: [
+            {
+              entity_id: 'cover.travelling_shade',
+              friendly_name: 'Travelling Shade',
+              position: 100,
+              device_class: 'shade',
+            },
+          ],
+        }),
+        // Two rails, so the per-rail keying is visible: command one and the
+        // OTHER must stay untouched.
+        makeEntry({
+          entry_id: 'two_rail',
+          title: 'Two Rail Shade',
+          window_azimuth: 200,
+          target_position: 60,
+          covers: [
+            { entity_id: 'cover.two_rail_left', friendly_name: 'Left', position: 100 },
+            { entity_id: 'cover.two_rail_right', friendly_name: 'Right', position: 0 },
+          ],
+        }),
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'blind-spot-slots',
+    label: 'Blind spot slots — slot 2/3 wedges the card used to drop (#269)',
+    added: '2026-08-08',
+    issue: 269,
+    description:
+      "The integration has carried THREE blind-spot slots since its #701 and publishes them all on the sun_position sensor's `blind_spot_ranges`. `blind_spot_range` (singular) is slot 1 alone, kept only for cards written before the list existed — and reading it as the whole truth is #269: a blind spot configured in slot 2 or 3 never appears, and editing one changes nothing the card looks at. Three entries. 'Slot 2 only' has a DEGENERATE slot 1 ([0, 0] — an enabled-but-unconfigured slot) and the real wedge in slot 2, which is the exact reported shape: the legacy attribute is present but spans zero degrees, so the old card drew an invisible path and the user saw no blind spot at all. It must now draw ONE wedge, from slot 2. 'Three slots' carries all three, and all three must draw, each its own grey wedge, with the tooltip listing one 'Blind spot A°–B°' line per slot under a single entry label. 'Legacy only' publishes `blind_spot_range` with NO list — an older integration — and must still draw its single wedge, proving the fallback. Ranges are SIGNED GAMMA pairs [lower, upper] measured from the window normal, positive toward the left acceptance edge, so a wedge maps to bearings [windowAzi − upper, windowAzi − lower] and lower must be < upper. Add, remove and drag slots live from Entries → Blind spot in the control panel; a slot dragged to lower == upper vanishes rather than drawing a zero-width sliver.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'blind-spot-slots';
+      c.entries = [
+        makeEntry({
+          entry_id: 'slot_two_only',
+          title: 'Slot 2 only',
+          window_azimuth: 180,
+          fov_left: 90,
+          fov_right: 90,
+          color: '#e53935',
+          // Slot 1 enabled but never configured → zero span. Slot 2 holds the
+          // wedge the user actually drew.
+          blind_spot_ranges: [
+            [0, 0],
+            [20, 45],
+          ],
+        }),
+        makeEntry({
+          entry_id: 'three_slots',
+          title: 'Three slots',
+          window_azimuth: 180,
+          fov_left: 90,
+          fov_right: 90,
+          color: '#1e88e5',
+          blind_spot_ranges: [
+            [-45, -30],
+            [-10, 15],
+            [25, 40],
+          ],
+        }),
+        makeEntry({
+          entry_id: 'legacy_only',
+          title: 'Legacy only',
+          window_azimuth: 180,
+          fov_left: 90,
+          fov_right: 90,
+          color: '#43a047',
+          blind_spot_range: [10, 30],
         }),
       ];
       return c;
@@ -2870,6 +2989,87 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'group-member-order',
+    label: 'Group roster — reorder, hide and rename members',
+    added: '2026-08-08',
+    description:
+      "The roster's order and its membership are a per-CARD choice, not the integration's. `members` carries both: it lists the row keys to render, in order, so a key left out is a hidden member and there is no second 'hidden' list to keep in sync. This scenario ships all three levers at once — the group adopts two ACP entries plus one generic (non-ACP) hallway cover, and the card config reorders them, hides one, and renames another. What must render, in the group tile's dialog AND in the main-card group view (they share one helper and cannot drift): TWO rows, hallway FIRST even though the integration reports it last, labelled 'Hallway'; then the front entry labelled 'Bay Window' rather than its own 'Front Left Shade' title. The side entry is CONFIGURED OUT and must appear nowhere. Row keys are the owning ACP entry_id for an ACP member and the bare cover entity_id for a generic one — the same keys `member_names` already used, which is why one editor section now drives naming, ordering and visibility together instead of two that disagree about what a row is. Open the card's visual editor to drive it: the Members section is a sortable list — drag a row or use ↑/↓, the eye hides a member from this card without touching the group, and the name field on each row renames it (blank restores the entry's own title). Re-showing a hidden member puts it back where the INTEGRATION had it rather than on the end, so hide-then-show is a round trip and not a silent reorder. Unlike the rail list, the LAST member may be hidden — the dialog still carries the aggregate readout, the position track and the control row, so an empty roster is a usable card and the whole Members block simply disappears rather than leaving a bare heading over nothing. HIDING REACHES THE AGGREGATES, which is the point of this scenario: the side entry is UNAVAILABLE, and the tile must NOT read 'Mixed · 1 unavailable' for a cover it no longer shows. Everything derived from the roster is recomputed over the surviving members — the state line and its exception, the N/M who-won badge (denominator 2, not 3), the spread bar and its range, the aggregate percentage, the shared device_class the glyph comes from, and the battery indicator in the dialog header. Three of those arrive from the integration as finished scalars taken over the FULL roster (`group_position`, `group_state`, `group_who_won`), so they are recomputed the way the integration computes them — mean, unanimity-or-mixed, and a count of members a group handler owns. Show the side entry again and every number must return to what the integration published, exactly.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-member-order';
+      const front = makeEntry({
+        entry_id: 'front_shades',
+        title: 'Front Left Shade',
+        window_azimuth: 180,
+        target_position: 40,
+        covers: [
+          { entity_id: 'cover.front_left', friendly_name: 'Front Left Shade', position: 40 },
+          { entity_id: 'cover.front_center', friendly_name: 'Front Center Shade', position: 40 },
+        ],
+      });
+      const side = makeEntry({
+        entry_id: 'side_shades',
+        title: 'Side Left Shade',
+        window_azimuth: 250,
+        target_position: 0,
+        covers: [
+          {
+            entity_id: 'cover.side_left',
+            friendly_name: 'Side Left Shade',
+            position: 0,
+            // UNAVAILABLE on purpose: this is the member the card hides, and an
+            // unavailable one is the sharpest proof that hiding reaches the
+            // aggregates. Before the snapshot was restricted, the tile kept
+            // reading "Mixed · 1 unavailable" over a roster this cover was no
+            // longer part of.
+            state: 'unavailable',
+          },
+        ],
+      });
+      c.entries = [
+        front,
+        side,
+        makeGroupEntry({
+          entry_id: 'living_room',
+          title: 'Living Room',
+          group: {
+            // Integration order: front entry, side entry, then the generic
+            // cover. The card config below overrides all of it.
+            member_positions: {
+              'cover.front_left': 40,
+              'cover.front_center': 40,
+              'cover.side_left': 0,
+              'cover.hall_generic': 70,
+            },
+            member_winners: {
+              'cover.front_left': 'solar',
+              'cover.front_center': 'solar',
+              'cover.side_left': 'solar',
+            },
+            aggregate_position: 38,
+            state: 'mixed',
+            active_scene: 'none',
+            scene_option: 'auto',
+            locked: false,
+            automation: true,
+            climate_mode: 'summer_mode',
+          },
+        }),
+      ];
+      // Generic cover first, side entry configured out entirely. COVER ids —
+      // the key is deliberately not the roster's row key, so an unavailable
+      // member (like cover.side_left here) can still be matched.
+      c.tile.members = ['cover.hall_generic', 'cover.front_left', 'cover.front_center'];
+      c.tile.member_names = {
+        front_shades: 'Bay Window',
+        'cover.hall_generic': 'Hallway',
+      };
+      c.compass.enabled = false;
+      c.solarChart.enabled = false;
+      return c;
+    },
+  },
+  {
     id: 'goto-target-button',
     label: 'Snap to target — per-cover ⊙ button',
     description:
@@ -2903,7 +3103,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'layered-rails-vs-separate-covers',
     label: 'Rail stack — layers of one cover vs. separate covers',
     description:
-      'THE side-by-side repro. Both tiles render a stack of position rails and until now looked identical — same glyph, same spacing — even though they mean completely different things. Tile 1 is a day/night shade: TWO RAILS OF ONE PHYSICAL SHADE (bottom rail carries the coverage, middle rail the sheer-vs-blackout fabric split), bound by the integration\'s dual_entity control model. Tile 2 is an ordinary blind entry someone attached THREE SEPARATE WINDOWS to. Tile 1 must now draw a BRACE — a hairline down the lane between the glyph column and the rails, spanning rail-center to rail-center — and its rows sit tighter (2px vs 5px). Tile 2 must be pixel-identical to before: no brace, 5px gaps, nothing changed on the common path. Check the geometry too: the brace is absolutely positioned so it adds no layout width, and the layered stack widens its glyph GAP (6→10px) to make room, which moves the stack\'s LEFT edge out while the rails keep their length and their right edge — the alignment invariant from issue #260. Both stacks carry a role="group" with an accessible name ("2 rails of one cover" / "3 covers"), so the distinction reaches a screen reader and not just the eye. The discriminator is the integration cover_type, NOT the rail count: cover_day_night_shade and cover_dual_panel are the two types whose managed covers are layers of one opening; every other type takes one cover per window. Switch tile 1\'s cover type to cover_blind in the control panel and the brace must vanish, because two blinds on one entry are two windows. Narrow it to a single rail ("First rail only" under covers) and the brace goes with the stack — a lone rail is one cover, and bracketing it would say something untrue.',
+      'THE side-by-side repro. Both tiles render a stack of position rails and until now looked identical — same glyph, same spacing — even though they mean completely different things. Tile 1 is a day/night shade: TWO RAILS OF ONE PHYSICAL SHADE (bottom rail carries the coverage, middle rail the sheer-vs-blackout fabric split), bound by the integration\'s dual_entity control model. Tile 2 is an ordinary blind entry someone attached THREE SEPARATE WINDOWS to. Tile 1 must now draw a BRACE — a hairline down the lane between the glyph column and the rails, spanning rail-center to rail-center — and its rows sit tighter (2px vs 5px). Tile 2 must be pixel-identical to before: no brace, 5px gaps, nothing changed on the common path. Check the geometry too: the brace is absolutely positioned so it adds no layout width, and the layered stack widens its glyph GAP (6→10px) to make room, which moves the stack\'s LEFT edge out while the rails keep their length and their right edge — the alignment invariant from issue #260. Both stacks carry a role="group" with an accessible name ("2 rails of one cover" / "3 covers"), so the distinction reaches a screen reader and not just the eye. The discriminator is the integration cover_type, NOT the rail count: cover_day_night_shade and cover_dual_panel are the two types whose managed covers are layers of one opening; every other type takes one cover per window. Switch tile 1\'s cover type to cover_blind in the control panel and the brace must vanish, because two blinds on one entry are two windows. Narrow it to a single rail ("First rail only" under covers) and the brace goes with the stack — a lone rail is one cover, and bracketing it would say something untrue. THE READOUT SPLITS TOO. A layered pair is one opening with two fabrics, and the state line used to describe only the RESOLVED cover — so a shade open at 60% with its middle rail at 25% read exactly like a plain shade at 60%, and the second fabric appeared nowhere in text. Tile 1 must now read \'Open 60% · Open 25%\', one segment per rail with its own state and position. Drag the two rails to the SAME value and the line must collapse back to the single \'Open 60%\' form: the split is a signal that the fabrics diverged, not a permanent second column. Tile 2 must NOT split no matter what its rails read — three separate windows disagree by a percent or two constantly, and a permanent multi-segment line there would be noise. Switch tile 1 to cover_blind and its split disappears with the brace, from the same cover_type discriminator. Detailed layout only: one-line has no room, and a VENETIAN is deliberately excluded because its second axis already has a bar directly under the line.',
     added: '2026-08-02',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
