@@ -214,9 +214,12 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'dialog.extend.tomorrow_suffix': ' (tomorrow)',
   'tile.motion_detected': 'Occupancy detected',
   'tile.motion_pending': 'Occupancy timeout',
-  'editor.tile.member_names': 'Member names',
+  'covers.moving_to': 'Moving to {pct}%',
+  'editor.tile.member_names': 'Members',
   'editor.tile.member_names_hint':
-    'Rename a group member as it appears on this card. Leave blank to use the entry\u2019s own name.',
+    'Drag a row, or use the arrows, to set the order members appear in. The eye hides a member from this card without removing it from the group. Type to rename a member here; leave blank to use the entry\u2019s own name.',
+  'editor.tile.members_hide': 'Hide this member',
+  'editor.tile.members_show': 'Show this member',
   // Group tile: the state line leads with how many members the group drives,
   // and the rail is drag-only because a group write flattens every member.
   'group.range': '{min}–{max}%',

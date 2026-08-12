@@ -27,6 +27,14 @@ async function mount(props: Partial<TiltBarLike>): Promise<TiltBarLike> {
   return el;
 }
 
+/** A component's stylesheet as one string. `styles` became an ARRAY when the
+ *  rail overlay's shared fragment was factored out, so a single `.cssText` no
+ *  longer covers the whole sheet. */
+function sheetOf(ctor: unknown): string {
+  const styles = (ctor as { styles: { cssText: string } | { cssText: string }[] }).styles;
+  return Array.isArray(styles) ? styles.map((s) => s.cssText).join('\n') : styles.cssText;
+}
+
 describe('acp-tilt-bar', () => {
   it('splits the track into open + closed widths summing to 100%', async () => {
     const el = await mount({ actual: 35, target: 70 });
@@ -261,8 +269,7 @@ describe('acp-axis-bar drag slider', () => {
   });
 
   it('declares touch-action: none so a touch drag does not scroll the page', () => {
-    const css = (customElements.get('acp-axis-bar') as unknown as { styles: { cssText: string } })
-      .styles.cssText;
+    const css = sheetOf(customElements.get('acp-axis-bar'));
     expect(css).toContain('touch-action: none');
     expect(css).toContain('.track.dragging');
   });

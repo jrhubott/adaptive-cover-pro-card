@@ -15,6 +15,8 @@ import { formatCoverState, formatPercent } from '../lib/formatters';
 import { AXIS_LABEL_I18N_KEYS } from '../const';
 import { axisDisplayValue, positionAxisFor, resolveAxes, type ResolvedAxis } from '../lib/axes';
 import { setAxes, hasSetAxes } from '../lib/services';
+import { PendingMoves, isMovingState, isPendingVisible } from '../lib/pending-move';
+import { renderRailOverlay, railOverlayStyles } from './rail-overlay';
 import { t } from '../lib/i18n';
 import { tooltip } from '../lib/tooltip';
 import './tilt-bar';
@@ -41,6 +43,19 @@ export class CoverBar extends LitElement {
    *  (the trailing native `click` after a drag commits via `_handleTrackClick`,
    *  exactly as it does for a plain tap today). */
   @state() private _dragPreview: { entityId: string; pct: number } | null = null;
+
+  /** Moves this bar commanded, keyed by cover entity_id — see
+   *  `lib/pending-move.ts`. Keyed because the dialog stacks one track per
+   *  managed cover and each must show only its own destination. */
+  private _pending = new PendingMoves(this);
+
+  /** Live position per cover as of the last render, for `updated()`'s arrival
+   *  check. Plain field, not `@state`: writing it must not schedule a render. */
+  private _lastLive = new Map<string, number | null>();
+
+  protected override updated(): void {
+    this._pending.settle((entityId) => this._lastLive.get(entityId) ?? null);
+  }
 
   // Live positions come from `coverLogicalActuals`, which reads the target sensor's
   // `linear_actual_positions` (falling back to `actual_positions`); mismatches from the
@@ -115,6 +130,9 @@ export class CoverBar extends LitElement {
    *  legacy per-axis service otherwise. Interactive drags omit `force` so the
    *  service default (no forced override) preserves today's semantics. */
   private _setAxis(entityId: string, axisId: string, value: number): void {
+    // Position only — a secondary axis is drawn by `acp-axis-bar`, which arms
+    // its own indicator.
+    if (axisId === 'position') this._pending.start(entityId, value);
     setAxes(this.hass, entityId, { [axisId]: value });
   }
 
@@ -141,6 +159,7 @@ export class CoverBar extends LitElement {
    * mirror the value on a blind and drive the cover to its complement.
    */
   private _gotoTarget(entityId: string, target: number): void {
+    this._pending.start(entityId, target);
     setAxes(this.hass, entityId, { position: target }, { force: true });
   }
 
@@ -311,6 +330,16 @@ export class CoverBar extends LitElement {
     // text to say it — otherwise the row states the same thing twice.
     // Null (and so omitted) for an unavailable cover, leaving the bare percent.
     const stateText = formatCoverState(this.hass, entityId, transitDir ?? undefined);
+    this._lastLive.set(entityId, actual);
+    // An explicit command wins over the automatic-move hint; an automatic move
+    // is evidenced by the entity being in motion, heading for the tick already
+    // drawn. Suppressed mid-drag, where the preview answers the same question.
+    const autoMoving =
+      isMovingState(this.hass.states[entityId]?.state) && target !== null ? targetPct : null;
+    const commanded = dragPct !== null ? null : (this._pending.get(entityId) ?? autoMoving);
+    // See `acp-axis-bar`: a destination the cover is already at never settles.
+    const pending = isPendingVisible(actual, commanded) ? commanded : null;
+    const pendingPct = pending === null ? null : axisDisplayValue(pending, axis);
     return html`
       <div class="cover ${mismatch ? 'mismatch' : ''}">
         <div
@@ -353,6 +382,14 @@ export class CoverBar extends LitElement {
         >
           <div class="fill" style="width:${fillPct}%"></div>
           <div class="fill-closed" style="width:${100 - fillPct}%"></div>
+          ${pending !== null && pendingPct !== null
+            ? renderRailOverlay({
+                hass: this.hass,
+                liveFrac: fillPct,
+                pendingFrac: pendingPct,
+                pending,
+              })
+            : nothing}
           ${target !== null
             ? html`<div
                 class="marker"
@@ -480,46 +517,48 @@ export class CoverBar extends LitElement {
     this._setAxis(entityId, 'position', axisDisplayValue(clamped, axis));
   }
 
-  public static styles = css`
-    :host {
-      display: block;
-    }
-    .wrap {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .head {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.78rem;
-      color: var(--secondary-text-color);
-    }
-    .label {
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-    }
-    .targets {
-      display: flex;
-      gap: 12px;
-    }
-    .target {
-      font-variant-numeric: tabular-nums;
-    }
-    /* Position + (optional) tilt row stack for one cover. */
-    .cover-group {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .cover-group acp-tilt-bar {
-      /* Indent the tilt row under the position track so the two read as one
+  public static styles = [
+    railOverlayStyles,
+    css`
+      :host {
+        display: block;
+      }
+      .wrap {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .head {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.78rem;
+        color: var(--secondary-text-color);
+      }
+      .label {
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+      .targets {
+        display: flex;
+        gap: 12px;
+      }
+      .target {
+        font-variant-numeric: tabular-nums;
+      }
+      /* Position + (optional) tilt row stack for one cover. */
+      .cover-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .cover-group acp-tilt-bar {
+        /* Indent the tilt row under the position track so the two read as one
          cover's two axes. Aligns roughly with the position bar's track column. */
-      padding-left: 0;
-    }
-    .cover {
-      display: grid;
-      /* Final column is fixed at the warn-icon size (16px) rather than auto so
+        padding-left: 0;
+      }
+      .cover {
+        display: grid;
+        /* Final column is fixed at the warn-icon size (16px) rather than auto so
          the track (3fr) keeps the same width whether or not the badge renders —
          a toggling badge no longer reflows the bar graph (#158).
 
@@ -535,41 +574,41 @@ export class CoverBar extends LitElement {
          would hand those pixels to the track and reflow the bar graph. A spacer
          holds the cell instead. Keep in lock-step with acp-tilt-bar's .row.cover
          grid — they are separate grids stacked in one .cover-group. */
-      grid-template-columns: minmax(80px, 1fr) 11ch 3fr 22px 16px;
-      gap: 8px;
-      align-items: center;
-      font-size: 0.82rem;
-    }
-    /* Snap this cover to the marker's value. Sized and coloured like the row's
+        grid-template-columns: minmax(80px, 1fr) 11ch 3fr 22px 16px;
+        gap: 8px;
+        align-items: center;
+        font-size: 0.82rem;
+      }
+      /* Snap this cover to the marker's value. Sized and coloured like the row's
        other glyphs rather than like a control, so a row of covers does not read
        as a row of buttons — it lights up on hover/focus. */
-    .goto-target {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 22px;
-      height: 22px;
-      padding: 0;
-      border: none;
-      border-radius: 50%;
-      background: none;
-      cursor: pointer;
-      color: var(--secondary-text-color);
-      --mdc-icon-size: 16px;
-      transition:
-        color 0.15s ease,
-        background 0.15s ease;
-    }
-    .goto-target:hover {
-      color: var(--accent-color, var(--primary-color));
-      background: color-mix(in srgb, currentColor 14%, transparent);
-    }
-    .goto-target:focus-visible {
-      outline: 2px solid var(--primary-color);
-      outline-offset: 1px;
-      color: var(--accent-color, var(--primary-color));
-    }
-    /* Floating-tooltip cursor lifecycle for this shadow root's INERT tooltip
+      .goto-target {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        background: none;
+        cursor: pointer;
+        color: var(--secondary-text-color);
+        --mdc-icon-size: 16px;
+        transition:
+          color 0.15s ease,
+          background 0.15s ease;
+      }
+      .goto-target:hover {
+        color: var(--accent-color, var(--primary-color));
+        background: color-mix(in srgb, currentColor 14%, transparent);
+      }
+      .goto-target:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 1px;
+        color: var(--accent-color, var(--primary-color));
+      }
+      /* Floating-tooltip cursor lifecycle for this shadow root's INERT tooltip
        carriers: the transit arrow and the header target chip. Restated here
        because a shadow root cannot borrow its host's copy of this pair.
 
@@ -578,59 +617,59 @@ export class CoverBar extends LitElement {
        role="button" that opens more-info, and .track / the tilt track are
        drag-to-set sliders — so a blanket rule would replace three correct
        pointers with a help cursor that promises information instead of action. */
-    .transit[data-tooltip]:hover,
-    .target[data-tooltip]:hover {
-      cursor: help;
-    }
-    .transit[data-tooltip][acp-tt-shown],
-    .target[data-tooltip][acp-tt-shown] {
-      cursor: default;
-    }
-    /* The cover name is a tap target that opens the entry's more-info dialog,
+      .transit[data-tooltip]:hover,
+      .target[data-tooltip]:hover {
+        cursor: help;
+      }
+      .transit[data-tooltip][acp-tt-shown],
+      .target[data-tooltip][acp-tt-shown] {
+        cursor: default;
+      }
+      /* The cover name is a tap target that opens the entry's more-info dialog,
        so it carries a pointer cursor and a keyboard focus ring. It still hovers
        an entity-id tooltip, but click/Enter/Space open the dialog. */
-    .name {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      cursor: pointer;
-      border-radius: 4px;
-    }
-    .name:focus-visible {
-      outline: 2px solid var(--primary-color);
-      outline-offset: 2px;
-    }
-    .track {
-      position: relative;
-      display: flex;
-      height: 10px;
-      background: var(--secondary-background-color, rgba(0, 0, 0, 0.08));
-      border-radius: 6px;
-      cursor: pointer;
-      overflow: hidden;
-      /* A touch-drag must move the fill, not the page — own the gesture. */
-      touch-action: none;
-    }
-    .track:focus-visible {
-      outline: 2px solid var(--primary-color);
-      outline-offset: 2px;
-    }
-    :host([compact]) .track {
-      height: 6px;
-    }
-    :host([compact]) .cover {
-      font-size: 0.75rem;
-      gap: 6px;
-    }
-    :host([compact]) .goto-target {
-      width: 18px;
-      height: 18px;
-      --mdc-icon-size: 14px;
-    }
-    :host([compact]) .head {
-      display: none;
-    }
-    /* Both segments derive from the cover colour (override, else --primary-color),
+      .name {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        cursor: pointer;
+        border-radius: 4px;
+      }
+      .name:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+      }
+      .track {
+        position: relative;
+        display: flex;
+        height: 10px;
+        background: var(--secondary-background-color, rgba(0, 0, 0, 0.08));
+        border-radius: 6px;
+        cursor: pointer;
+        overflow: hidden;
+        /* A touch-drag must move the fill, not the page — own the gesture. */
+        touch-action: none;
+      }
+      .track:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+      }
+      :host([compact]) .track {
+        height: 6px;
+      }
+      :host([compact]) .cover {
+        font-size: 0.75rem;
+        gap: 6px;
+      }
+      :host([compact]) .goto-target {
+        width: 18px;
+        height: 18px;
+        --mdc-icon-size: 14px;
+      }
+      :host([compact]) .head {
+        display: none;
+      }
+      /* Both segments derive from the cover colour (override, else --primary-color),
        distinguished by opacity: blocking is solid, clear is pale — "lighter =
        more open" — matching the compass FOV (light) vs cover wedge (solid) of
        the same hue. No gold, so nothing competes with the gold sun on the compass.
@@ -639,88 +678,97 @@ export class CoverBar extends LitElement {
        the track fills from the left as the cover closes — the same polarity as
        the tile rails and the compass wedge. Class names are kept (a rename buys
        nothing the comment does not) but the colours swapped with the meaning. */
-    .fill {
-      height: 100%;
-      flex-shrink: 0;
-      background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 50%, transparent);
-      transition: width 0.3s ease;
-    }
-    .fill-closed {
-      height: 100%;
-      flex-shrink: 0;
-      background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 18%, transparent);
-      transition: width 0.3s ease;
-    }
-    /* The marker is centred on its left value via translateX(-50%) and its
+      .fill {
+        height: 100%;
+        flex-shrink: 0;
+        background: color-mix(
+          in srgb,
+          var(--acp-cover-color, var(--primary-color)) 50%,
+          transparent
+        );
+        transition: width 0.3s ease;
+      }
+      .fill-closed {
+        height: 100%;
+        flex-shrink: 0;
+        background: color-mix(
+          in srgb,
+          var(--acp-cover-color, var(--primary-color)) 18%,
+          transparent
+        );
+        transition: width 0.3s ease;
+      }
+      /* The marker is centred on its left value via translateX(-50%) and its
        left is clamped 1px inside the rail (inline), so the 2px box never gets
        clipped by .track { overflow:hidden } at the 0%/100% extremes (#158). */
-    .marker {
-      position: absolute;
-      top: -2px;
-      width: 2px;
-      height: 14px;
-      background: var(--accent-color, red);
-      transform: translateX(-50%);
-      transition: left 0.3s ease;
-    }
-    .num {
-      font-variant-numeric: tabular-nums;
-      text-align: right;
-      display: inline-flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 2px;
-      white-space: nowrap;
-      min-width: 0;
-      overflow: hidden;
-    }
-    /* The state word yields first; the percentage is the part that must never
+      .marker {
+        position: absolute;
+        top: -2px;
+        width: 2px;
+        height: 14px;
+        background: var(--accent-color, red);
+        transform: translateX(-50%);
+        transition: left 0.3s ease;
+      }
+      .num {
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 2px;
+        white-space: nowrap;
+        min-width: 0;
+        overflow: hidden;
+      }
+      /* The state word yields first; the percentage is the part that must never
        be cut, so it holds its intrinsic width. */
-    .num-state {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .num-sep,
-    .num-pct {
-      flex: 0 0 auto;
-    }
-    /* In-transit motion indicator for no-feedback covers: a small direction
+      .num-state {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .num-sep,
+      .num-pct {
+        flex: 0 0 auto;
+      }
+      /* In-transit motion indicator for no-feedback covers: a small direction
        arrow beside the percent, sized to the .num text. */
-    .transit {
-      --mdc-icon-size: 1em;
-      color: var(--primary-color);
-      flex-shrink: 0;
-    }
-    @media (prefers-reduced-motion: no-preference) {
       .transit {
-        animation: acp-transit-pulse 1.1s ease-in-out infinite;
+        --mdc-icon-size: 1em;
+        color: var(--primary-color);
+        flex-shrink: 0;
       }
-    }
-    @keyframes acp-transit-pulse {
-      0%,
-      100% {
-        opacity: 1;
+      @media (prefers-reduced-motion: no-preference) {
+        .transit {
+          animation: acp-transit-pulse 1.1s ease-in-out infinite;
+        }
       }
-      50% {
-        opacity: 0.35;
+      @keyframes acp-transit-pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.35;
+        }
       }
-    }
-    .warn {
-      color: var(--warning-color, orange);
-      --mdc-icon-size: 16px;
-    }
-    /* On a position mismatch, recolour the leading (sun-blocking) segment with
+      .warn {
+        color: var(--warning-color, orange);
+        --mdc-icon-size: 16px;
+      }
+      /* On a position mismatch, recolour the leading (sun-blocking) segment with
        the error colour and lean on the warn icon at the end of the row. It is
        the segment that carries the cover hue, so tinting it is what reads as a
        divergence rather than as a second cover colour. */
-    .mismatch .fill {
-      background: color-mix(in srgb, var(--error-color, crimson) 35%, transparent);
-    }
-    .placeholder {
-      color: var(--secondary-text-color);
-      text-align: center;
-      padding: 16px;
-    }
-  `;
+      .mismatch .fill {
+        background: color-mix(in srgb, var(--error-color, crimson) 35%, transparent);
+      }
+      .placeholder {
+        color: var(--secondary-text-color);
+        text-align: center;
+        padding: 16px;
+      }
+    `,
+  ];
 }

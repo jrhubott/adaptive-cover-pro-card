@@ -162,8 +162,16 @@ export interface HarnessEntry {
   min_elevation?: number;
   /** Optional elevation ceiling. */
   max_elevation?: number;
-  /** Optional [left, right] blind spot relative to window normal. */
+  /** Optional [left, right] blind spot relative to window normal — slot 1
+   *  shorthand. Ignored when {@link blind_spot_ranges} is set. */
   blind_spot_range?: [number, number];
+  /** Every configured blind-spot slot (the integration allows three). When set
+   *  it replaces {@link blind_spot_range}, and the mock emits it the way the
+   *  integration does: `blind_spot_ranges` carries the whole list while the
+   *  legacy `blind_spot_range` carries only the first entry. Use a degenerate
+   *  first slot (`[0, 0]`) to reproduce #269 — a card reading only the legacy
+   *  attribute then draws nothing. */
+  blind_spot_ranges?: Array<[number, number]>;
   /** Target position 0..100 (integration output). */
   target_position: number;
   /** Solar tilt target 0..100 for venetian dual-axis covers (integration
@@ -317,6 +325,10 @@ export interface TileCardOptions {
   /** Per-member roster display-name overrides, keyed by member entry_id (or a
    *  generic cover's entity_id). Mirrors the card's `member_names`. */
   member_names?: Record<string, string>;
+  /** Roster order + subset as COVER entity ids (NOT {@link member_names}'s
+   *  per-row keys). Absent = the integration's own order with every member
+   *  shown. Mirrors the card's `members`. */
+  members?: string[];
   show_position: boolean;
   show_state: boolean;
   show_decision_summary: boolean;

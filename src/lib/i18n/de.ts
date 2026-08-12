@@ -114,6 +114,7 @@ export const de: EnDict = {
     battery: 'Batterie {level}%',
     battery_named: '{name}: {level}%',
     battery_unknown: 'Batteriestand unbekannt',
+    battery_history: 'Batterieverlauf öffnen',
     extend: {
       title: 'Manuelle Übersteuerung verlängern',
       presets_label: 'Bis',
@@ -223,6 +224,7 @@ export const de: EnDict = {
     target: 'Ziel: {pct}',
     target_solar: 'Sonnenziel: {pct}',
     click_to_set: 'Klicken zum Festlegen der Position',
+    moving_to: 'Fährt auf {pct}%',
     position_slider_label: 'Positionsschieberegler',
     position_open_value: '{pct} offen',
     opening: 'Öffnet…',
@@ -466,9 +468,11 @@ export const de: EnDict = {
       covers: 'Positionsleisten (Reihenfolge)',
       covers_hint:
         'Ziehen Sie eine Zeile oder verwenden Sie die Pfeile, um die Reihenfolge der Positionsleisten festzulegen. Das Auge blendet eine Leiste aus, ohne den Behang zu entfernen.',
-      member_names: 'Mitgliedsnamen',
+      member_names: 'Mitglieder',
       member_names_hint:
-        'Benennen Sie ein Gruppenmitglied nur f\u00fcr diese Karte um. Leer lassen, um den Namen des Eintrags zu verwenden.',
+        'Ziehen Sie eine Zeile oder verwenden Sie die Pfeile, um die Reihenfolge der Mitglieder festzulegen. Das Auge blendet ein Mitglied auf dieser Karte aus, ohne es aus der Gruppe zu entfernen. Tippen Sie, um ein Mitglied umzubenennen; leer lassen, um den Namen des Eintrags zu verwenden.',
+      members_hide: 'Dieses Mitglied ausblenden',
+      members_show: 'Dieses Mitglied anzeigen',
       covers_move_up: 'Nach oben',
       covers_move_down: 'Nach unten',
       covers_hide: 'Diese Leiste ausblenden',

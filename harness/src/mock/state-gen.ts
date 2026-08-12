@@ -263,6 +263,7 @@ function addEntryStates(
     });
   }
 
+  const bsRanges = blindSpotRanges(entry);
   states[id('sun_sensor')] = mkState(id('sun_sensor'), sun.azimuth.toFixed(2), {
     friendly_name: `${entry.title} Sun Position`,
     elevation: sun.elevation,
@@ -277,7 +278,11 @@ function addEntryStates(
     in_fov: decision.azimuthInFov,
     min_elevation: entry.min_elevation,
     max_elevation: entry.max_elevation,
-    blind_spot_range: entry.blind_spot_range,
+    // Emitted exactly the way the integration does it: the whole slot list on
+    // `blind_spot_ranges`, and slot 1 alone on the legacy `blind_spot_range`
+    // that pre-multi-slot cards read (#269).
+    blind_spot_range: bsRanges[0],
+    blind_spot_ranges: bsRanges.length ? bsRanges : undefined,
   });
 
   // Start / end Sun sensors bound today's contiguous in-FOV + above-horizon
@@ -623,6 +628,13 @@ function addCoverStates(states: Record<string, HassState>, entry: HarnessEntry):
       });
     }
   }
+}
+
+/** Every blind-spot slot an entry declares. `blind_spot_ranges` wins when set;
+ *  otherwise the single `blind_spot_range` stands in as slot 1. */
+export function blindSpotRanges(entry: HarnessEntry): Array<[number, number]> {
+  if (entry.blind_spot_ranges?.length) return entry.blind_spot_ranges;
+  return entry.blind_spot_range ? [entry.blind_spot_range] : [];
 }
 
 /** The mock battery sensor paired with a cover — `cover.foo` → `sensor.foo_battery`. */

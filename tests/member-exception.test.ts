@@ -22,10 +22,24 @@ describe('memberException', () => {
     ).toBeNull();
   });
 
-  it('counts a null position as unavailable', () => {
+  it('does NOT count a null position when HA reports the cover live', () => {
+    // A one-way / assumed-state cover (Somfy RTS awning) sits at open/closed
+    // with no `current_position`, so the group sensor publishes null for it.
+    // That is "no position", not "no cover" — calling it unavailable pinned a
+    // permanent false warning on the tile of anyone owning such an awning.
     expect(
       memberException(LIVE, {
         memberPositions: { 'cover.a': 40, 'cover.b': null },
+        memberWinners: undefined,
+      }),
+    ).toBeNull();
+  });
+
+  it('counts a null position when HA has no state for the member either', () => {
+    // Nothing anywhere can see this member, so unavailable is the honest word.
+    expect(
+      memberException(LIVE, {
+        memberPositions: { 'cover.a': 40, 'cover.gone': null },
         memberWinners: undefined,
       }),
     ).toEqual({ kind: 'unavailable', count: 1 });
