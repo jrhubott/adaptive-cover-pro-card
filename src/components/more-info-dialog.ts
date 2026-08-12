@@ -38,7 +38,6 @@ import type {
   PositionHistorySample,
 } from '../types';
 import { formatPercent } from '../lib/formatters';
-import { resolveCoverBatteries, lowestBattery, batteryIcon, isLowBattery } from '../lib/battery';
 import { fetchPositionHistory } from '../lib/position-history';
 import { startOfDay } from '../lib/sun-model';
 import { t } from '../lib/i18n';
@@ -54,6 +53,7 @@ import './sky-compass';
 import './elevation-chart';
 import './solar-calc';
 import './history-dialog';
+import './battery-indicator';
 
 /**
  * ACP-specific more-info dialog rendered by the card (not HA's built-in
@@ -197,46 +197,6 @@ export class MoreInfoDialog extends LitElement {
     return coverStateColor(stateObj?.state);
   }
 
-  /**
-   * Battery indicator beside the History button, rendered only when at least one
-   * managed cover reports a battery. The icon tracks the WORST cell in the entry
-   * — a two-motor shade with one flat battery has to read as flat — while the
-   * tooltip names every cover so which one is low stays recoverable.
-   */
-  private _batteryTpl(): TemplateResult | typeof nothing {
-    const covers = this.coverOrder ?? this.discovered?.managed_covers ?? [];
-    const batteries = resolveCoverBatteries(this.hass, covers);
-    const worst = lowestBattery(batteries);
-    if (!worst) return nothing;
-
-    const title =
-      batteries.length === 1
-        ? worst.level === null
-          ? t('dialog.battery_unknown', this.hass)
-          : t('dialog.battery', this.hass, { level: worst.level })
-        : batteries
-            .map((b) =>
-              t('dialog.battery_named', this.hass, {
-                name: this._coverName(b.cover_id),
-                level: b.level === null ? '—' : b.level,
-              }),
-            )
-            .join(' · ');
-
-    return html`<div
-      class="icon-btn battery${isLowBattery(worst) ? ' low' : ''}"
-      role="img"
-      aria-label=${title}
-      ${tooltip(title)}
-    >
-      <ha-icon icon=${batteryIcon(worst.level, worst.charging)}></ha-icon>
-    </div>`;
-  }
-
-  private _coverName(coverId: string): string {
-    return (this.hass?.states[coverId]?.attributes?.friendly_name as string | undefined) ?? coverId;
-  }
-
   protected render(): TemplateResult | typeof nothing {
     if (!this.open || !this.hass || !this.discovered) return nothing;
     const winner = this._winner();
@@ -301,7 +261,10 @@ export class MoreInfoDialog extends LitElement {
                         ></acp-tile-badge>`,
                     )}
             </div>
-            ${this._batteryTpl()}
+            <acp-battery-indicator
+              .hass=${this.hass}
+              .coverIds=${this.coverOrder ?? this.discovered.managed_covers ?? []}
+            ></acp-battery-indicator>
             <button
               class="icon-btn history-link"
               type="button"
@@ -735,14 +698,6 @@ export class MoreInfoDialog extends LitElement {
       display: inline-flex;
       align-items: center;
       --mdc-icon-size: 18px;
-    }
-    /* The battery shares .icon-btn's metrics so it lines up with the buttons
-       beside it, but it is a readout, not a control — no pointer affordance. */
-    .icon-btn.battery {
-      cursor: default;
-    }
-    .icon-btn.battery.low {
-      color: var(--error-color, #db4437);
     }
     .icon-btn:hover {
       color: var(--primary-text-color);

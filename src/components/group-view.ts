@@ -9,13 +9,21 @@ import { positionAxisFor } from '../lib/axes';
 import { formatPercent } from '../lib/formatters';
 import {
   readGroup,
+  restrictSnapshot,
   setGroupPosition,
   setGroupTilt,
   stopGroup,
   type GroupSnapshot,
 } from '../lib/group-controls';
 import { t } from '../lib/i18n';
-import { createRosterMemo, rosterRowKey, rosterRowConfigKey } from '../lib/group-roster';
+import {
+  applyMemberOrder,
+  createRosterMemo,
+  hiddenMemberCovers,
+  rosterRowKey,
+  rosterRowConfigKey,
+  type RosterRow,
+} from '../lib/group-roster';
 import { getCachedRegistry } from '../lib/registry-store';
 
 import './cover-move-buttons';
@@ -47,14 +55,20 @@ export class GroupView extends LitElement {
   /** Card `member_names` — per-row display overrides, keyed by
    *  {@link rosterRowConfigKey}. */
   @property({ attribute: false }) public memberNames?: Record<string, string>;
+  /** Card `members` — roster order + subset, keyed like {@link memberNames}. */
+  @property({ attribute: false }) public members?: string[];
 
   /** Per-instance roster memo — see `createRosterMemo`. */
   private _roster = createRosterMemo();
 
   protected render(): TemplateResult | typeof nothing {
     if (!this.hass || !this.discovered) return nothing;
-    const s = readGroup(this.hass, this.discovered);
-    const members = Object.entries(s.memberPositions);
+    // Roster from the full list, snapshot restricted after — see the note on
+    // `acp-group-dialog`'s render.
+    const raw = readGroup(this.hass, this.discovered);
+    const memberIds = Object.keys(raw.memberPositions);
+    const rows = this._roster(this.hass, memberIds, getCachedRegistry() ?? undefined);
+    const s = restrictSnapshot(this.hass, raw, hiddenMemberCovers(memberIds, this.members));
     const controllable = !!s.target;
 
     return html`
@@ -108,35 +122,45 @@ export class GroupView extends LitElement {
           .snapshot=${s}
         ></acp-group-controls-row>
 
-        <div class="members">
-          <div class="members-head">${t('group.members', this.hass)}</div>
-          ${members.length === 0
-            ? html`<div class="member-placeholder">
-                ${t('group.member_placeholder', this.hass)}
-              </div>`
-            : repeat(
-                this._roster(
-                  this.hass,
-                  members.map(([id]) => id),
-                  getCachedRegistry() ?? undefined,
-                ),
-                rosterRowKey,
-                (row) =>
-                  html`<acp-group-member-row
-                    .hass=${this.hass}
-                    .entityId=${row.covers[0]}
-                    .coverIds=${row.covers}
-                    .position=${s.memberPositions[row.covers[0]] ?? null}
-                    .winner=${s.memberWinners?.[row.covers[0]]}
-                    .openBlocksSun=${positionAxisFor(this.discovered).openBlocksSun}
-                    .acpManaged=${!!s.memberWinners && row.covers[0] in s.memberWinners}
-                    .displayName=${this.memberNames?.[rosterRowConfigKey(row)]}
-                    .compact=${this.compact}
-                  ></acp-group-member-row>`,
-              )}
-        </div>
+        ${this._membersTpl(s, memberIds, rows)}
       </div>
     `;
+  }
+
+  /** The roster, ordered and filtered by `members`. Same three outcomes the
+   *  dialog draws — see `acp-group-dialog`'s `_membersTpl`. */
+  private _membersTpl(
+    s: GroupSnapshot,
+    memberIds: string[],
+    roster: RosterRow[],
+  ): TemplateResult | typeof nothing {
+    if (memberIds.length === 0) {
+      return html`<div class="members">
+        <div class="members-head">${t('group.members', this.hass)}</div>
+        <div class="member-placeholder">${t('group.member_placeholder', this.hass)}</div>
+      </div>`;
+    }
+    const rows = applyMemberOrder(roster, this.members);
+    if (rows.length === 0) return nothing;
+    return html`<div class="members">
+      <div class="members-head">${t('group.members', this.hass)}</div>
+      ${repeat(
+        rows,
+        rosterRowKey,
+        (row) =>
+          html`<acp-group-member-row
+            .hass=${this.hass}
+            .entityId=${row.covers[0]}
+            .coverIds=${row.covers}
+            .position=${s.memberPositions[row.covers[0]] ?? null}
+            .winner=${s.memberWinners?.[row.covers[0]]}
+            .openBlocksSun=${positionAxisFor(this.discovered).openBlocksSun}
+            .acpManaged=${!!s.memberWinners && row.covers[0] in s.memberWinners}
+            .displayName=${this.memberNames?.[rosterRowConfigKey(row)]}
+            .compact=${this.compact}
+          ></acp-group-member-row>`,
+      )}
+    </div>`;
   }
 
   private _move(e: CustomEvent<'open' | 'stop' | 'close'>, s: GroupSnapshot): void {

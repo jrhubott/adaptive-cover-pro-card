@@ -646,29 +646,51 @@ export class AcpHarnessControlPanel extends LitElement {
     `;
   }
 
+  /** Blind-spot slots. The integration allows three (its #701) and publishes
+   *  them all on `blind_spot_ranges`; only slot 1 also lands on the legacy
+   *  `blind_spot_range`. Editing slot 2 or 3 here is the #269 repro — before
+   *  the fix the compass drew slot 1 alone. */
   private _renderBlindSpot(e: HarnessEntry, idx: number): TemplateResult {
-    const enabled = !!e.blind_spot_range;
+    const slots = e.blind_spot_ranges ?? (e.blind_spot_range ? [e.blind_spot_range] : []);
+    const patchSlots = (next: Array<[number, number]>) =>
+      this._patchEntry(idx, {
+        blind_spot_ranges: next.length ? next : undefined,
+        blind_spot_range: next[0],
+      });
     return html`
       <label class="row">
         <span>Blind spot</span>
         <input
           type="checkbox"
-          .checked=${enabled}
+          .checked=${slots.length > 0}
           @change=${(ev: Event) => {
-            const on = (ev.target as HTMLInputElement).checked;
-            this._patchEntry(idx, { blind_spot_range: on ? [10, 10] : undefined });
+            patchSlots((ev.target as HTMLInputElement).checked ? [[10, 10]] : []);
           }}
         />
       </label>
-      ${enabled
-        ? html`
-            ${this._numberSlider('Blind spot left', e.blind_spot_range![0], 0, 90, 1, (v) =>
-              this._patchEntry(idx, { blind_spot_range: [v, e.blind_spot_range![1]] }),
-            )}
-            ${this._numberSlider('Blind spot right', e.blind_spot_range![1], 0, 90, 1, (v) =>
-              this._patchEntry(idx, { blind_spot_range: [e.blind_spot_range![0], v] }),
-            )}
-          `
+      ${slots.map(
+        (slot, s) => html`
+          ${this._numberSlider(`Slot ${s + 1} lower γ`, slot[0], -90, 90, 1, (v) =>
+            patchSlots(slots.map((r, i) => (i === s ? [v, r[1]] : r))),
+          )}
+          ${this._numberSlider(`Slot ${s + 1} upper γ`, slot[1], -90, 90, 1, (v) =>
+            patchSlots(slots.map((r, i) => (i === s ? [r[0], v] : r))),
+          )}
+        `,
+      )}
+      ${slots.length > 0 && slots.length < 3
+        ? html`<label class="row">
+            <span>Add blind spot slot</span>
+            <button @click=${() => patchSlots([...slots, [30, 45]])}>
+              + slot ${slots.length + 1}
+            </button>
+          </label>`
+        : ''}
+      ${slots.length > 1
+        ? html`<label class="row">
+            <span>Remove last slot</span>
+            <button @click=${() => patchSlots(slots.slice(0, -1))}>− slot ${slots.length}</button>
+          </label>`
         : ''}
     `;
   }

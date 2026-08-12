@@ -159,3 +159,94 @@ export function rosterRowKey(row: RosterRow): string {
 export function rosterRowConfigKey(row: RosterRow): string {
   return row.entryId ?? row.covers[0];
 }
+
+/**
+ * The member covers the card's `members` key leaves out.
+ *
+ * Hiding a member is not only a roster-rendering choice: a hidden member must
+ * also stop contributing to everything the group DERIVES from its roster — the
+ * unavailable/held exception line, the N/M who-won badge, the spread bar and
+ * range, the aggregate percentage. Otherwise a cover the user removed from the
+ * card keeps speaking through the summary line, which is the whole complaint.
+ *
+ * `members` holds COVER entity ids, deliberately not {@link rosterRowConfigKey}
+ * values. A row key is the owning `entry_id` when the cover resolves to an ACP
+ * entry and the bare `cover.*` id when it does not — and that resolution is not
+ * stable. HA strips an UNAVAILABLE entity down to its basic attributes, so the
+ * owner scan returns null for exactly the members a user is most likely to
+ * hide. The editor and the card could therefore key the same row differently,
+ * the omission would match nothing, and every member stayed visible with the
+ * roster count stuck at its full size. Cover ids cannot drift that way.
+ */
+export function hiddenMemberCovers(
+  memberIds: readonly string[],
+  members?: readonly string[],
+): Set<string> {
+  const hidden = new Set<string>();
+  if (!recognizesAnyMember(memberIds, members)) return hidden;
+  const visible = new Set(members);
+  for (const id of memberIds) {
+    if (!visible.has(id)) hidden.add(id);
+  }
+  return hidden;
+}
+
+/**
+ * Whether a `members` list is speaking the cover-id namespace at all.
+ *
+ * A list that names not one current member is not a request to hide every
+ * member — it is a list this card cannot interpret, and acting on it would
+ * blank the roster and zero every aggregate. That happens for real: a config
+ * written against the earlier row-key format, or a card pointed at a different
+ * group. Treating it as unconfigured leaves the integration's own numbers
+ * showing and lets the editor rewrite the key on the next edit.
+ *
+ * A list that matches SOME members is trusted as-is — that is just a group that
+ * has lost a member since the key was written.
+ */
+function recognizesAnyMember(
+  memberIds: readonly string[],
+  members?: readonly string[],
+): members is readonly string[] {
+  if (!members?.length) return false;
+  const present = new Set(memberIds);
+  return members.some((id) => present.has(id));
+}
+
+/**
+ * Apply the card's `members` key — the roster's order AND its subset.
+ *
+ * Absent or empty means "the integration's own order, everything shown", which
+ * is what every card rendered before this key existed.
+ *
+ * Present, it is an ordered list of visible COVER ids (see
+ * {@link hiddenMemberCovers} for why covers rather than row keys). A row keeps
+ * only its listed covers and disappears once none survive, so hiding one cover
+ * of a multi-cover entry drops that rail instead of the whole row. Rows then
+ * sort by their earliest listed cover — the same rule {@link rosterRows} uses
+ * to order an unconfigured roster, so a reorder means the same thing in both.
+ *
+ * A member the group gains AFTER the key is written is not listed, so it stays
+ * hidden until the user adds it — the same trade `covers` makes for rails. The
+ * editor keeps hidden rows in its list so there is always a way back.
+ */
+export function applyMemberOrder(rows: RosterRow[], members?: readonly string[]): RosterRow[] {
+  // Same unrecognized-list guard as `hiddenMemberCovers`, and for the same
+  // reason — the two must agree or the roster and the aggregates disagree about
+  // who is in the group.
+  if (
+    !recognizesAnyMember(
+      rows.flatMap((row) => row.covers),
+      members,
+    )
+  )
+    return rows;
+  const rank = new Map(members.map((id, i) => [id, i] as const));
+  const out: { row: RosterRow; at: number }[] = [];
+  for (const row of rows) {
+    const covers = row.covers.filter((id) => rank.has(id));
+    if (covers.length === 0) continue;
+    out.push({ row: { ...row, covers }, at: Math.min(...covers.map((id) => rank.get(id)!)) });
+  }
+  return out.sort((a, b) => a.at - b.at).map((entry) => entry.row);
+}

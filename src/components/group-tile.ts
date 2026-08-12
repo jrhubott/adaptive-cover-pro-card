@@ -12,11 +12,15 @@ import {
   groupIcon,
   memberException,
   readGroup,
+  restrictSnapshot,
   setGroupPosition,
   setGroupTilt,
   stopGroup,
   type GroupSnapshot,
 } from '../lib/group-controls';
+import { hiddenMemberCovers } from '../lib/group-roster';
+import { PendingMoves, isPendingVisible } from '../lib/pending-move';
+import { renderRailOverlay, railOverlayStyles } from './rail-overlay';
 import { t } from '../lib/i18n';
 import { tooltip } from '../lib/tooltip';
 
@@ -66,15 +70,48 @@ export class GroupTile extends LitElement {
   @property({ attribute: false }) public name?: string;
   /** Card config `icon` — overrides the member-derived glyph. */
   @property({ attribute: false }) public icon?: string;
+  /** Card `members` — the roster subset this card shows. The tile renders no
+   *  roster itself, but every number on it (state line, N/M badge, spread bar,
+   *  percentage) is derived from one, so a member hidden here has to be
+   *  excluded from those too or the tile describes covers the card does not
+   *  show. */
+  @property({ attribute: false }) public members?: string[];
 
   /** Live percentage while a slider drag is in flight; null when idle. Drives
    *  the fill + readout so the bar tracks the finger instead of waiting on the
    *  server round-trip (mirrors the cover tile's `_posDrag`). */
   @state() private _posDrag: number | null = null;
 
+  /** Where the group was last told to go, until it gets there — see
+   *  `lib/pending-move.ts`. A single key: a group write flattens every member
+   *  onto the same position, so there is only ever one destination. */
+  private _pending = new PendingMoves(this);
+  private static readonly PENDING_KEY = 'group';
+
+  protected override updated(): void {
+    if (!this.hass || !this.discovered) return;
+    // Arrival is judged on the AGGREGATE, which is what this rail draws and what
+    // the write drove every member to.
+    this._pending.settle(() => this._snapshot().position);
+  }
+
+  /** The group as this card shows it: the integration's snapshot with any
+   *  member the card hides removed, and every scalar recomputed over what is
+   *  left. `members` is a cover-id list, so this needs no roster and no
+   *  registry — the tile renders no roster of its own. */
+  private _snapshot(): GroupSnapshot {
+    const raw = readGroup(this.hass, this.discovered);
+    if (!this.members?.length) return raw;
+    return restrictSnapshot(
+      this.hass,
+      raw,
+      hiddenMemberCovers(Object.keys(raw.memberPositions), this.members),
+    );
+  }
+
   protected render(): TemplateResult | typeof nothing {
     if (!this.hass || !this.discovered) return nothing;
-    const s = readGroup(this.hass, this.discovered);
+    const s = this._snapshot();
 
     const stateText = t(`group.state_${s.aggregate}`, this.hass);
     const shownPosition = this._posDrag ?? s.position;
@@ -91,6 +128,14 @@ export class GroupTile extends LitElement {
     // to flatten every member onto it, and collapsing the spread as the finger
     // moves is the clearest possible statement of that.
     const dragging = this._posDrag !== null;
+    // A pending group move collapses the spread for the same reason a drag does:
+    // the write flattens every member onto one value, so the disagreement the
+    // band describes is about to stop existing. Suppressed mid-drag — the drag
+    // preview is already answering this question.
+    const commanded = dragging ? null : this._pending.get(GroupTile.PENDING_KEY);
+    // See `acp-axis-bar`: a destination the group is already at never settles.
+    const pending = isPendingVisible(s.position, commanded) ? commanded : null;
+    const pendingFill = pending === null ? null : axisDisplayValue(pending, posAxis);
     // Second line: what the covers are ACTUALLY at, or the one thing that is
     // wrong with them.
     //
@@ -212,7 +257,7 @@ export class GroupTile extends LitElement {
                 @keydown=${(e: KeyboardEvent) => this._onPosKeydown(e, s)}
               >
                 <div class="pos-bar">
-                  ${dragging || !spread
+                  ${dragging || pending !== null || !spread
                     ? html`<div class="pos-fill" style=${`width:${shownFill}%`}></div>`
                     : html`
                         <!-- Solid to the LEAST-covered member: the coverage every
@@ -234,6 +279,15 @@ export class GroupTile extends LitElement {
                             ></div>`,
                         )}
                       `}
+                  ${pending !== null && pendingFill !== null
+                    ? renderRailOverlay({
+                        hass: this.hass,
+                        liveFrac: shownFill,
+                        pendingFrac: pendingFill,
+                        pending,
+                        prefix: 'pos-',
+                      })
+                    : nothing}
                 </div>
               </div>`
             : nothing}
@@ -271,8 +325,17 @@ export class GroupTile extends LitElement {
   }
 
   private _move(e: CustomEvent<'open' | 'stop' | 'close'>, s: GroupSnapshot): void {
-    if (e.detail === 'stop') stopGroup(this.hass, this.discovered, s);
-    else setGroupPosition(this.hass, s, e.detail === 'open' ? 100 : 0);
+    if (e.detail === 'stop') {
+      // Stop cancels the destination rather than becoming one: wherever the
+      // group ends up IS the new position, so an indicator pointing anywhere
+      // else would be a promise the group just abandoned.
+      this._pending.clear(GroupTile.PENDING_KEY);
+      stopGroup(this.hass, this.discovered, s);
+      return;
+    }
+    const value = e.detail === 'open' ? 100 : 0;
+    this._pending.start(GroupTile.PENDING_KEY, value);
+    setGroupPosition(this.hass, s, value);
   }
 
   private _openMoreInfo = (): void => {
@@ -366,6 +429,7 @@ export class GroupTile extends LitElement {
     this._posDownX = null;
     this._posMoved = false;
     if (!moved || value === null || !s.target) return;
+    this._pending.start(GroupTile.PENDING_KEY, value);
     setGroupPosition(this.hass, s, value);
   };
 
@@ -421,255 +485,260 @@ export class GroupTile extends LitElement {
     e.preventDefault();
     e.stopPropagation();
     if (!s.target) return;
-    setGroupPosition(this.hass, s, axisDisplayValue(Math.max(0, Math.min(100, next)), posAxis));
+    const value = axisDisplayValue(Math.max(0, Math.min(100, next)), posAxis);
+    this._pending.start(GroupTile.PENDING_KEY, value);
+    setGroupPosition(this.hass, s, value);
   }
 
   private _stop(e: Event): void {
     e.stopPropagation();
   }
 
-  public static styles = css`
-    :host {
-      display: block;
-    }
-    /* Mirrors the cover tile's detailed grid: the glyph spans the label +
+  public static styles = [
+    railOverlayStyles,
+    css`
+      :host {
+        display: block;
+      }
+      /* Mirrors the cover tile's detailed grid: the glyph spans the label +
        chrome rows so it stays vertically centered, controls sit right. */
-    .group-tile {
-      display: grid;
-      grid-template-areas:
-        'icon label controls'
-        'icon chrome chrome'
-        'tilt tilt tilt'
-        'group group group';
-      grid-template-columns: 36px minmax(0, 1fr) auto;
-      /* HA's ha-tile-container .content: 10px gap, 56px row floor. */
-      column-gap: 10px;
-      min-height: var(--row-height, 56px);
-      row-gap: 2px;
-      align-items: center;
-      padding: 6px 4px;
-      cursor: pointer;
-    }
-    /* Same 50% controls track as the cover tile's detailed grid — HA's inline
+      .group-tile {
+        display: grid;
+        grid-template-areas:
+          'icon label controls'
+          'icon chrome chrome'
+          'tilt tilt tilt'
+          'group group group';
+        grid-template-columns: 36px minmax(0, 1fr) auto;
+        /* HA's ha-tile-container .content: 10px gap, 56px row floor. */
+        column-gap: 10px;
+        min-height: var(--row-height, 56px);
+        row-gap: 2px;
+        align-items: center;
+        padding: 6px 4px;
+        cursor: pointer;
+      }
+      /* Same 50% controls track as the cover tile's detailed grid — HA's inline
        features block is half the card. Gated so a show_controls: false tile
        doesn't reserve half its width for an empty area. */
-    .group-tile.has-controls {
-      grid-template-columns: 36px minmax(0, 1fr) calc(50% - 12px);
-    }
-    /* Unlike the cover tile this element has no reflow that moves the controls
+      .group-tile.has-controls {
+        grid-template-columns: 36px minmax(0, 1fr) calc(50% - 12px);
+      }
+      /* Unlike the cover tile this element has no reflow that moves the controls
        onto their own row, so the 50% track would keep squeezing the name all
        the way down. Below the cover tile's own narrow threshold, hand the track
        back to content and square the buttons off — flex-filling a content-sized
        track collapses them to the glyph width. The container is the host card's
        ha-card (container-type: inline-size); container queries resolve across
        the shadow boundary. */
-    @container (max-width: 340px) {
-      .group-tile.has-controls {
-        grid-template-columns: 36px minmax(0, 1fr) auto;
+      @container (max-width: 340px) {
+        .group-tile.has-controls {
+          grid-template-columns: 36px minmax(0, 1fr) auto;
+        }
+        acp-cover-move-buttons {
+          --acp-move-button-flex: 0 0 auto;
+          --acp-move-button-width: var(--control-button-group-thickness, 36px);
+        }
       }
-      acp-cover-move-buttons {
-        --acp-move-button-flex: 0 0 auto;
-        --acp-move-button-width: var(--control-button-group-thickness, 36px);
+      .group-tile:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+        border-radius: 8px;
       }
-    }
-    .group-tile:focus-visible {
-      outline: 2px solid var(--primary-color);
-      outline-offset: 2px;
-      border-radius: 8px;
-    }
-    .cover-icon-wrap {
-      grid-area: icon;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 36px;
-      height: 36px;
-    }
-    /* HA's ha-tile-icon shape, opt-in via icon_tap_action — see the matching
+      .cover-icon-wrap {
+        grid-area: icon;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+      }
+      /* HA's ha-tile-icon shape, opt-in via icon_tap_action — see the matching
        rule on the cover tile for the upstream trail. */
-    .cover-icon-wrap.background {
-      position: relative;
-      border-radius: var(--ha-border-radius-pill, 9999px);
-      overflow: hidden;
-      cursor: pointer;
-    }
-    .cover-icon-wrap.background::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background-color: var(--acp-tile-icon-color, var(--disabled-color, #7f7f7f));
-      opacity: 0.2;
-      transition: opacity 180ms ease-in-out;
-    }
-    .cover-icon-wrap.background:hover::before {
-      opacity: 0.35;
-    }
-    .cover-icon-wrap.background:focus-visible {
-      outline: none;
-      box-shadow: 0 0 0 2px var(--acp-tile-icon-color, var(--primary-text-color));
-    }
-    .cover-icon-wrap.background .cover-icon {
-      position: relative;
-    }
-    .cover-icon {
-      --mdc-icon-size: 24px;
-    }
-    .label {
-      grid-area: label;
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-    /* Same theme tokens HA's ha-tile-info uses, matching the cover tile — see
+      .cover-icon-wrap.background {
+        position: relative;
+        border-radius: var(--ha-border-radius-pill, 9999px);
+        overflow: hidden;
+        cursor: pointer;
+      }
+      .cover-icon-wrap.background::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-color: var(--acp-tile-icon-color, var(--disabled-color, #7f7f7f));
+        opacity: 0.2;
+        transition: opacity 180ms ease-in-out;
+      }
+      .cover-icon-wrap.background:hover::before {
+        opacity: 0.35;
+      }
+      .cover-icon-wrap.background:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 2px var(--acp-tile-icon-color, var(--primary-text-color));
+      }
+      .cover-icon-wrap.background .cover-icon {
+        position: relative;
+      }
+      .cover-icon {
+        --mdc-icon-size: 24px;
+      }
+      .label {
+        grid-area: label;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      /* Same theme tokens HA's ha-tile-info uses, matching the cover tile — see
        that rule for why the two lines take different line-heights. */
-    .title {
-      font-size: var(--ha-font-size-m, 0.875rem);
-      font-weight: var(--ha-font-weight-medium, 500);
-      line-height: var(--ha-line-height-normal, 1.6);
-      letter-spacing: 0.1px;
-      color: var(--primary-text-color);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .state {
-      font-size: var(--ha-font-size-s, 0.75rem);
-      font-weight: var(--ha-font-weight-normal, 400);
-      line-height: var(--ha-line-height-condensed, 1.2);
-      letter-spacing: 0.4px;
-      color: var(--secondary-text-color);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .controls {
-      grid-area: controls;
-      align-self: center;
-      display: inline-flex;
-    }
-    .chrome-line {
-      grid-area: chrome;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      min-width: 0;
-      /* Reserve the badge pill's height even with no badge, so the row keeps the
+      .title {
+        font-size: var(--ha-font-size-m, 0.875rem);
+        font-weight: var(--ha-font-weight-medium, 500);
+        line-height: var(--ha-line-height-normal, 1.6);
+        letter-spacing: 0.1px;
+        color: var(--primary-text-color);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .state {
+        font-size: var(--ha-font-size-s, 0.75rem);
+        font-weight: var(--ha-font-weight-normal, 400);
+        line-height: var(--ha-line-height-condensed, 1.2);
+        letter-spacing: 0.4px;
+        color: var(--secondary-text-color);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .controls {
+        grid-area: controls;
+        align-self: center;
+        display: inline-flex;
+      }
+      .chrome-line {
+        grid-area: chrome;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+        /* Reserve the badge pill's height even with no badge, so the row keeps the
          same height either way and the bar centers in it (cover tile parity). */
-      min-height: 22px;
-      /* The one deliberate divergence from the cover tile's nowrap: a group's
+        min-height: 22px;
+        /* The one deliberate divergence from the cover tile's nowrap: a group's
          badge count is unbounded (one per distinct member override), so the row
          wraps rather than crushing the slider. With the usual 0-1 badges the
          layout is identical. */
-      flex-wrap: wrap;
-    }
-    /* Badges hold their intrinsic width so the bar absorbs any shortage. */
-    .chrome-line acp-tile-badge {
-      overflow: visible;
-      flex: 0 0 auto;
-    }
-    /* Interactive wrapper carries the sizing; the visible rail below stays 6px.
+        flex-wrap: wrap;
+      }
+      /* Badges hold their intrinsic width so the bar absorbs any shortage. */
+      .chrome-line acp-tile-badge {
+        overflow: visible;
+        flex: 0 0 auto;
+      }
+      /* Interactive wrapper carries the sizing; the visible rail below stays 6px.
        Geometry is copied from the cover tile's .chrome-line .pos-slider rule so
        a group tile stacked under cover tiles lines its bar up with theirs,
        instead of stretching the full width of the row. */
-    .pos-slider {
-      margin-left: auto;
-      align-self: center;
-      position: relative;
-      flex: 0 1 170px;
-      max-width: 55%;
-      cursor: pointer;
-      /* A touch-drag must move the fill, not scroll the dashboard. */
-      touch-action: none;
-    }
-    /* The rail is too thin to grab on a phone — widen the hit area vertically
+      .pos-slider {
+        margin-left: auto;
+        align-self: center;
+        position: relative;
+        flex: 0 1 170px;
+        max-width: 55%;
+        cursor: pointer;
+        /* A touch-drag must move the fill, not scroll the dashboard. */
+        touch-action: none;
+      }
+      /* The rail is too thin to grab on a phone — widen the hit area vertically
        with an invisible absolute box, which adds no layout height. */
-    .pos-slider::before {
-      content: '';
-      position: absolute;
-      inset: -8px 0;
-    }
-    .pos-slider:focus-visible {
-      outline: 2px solid var(--primary-color);
-      outline-offset: 3px;
-      border-radius: 6px;
-    }
-    /* Nothing to drive: match the buttons rather than looking live and no-oping. */
-    .pos-slider.disabled {
-      cursor: default;
-      opacity: 0.4;
-      touch-action: auto;
-    }
-    .pos-bar {
-      position: relative;
-      width: 100%;
-      height: 6px;
-      border-radius: 6px;
-      background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
-      overflow: hidden;
-    }
-    .pos-fill {
-      position: absolute;
-      inset: 0 auto 0 0;
-      /* One constant color for every rail, never the cover's state color: a rail
+      .pos-slider::before {
+        content: '';
+        position: absolute;
+        inset: -8px 0;
+      }
+      .pos-slider:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 3px;
+        border-radius: 6px;
+      }
+      /* Nothing to drive: match the buttons rather than looking live and no-oping. */
+      .pos-slider.disabled {
+        cursor: default;
+        opacity: 0.4;
+        touch-action: auto;
+      }
+      .pos-bar {
+        position: relative;
+        width: 100%;
+        height: 6px;
+        border-radius: 6px;
+        background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
+        overflow: hidden;
+      }
+      .pos-fill {
+        position: absolute;
+        inset: 0 auto 0 0;
+        /* One constant color for every rail, never the cover's state color: a rail
          that changed hue as it crossed open/closed read as a status light rather
          than a measurement. Overridable per-theme via --acp-pos-fill-color. */
-      background: var(--acp-pos-fill-color, ${unsafeCSS(COVER_ACTIVE_COLOR)});
-      opacity: 0.55;
-      border-radius: 6px;
-      transition: width 0.3s ease;
-    }
-    /* Disagreement band: from the least-covered member to the most-covered one.
+        background: var(--acp-pos-fill-color, ${unsafeCSS(COVER_ACTIVE_COLOR)});
+        opacity: 0.55;
+        border-radius: 6px;
+        transition: width 0.3s ease;
+      }
+      /* Disagreement band: from the least-covered member to the most-covered one.
        Same hue as the fill at a lower opacity, so it reads as "some of them are
        also this far" rather than as a second measurement. Zero-width when the
        members agree, which is why it isn't rendered at all in that case. */
-    .pos-band {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      background: var(--acp-pos-fill-color, ${unsafeCSS(COVER_ACTIVE_COLOR)});
-      opacity: 0.22;
-      transition:
-        left 0.3s ease,
-        width 0.3s ease;
-    }
-    /* One tick per DISTINCT member value. Two clusters of covers draw two ticks,
+      .pos-band {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        background: var(--acp-pos-fill-color, ${unsafeCSS(COVER_ACTIVE_COLOR)});
+        opacity: 0.22;
+        transition:
+          left 0.3s ease,
+          width 0.3s ease;
+      }
+      /* One tick per DISTINCT member value. Two clusters of covers draw two ticks,
        which is the whole point: "Mixed" stops being a word and becomes a picture
        of where they actually are. Clamped inside the rail (inline) so the 2px box
        survives .pos-bar's overflow:hidden at either extreme, same as the cover
        bar's target marker. */
-    .pos-tick {
-      position: absolute;
-      top: -2px;
-      width: 2px;
-      height: 10px;
-      border-radius: 1px;
-      background: var(--acp-pos-fill-color, ${unsafeCSS(COVER_ACTIVE_COLOR)});
-      transform: translateX(-50%);
-      transition: left 0.3s ease;
-    }
-    /* The rail has to show the ticks that overhang it. Only the FILL and BAND
+      .pos-tick {
+        position: absolute;
+        top: -2px;
+        width: 2px;
+        height: 10px;
+        border-radius: 1px;
+        background: var(--acp-pos-fill-color, ${unsafeCSS(COVER_ACTIVE_COLOR)});
+        transform: translateX(-50%);
+        transition: left 0.3s ease;
+      }
+      /* The rail has to show the ticks that overhang it. Only the FILL and BAND
        need clipping to the rounded ends, so they round themselves instead. */
-    .pos-bar {
-      overflow: visible;
-    }
-    .pos-band {
-      border-radius: 6px;
-    }
-    /* The ease above smooths server-driven updates; mid-drag it reads as lag. */
-    .pos-slider.dragging .pos-fill {
-      transition: none;
-    }
-    .tilt-line {
-      grid-area: tilt;
-      min-width: 0;
-      cursor: default;
-    }
-    acp-group-controls-row {
-      grid-area: group;
-      margin-top: 4px;
-    }
-  `;
+      .pos-bar {
+        overflow: visible;
+      }
+      .pos-band {
+        border-radius: 6px;
+      }
+      /* The ease above smooths server-driven updates; mid-drag it reads as lag. */
+      .pos-slider.dragging .pos-fill {
+        transition: none;
+      }
+      .tilt-line {
+        grid-area: tilt;
+        min-width: 0;
+        cursor: default;
+      }
+      acp-group-controls-row {
+        grid-area: group;
+        margin-top: 4px;
+      }
+    `,
+  ];
 }
 
 declare global {

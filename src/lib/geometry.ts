@@ -575,3 +575,33 @@ export function blindSpotBearings(
 ): [number, number] {
   return [normalizeAzimuth(windowAziDeg - range[1]), normalizeAzimuth(windowAziDeg - range[0])];
 }
+
+/**
+ * Every blind spot the sun sensor publishes, as absolute compass bearings.
+ *
+ * The integration has carried three blind-spot slots since its #701 and emits
+ * `blind_spot_ranges` with one pair per configured slot. `blind_spot_range` is
+ * slot 1 alone, kept only so cards written before the list still draw
+ * something — reading it as the whole truth loses slots 2 and 3, which is what
+ * makes a blind spot configured there invisible (#269).
+ *
+ * A zero-span pair is dropped rather than drawn. The integration requires
+ * `left_gamma + right_gamma > 0` for a real wedge, so a `[n, n]` pair is an
+ * enabled-but-unconfigured slot; drawing it would put a degenerate path in the
+ * DOM and make the group read as present when nothing is visible.
+ */
+export function blindSpotBearingList(
+  windowAziDeg: number,
+  ranges: readonly (readonly [number, number])[] | undefined,
+  single: readonly [number, number] | undefined,
+): Array<[number, number]> {
+  const source = ranges?.length ? ranges : single ? [single] : [];
+  const out: Array<[number, number]> = [];
+  for (const range of source) {
+    if (!range || range.length !== 2) continue;
+    const [lower, upper] = range;
+    if (!Number.isFinite(lower) || !Number.isFinite(upper) || lower === upper) continue;
+    out.push(blindSpotBearings(windowAziDeg, [lower, upper]));
+  }
+  return out;
+}

@@ -4,7 +4,6 @@ import { CoverBar } from '../src/components/cover-bar';
 import { INTEGRATION_DOMAIN } from '../src/const';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities } from '../src/types';
-import type { CSSResult } from 'lit';
 import { t } from '../src/lib/i18n';
 import { formatPercent } from '../src/lib/formatters';
 
@@ -22,9 +21,17 @@ const baseDiscovered: DiscoveredEntities = {
   managed_covers: [],
 };
 
+/** A component's stylesheet as one string. `styles` became an ARRAY when the
+ *  rail overlay's shared fragment was factored out, so a single `.cssText` no
+ *  longer covers the whole sheet. */
+function sheetOf(ctor: unknown): string {
+  const styles = (ctor as { styles: { cssText: string } | { cssText: string }[] }).styles;
+  return Array.isArray(styles) ? styles.map((s) => s.cssText).join('\n') : styles.cssText;
+}
+
 describe('acp-cover-bar fill style — issue #135', () => {
   it('fill CSS uses color-mix for reduced opacity', () => {
-    const styles = (CoverBar as unknown as { styles: CSSResult }).styles.cssText;
+    const styles = sheetOf(CoverBar);
     expect(styles).toContain('color-mix');
   });
 
@@ -67,7 +74,7 @@ describe('acp-cover-bar fill style — issue #135', () => {
 
 describe('acp-cover-bar two-tone fill — issue #135 follow-up', () => {
   it('both segments derive from the cover colour — blocking solid, clear pale', () => {
-    const styles = (CoverBar as unknown as { styles: CSSResult }).styles.cssText;
+    const styles = sheetOf(CoverBar);
     // Both segments share the cover hue (override, else --primary-color); no
     // gold, so nothing competes with the gold sun on the compass. `.fill` is the
     // LEADING segment and now carries the sun-blocking portion, so it takes the
@@ -115,7 +122,7 @@ describe('acp-cover-bar two-tone fill — issue #135 follow-up', () => {
   });
 
   it('closed segment falls back to --primary-color when no cover colour is set', () => {
-    const styles = (CoverBar as unknown as { styles: CSSResult }).styles.cssText;
+    const styles = sheetOf(CoverBar);
     expect(styles).toMatch(/\.fill-closed\s*{[^}]*--acp-cover-color,\s*var\(--primary-color\)/);
   });
 
@@ -248,7 +255,7 @@ describe('acp-cover-bar manual-override divergence — issue #158', () => {
   });
 
   it('reserves fixed trailing columns so the track does not reflow', () => {
-    const styles = (CoverBar as unknown as { styles: CSSResult }).styles.cssText;
+    const styles = sheetOf(CoverBar);
     // Two fixed columns after the track: the go-to-target button (22px) and the
     // warn badge (16px). Both empty out on some rows, and an `auto` track would
     // hand those pixels to the 3fr and reflow the bar graph (#158).
@@ -391,7 +398,7 @@ describe('acp-cover-bar target marker clamp at extremes — issue #158 (trailing
   }
 
   it('centres the marker on its value via translateX(-50%)', () => {
-    const styles = (CoverBar as unknown as { styles: CSSResult }).styles.cssText;
+    const styles = sheetOf(CoverBar);
     expect(styles).toMatch(/\.marker\s*{[^}]*translateX\(-50%\)/);
   });
 
@@ -1061,7 +1068,7 @@ describe('acp-cover-bar position slider — issue #231', () => {
   });
 
   it('adds touch-action: none to .track so a touch drag does not fight page scroll', () => {
-    const styles = (CoverBar as unknown as { styles: CSSResult }).styles.cssText;
+    const styles = sheetOf(CoverBar);
     expect(styles).toMatch(/\.track\s*{[^}]*touch-action:\s*none/);
   });
 });

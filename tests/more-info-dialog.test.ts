@@ -997,12 +997,21 @@ describe('more-info dialog — battery indicator', () => {
     return h;
   }
 
-  const battery = (el: DialogLike): Element | null =>
-    el.shadowRoot!.querySelector('.icon-btn.battery');
+  /** The indicator moved into its own `acp-battery-indicator` element, so it
+   *  lives one shadow root deeper than it used to. Async because that child has
+   *  to finish its own update before its button exists. */
+  const battery = async (el: DialogLike): Promise<Element | null> => {
+    const host = el.shadowRoot!.querySelector('acp-battery-indicator') as
+      | (HTMLElement & { updateComplete: Promise<boolean> })
+      | null;
+    if (!host) return null;
+    await host.updateComplete;
+    return host.shadowRoot!.querySelector('button.battery');
+  };
 
   it('renders nothing when no managed cover reports a battery', async () => {
     const el = await mount({ hass: hass(), discovered: discovered(), open: true });
-    expect(battery(el)).toBeFalsy();
+    expect(await battery(el)).toBeFalsy();
   });
 
   it('renders the level for a single battery-backed cover', async () => {
@@ -1013,7 +1022,7 @@ describe('more-info dialog — battery indicator', () => {
       discovered: discovered(),
       open: true,
     });
-    const btn = battery(el)!;
+    const btn = (await battery(el))!;
     expect(btn).toBeTruthy();
     expect(btn.getAttribute('aria-label')).toContain('82');
     expect(btn.classList.contains('low')).toBe(false);
@@ -1028,7 +1037,7 @@ describe('more-info dialog — battery indicator', () => {
       discovered: discovered(),
       open: true,
     });
-    const btn = battery(el)!;
+    const btn = (await battery(el))!;
     expect(btn.classList.contains('low')).toBe(true);
     expect(btn.querySelector('ha-icon')!.getAttribute('icon')).toBe('mdi:battery-10');
   });
@@ -1059,7 +1068,7 @@ describe('more-info dialog — battery indicator', () => {
       discovered: d,
       open: true,
     });
-    const btn = battery(el)!;
+    const btn = (await battery(el))!;
     expect(btn.classList.contains('low')).toBe(true);
     expect(btn.querySelector('ha-icon')!.getAttribute('icon')).toBe('mdi:battery-outline');
     const label = btn.getAttribute('aria-label')!;
@@ -1069,16 +1078,39 @@ describe('more-info dialog — battery indicator', () => {
     expect(label).toContain('8');
   });
 
-  it('is a readout, not a control — no button element, no pointer affordance', async () => {
+  // Replaces an earlier "readout, not a control" assertion: the indicator is now
+  // a link to HA's own History panel, which is where a discharge curve actually
+  // lives. The card has no business re-plotting one.
+  it('is a button that opens HA history with every battery source', async () => {
+    const d = discovered();
+    d.managed_covers = ['cover.left', 'cover.right'];
     const el = await mount({
       hass: withBatteries(hass(), [
-        { cover: 'cover.left', sensor: 'sensor.left_batt', device: 'dev_l', state: '50' },
+        { cover: 'cover.left', sensor: 'sensor.l_batt', device: 'dev_l', state: '64' },
+        { cover: 'cover.right', sensor: 'sensor.r_batt', device: 'dev_r', state: '8' },
       ]),
-      discovered: discovered(),
+      discovered: d,
       open: true,
     });
-    const btn = battery(el)!;
-    expect(btn.tagName).not.toBe('BUTTON');
-    expect(btn.getAttribute('role')).toBe('img');
+    const btn = (await battery(el))! as HTMLElement;
+    expect(btn.tagName).toBe('BUTTON');
+
+    let navigated = '';
+    const onNav = (): void => {
+      navigated = window.location.pathname + window.location.search;
+    };
+    window.addEventListener('location-changed', onNav);
+    const closed = vi.fn();
+    el.addEventListener('acp-dialog-close', closed);
+    btn.click();
+    window.removeEventListener('location-changed', onNav);
+
+    expect(navigated).toContain('/history');
+    // BOTH sensors, comma-joined — the whole point is one chart per entry, not
+    // just the worst cell.
+    expect(navigated).toContain('sensor.l_batt');
+    expect(navigated).toContain('sensor.r_batt');
+    // Leaving for another panel closes the dialog behind it.
+    expect(closed).toHaveBeenCalled();
   });
 });

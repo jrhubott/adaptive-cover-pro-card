@@ -11,15 +11,24 @@ import { coverStateColor } from '../lib/icons';
 import {
   groupIcon,
   readGroup,
+  restrictSnapshot,
   setGroupPosition,
   setGroupTilt,
   stopGroup,
   type GroupSnapshot,
 } from '../lib/group-controls';
 import { t } from '../lib/i18n';
-import { createRosterMemo, rosterRowKey, rosterRowConfigKey } from '../lib/group-roster';
+import {
+  applyMemberOrder,
+  createRosterMemo,
+  hiddenMemberCovers,
+  rosterRowKey,
+  rosterRowConfigKey,
+  type RosterRow,
+} from '../lib/group-roster';
 import { getCachedRegistry } from '../lib/registry-store';
 
+import './battery-indicator';
 import './cover-move-buttons';
 import './group-controls-row';
 import './group-member-row';
@@ -54,16 +63,24 @@ export class GroupDialog extends LitElement {
   /** Card `member_names` — per-row display overrides, keyed by
    *  {@link rosterRowConfigKey}. */
   @property({ attribute: false }) public memberNames?: Record<string, string>;
+  /** Card `members` — roster order + subset, keyed like {@link memberNames}. */
+  @property({ attribute: false }) public members?: string[];
 
   /** Per-instance roster memo — see `createRosterMemo`. */
   private _roster = createRosterMemo();
 
   protected render(): TemplateResult | typeof nothing {
     if (!this.open || !this.hass || !this.discovered) return nothing;
-    const s = readGroup(this.hass, this.discovered);
+    // The roster is built from the FULL member list and the snapshot restricted
+    // afterwards — the memo keys on the id list, so resolving it against the
+    // already-filtered set would thrash the cache and re-walk the registry on
+    // every render.
+    const raw = readGroup(this.hass, this.discovered);
+    const memberIds = Object.keys(raw.memberPositions);
+    const rows = this._roster(this.hass, memberIds, getCachedRegistry() ?? undefined);
+    const s = restrictSnapshot(this.hass, raw, hiddenMemberCovers(memberIds, this.members));
 
     const iconColor = this.stateColor ? coverStateColor(s.aggregate) : '';
-    const members = Object.entries(s.memberPositions);
     const controllable = !!s.target;
     const badgeWinners = this.showMemberBadges ? memberBadgeWinners(s.memberWinners) : [];
     const closeLabel = t('dialog.close', this.hass);
@@ -89,6 +106,10 @@ export class GroupDialog extends LitElement {
             ${badgeWinners.map(
               (w) => html`<acp-tile-badge .hass=${this.hass} .winner=${w}></acp-tile-badge>`,
             )}
+            <acp-battery-indicator
+              .hass=${this.hass}
+              .coverIds=${Object.keys(s.memberPositions)}
+            ></acp-battery-indicator>
             <button class="close" type="button" aria-label=${closeLabel} @click=${this._emitClose}>
               ✕
             </button>
@@ -142,36 +163,52 @@ export class GroupDialog extends LitElement {
             .showClearOverrides=${this.showClearOverrides}
           ></acp-group-controls-row>
 
-          <div class="members">
-            <div class="members-head">${t('group.members', this.hass)}</div>
-            ${members.length === 0
-              ? html`<div class="member-placeholder">
-                  ${t('group.member_placeholder', this.hass)}
-                </div>`
-              : repeat(
-                  this._roster(
-                    this.hass,
-                    members.map(([id]) => id),
-                    getCachedRegistry() ?? undefined,
-                  ),
-                  rosterRowKey,
-                  (row) =>
-                    html`<acp-group-member-row
-                      .hass=${this.hass}
-                      .entityId=${row.covers[0]}
-                      .coverIds=${row.covers}
-                      .position=${s.memberPositions[row.covers[0]] ?? null}
-                      .winner=${s.memberWinners?.[row.covers[0]]}
-                      .openBlocksSun=${positionAxisFor(this.discovered).openBlocksSun}
-                      .acpManaged=${!!s.memberWinners && row.covers[0] in s.memberWinners}
-                      .displayName=${this.memberNames?.[rosterRowConfigKey(row)]}
-                      .showTilt=${this.showTilt}
-                    ></acp-group-member-row>`,
-                )}
-          </div>
+          ${this._membersTpl(s, memberIds, rows)}
         </div>
       </div>
     `;
+  }
+
+  /**
+   * The member roster, ordered and filtered by the card's `members` key.
+   *
+   * Three outcomes, deliberately distinct: no members at all is the
+   * integration's problem and says so; every member hidden is the user's own
+   * choice and renders nothing (a bare "Members" heading over an empty box
+   * reads as a bug); otherwise the rows in the configured order.
+   */
+  private _membersTpl(
+    s: GroupSnapshot,
+    memberIds: string[],
+    roster: RosterRow[],
+  ): TemplateResult | typeof nothing {
+    if (memberIds.length === 0) {
+      return html`<div class="members">
+        <div class="members-head">${t('group.members', this.hass)}</div>
+        <div class="member-placeholder">${t('group.member_placeholder', this.hass)}</div>
+      </div>`;
+    }
+    const rows = applyMemberOrder(roster, this.members);
+    if (rows.length === 0) return nothing;
+    return html`<div class="members">
+      <div class="members-head">${t('group.members', this.hass)}</div>
+      ${repeat(
+        rows,
+        rosterRowKey,
+        (row) =>
+          html`<acp-group-member-row
+            .hass=${this.hass}
+            .entityId=${row.covers[0]}
+            .coverIds=${row.covers}
+            .position=${s.memberPositions[row.covers[0]] ?? null}
+            .winner=${s.memberWinners?.[row.covers[0]]}
+            .openBlocksSun=${positionAxisFor(this.discovered).openBlocksSun}
+            .acpManaged=${!!s.memberWinners && row.covers[0] in s.memberWinners}
+            .displayName=${this.memberNames?.[rosterRowConfigKey(row)]}
+            .showTilt=${this.showTilt}
+          ></acp-group-member-row>`,
+      )}
+    </div>`;
   }
 
   private _move(e: CustomEvent<'open' | 'stop' | 'close'>, s: GroupSnapshot): void {

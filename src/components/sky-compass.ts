@@ -11,7 +11,7 @@ import {
   arcsOverlap,
   arrowheadPath,
   azimuthToCartesian,
-  blindSpotBearings,
+  blindSpotBearingList,
   clampActiveArcToFov,
   coverWedgeOuterRadius,
   elevationGatedFovBounds,
@@ -505,12 +505,16 @@ export class SkyCompass extends LitElement {
       o.actualPos !== null
         ? coverWedgeOuterRadius(o.actualPos, o.openBlocksSun, OUTER_R, fovOuterR)
         : null;
-    const bsBearings = o.sun.blind_spot_range
-      ? blindSpotBearings(windowAzi, o.sun.blind_spot_range as [number, number])
-      : null;
-    const blindSpot = bsBearings
-      ? wedgePath(bsBearings[0], bsBearings[1], OUTER_R, 0, northOffsetDeg)
-      : null;
+    // Every configured slot, not just slot 1 — see blindSpotBearingList (#269).
+    const blindSpots = blindSpotBearingList(
+      windowAzi,
+      o.sun.blind_spot_ranges,
+      o.sun.blind_spot_range,
+    ).map(([from, to]) => ({
+      from,
+      to,
+      path: wedgePath(from, to, OUTER_R, 0, northOffsetDeg),
+    }));
     const fovPath = wedgePath(wedgeStart, wedgeEnd, fovOuterR, fovInnerR, northOffsetDeg);
     // Static FOV underlay: the configured `windowAzi ± fov_left/right` envelope.
     // Shown dim beneath the active arc so the developer can see the "configured
@@ -597,12 +601,17 @@ export class SkyCompass extends LitElement {
       }
     }
     const ttCoverFill = ttCoverLines.join('\n');
-    const ttBlindSpot = bsBearings
-      ? `${label}${t('compass.blind_spot', this.hass, {
-          from: formatDegrees(bsBearings[0]),
-          to: formatDegrees(bsBearings[1]),
-        })}`
-      : '';
+    // One line per slot, the entry label only on the first — same shape as
+    // ttCoverLines above.
+    const ttBlindSpot = blindSpots
+      .map((b, i) => {
+        const line = t('compass.blind_spot', this.hass, {
+          from: formatDegrees(b.from),
+          to: formatDegrees(b.to),
+        });
+        return i === 0 ? `${label}${line}` : line;
+      })
+      .join('\n');
 
     // In multi-entry mode the entry color is an *identity* — the whole wedge
     // group (FOV, cover, blind, window) shares it so entries are distinguishable.
@@ -618,7 +627,7 @@ export class SkyCompass extends LitElement {
     const arrowBaseStyle = groupColor ? `fill: ${o.color};` : '';
 
     const showCover = this.showCoverFill && coverPath !== '';
-    const showBlind = this.showBlindSpot && !!blindSpot;
+    const showBlind = this.showBlindSpot && blindSpots.length > 0;
     const showArrow = this.showWindowArrow;
     const arrowPath = `M 0 0 L ${windowArrow.x} ${windowArrow.y}`;
     // Arrowhead at the rim end of the window line, pointing along the window
@@ -677,7 +686,9 @@ export class SkyCompass extends LitElement {
         }
       </g>
       <g class="blind-group" style=${showBlind ? '' : hideStyle} ${tooltip(ttBlindSpot)}>
-        <path class="blind-spot" style=${blindStyle} d=${blindSpot ?? ''}></path>
+        ${blindSpots.map(
+          (b) => svg`<path class="blind-spot" style=${blindStyle} d=${b.path}></path>`,
+        )}
       </g>
     </g>`;
   }
