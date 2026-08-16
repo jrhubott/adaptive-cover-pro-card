@@ -263,7 +263,13 @@ function addEntryStates(
     });
   }
 
-  const bsRanges = blindSpotRanges(entry);
+  // #269/#274: `blind_spot_geometry_unavailable` reproduces the upstream
+  // diagnostics omission (jrhubott/adaptive-cover-pro#1291) — the decision
+  // pipeline (decider.ts) still reads entry.blind_spot_range/_ranges directly
+  // for `in_blind_spot`, but the sun sensor below omits BOTH geometry
+  // attributes, so the card gets the boolean with nothing to draw a wedge
+  // from and must fall back to its "Blind spot active" indicator.
+  const bsRanges = entry.blind_spot_geometry_unavailable ? [] : blindSpotRanges(entry);
   states[id('sun_sensor')] = mkState(id('sun_sensor'), sun.azimuth.toFixed(2), {
     friendly_name: `${entry.title} Sun Position`,
     elevation: sun.elevation,

@@ -216,6 +216,9 @@ export const de: EnDict = {
     cover_position_target_awning: 'Ziel (ausgefahren): {pct}%',
     cover_position_actual: 'Aktuell: {pct}%',
     blind_spot: 'Blindfleck: {from} – {to}',
+    blind_spot_active: 'Blindfleck aktiv',
+    blind_spot_active_tooltip:
+      'Die Sonne befindet sich in einem konfigurierten Blindfleck, aber die Integration liefert dessen Geometrie noch nicht — der Sektor kann nicht gezeichnet werden.',
     elev_suffix: ' · Elev {min}–{max}',
   },
   covers: {
