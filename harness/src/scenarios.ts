@@ -138,6 +138,7 @@ function makeEntry(
     max_elevation: overrides.max_elevation,
     blind_spot_range: overrides.blind_spot_range,
     blind_spot_ranges: overrides.blind_spot_ranges,
+    blind_spot_geometry_unavailable: overrides.blind_spot_geometry_unavailable,
     target_position: overrides.target_position ?? 40,
     target_tilt: overrides.target_tilt ?? 50,
     covers: overrides.covers ?? [
@@ -2537,6 +2538,40 @@ export const SCENARIOS: Scenario[] = [
           fov_right: 90,
           color: '#43a047',
           blind_spot_range: [10, 30],
+        }),
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'blind-spot-active-no-geometry',
+    label: 'Blind spot active, no geometry — compass fallback (#274)',
+    added: '2026-08-16',
+    issue: 274,
+    description:
+      "Card-side follow-up to blind-spot-slots (#269): when the integration's diagnostics omit `left_gamma`/`right_gamma` for a gamma-only blind spot (upstream bug, jrhubott/adaptive-cover-pro#1291), the sun sensor publishes NEITHER `blind_spot_range` NOR `blind_spot_ranges` even though `decision_trace.in_blind_spot` still comes through true — the compass used to draw an unbroken SAA band that visually contradicted its own decision trace (@Taknok: 'computed state is 0% but compass seems to indicate the awning should be open'). Two entries, same window/SAA/blind-spot geometry so they're directly comparable: 'No Geometry' has the sun currently inside its configured blind spot but the sun sensor omits the geometry attributes entirely — the compass legend must show a red 'Blind spot active' row (single-entry) instead of drawing nothing, and the sun dot still carries its existing (subtler) in_fov_not_valid treatment. 'With Geometry' is the control — same blind spot, geometry published normally, so the red hatched wedge draws as usual and the fallback text must NOT appear (it would double up with the wedge). Toggle 'Geometry unavailable' under Entries → Blind spot to flip either entry between the two states live; toggling the 'Blind spots' display switch off in Per-card config must hide the fallback text along with the wedges.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'blind-spot-active-no-geometry';
+      c.entries = [
+        makeEntry({
+          entry_id: 'no_geometry',
+          title: 'No Geometry',
+          window_azimuth: 180,
+          fov_left: 90,
+          fov_right: 90,
+          color: '#e53935',
+          blind_spot_range: [-25, 25],
+          blind_spot_geometry_unavailable: true,
+        }),
+        makeEntry({
+          entry_id: 'with_geometry',
+          title: 'With Geometry',
+          window_azimuth: 180,
+          fov_left: 90,
+          fov_right: 90,
+          color: '#1e88e5',
+          blind_spot_range: [-25, 25],
         }),
       ];
       return c;

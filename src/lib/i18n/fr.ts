@@ -221,6 +221,9 @@ export const fr: EnDict = {
     cover_position_target_awning: 'Cible (déployé) : {pct}%',
     cover_position_actual: 'Réel : {pct}%',
     blind_spot: 'Soleil masqué : {from} - {to}',
+    blind_spot_active: 'Angle mort actif',
+    blind_spot_active_tooltip:
+      "Le soleil se trouve dans un angle mort configuré, mais l'intégration n'en publie pas encore la géométrie — la zone ne peut pas être dessinée.",
     elev_suffix: ' · élév {min}–{max}',
   },
   covers: {

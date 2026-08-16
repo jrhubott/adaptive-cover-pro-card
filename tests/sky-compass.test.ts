@@ -77,6 +77,7 @@ function makeHass(
     decisionTraceSensorId?: string;
     sunState?: string;
     directSunValid?: boolean;
+    inBlindSpot?: boolean;
   }[],
   opts: { omitLocation?: boolean } = {},
 ): HomeAssistant {
@@ -106,6 +107,7 @@ function makeHass(
         attributes: {
           ...(e.sunState !== undefined ? { sun_state: e.sunState } : {}),
           ...(e.directSunValid !== undefined ? { direct_sun_valid: e.directSunValid } : {}),
+          ...(e.inBlindSpot !== undefined ? { in_blind_spot: e.inBlindSpot } : {}),
         },
       };
     }
@@ -730,6 +732,84 @@ describe('acp-sky-compass blind spot bearing conversion', () => {
     const title = el.shadowRoot!.querySelector('g.blind-group')?.getAttribute('data-tooltip') ?? '';
     expect(title).toContain('150');
     expect(title).toContain('170');
+  });
+});
+
+describe('acp-sky-compass blind-spot-active indicator (#274)', () => {
+  // The upstream sensor can report decision_trace.in_blind_spot === true while
+  // publishing NO blind_spot_range/blind_spot_ranges at all (issue #269's root
+  // cause — an upstream diagnostics omission, jrhubott/adaptive-cover-pro#1291).
+  // When that happens the compass must not present an unbroken FOV band that
+  // visually contradicts its own decision trace — it must say the blind spot is
+  // active even though it can't draw where.
+  it('renders an indicator when in_blind_spot is true and no blind-spot geometry is published', async () => {
+    const decisionTraceSensorId = 'sensor.decision_trace_entry1';
+    const d = makeDiscovered('entry1', 'Kitchen', { decisionTraceSensorId });
+    const hass = makeHass([
+      {
+        sensorId: 'sensor.sun_pos_entry1',
+        windowAzimuth: 180,
+        decisionTraceSensorId,
+        inBlindSpot: true,
+      },
+    ]);
+    const el = await mountCompass([d], hass);
+    const indicator = el.shadowRoot!.querySelector('.blind-active-row');
+    expect(indicator).not.toBeNull();
+    expect(indicator!.textContent).toContain('Blind spot active');
+  });
+
+  it('does not render the indicator when blind-spot geometry IS published (the wedge already says it)', async () => {
+    const decisionTraceSensorId = 'sensor.decision_trace_entry1';
+    const d = makeDiscovered('entry1', 'Kitchen', { decisionTraceSensorId });
+    const hass = makeHass([
+      {
+        sensorId: 'sensor.sun_pos_entry1',
+        windowAzimuth: 180,
+        decisionTraceSensorId,
+        inBlindSpot: true,
+        blindSpot: [10, 30],
+      },
+    ]);
+    const el = await mountCompass([d], hass);
+    expect(el.shadowRoot!.querySelector('.blind-active-row')).toBeNull();
+  });
+
+  it('does not render the indicator when in_blind_spot is false', async () => {
+    const decisionTraceSensorId = 'sensor.decision_trace_entry1';
+    const d = makeDiscovered('entry1', 'Kitchen', { decisionTraceSensorId });
+    const hass = makeHass([
+      {
+        sensorId: 'sensor.sun_pos_entry1',
+        windowAzimuth: 180,
+        decisionTraceSensorId,
+        inBlindSpot: false,
+      },
+    ]);
+    const el = await mountCompass([d], hass);
+    expect(el.shadowRoot!.querySelector('.blind-active-row')).toBeNull();
+  });
+
+  it('does not render the indicator when no decision_trace sensor is discovered (standalone-card degrade)', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen'); // no decisionTraceSensorId
+    const hass = makeHass([{ sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180 }]);
+    const el = await mountCompass([d], hass);
+    expect(el.shadowRoot!.querySelector('.blind-active-row')).toBeNull();
+  });
+
+  it('does not render the indicator when showBlindSpot is false', async () => {
+    const decisionTraceSensorId = 'sensor.decision_trace_entry1';
+    const d = makeDiscovered('entry1', 'Kitchen', { decisionTraceSensorId });
+    const hass = makeHass([
+      {
+        sensorId: 'sensor.sun_pos_entry1',
+        windowAzimuth: 180,
+        decisionTraceSensorId,
+        inBlindSpot: true,
+      },
+    ]);
+    const el = await mountCompass([d], hass, { showBlindSpot: false });
+    expect(el.shadowRoot!.querySelector('.blind-active-row')).toBeNull();
   });
 });
 

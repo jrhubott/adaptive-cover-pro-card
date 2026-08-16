@@ -67,6 +67,13 @@ interface EntryOverlay {
   color: string;
   isOverride: boolean;
   index: number;
+  /** decision_trace.in_blind_spot === true for this entry right now (#274). */
+  blindSpotActive: boolean;
+  /** True when blindSpotBearingList() has geometry to draw for this entry —
+   *  i.e. the wedge itself already communicates the blind spot. When false
+   *  (and blindSpotActive is true) the legend falls back to a text indicator
+   *  so the compass never contradicts its own decision trace. */
+  hasBlindGeometry: boolean;
 }
 
 @customElement('acp-sky-compass')
@@ -144,21 +151,41 @@ export class SkyCompass extends LitElement {
     return this.hass.states[id]?.state === 'on';
   }
 
+  /** decision_trace sensor's attributes this component reads, discovered the
+   *  same way as every other entity (never a hardcoded entity_id). Absent when
+   *  the entry has no decision_trace sensor discovered (older integration, or
+   *  a host card — e.g. the standalone sky-compass card — whose discovery
+   *  didn't pick one up); every caller degrades gracefully on `undefined`. */
+  private _decisionTraceAttrsFor(
+    d: DiscoveredEntities,
+  ): { sun_state?: string; direct_sun_valid?: boolean; in_blind_spot?: boolean } | undefined {
+    return d.entities.decision_trace_sensor
+      ? (this.hass.states[d.entities.decision_trace_sensor]?.attributes as
+          | { sun_state?: string; direct_sun_valid?: boolean; in_blind_spot?: boolean }
+          | undefined)
+      : undefined;
+  }
+
   /** Authoritative-first 3-way sun-dot state for one entry. Reads the
    *  decision_trace sensor's `sun_state` (new) / `direct_sun_valid` plus the
    *  sun_position sensor's azimuth-only `in_fov` and feeds the shared helper. */
   private _sunDotStateFor(d: DiscoveredEntities, sun: SunPositionAttributes): SunDotState {
-    const dt = d.entities.decision_trace_sensor
-      ? (this.hass.states[d.entities.decision_trace_sensor]?.attributes as
-          | { sun_state?: string; direct_sun_valid?: boolean }
-          | undefined)
-      : undefined;
+    const dt = this._decisionTraceAttrsFor(d);
     return sunDotState({
       belowHorizon: sun.elevation <= 0,
       sunState: dt?.sun_state ?? null,
       directSunValid: dt?.direct_sun_valid ?? false,
       inFov: sun.in_fov === true,
     });
+  }
+
+  /** True when the integration's decision trace reports the sun is inside a
+   *  configured blind spot right now (issue #269/#274). Independent of
+   *  whether the compass has geometry to draw the wedge — see
+   *  `EntryOverlay.hasBlindGeometry`, which decides whether the fallback
+   *  "Blind spot active" indicator is needed. */
+  private _blindSpotActiveFor(d: DiscoveredEntities): boolean {
+    return this._decisionTraceAttrsFor(d)?.in_blind_spot === true;
   }
 
   private _readActiveAzimuth(entityId: string | undefined): number | null {
@@ -196,6 +223,13 @@ export class SkyCompass extends LitElement {
         color,
         isOverride,
         index: i,
+        blindSpotActive: this._blindSpotActiveFor(d),
+        hasBlindGeometry:
+          blindSpotBearingList(
+            normalizeAzimuth(sun.window_azimuth),
+            sun.blind_spot_ranges,
+            sun.blind_spot_range,
+          ).length > 0,
       });
     });
     return out;
@@ -779,6 +813,15 @@ export class SkyCompass extends LitElement {
       first?.actualPos !== undefined &&
       first?.coverPos !== undefined &&
       Math.round(first.actualPos) !== Math.round(first.coverPos);
+    // Fallback text indicator for when decision_trace reports the sun is inside
+    // a blind spot but the compass has no geometry to draw the wedge with
+    // (issue #269/#274 — an upstream diagnostics omission). Gated on
+    // showBlindSpot too: if the user turned blind-spot visuals off outright,
+    // this fallback stays off with them. When geometry IS present the wedge
+    // already says it, so this never doubles up (see hasBlindGeometry).
+    const blindActiveTooltip = t('compass.blind_spot_active_tooltip', this.hass);
+    const showBlindActive = (o: EntryOverlay): boolean =>
+      this.showBlindSpot && o.blindSpotActive && !o.hasBlindGeometry;
     if (multi) {
       return html`
         <div class="legend">
@@ -806,6 +849,11 @@ export class SkyCompass extends LitElement {
                   : o.sun.in_fov
                     ? html`<span class="status in-fov">${t('compass.in_fov', this.hass)}</span>`
                     : html`<span class="status">${t('compass.none', this.hass)}</span>`}
+                ${showBlindActive(o)
+                  ? html`<span class="status blind-active" ${tooltip(blindActiveTooltip)}
+                      >${t('compass.blind_spot_active', this.hass)}</span
+                    >`
+                  : nothing}
               </button>
             `,
           )}
@@ -851,6 +899,12 @@ export class SkyCompass extends LitElement {
       ${this.showWindowArrow
         ? html`<div>
             ${this._legendWindowGlyph(overrideColor)} ${t('compass.window_normal', this.hass)}
+          </div>`
+        : nothing}
+      ${first && showBlindActive(first)
+        ? html`<div class="blind-active-row" ${tooltip(blindActiveTooltip)}>
+            <span class="licell"><span class="swatch blind-active-swatch"></span></span>
+            ${t('compass.blind_spot_active', this.hass)}
           </div>`
         : nothing}
     </div>`;
@@ -1128,6 +1182,16 @@ export class SkyCompass extends LitElement {
     .legend .status.in-fov {
       color: var(--state-active-color, orange);
     }
+    /* Fallback "Blind spot active" indicator (#274) — the multi-entry badge and
+       the single-entry row below both borrow the wedge's error-color identity
+       so the text reads as the same concept as the (missing) hatched wedge. */
+    .legend .status.blind-active {
+      color: var(--error-color, crimson);
+      font-weight: 500;
+    }
+    .blind-active-row {
+      color: var(--error-color, crimson);
+    }
     .dot,
     .swatch {
       display: inline-block;
@@ -1140,6 +1204,15 @@ export class SkyCompass extends LitElement {
       background: var(--warning-color, gold);
       opacity: 0.4;
       border-radius: 2px;
+    }
+    /* Mirrors the plotted .blind-spot wedge's crimson/dashed identity so the
+       fallback text row (#274) reads as "the same thing the wedge would have
+       shown" rather than an unrelated warning. */
+    .swatch.blind-active-swatch {
+      background: color-mix(in srgb, var(--error-color, crimson) 12%, transparent);
+      border: 1px dashed var(--error-color, crimson);
+      border-radius: 2px;
+      box-sizing: border-box;
     }
     .swatch.entry {
       border-radius: 2px;

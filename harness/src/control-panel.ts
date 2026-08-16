@@ -649,7 +649,11 @@ export class AcpHarnessControlPanel extends LitElement {
   /** Blind-spot slots. The integration allows three (its #701) and publishes
    *  them all on `blind_spot_ranges`; only slot 1 also lands on the legacy
    *  `blind_spot_range`. Editing slot 2 or 3 here is the #269 repro — before
-   *  the fix the compass drew slot 1 alone. */
+   *  the fix the compass drew slot 1 alone. "Geometry unavailable" reproduces
+   *  the follow-up #269/#274 case — the upstream diagnostics omission
+   *  (jrhubott/adaptive-cover-pro#1291) where `in_blind_spot` reaches the card
+   *  but neither geometry attribute does — exercising the compass's "Blind
+   *  spot active" fallback indicator. */
   private _renderBlindSpot(e: HarnessEntry, idx: number): TemplateResult {
     const slots = e.blind_spot_ranges ?? (e.blind_spot_range ? [e.blind_spot_range] : []);
     const patchSlots = (next: Array<[number, number]>) =>
@@ -690,6 +694,19 @@ export class AcpHarnessControlPanel extends LitElement {
         ? html`<label class="row">
             <span>Remove last slot</span>
             <button @click=${() => patchSlots(slots.slice(0, -1))}>− slot ${slots.length}</button>
+          </label>`
+        : ''}
+      ${slots.length > 0
+        ? html`<label class="row">
+            <span>Geometry unavailable</span>
+            <input
+              type="checkbox"
+              .checked=${!!e.blind_spot_geometry_unavailable}
+              @change=${(ev: Event) =>
+                this._patchEntry(idx, {
+                  blind_spot_geometry_unavailable: (ev.target as HTMLInputElement).checked,
+                })}
+            />
           </label>`
         : ''}
     `;
