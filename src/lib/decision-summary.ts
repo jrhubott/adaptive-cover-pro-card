@@ -12,7 +12,7 @@ import { formatPercent } from './formatters';
 export interface ActiveFloor {
   slot: 1 | 2 | 3 | 4 | 5;
   position: number;
-  label: string;
+  name: string | null;
   /**
    * True when the floor is actively raising the cover above target right now.
    * No longer drives the chip's emphasis (that is `resistsManual`); it now
@@ -68,7 +68,7 @@ export function resolveActiveMinModeFloor(
   return {
     slot: best.slot,
     position,
-    label: best.sensor_name ?? `#${best.slot}`,
+    name: best.sensor_name,
     clamping: targetPosition !== null && position > targetPosition,
     sensorOn: true,
     priority,
