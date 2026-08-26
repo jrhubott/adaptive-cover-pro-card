@@ -576,6 +576,16 @@ describe('resolveActiveMinModeFloor', () => {
     );
     expect(result!.name).toBeNull();
   });
+
+  it('returns null .name when sensor_name is absent entirely', () => {
+    const { sensor_name: _sensorName, ...slotWithoutName } = slot1On;
+    const result = resolveActiveMinModeFloor(
+      { custom_position_slots: [slotWithoutName as unknown as CustomPositionSlotSnapshot] },
+      hassStates({ 'input_boolean.slot1': 'on' }),
+      40,
+    );
+    expect(result!.name).toBeNull();
+  });
 });
 
 describe('CUSTOM_POSITION_SAFETY_PRIORITY', () => {

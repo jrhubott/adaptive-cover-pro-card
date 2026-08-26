@@ -12,6 +12,11 @@ import { formatPercent } from './formatters';
 export interface ActiveFloor {
   slot: 1 | 2 | 3 | 4 | 5;
   position: number;
+  /**
+   * The slot's configured `sensor_name`, or null when the slot is unnamed —
+   * the chip omits the name segment entirely rather than falling back to a
+   * `#N` label.
+   */
   name: string | null;
   /**
    * True when the floor is actively raising the cover above target right now.
@@ -68,7 +73,7 @@ export function resolveActiveMinModeFloor(
   return {
     slot: best.slot,
     position,
-    name: best.sensor_name,
+    name: best.sensor_name ?? null,
     clamping: targetPosition !== null && position > targetPosition,
     sensorOn: true,
     priority,
