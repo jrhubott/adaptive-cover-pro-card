@@ -832,7 +832,8 @@ export class AdaptiveCoverProTileCard extends LitElement {
             activeFloor!.resistsManual ? ' resists-manual' : ' is-bypassable'
           }`}
           ${tooltip(t('dialog.floor_tooltip', this.hass))}
-          >${t('dialog.floor', this.hass)} ${formatPercent(activeFloor!.position)}</span
+          >${t('dialog.floor', this.hass)}${activeFloor!.name ? ` ${activeFloor!.name} ·` : ''}
+          ${formatPercent(activeFloor!.position)}</span
         >`
       : nothing;
     const badgeTpl = renderBadge
@@ -2161,6 +2162,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       }
       .acp-floor-chip {
         grid-area: floor-chip;
+        min-width: 0;
         font-size: 0.7rem;
         padding: 1px 6px;
         border-radius: 999px;

@@ -734,7 +734,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'ha-tile-badge-row',
     label: 'HA tile layout — badges on the dedicated row',
     description:
-      "HA-tile layout match (#208 follow-up): the detailed Tile card now mirrors HA's native tile — a state-tinted 36px icon shape, a name-over-state label column, and HA-metric control buttons — with ACP's own chrome (Auto / Manual / floor badges) dropped onto a dedicated full-width row that starts at the label's left edge. This scenario arms a manual override AND an enabled min-mode floor slot, so the badge row shows the Manual badge alongside the ↥ floor chip; the top two rows read exactly like a native HA tile. Regression guard: the floor chip must ride this badge row, not collapse the detailed grid back to the one-line layout.",
+      "HA-tile layout match (#208 follow-up): the detailed Tile card now mirrors HA's native tile — a state-tinted 36px icon shape, a name-over-state label column, and HA-metric control buttons — with ACP's own chrome (Auto / Manual / floor badges) dropped onto a dedicated full-width row that starts at the label's left edge. This scenario arms a manual override AND an enabled, named min-mode floor slot ('Aeration floor'), so the badge row shows the Manual badge alongside the ↥ Aeration floor · 40% chip (#278: the floor chip now surfaces the slot's configured name); the top two rows read exactly like a native HA tile. Regression guard: the floor chip must ride this badge row, not collapse the detailed grid back to the one-line layout.",
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'ha-tile-badge-row';
