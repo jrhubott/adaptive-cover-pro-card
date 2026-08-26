@@ -170,7 +170,11 @@ export class CoverBar extends LitElement {
   }
 
   /** Solar target for an axis from its target sensor's state, or null when the
-   *  sensor is absent / non-numeric. */
+   *  sensor is absent / non-numeric.
+   *
+   *  For a genuine SECONDARY axis only. The axis whose target sensor is
+   *  `Cover_Position` goes through the position pipeline instead — see
+   *  `render()`'s `secondaryTargets`. */
   private _axisTarget(axis: ResolvedAxis): number | null {
     const role = axis.targetRole;
     if (!role) return null;
@@ -250,7 +254,22 @@ export class CoverBar extends LitElement {
     // fallback every other surface uses — a local copy is how the three
     // fallbacks drifted apart in the first place.
     const positionAxis = positionAxisFor(this.discovered);
-    const secondaryTargets = new Map(secondaryAxes.map((a) => [a.id, this._axisTarget(a)]));
+    // An axis whose target sensor IS `Cover_Position` — the entry's LEADING
+    // axis, which on a tilt-only cover type is the slat axis (issue #277) —
+    // takes the value the position path already piped off that sensor rather
+    // than re-reading its raw STATE: `displayTarget` swaps in the solar
+    // would-be target during a diverging manual override (#158) and prefers
+    // the pre-interpolation `linear_position` otherwise (#219), and reading
+    // the state here would show the HELD, post-interpolation number where a
+    // position entry's rail shows the solar, linear one. A genuine SECONDARY
+    // axis (a venetian's tilt) has its own `Cover_Tilt` sensor and keeps the
+    // plain read — this pipeline describes one sensor, not one axis id.
+    const secondaryTargets = new Map(
+      secondaryAxes.map((a) => [
+        a.id,
+        a.targetRole === 'target_position_sensor' ? target : this._axisTarget(a),
+      ]),
+    );
     return html`
       <div class="wrap" style=${this.coverColor ? `--acp-cover-color:${this.coverColor}` : nothing}>
         <div class="head">
@@ -273,7 +292,18 @@ export class CoverBar extends LitElement {
               : nothing}
             ${secondaryAxes.map(
               (axis) =>
-                html`<span class="target"
+                html`<span
+                  class="target"
+                  ${axis.targetRole === 'target_position_sensor' && motorDivergence !== null
+                    ? // Same sensor, same disclosure (#219): when interpolation
+                      // bends the configured value away from the raw command,
+                      // the chip discloses what was actually dispatched.
+                      tooltip(
+                        t('covers.target_tooltip_motor', this.hass, {
+                          pct: motorDivergence,
+                        }),
+                      )
+                    : nothing}
                   >${this._axisTargetLabel(axis, secondaryTargets.get(axis.id) ?? null)}</span
                 >`,
             )}
@@ -397,7 +427,18 @@ export class CoverBar extends LitElement {
               html`<span class="num-state">${stateText}</span>${hasPosition
                   ? html`<span class="num-sep"> · </span>`
                   : nothing}`
-            : nothing}${hasPosition ? html`<span class="num-pct">${numText}</span>` : nothing}
+            : nothing}${hasPosition
+            ? html`<span class="num-pct">${numText}</span>`
+            : stateText || transitDir
+              ? nothing
+              : // Nothing else made it into the cell: `formatCoverState` returns
+                // null for an unavailable cover and there is no transit glyph
+                // either, so dropping the percent as well would leave the
+                // readout completely blank — a dead row with nothing saying so.
+                // The position path never blanks; it always emits `.num-pct`,
+                // which renders `formatPercent(null)` = "—" when there is no
+                // value. Same cell, same placeholder (issue #277).
+                html`<span class="num-pct">${formatPercent(null)}</span>`}
         </div>
         ${hasPosition
           ? html`<div

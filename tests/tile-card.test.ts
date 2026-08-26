@@ -3382,6 +3382,62 @@ describe('adaptive-cover-pro-tile-card — tilt-only cover type (#277)', () => {
       { entity_id: SLATS },
     );
   });
+
+  // ── audit follow-ups ──────────────────────────────────────────────────────
+
+  const slatBar = (
+    el: CardLike,
+  ): HTMLElement & { target: number | null; movingTo: number | null } =>
+    el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
+      target: number | null;
+      movingTo: number | null;
+    };
+
+  it('prefers linear_position over the raw sensor state for the slat target (#219)', async () => {
+    // The leading axis's target sensor IS `Cover_Position`, so it takes the same
+    // read the tile's own position rail takes off that sensor — the
+    // pre-interpolation logical value, not the value dispatched to the motor.
+    const hass = louveredHass();
+    (hass.states['sensor.cover_position'].attributes as Record<string, unknown>).linear_position =
+      74;
+    const el = await mountLouvered(hass);
+    expect(slatBar(el).target).toBe(74);
+  });
+
+  it('arms the slat bar’s moving-to indicator when ↓ drives the leading axis', async () => {
+    // The ↑/↓ buttons drive the leading axis straight to its max/min without
+    // going near the bar, so the bar cannot arm its own indicator — the tile
+    // has to hand it the destination or a tilt-only entry gets no feedback at
+    // all from a button press.
+    const el = await mountLouvered(louveredHass());
+    expect(slatBar(el).movingTo).toBeNull();
+    btn(el, 'down').click();
+    await el.updateComplete;
+    expect(slatBar(el).movingTo).toBe(0);
+  });
+
+  it('leaves the moving-to hint alone when the slat bar itself commanded the move', async () => {
+    // A venetian's secondary axis is driven THROUGH `acp-axis-bar`, which arms
+    // its own indicator; a second host-owned band for the same command would be
+    // two answers to one question.
+    const el = await mountLouvered(
+      louveredHass({ coverType: 'cover_venetian', axes: VENETIAN_AXES, position: 60 }),
+    );
+    const bar = slatBar(el);
+    bar.dispatchEvent(new CustomEvent('acp-tilt-set', { detail: 80, bubbles: true }));
+    await el.updateComplete;
+    expect(bar.movingTo).toBeNull();
+  });
+
+  it('a dual-axis ↓ still arms the POSITION rail, not the slat bar', async () => {
+    const el = await mountLouvered(
+      louveredHass({ coverType: 'cover_venetian', axes: VENETIAN_AXES, position: 60 }),
+    );
+    btn(el, 'down').click();
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('.pos-pending')).not.toBeNull();
+    expect(slatBar(el).movingTo).toBeNull();
+  });
 });
 
 describe('adaptive-cover-pro-tile-card — composite name (#247)', () => {
