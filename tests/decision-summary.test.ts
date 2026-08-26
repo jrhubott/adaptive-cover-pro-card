@@ -558,6 +558,34 @@ describe('resolveActiveMinModeFloor', () => {
     expect(result!.priority).toBe(100);
     expect(result!.resistsManual).toBe(true);
   });
+
+  it("returns the winning slot's sensor_name as .name", () => {
+    const result = resolveActiveMinModeFloor(
+      { custom_position_slots: [slot1On] },
+      hassStates({ 'input_boolean.slot1': 'on' }),
+      40,
+    );
+    expect(result!.name).toBe('Slot 1');
+  });
+
+  it('returns null .name when the winning slot has no sensor_name', () => {
+    const result = resolveActiveMinModeFloor(
+      { custom_position_slots: [{ ...slot1On, sensor_name: null }] },
+      hassStates({ 'input_boolean.slot1': 'on' }),
+      40,
+    );
+    expect(result!.name).toBeNull();
+  });
+
+  it('returns null .name when sensor_name is absent entirely', () => {
+    const { sensor_name: _sensorName, ...slotWithoutName } = slot1On;
+    const result = resolveActiveMinModeFloor(
+      { custom_position_slots: [slotWithoutName as unknown as CustomPositionSlotSnapshot] },
+      hassStates({ 'input_boolean.slot1': 'on' }),
+      40,
+    );
+    expect(result!.name).toBeNull();
+  });
 });
 
 describe('CUSTOM_POSITION_SAFETY_PRIORITY', () => {

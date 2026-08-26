@@ -1853,6 +1853,7 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
       integrationEnabled?: boolean;
       customPositionMinimumMode?: boolean;
       priority?: number | null;
+      sensorName?: string | null;
     } = {},
   ): HomeAssistant {
     const {
@@ -1862,6 +1863,7 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
       integrationEnabled = true,
       customPositionMinimumMode = false,
       priority = 1,
+      sensorName = 'Aeration',
     } = opts;
     const hass = makeHass({
       decisionState: winner,
@@ -1874,7 +1876,7 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
             slot: 1,
             enabled: true,
             sensor: 'input_boolean.floor_sensor',
-            sensor_name: 'Aeration',
+            sensor_name: sensorName,
             position: 25,
             priority,
             min_mode: true,
@@ -1925,7 +1927,14 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeFloorHass());
     const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
     expect(chip).toBeTruthy();
-    expect(chip!.textContent?.trim()).toMatch(/↥\s*25%/);
+    expect(chip!.textContent?.trim()).toMatch(/↥\s*Aeration\s*·\s*25%/);
+  });
+
+  it('omits the name segment when the winning slot has no sensor_name', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeFloorHass({ sensorName: null }));
+    const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
+    expect(chip).toBeTruthy();
+    expect(chip!.textContent?.trim()).toMatch(/^↥\s*25%$/);
   });
 
   it('detailed: floor chip rides the dedicated badge row, not the one-line grid (#208 follow-up)', async () => {
@@ -2061,6 +2070,9 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
     expect(chip).toBeTruthy();
     // Should show the highest floor (45%), not the lower one (20%)
     expect(chip!.textContent?.trim()).toMatch(/45%/);
+    // Only the winning (highest-position) slot's name should surface.
+    expect(chip!.textContent).toContain('High floor');
+    expect(chip!.textContent).not.toContain('Low floor');
   });
 });
 
