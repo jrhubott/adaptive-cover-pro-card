@@ -8,8 +8,8 @@ import {
   findScenario,
   normalizeConfig,
 } from '../harness/src/scenarios';
-import type { HarnessConfig } from '../harness/src/types';
-import { buildStates } from '../harness/src/mock/state-gen';
+import type { CoverType, HarnessConfig } from '../harness/src/types';
+import { buildCoverDiscovery, buildStates } from '../harness/src/mock/state-gen';
 import { applyService } from '../harness/src/mock/services';
 import { zonedNowMs, zoneForLongitude, hourInZone } from '../harness/src/zone';
 import { INTEGRATION_DOMAIN } from '../src/const';
@@ -17,7 +17,7 @@ import { buildRegistry } from '../harness/src/mock/registry';
 import { buildMockHass } from '../harness/src/mock/hass';
 import { resolveCoverBatteries, lowestBattery } from '../src/lib/battery';
 import { discoverEntities } from '../src/lib/entity-discovery';
-import { positionAxisInverted, resolveAxes } from '../src/lib/axes';
+import { hasPositionAxis, positionAxisInverted, resolveAxes } from '../src/lib/axes';
 import {
   coverHeldPosition,
   coverLogicalActuals,
@@ -702,6 +702,64 @@ describe('harness inverse_tilt scenario (#236)', () => {
     const { hass, discovered } = discoverFor('inverse-tilt-venetian');
     const tilt = resolveAxes(discovered).find((a) => a.id === 'tilt')!;
     expect(logicalAxisValue(hass, tilt, VENETIAN)).toBe(35);
+  });
+});
+
+// ── tilt-only cover types in the harness mock (#277) ─────────────────────────
+
+describe('harness tilt-only cover types (#277)', () => {
+  const SLATS = 'cover.pergola_slats';
+
+  it.each(['cover_tilt', 'cover_louvered_roof'] as CoverType[])(
+    'buildCoverDiscovery mirrors tilt-only policies — one axis, id tilt (%s)',
+    (coverType) => {
+      // `TiltPolicy.axes` / `LouveredRoofPolicy.axes` are both
+      // `(TILT_AXIS_PRIMARY,)`. The mock published the exact inverse — a
+      // position axis and no slat axis — so no scenario could ever reproduce
+      // the bug.
+      const d = buildCoverDiscovery(coverType) as { axes: Record<string, unknown>[] };
+      expect(d.axes.map((a) => a.id)).toEqual(['tilt']);
+      expect(d.axes[0].state_attr).toBe('current_tilt_position');
+      expect(d.axes[0].supported).toBe(true);
+    },
+  );
+
+  it('lands the inverse_state flag on the slat axis — it carries primary-axis semantics', () => {
+    const d = buildCoverDiscovery('cover_louvered_roof', true) as {
+      axes: Record<string, unknown>[];
+    };
+    expect(d.axes[0].inverted).toBe(true);
+  });
+
+  it('leaves the dual-axis venetian payload exactly as it was', () => {
+    const d = buildCoverDiscovery('cover_venetian') as { axes: Record<string, unknown>[] };
+    expect(d.axes.map((a) => a.id)).toEqual(['position', 'tilt']);
+    expect(d.axes[0].state_attr).toBe('current_position');
+  });
+
+  it('ships a louvered-roof scenario the card resolves to a slat-only axis set', () => {
+    const { discovered } = discoverFor('louvered-roof-tilt-only');
+    expect(hasPositionAxis(discovered)).toBe(false);
+    const axes = resolveAxes(discovered);
+    expect(axes.map((a) => a.id)).toEqual(['tilt']);
+    // No `Cover_Tilt` entity for this cover type, so the slat target has to
+    // come off `Cover_Position` — the leading-axis role re-map.
+    expect(discovered.entities.target_tilt_sensor).toBeUndefined();
+    expect(axes[0].targetRole).toBe('target_position_sensor');
+  });
+
+  it('emits the field-reported cover shape: slats live, current_position 0, tilt features', () => {
+    const { states, discovered } = discoverFor('louvered-roof-tilt-only');
+    const cover = states[SLATS];
+    expect(cover.attributes.current_tilt_position).toBe(23);
+    expect(cover.attributes.current_position).toBe(0);
+    expect(cover.attributes.supported_features).toBe(240);
+    expect(cover.state).toBe('open');
+    // The position-named sensor carries the SLAT target and the slat actuals,
+    // the way `state/cover_provider.py` fills them from `axes[0].state_attr`.
+    const sensor = states[discovered.entities.target_position_sensor!];
+    expect(sensor.state).toBe('80');
+    expect(sensor.attributes.actual_positions).toEqual({ [SLATS]: 23 });
   });
 });
 

@@ -1095,6 +1095,39 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'louvered-roof-tilt-only',
+    label: 'Louvered roof — tilt-only (#277)',
+    description:
+      'A pergola whose policy declares ONE axis and it is the slat axis (LouveredRoofPolicy.axes = (TILT_AXIS_PRIMARY,)). There is no position axis anywhere in the discovery payload, and no Cover_Tilt sensor either — the integration creates that one only for venetian / day-night shade — so the slat target rides on Cover_Position (80%) while the cover reports current_tilt_position: 23 and a vestigial current_position: 0. The tile must show "Open" with NO "· 0%" after it, NO Position rail, and one INCLINAISON bar carrying the live 23 AND the orange target tick at 80. ↓ (close) must be LIVE — pre-fix the phantom position axis read the vestigial 0 and greyed out the only direction the roof could move. Click ↑ and the service log must show set_axes { tilt: 100 }: a { position: 100 } payload is not a no-op, the integration validates every key against supported_axes and raises. Open the more-info dialog and the Covers section still names the cover — the name row stays a tap target for more-info and still carries the mismatch badge — with a bare "Open" readout (no "· 0%"), no Position track and no go-to-target button, above the slat bar; the header shows one Tilt target chip and no Position target. Flip "Inverse state" and the flag lands on the SLAT axis (it is the primary one here), so the cover reports 77 while the card keeps rendering 23. Press ↑ or ↓ and the slat bar paints the striped "moving to" band and its destination pip: the buttons drive the axis straight to its max/min without going near that bar, so the tile hands the bar the destination rather than the bar arming itself — ■ (stop) cancels it again. The slat tick rides the same target pipeline the Position rail uses on every other cover type, because its target sensor IS Cover_Position: flip "Manual override" and the tick swings to the solar would-be target while the sensor state holds at the manually-set value, and an interpolated entry shows the pre-interpolation value with the dispatched one disclosed in the Tilt chip\'s tooltip.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 13 * 60);
+      c.scenario = 'louvered-roof-tilt-only';
+      c.entries = [
+        makeEntry({
+          entry_id: 'pergola',
+          title: 'Pergola',
+          cover_type: 'cover_louvered_roof',
+          window_azimuth: 180,
+          color: '#ffa726',
+          // The position-named surfaces carry the PRIMARY axis, so the slat
+          // target is what Cover_Position publishes for this cover type.
+          target_position: 80,
+          target_tilt: 80,
+          covers: [
+            {
+              entity_id: 'cover.pergola_slats',
+              friendly_name: 'Pergola slats',
+              // Vestigial: the cover reports it, the entry does not drive it.
+              position: 0,
+              tilt: 23,
+            },
+          ],
+        }),
+      ];
+      return c;
+    },
+  },
+  {
     id: 'safety-slot',
     label: 'Safety slot (priority 100)',
     description:

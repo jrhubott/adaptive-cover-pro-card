@@ -9,7 +9,7 @@ import {
 import { decide, scriptedDecision, type DecisionResult } from './decider';
 import { buildForecast } from './forecast';
 import { entityIdFor } from './registry';
-import type { CoverType, HarnessConfig, HarnessEntry } from '../types';
+import type { CoverType, HarnessConfig, HarnessEntry, ManagedCoverCfg } from '../types';
 import { zoneForLongitude, zonedNowMs } from '../zone';
 
 export interface HassState {
@@ -106,11 +106,22 @@ export function buildStates(cfg: HarnessConfig): GeneratedStates {
 }
 
 /**
+ * Cover types whose policy declares ONLY a slat axis — `TiltPolicy` and
+ * `LouveredRoofPolicy`, both `axes = (TILT_AXIS_PRIMARY,)`. They publish no
+ * position axis at all, which is what the card's `hasPositionAxis` gate is
+ * about (issue #277). One predicate so the discovery payload, the cover state
+ * shape and the sensor values cannot disagree about which axis this entry is.
+ */
+function isTiltOnlyCoverType(coverType: CoverType): boolean {
+  return coverType === 'cover_tilt' || coverType === 'cover_louvered_roof';
+}
+
+/**
  * Build the integration's `cover_discovery` descriptor (issue #180) for a mock
  * cover type. Mirrors the serialized `CoverDescriptor`/`AxisDescriptor` shape:
- * every cover exposes a `position` axis; venetian additionally exposes a
- * DRIVABLE `tilt` axis. Emitted on the control_status sensor unless the legacy
- * flag is set.
+ * most covers expose a `position` axis; venetian additionally exposes a
+ * DRIVABLE `tilt` axis; a TILT-ONLY type exposes the slat axis and nothing else.
+ * Emitted on the control_status sensor unless the legacy flag is set.
  *
  * A day/night shade also publishes a `tilt` axis, but with `supported: false` —
  * copied from a live entry, because the integration declares the axis for the
@@ -134,11 +145,40 @@ export function buildCoverDiscovery(
       cover_blind: 'Vertical Blind',
       cover_awning: 'Awning',
       cover_tilt: 'Tilt',
+      cover_louvered_roof: 'Louvered Roof',
       cover_venetian: 'Venetian',
       cover_day_night_shade: 'Day/Night Shade',
       cover_dual_panel: 'Dual-Panel Shade',
     } as Record<CoverType, string>
   )[coverType];
+  // A tilt-only policy declares exactly ONE axis and it is the slat axis
+  // (`TiltPolicy.axes` / `LouveredRoofPolicy.axes` are both
+  // `(TILT_AXIS_PRIMARY,)`). Being the only axis makes it the PRIMARY one, so
+  // `inverse_state` — not `inverse_tilt` — is what inverts it. Emitting a
+  // position axis here (which the mock used to do, for every cover type) meant
+  // no scenario could reproduce issue #277.
+  if (isTiltOnlyCoverType(coverType)) {
+    return {
+      cover_type: coverType,
+      cover_label: label,
+      axes: [
+        {
+          id: 'tilt',
+          label: 'Tilt',
+          label_key: 'axes.tilt',
+          min: 0,
+          max: 100,
+          unit: '%',
+          capability_key: 'has_set_tilt_position',
+          state_attr: 'current_tilt_position',
+          service_attr: 'tilt',
+          open_blocks_sun: false,
+          supported: true,
+          inverted: positionInverted,
+        },
+      ],
+    };
+  }
   const axes: Record<string, unknown>[] = [
     {
       id: 'position',
@@ -195,25 +235,36 @@ function addEntryStates(
   // solar-target wedge and the held/actual ring (#132). Otherwise the state is
   // the (solar) target and held tracks it (the pre-#132 collapse).
   const held = f.manual_override && f.held_position !== null ? f.held_position : null;
-  const coverState = held !== null ? held : entry.target_position;
+  // The position-named surfaces carry the PRIMARY axis, whatever it is called:
+  // `state/cover_provider.py` fills `actual_positions` from `axes[0].state_attr`
+  // and `Cover_Position` publishes that axis's target. For a tilt-only cover
+  // type `axes[0]` is the slat axis, so this sensor holds slat numbers — which
+  // is exactly why the card's phantom position rail mixed two axes (#277).
+  const tiltOnly = isTiltOnlyCoverType(entry.cover_type);
+  const primaryOf = (c: ManagedCoverCfg): number | null =>
+    tiltOnly ? (c.tilt ?? entry.target_tilt ?? 50) : c.position;
+  const primaryTarget = tiltOnly ? (entry.target_tilt ?? 50) : entry.target_position;
+  const coverState = held !== null ? held : primaryTarget;
 
   // An inverse_state entry dispatches `100 − logical`, so everything the
   // integration reports FROM the cover is in the cover frame while
-  // `linear_*` stays logical (issue #234).
+  // `linear_*` stays logical (issue #234). On a tilt-only entry the axis it
+  // inverts is the slat one — that axis IS the primary.
   const inverse = f.inverse_state;
   const flip = (v: number | null): number | null => (typeof v === 'number' ? 100 - v : v);
 
   const logicalActuals: Record<string, number | null> = {};
   for (const c of entry.covers) {
     // Covers physically sit at the held position during a divergent override.
-    logicalActuals[c.entity_id] = held !== null ? held : c.position;
+    logicalActuals[c.entity_id] = held !== null ? held : primaryOf(c);
   }
   const actualPositions: Record<string, number | null> = inverse
     ? Object.fromEntries(Object.entries(logicalActuals).map(([k, v]) => [k, flip(v)]))
     : logicalActuals;
-  const allAtTarget = entry.covers.every(
-    (c) => c.position !== null && Math.abs(c.position - entry.target_position) <= 1,
-  );
+  const allAtTarget = entry.covers.every((c) => {
+    const v = primaryOf(c);
+    return v !== null && Math.abs(v - primaryTarget) <= 1;
+  });
 
   // On an inverse entry the sensor STATE is the dispatched value, and
   // `linear_position` carries the logical one the card must display — unless a
@@ -581,6 +632,11 @@ function addEntryStates(
 
 function addCoverStates(states: Record<string, HassState>, entry: HarnessEntry): void {
   const dualAxis = entry.cover_type === 'cover_venetian';
+  // A tilt-only cover type has ONE axis and it is the slat axis, so the cover
+  // carries a live `current_tilt_position` and its `current_position` is the
+  // vestigial 0 the field report showed — a value about an axis this entry
+  // does not drive (issue #277).
+  const tiltOnly = isTiltOnlyCoverType(entry.cover_type);
   // On an inverse_state entry the physical cover is driven with `100 − logical`,
   // so it REPORTS backwards: a fully-extended awning (logical 100) sits at
   // `current_position: 0` while its HA state is still `open` — the exact
@@ -588,25 +644,36 @@ function addCoverStates(states: Record<string, HassState>, entry: HarnessEntry):
   // this way means the harness reproduces the bug, not just the fix.
   const inverse = entry.flags.inverse_state;
   for (const c of entry.covers) {
-    const pos = c.position ?? entry.target_position;
-    // Derived from the LOGICAL position, so it disagrees with the reported
-    // attribute exactly the way the real integration leaves it.
-    const state = c.state ?? (pos === 0 ? 'closed' : pos === 100 ? 'open' : 'open');
-    const reportedPosition =
-      inverse && typeof c.position === 'number' ? 100 - c.position : c.position;
     // Venetian covers carry a live slat angle the card reads directly off the
-    // cover entity (the integration does not aggregate tilts into a sensor).
-    const tilt = dualAxis ? (c.tilt ?? entry.target_tilt ?? 50) : undefined;
+    // cover entity (the integration does not aggregate tilts into a sensor);
+    // a tilt-only cover carries it as its ONLY live value.
+    const tilt = dualAxis || tiltOnly ? (c.tilt ?? entry.target_tilt ?? 50) : undefined;
+    // Whatever this entry's primary axis is: the slat angle for a tilt-only
+    // type, the position for everything else.
+    const primary = tiltOnly ? (tilt ?? 0) : (c.position ?? entry.target_position);
+    // Derived from the LOGICAL primary value, so it disagrees with the reported
+    // attribute exactly the way the real integration leaves it.
+    const state = c.state ?? (primary === 0 ? 'closed' : 'open');
+    const reportedPosition = tiltOnly
+      ? 0
+      : inverse && typeof c.position === 'number'
+        ? 100 - c.position
+        : c.position;
     // An inverse_tilt entry drives the slat axis with `100 − logical` too, so
     // the cover reports the complement while the scenario's `tilt` stays
-    // logical — mirroring `reportedPosition` above (issue #236).
-    const reportedTilt = entry.flags.inverse_tilt && tilt !== undefined ? 100 - tilt : tilt;
+    // logical — mirroring `reportedPosition` above (issue #236). On a tilt-only
+    // entry the slat axis is the PRIMARY one, so `inverse_state` is the flag
+    // that inverts it.
+    const tiltInverted = tiltOnly ? inverse : entry.flags.inverse_tilt;
+    const reportedTilt = tiltInverted && tilt !== undefined ? 100 - tilt : tilt;
     // device_class drives the card's HA-native icon + control glyphs. Explicit
     // per-cover config wins; `'none'` suppresses it (fallback-chain proof);
-    // otherwise default from the cover_type (venetian → blind, else shade),
+    // otherwise default from the cover_type (slat types → blind, else shade),
     // preserving the pre-existing mock behavior.
     const deviceClass =
-      c.device_class === 'none' ? undefined : (c.device_class ?? (dualAxis ? 'blind' : 'shade'));
+      c.device_class === 'none'
+        ? undefined
+        : (c.device_class ?? (dualAxis || tiltOnly ? 'blind' : 'shade'));
     states[c.entity_id] = mkState(c.entity_id, state, {
       friendly_name: c.friendly_name,
       current_position: reportedPosition,
@@ -614,8 +681,10 @@ function addCoverStates(states: Record<string, HassState>, entry: HarnessEntry):
       ...(inverse ? { assumed_state: true } : {}),
       ...(reportedTilt !== undefined ? { current_tilt_position: reportedTilt } : {}),
       // Bit 16 (SET_TILT_POSITION) added for venetian so the cover advertises
-      // tilt support alongside the position features (15).
-      supported_features: dualAxis ? 143 : 15,
+      // tilt support alongside the position features (15). A tilt-only cover
+      // advertises the TILT bits ONLY (240 = 16|32|64|128): no SET_POSITION, no
+      // open/close/stop for a position it does not have.
+      supported_features: tiltOnly ? 240 : dualAxis ? 143 : 15,
       ...(deviceClass !== undefined ? { device_class: deviceClass } : {}),
       ...(c.icon ? { icon: c.icon } : {}),
     });
@@ -864,6 +933,8 @@ function buildSolarCalc(
         clamped_to_awn_length: false,
       };
     case 'cover_tilt':
+    // A louvered roof solves the same slat-angle geometry, in a roof plane.
+    case 'cover_louvered_roof':
       return tilt();
     case 'cover_venetian':
       return { ...blind(), cover_type: 'cover_venetian', tilt: tilt() };
