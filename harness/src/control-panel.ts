@@ -588,6 +588,10 @@ export class AcpHarnessControlPanel extends LitElement {
                 'cover_blind',
                 'cover_awning',
                 'cover_tilt',
+                // TILT-ONLY, like cover_tilt: no position axis at all, so the
+                // tile drops its `%` readout and Position rail and the ↑/↓
+                // buttons drive `set_axes {tilt: …}` (issue #277).
+                'cover_louvered_roof',
                 'cover_venetian',
                 // The two LAYERED types, whose managed covers are rails of one
                 // opening rather than separate windows. Listed so the rail-stack

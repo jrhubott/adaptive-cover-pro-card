@@ -3178,6 +3178,212 @@ describe('adaptive-cover-pro-tile-card — inverse_tilt frame normalization (#23
   });
 });
 
+// ── tilt-only cover type — louvered roof (#277) ──────────────────────────────
+
+/** The reporter's entry: no `Cover_Tilt` sensor, because the integration only
+ *  creates one where `exposes_dual_axis_sensor` is true (venetian / day-night
+ *  shade). A louvered roof's slat target lives on `Cover_Position`. */
+const LOUVERED_REGISTRY: EntityRegistryEntry[] = [
+  ...REGISTRY,
+  {
+    entity_id: 'sensor.control_status',
+    unique_id: `${ENTRY}_control_status`,
+    config_entry_id: ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+];
+
+const SLATS = 'cover.pergola_slats';
+
+/** `LouveredRoofPolicy.axes = (TILT_AXIS_PRIMARY,)` — one axis, and it is the
+ *  slat axis. There is no position axis anywhere in the payload. */
+const TILT_ONLY_AXES = [
+  {
+    id: 'tilt',
+    label: 'Tilt',
+    state_attr: 'current_tilt_position',
+    supported: true,
+    inverted: false,
+  },
+];
+
+/** Every dual-axis policy declares `(POSITION_AXIS, TILT_AXIS)` in that order. */
+const VENETIAN_AXES = [
+  {
+    id: 'position',
+    label: 'Position',
+    state_attr: 'current_position',
+    supported: true,
+    inverted: false,
+  },
+  {
+    id: 'tilt',
+    label: 'Tilt',
+    state_attr: 'current_tilt_position',
+    supported: true,
+    inverted: false,
+  },
+];
+
+/**
+ * The field-reported shape: the cover reports `current_position: 0` (an axis
+ * this entry does not drive) while the slats it DOES drive sit at 23, and the
+ * entry's `Cover_Position` sensor carries the slat target (80).
+ */
+function louveredHass(
+  opts: {
+    tilt?: number;
+    position?: number;
+    coverType?: string;
+    axes?: Record<string, unknown>[];
+    callService?: (...args: unknown[]) => unknown;
+  } = {},
+): HomeAssistant {
+  const tilt = opts.tilt ?? 23;
+  const coverType = opts.coverType ?? 'cover_louvered_roof';
+  const h = makeHass({
+    callService: opts.callService,
+    coverPositionSensorAttrs: { actual_positions: { [SLATS]: tilt } },
+  });
+  h.states['sensor.cover_position'].state = '80';
+  h.states['sensor.control_status'] = {
+    state: 'auto',
+    attributes: {
+      cover_type: coverType,
+      cover_discovery: { cover_type: coverType, axes: opts.axes ?? TILT_ONLY_AXES },
+    },
+  } as never;
+  h.states[SLATS] = {
+    state: 'open',
+    attributes: {
+      friendly_name: 'Pergola Slats',
+      device_class: 'blind',
+      current_position: opts.position ?? 0,
+      current_tilt_position: tilt,
+    },
+  } as never;
+  (h as unknown as { services: unknown }).services = { adaptive_cover_pro: { set_axes: {} } };
+  (h as unknown as { callWS: unknown }).callWS = vi.fn().mockResolvedValue(LOUVERED_REGISTRY);
+  return h;
+}
+
+async function mountLouvered(
+  hass: HomeAssistant,
+  config: Partial<AdaptiveCoverProTileCardConfig> = {},
+): Promise<CardLike> {
+  const el = makeCard();
+  el.setConfig({ type: TYPE, entry_id: ENTRY, ...config });
+  el.hass = hass;
+  document.body.appendChild(el);
+  el._registry = LOUVERED_REGISTRY;
+  await el.updateComplete;
+  return el;
+}
+
+describe('adaptive-cover-pro-tile-card — tilt-only cover type (#277)', () => {
+  const btn = (el: CardLike, cls: string): HTMLButtonElement =>
+    el.shadowRoot!.querySelector(`button.${cls}`) as HTMLButtonElement;
+
+  it('↑ dispatches set_axes {tilt: 100}, never {position: 100}', async () => {
+    // `set_axes` validates every key against `policy.supported_axes(caps)` and
+    // raises for an unsupported one, so a `{position: …}` payload here is not a
+    // no-op — it is an error toast and a cover that never moves.
+    const callService = vi.fn();
+    const el = await mountLouvered(louveredHass({ callService }));
+    btn(el, 'up').click();
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { tilt: 100 } },
+      { entity_id: SLATS },
+    );
+  });
+
+  it('keeps ↓ live at current_position: 0 — at-closed gates on the slat axis', async () => {
+    // The reporter's exact symptom: `current_position` is 0 for an axis the
+    // entry does not have, so Close was greyed out on slats sitting at 23.
+    const el = await mountLouvered(louveredHass());
+    expect(btn(el, 'down').disabled).toBe(false);
+    expect(btn(el, 'up').disabled).toBe(false);
+  });
+
+  it('renders no position rail for an entry with no position axis', async () => {
+    const el = await mountLouvered(louveredHass());
+    expect(el.shadowRoot!.querySelector('.pos-bar')).toBeNull();
+  });
+
+  it('renders no % readout, but keeps the entity state text', async () => {
+    // `stateText` is the cover's own HA state, not a card-fabricated number —
+    // "Open" for a pergola with slats at 23% is true and useful. Only the `%`
+    // half describes an axis the entry does not have.
+    const el = await mountLouvered(louveredHass());
+    const readout = el.shadowRoot!.querySelector('.state')?.textContent?.trim();
+    expect(readout).toBe('Open');
+    expect(readout).not.toContain('0%');
+  });
+
+  it('hands the slat bar its target from the Cover_Position sensor', async () => {
+    const el = await mountLouvered(louveredHass());
+    const tiltBar = el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
+      actual: number | null;
+      target: number | null;
+    };
+    expect(tiltBar).not.toBeNull();
+    expect(tiltBar.actual).toBe(23);
+    expect(tiltBar.target).toBe(80);
+  });
+
+  it('does not force the fully-closed icon variant from a position the entry does not have', async () => {
+    const el = await mountLouvered(louveredHass());
+    const icon = el.shadowRoot!.querySelector('ha-icon.cover-icon') as HTMLElement;
+    expect(icon).not.toBeNull();
+    // device_class `blind`: a live 0 picks `closed`, no live value picks
+    // `partial`. The tile must not paint "fully closed" off a phantom axis.
+    expect(icon.getAttribute('icon')).not.toBe('mdi:blinds-horizontal-closed');
+    expect(icon.getAttribute('icon')).toBe('mdi:blinds-horizontal');
+  });
+
+  // ── pins: green before and after, so the fix cannot overshoot ──────────────
+
+  it('disables ↓ only when the slat axis itself is at its minimum', async () => {
+    const el = await mountLouvered(louveredHass({ tilt: 0 }));
+    expect(btn(el, 'down').disabled).toBe(true);
+    expect(btn(el, 'up').disabled).toBe(false);
+  });
+
+  it('a dual-axis (venetian) entry still defaults ↑/↓ to {position: …}', async () => {
+    // The hazard the old `axes[0]` revert was about. A venetian declares
+    // position FIRST, so the leading-axis default resolves to it unchanged.
+    const callService = vi.fn();
+    const el = await mountLouvered(
+      louveredHass({ callService, coverType: 'cover_venetian', axes: VENETIAN_AXES, position: 60 }),
+    );
+    btn(el, 'down').click();
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { position: 0 } },
+      { entity_id: SLATS },
+    );
+  });
+
+  it('controls_axis: "tilt" explicitly retargets ↑/↓ on a dual-axis entry', async () => {
+    const callService = vi.fn();
+    const el = await mountLouvered(
+      louveredHass({ callService, coverType: 'cover_venetian', axes: VENETIAN_AXES, position: 60 }),
+      { controls_axis: 'tilt' },
+    );
+    btn(el, 'down').click();
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { tilt: 0 } },
+      { entity_id: SLATS },
+    );
+  });
+});
+
 describe('adaptive-cover-pro-tile-card — composite name (#247)', () => {
   // Same REGISTRY as the rest of this file, but with device_id set so the
   // area/entry-title lookups below have a device to resolve against.

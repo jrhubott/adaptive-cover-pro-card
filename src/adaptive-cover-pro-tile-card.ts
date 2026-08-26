@@ -27,7 +27,14 @@ import {
 import { createDiscoveryMemo } from './lib/entity-discovery';
 import { resolveTileName, isValidAcpName } from './lib/name-parts';
 import { makeEntitySuggestion } from './lib/entity-suggestion';
-import { axisDisplayValue, positionAxisFor, resolveAxes, type ResolvedAxis } from './lib/axes';
+import {
+  axisDisplayValue,
+  hasPositionAxis,
+  positionAxisFor,
+  primaryAxisFor,
+  resolveAxes,
+  type ResolvedAxis,
+} from './lib/axes';
 import { railsAreOneCover } from './lib/rail-model';
 import { PendingMoves, isMovingState, isPendingVisible } from './lib/pending-move';
 import { renderRailOverlay, railOverlayStyles } from './components/rail-overlay';
@@ -476,6 +483,13 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // same as any other no-feedback cover (issue #232).
     const reportedPosition = noLiveData ? null : this._liveCoverPosition(discovered, cover);
     const livePosition = offline ? null : (reportedPosition ?? calculatedPosition);
+    // Does this entry drive a position axis at all? A tilt-only cover type
+    // (`cover_tilt`, louvered roof) declares only its slat axis, and every
+    // position-shaped surface below — the `%` readout, the rail, the icon's
+    // open/closed variant — would otherwise render a number about an axis the
+    // entry does not have (issue #277). True on every legacy/no-discovery entry,
+    // so these gates are inert there.
+    const hasPosition = hasPositionAxis(discovered);
     const icon =
       cfg.icon ??
       (offline
@@ -489,7 +503,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
             // derive from `livePosition` — a leftover stale `current_position`
             // attribute on an `unknown` cover must not paint a fully-open/
             // fully-closed variant that the rest of the tile disagrees with.
-            position: livePosition,
+            // Withheld entirely when the entry has no position axis, for the
+            // same reason: a louvered roof's `current_position: 0` would paint a
+            // fully-closed glyph over slats sitting wide open.
+            position: hasPosition ? livePosition : null,
           }));
     const iconColor = cfg.state_color !== false ? coverStateColor(stateObj?.state) : null;
     // Drives both the icon's own tap target and HA's tinted-pill background,
@@ -533,13 +550,16 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // before, but a day/night shade in the integration's `dual_entity` model
     // binds two rail entities and a venetian exposes a second axis, and either
     // can be the thing the user wants the buttons on.
-    // Falls back to the POSITION axis, never `axes[0]`. On a tilt-only cover
-    // type (cover_tilt, louvered roof) discovery publishes only the slat axis,
-    // and taking axes[0] silently changed the default ↑/↓ payload from
-    // `{position: …}` to `{tilt: …}` and re-gated at-open/at-closed on
-    // `current_tilt_position`.
-    const controlsAxis =
-      axes.find((a) => a.id === cfg.controls_axis) ?? positionAxisFor(discovered);
+    // Falls back to the entry's LEADING declared axis, which is the position
+    // axis for every policy that has one — all of them declare it first, and
+    // `supported_axes` only ever filters the declared tuple, never reorders it.
+    // So a dual-axis entry (venetian, day/night shade) still defaults to
+    // `{position: …}` exactly as before; the one intended divergence is a
+    // tilt-only cover type (cover_tilt, louvered roof), which declares ONLY its
+    // slat axis. There, a fabricated position axis gated at-open/at-closed on a
+    // `current_position` the entry does not drive and dispatched a
+    // `{position: …}` payload that `set_axes` rejects outright (issue #277).
+    const controlsAxis = axes.find((a) => a.id === cfg.controls_axis) ?? primaryAxisFor(discovered);
     // Validated against the roster exactly like `covers` is. Unvalidated, a
     // `controls_cover` left behind by an entry change (or hand-written) would
     // aim `set_axes` at a cover in a DIFFERENT config entry — the integration
@@ -681,7 +701,11 @@ export class AdaptiveCoverProTileCard extends LitElement {
       : showState
         ? formatCoverState(this.hass, cover, transitDir ?? undefined)
         : null;
-    const positionText = showPosition && livePosition !== null ? formatPercent(livePosition) : null;
+    // `stateText` above stays for a tilt-only entry — it is the cover entity's
+    // own HA state, not a card-fabricated number. Only the `%` half describes an
+    // axis the entry may not have, so only it is gated (issue #277).
+    const positionText =
+      showPosition && hasPosition && livePosition !== null ? formatPercent(livePosition) : null;
     // One-line has no room for the bar, so fold tilt into the readout as ⟂30%.
     const tiltText =
       showTilt && !detailed && liveTilt !== null ? `⟂${formatPercent(liveTilt)}` : null;
@@ -848,8 +872,16 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const commandTargets = coverCommandTargets(this.hass, discovered);
     const railTarget = (id: string): number | null =>
       id === cover ? calculatedPosition : (commandTargets[id] ?? null);
+    // No position axis, no position rail (issue #277): on a tilt-only entry its
+    // fill came from the cover's `current_position` while its target tick came
+    // from `Cover_Position` — which for such a policy holds the SLAT target. Two
+    // different axes inside one widget. The slat bar below renders both from the
+    // one axis that exists.
     const showPositionBar =
-      detailed && cfg.show_position_bar !== false && barCovers.some((id) => railLive(id) !== null);
+      detailed &&
+      hasPosition &&
+      cfg.show_position_bar !== false &&
+      barCovers.some((id) => railLive(id) !== null);
     // A single cover shows a bare rail — no glyph, there is nothing to tell apart.
     // The stack reserves a glyph lane to its LEFT rather than taking it out of the
     // rails, so a stacked rail and a lone rail are the same length and line up on

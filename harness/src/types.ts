@@ -5,6 +5,13 @@ export type CoverType =
   | 'cover_blind'
   | 'cover_awning'
   | 'cover_tilt'
+  /** Slats rotating in a horizontal/pitched roof plane (a pergola). Like
+   *  `cover_tilt` it is TILT-ONLY: the policy declares the slat axis and nothing
+   *  else, so that axis carries the primary-axis semantics — `inverse_state`
+   *  inverts it, and the integration publishes its value and target under the
+   *  position-named surfaces (`Cover_Position`, `actual_positions`). There is no
+   *  position axis anywhere in its discovery payload (issue #277). */
+  | 'cover_louvered_roof'
   | 'cover_venetian'
   /** Day/night dual-fabric shade. In the integration's `dual_entity` control
    *  model one entry binds two rail cover entities, so the card must handle a

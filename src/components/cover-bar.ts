@@ -13,7 +13,13 @@ import {
 } from '../lib/cover-position';
 import { formatCoverState, formatPercent } from '../lib/formatters';
 import { AXIS_LABEL_I18N_KEYS } from '../const';
-import { axisDisplayValue, positionAxisFor, resolveAxes, type ResolvedAxis } from '../lib/axes';
+import {
+  axisDisplayValue,
+  hasPositionAxis,
+  positionAxisFor,
+  resolveAxes,
+  type ResolvedAxis,
+} from '../lib/axes';
 import { setAxes, hasSetAxes } from '../lib/services';
 import { PendingMoves, isMovingState, isPendingVisible } from '../lib/pending-move';
 import { renderRailOverlay, railOverlayStyles } from './rail-overlay';
@@ -225,12 +231,19 @@ export class CoverBar extends LitElement {
     if (entries.length === 0) {
       return html`<div class="placeholder">${t('covers.placeholder', this.hass)}</div>`;
     }
-    // Data-driven axes: the position axis renders through the rich `_bar()`;
-    // every other declared axis (e.g. venetian tilt) renders through the
-    // generalized axis-bar. On an older integration `resolveAxes` synthesizes
-    // the same position (+ optional tilt) set, so output is unchanged.
+    // Data-driven axes: the position axis, WHEN THE ENTRY DECLARES ONE, renders
+    // through the rich `_bar()`; every other declared axis (e.g. venetian tilt)
+    // renders through the generalized axis-bar. On an older integration
+    // `resolveAxes` synthesizes the same position (+ optional tilt) set, so
+    // output is unchanged.
     const axes = resolveAxes(this.discovered);
     const secondaryAxes = axes.filter((a) => a.id !== 'position');
+    // A tilt-only cover type (`cover_tilt`, louvered roof) declares NO position
+    // axis, so it gets no Position track and no Position target chip — its slat
+    // axis is a secondary axis here and renders through `acp-tilt-bar`, which
+    // now finds its target on `Cover_Position` (issue #277). True on every
+    // legacy/no-discovery entry, so this gate is inert there.
+    const hasPosition = hasPositionAxis(this.discovered);
     // Carries the rail polarity (`open_blocks_sun`), with the same synthesized
     // fallback every other surface uses — a local copy is how the three
     // fallbacks drifted apart in the first place.
@@ -241,19 +254,21 @@ export class CoverBar extends LitElement {
         <div class="head">
           <span class="label">${t('covers.title', this.hass)}</span>
           <span class="targets">
-            <span
-              class="target"
-              ${motorDivergence !== null
-                ? tooltip(
-                    t('covers.target_tooltip_motor', this.hass, {
-                      pct: motorDivergence,
-                    }),
-                  )
-                : nothing}
-              >${t(overrideDivergence ? 'covers.target_solar' : 'covers.target', this.hass, {
-                pct: formatPercent(target),
-              })}</span
-            >
+            ${hasPosition
+              ? html`<span
+                  class="target"
+                  ${motorDivergence !== null
+                    ? tooltip(
+                        t('covers.target_tooltip_motor', this.hass, {
+                          pct: motorDivergence,
+                        }),
+                      )
+                    : nothing}
+                  >${t(overrideDivergence ? 'covers.target_solar' : 'covers.target', this.hass, {
+                    pct: formatPercent(target),
+                  })}</span
+                >`
+              : nothing}
             ${secondaryAxes.map(
               (axis) =>
                 html`<span class="target"
@@ -265,15 +280,17 @@ export class CoverBar extends LitElement {
         ${entries.map(
           ([id, actual]) => html`
             <div class="cover-group">
-              ${this._bar(
-                id,
-                actual,
-                target,
-                mismatched.has(id),
-                overrideDivergence,
-                transit[id] ?? null,
-                positionAxis,
-              )}
+              ${hasPosition
+                ? this._bar(
+                    id,
+                    actual,
+                    target,
+                    mismatched.has(id),
+                    overrideDivergence,
+                    transit[id] ?? null,
+                    positionAxis,
+                  )
+                : nothing}
               ${secondaryAxes.map(
                 (axis) =>
                   html`<acp-tilt-bar

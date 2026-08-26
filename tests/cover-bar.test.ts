@@ -1289,3 +1289,90 @@ describe('acp-cover-bar inverse_tilt frame normalization (#236)', () => {
     expect(tiltBarOf(el).actual).toBe(35);
   });
 });
+
+// ── tilt-only entry — no phantom position rail (#277) ────────────────────────
+
+describe('acp-cover-bar tilt-only entry — no phantom position rail (#277)', () => {
+  interface AxisBarLike extends HTMLElement {
+    updateComplete: Promise<boolean>;
+    actual: number | null;
+    target: number | null;
+  }
+
+  /**
+   * A louvered roof: `LouveredRoofPolicy.axes = (TILT_AXIS_PRIMARY,)`, so tilt
+   * is the ONLY declared axis and it carries the primary-axis `inverse_state`
+   * semantics. No `target_tilt_sensor` in `entities` — the integration creates
+   * `Cover_Tilt` only where `exposes_dual_axis_sensor` is true (venetian /
+   * day-night shade), so this entry's slat target lives on `Cover_Position`.
+   */
+  const louveredDiscovered: DiscoveredEntities = {
+    ...baseDiscovered,
+    cover_type: 'cover_louvered_roof',
+    entities: { target_position_sensor: 'sensor.cover_position' },
+    discovery: {
+      cover_type: 'cover_louvered_roof',
+      axes: [{ id: 'tilt', state_attr: 'current_tilt_position', supported: true, inverted: true }],
+    },
+  };
+
+  function louveredHass(callService = vi.fn()): HomeAssistant {
+    return {
+      services: { adaptive_cover_pro: { set_axes: {}, set_position: {}, set_tilt: {} } },
+      states: {
+        // For a tilt-only policy this sensor carries the SLAT target and the
+        // slat actuals — the integration publishes the PRIMARY axis under the
+        // position-named surfaces, whatever that axis happens to be called.
+        'sensor.cover_position': {
+          state: '60',
+          attributes: { actual_positions: { 'cover.a': 60 } },
+        },
+        'cover.a': {
+          state: 'open',
+          attributes: {
+            friendly_name: 'Cover A',
+            current_position: 60,
+            current_tilt_position: 65,
+          },
+        },
+      },
+      callService,
+    } as unknown as HomeAssistant;
+  }
+
+  async function mount(hass: HomeAssistant, discovered: DiscoveredEntities): Promise<CoverBarLike> {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    document.body.appendChild(el);
+    el.hass = hass;
+    el.discovered = discovered;
+    await el.updateComplete;
+    return el;
+  }
+
+  const tiltBarOf = (el: CoverBarLike): AxisBarLike =>
+    el.shadowRoot!.querySelector('acp-tilt-bar') as AxisBarLike;
+
+  it('renders no position track for a tilt-only entry', async () => {
+    const el = await mount(louveredHass(), louveredDiscovered);
+    // The host's `.fill` is the position track; the slat track lives inside the
+    // nested acp-tilt-bar's shadow root, so it is unaffected.
+    expect(el.shadowRoot!.querySelector('.fill')).toBeNull();
+    expect(tiltBarOf(el)).not.toBeNull();
+  });
+
+  it('hands the slat bar its target from the Cover_Position sensor', async () => {
+    const el = await mount(louveredHass(), louveredDiscovered);
+    expect(tiltBarOf(el).target).toBe(60);
+    // `inverted: true` on the slat axis, so the cover-frame 65 reads logical 35.
+    expect(tiltBarOf(el).actual).toBe(35);
+  });
+
+  it('shows one target chip — the slat axis, no position target', async () => {
+    const el = await mount(louveredHass(), louveredDiscovered);
+    const chips = el.shadowRoot!.querySelectorAll('.head .targets .target');
+    expect(chips.length).toBe(1);
+    expect(chips[0].textContent).toContain(
+      t('covers.tilt_target', undefined, { pct: formatPercent(60) }),
+    );
+  });
+});
