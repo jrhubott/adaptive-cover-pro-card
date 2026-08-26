@@ -1375,4 +1375,53 @@ describe('acp-cover-bar tilt-only entry — no phantom position rail (#277)', ()
       t('covers.tilt_target', undefined, { pct: formatPercent(60) }),
     );
   });
+
+  it('renders no go-to-target button for a tilt-only entry', async () => {
+    // `_gotoTarget` hardcodes `{position: target}`, which `set_axes` rejects on
+    // an entry that declares no position axis — so the button must not appear
+    // even though `set_axes` is exposed and a target exists.
+    const el = await mount(louveredHass(), louveredDiscovered);
+    expect(el.shadowRoot!.querySelector('.goto-target')).toBeNull();
+  });
+
+  // ── the row's non-position chrome survives (audit follow-up) ───────────────
+  // Dropping the position VALUE surfaces must not drop the row itself: two
+  // managed covers would otherwise render as two identical "Tilt" bars with no
+  // name, no more-info entry point and no mismatch alert.
+
+  it('keeps the cover-name row and its more-info affordance', async () => {
+    const el = await mount(louveredHass(), louveredDiscovered);
+    const name = el.shadowRoot!.querySelector('.cover .name') as HTMLElement | null;
+    expect(name).not.toBeNull();
+    expect(name!.textContent!.trim()).toBe('Cover A');
+    expect(name!.getAttribute('role')).toBe('button');
+    expect(name!.getAttribute('tabindex')).toBe('0');
+  });
+
+  it('keeps the position-mismatch warn icon for a mismatched tilt-only cover', async () => {
+    const hass = louveredHass();
+    (hass.states as Record<string, unknown>)['binary_sensor.position_mismatch'] = {
+      state: 'on',
+      attributes: { entities: { 'cover.a': { mismatch: true } } },
+    };
+    const el = await mount(hass, {
+      ...louveredDiscovered,
+      entities: {
+        target_position_sensor: 'sensor.cover_position',
+        position_mismatch_binary: 'binary_sensor.position_mismatch',
+      },
+    });
+    expect(el.shadowRoot!.querySelector('.cover ha-icon.warn')).not.toBeNull();
+  });
+
+  it('renders the entity state word with no position percent', async () => {
+    const el = await mount(louveredHass(), louveredDiscovered);
+    const num = el.shadowRoot!.querySelector('.cover .num') as HTMLElement | null;
+    expect(num).not.toBeNull();
+    // The cover's own HA state is not a card-fabricated number, so it stays;
+    // the `%` half describes an axis this entry does not have, so it goes.
+    expect(num!.textContent!.trim()).toBe('Open');
+    expect(num!.querySelector('.num-pct')).toBeNull();
+    expect(num!.querySelector('.num-sep')).toBeNull();
+  });
 });

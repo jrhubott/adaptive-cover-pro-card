@@ -231,18 +231,20 @@ export class CoverBar extends LitElement {
     if (entries.length === 0) {
       return html`<div class="placeholder">${t('covers.placeholder', this.hass)}</div>`;
     }
-    // Data-driven axes: the position axis, WHEN THE ENTRY DECLARES ONE, renders
-    // through the rich `_bar()`; every other declared axis (e.g. venetian tilt)
-    // renders through the generalized axis-bar. On an older integration
-    // `resolveAxes` synthesizes the same position (+ optional tilt) set, so
-    // output is unchanged.
+    // Data-driven axes: the position axis renders through the rich `_bar()`,
+    // which also owns the per-cover row chrome (name, state, mismatch badge);
+    // every other declared axis (e.g. venetian tilt) renders through the
+    // generalized axis-bar. On an older integration `resolveAxes` synthesizes
+    // the same position (+ optional tilt) set, so output is unchanged.
     const axes = resolveAxes(this.discovered);
     const secondaryAxes = axes.filter((a) => a.id !== 'position');
     // A tilt-only cover type (`cover_tilt`, louvered roof) declares NO position
-    // axis, so it gets no Position track and no Position target chip — its slat
-    // axis is a secondary axis here and renders through `acp-tilt-bar`, which
-    // now finds its target on `Cover_Position` (issue #277). True on every
-    // legacy/no-discovery entry, so this gate is inert there.
+    // axis, so it gets no Position target chip, and `_bar()` drops the position
+    // VALUE surfaces (track, marker, go-to-target, percent) while keeping the
+    // row itself — its slat axis is a secondary axis here and renders through
+    // `acp-tilt-bar`, which now finds its target on `Cover_Position` (issue
+    // #277). True on every legacy/no-discovery entry, so this gate is inert
+    // there.
     const hasPosition = hasPositionAxis(this.discovered);
     // Carries the rail polarity (`open_blocks_sun`), with the same synthesized
     // fallback every other surface uses — a local copy is how the three
@@ -280,17 +282,16 @@ export class CoverBar extends LitElement {
         ${entries.map(
           ([id, actual]) => html`
             <div class="cover-group">
-              ${hasPosition
-                ? this._bar(
-                    id,
-                    actual,
-                    target,
-                    mismatched.has(id),
-                    overrideDivergence,
-                    transit[id] ?? null,
-                    positionAxis,
-                  )
-                : nothing}
+              ${this._bar(
+                id,
+                actual,
+                target,
+                mismatched.has(id),
+                overrideDivergence,
+                transit[id] ?? null,
+                positionAxis,
+                hasPosition,
+              )}
               ${secondaryAxes.map(
                 (axis) =>
                   html`<acp-tilt-bar
@@ -315,6 +316,18 @@ export class CoverBar extends LitElement {
     `;
   }
 
+  /**
+   * One managed cover's row.
+   *
+   * Renders two separable things: the row's own chrome — the friendly-name tap
+   * target, the entity's state word, the mismatch badge — and the POSITION axis
+   * surfaces: the track with its fill/target marker, the percent readout and the
+   * go-to-target button. `hasPosition` drops only the second group, for a
+   * tilt-only entry that declares no position axis (issue #277). The row itself
+   * always renders: it is the only place a cover's name, more-info affordance
+   * and mismatch alert appear, and an entry with two managed covers would
+   * otherwise show two anonymous, identically-labelled slat bars.
+   */
   private _bar(
     entityId: string,
     actual: number | null,
@@ -323,6 +336,7 @@ export class CoverBar extends LitElement {
     overrideDivergence: boolean,
     transitDir: 'opening' | 'closing' | null,
     axis: ResolvedAxis,
+    hasPosition: boolean,
   ): TemplateResult {
     const friendly =
       (this.hass.states[entityId]?.attributes?.friendly_name as string | undefined) ?? entityId;
@@ -377,51 +391,64 @@ export class CoverBar extends LitElement {
                 ${tooltip(t('covers.' + transitDir, this.hass))}
               ></ha-icon>`
             : nothing}${stateText
-            ? html`<span class="num-state">${stateText}</span><span class="num-sep"> · </span>`
-            : nothing}<span class="num-pct">${numText}</span>
+            ? // The separator only earns its place between two halves. With no
+              // position axis the state word is the whole readout, so it trails
+              // no dangling "·".
+              html`<span class="num-state">${stateText}</span>${hasPosition
+                  ? html`<span class="num-sep"> · </span>`
+                  : nothing}`
+            : nothing}${hasPosition ? html`<span class="num-pct">${numText}</span>` : nothing}
         </div>
-        <div
-          class="track"
-          role="slider"
-          tabindex="0"
-          aria-valuemin="0"
-          aria-valuemax="100"
-          aria-valuenow=${fillPct}
-          aria-valuetext=${t('covers.position_open_value', this.hass, { pct: numText })}
-          aria-label=${t('covers.position_slider_label', this.hass)}
-          @click=${(e: MouseEvent) => this._handleTrackClick(e, entityId, axis)}
-          @pointerdown=${(e: PointerEvent) => this._onTrackPointerDown(e, entityId, axis)}
-          @pointermove=${(e: PointerEvent) => this._onTrackPointerMove(e, entityId, axis)}
-          @pointerup=${() => this._onTrackPointerEnd(entityId)}
-          @pointercancel=${() => this._onTrackPointerEnd(entityId)}
-          @keydown=${(e: KeyboardEvent) => this._onTrackKeydown(e, entityId, fillPct, axis)}
-          ${tooltip(t('covers.click_to_set', this.hass))}
-        >
-          <div class="fill" style="width:${fillPct}%"></div>
-          <div class="fill-closed" style="width:${100 - fillPct}%"></div>
-          ${pending !== null && pendingPct !== null
-            ? renderRailOverlay({
-                hass: this.hass,
-                liveFrac: fillPct,
-                pendingFrac: pendingPct,
-                pending,
-              })
-            : nothing}
-          ${target !== null
-            ? html`<div
-                class="marker"
-                style="left:clamp(1px, ${markerPct}%, calc(100% - 1px))"
-                ${tooltip(
-                  t(
-                    overrideDivergence ? 'covers.target_tooltip_override' : 'covers.target_tooltip',
-                    this.hass,
-                    { pct: targetPct },
-                  ),
-                )}
-              ></div>`
-            : nothing}
-        </div>
-        ${target !== null && hasSetAxes(this.hass)
+        ${hasPosition
+          ? html`<div
+              class="track"
+              role="slider"
+              tabindex="0"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow=${fillPct}
+              aria-valuetext=${t('covers.position_open_value', this.hass, { pct: numText })}
+              aria-label=${t('covers.position_slider_label', this.hass)}
+              @click=${(e: MouseEvent) => this._handleTrackClick(e, entityId, axis)}
+              @pointerdown=${(e: PointerEvent) => this._onTrackPointerDown(e, entityId, axis)}
+              @pointermove=${(e: PointerEvent) => this._onTrackPointerMove(e, entityId, axis)}
+              @pointerup=${() => this._onTrackPointerEnd(entityId)}
+              @pointercancel=${() => this._onTrackPointerEnd(entityId)}
+              @keydown=${(e: KeyboardEvent) => this._onTrackKeydown(e, entityId, fillPct, axis)}
+              ${tooltip(t('covers.click_to_set', this.hass))}
+            >
+              <div class="fill" style="width:${fillPct}%"></div>
+              <div class="fill-closed" style="width:${100 - fillPct}%"></div>
+              ${pending !== null && pendingPct !== null
+                ? renderRailOverlay({
+                    hass: this.hass,
+                    liveFrac: fillPct,
+                    pendingFrac: pendingPct,
+                    pending,
+                  })
+                : nothing}
+              ${target !== null
+                ? html`<div
+                    class="marker"
+                    style="left:clamp(1px, ${markerPct}%, calc(100% - 1px))"
+                    ${tooltip(
+                      t(
+                        overrideDivergence
+                          ? 'covers.target_tooltip_override'
+                          : 'covers.target_tooltip',
+                        this.hass,
+                        { pct: targetPct },
+                      ),
+                    )}
+                  ></div>`
+                : nothing}
+            </div>`
+          : // The row is a grid, so the track column has to be HELD, not
+            // collapsed: dropping the element outright slides the trailing
+            // spacer and the warn badge left into it, and offsets the slat
+            // track that `acp-tilt-bar` draws directly below on a matching grid.
+            html`<span class="track-spacer"></span>`}
+        ${hasPosition && target !== null && hasSetAxes(this.hass)
           ? html`<button
               class="goto-target"
               type="button"

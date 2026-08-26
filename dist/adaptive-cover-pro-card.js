@@ -2844,7 +2844,7 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
         </div>
         ${a.map(([t,s])=>H`
             <div class="cover-group">
-              ${h?this._bar(t,s,e,o.has(t),i,n[t]??null,p):V}
+              ${this._bar(t,s,e,o.has(t),i,n[t]??null,p,h)}
               ${d.map(e=>H`<acp-tilt-bar
                     .hass=${this.hass}
                     .label=${this._axisLabel(e)}
@@ -2861,7 +2861,7 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
             </div>
           `)}
       </div>
-    `}_bar(e,t,o,i,s,n,r){const a=this.hass.states[e]?.attributes?.friendly_name??e,l=o??0,c=this._dragPreview?.entityId===e?this._dragPreview.pct:null,d=nt(null!==c?c:t),h=c??t,p=null===h?0:ft(h,r),u=ft(l,r),_=lt(this.hass,e,n??void 0);this._lastLive.set(e,t);const g=Gi(this.hass.states[e]?.state)&&null!==o?l:null,m=null!==c?null:this._pending.get(e)??g,v=Ki(t,m)?m:null,f=null===v?null:ft(v,r);return H`
+    `}_bar(e,t,o,i,s,n,r,a){const l=this.hass.states[e]?.attributes?.friendly_name??e,c=o??0,d=this._dragPreview?.entityId===e?this._dragPreview.pct:null,h=nt(null!==d?d:t),p=d??t,u=null===p?0:ft(p,r),_=ft(c,r),g=lt(this.hass,e,n??void 0);this._lastLive.set(e,t);const m=Gi(this.hass.states[e]?.state)&&null!==o?c:null,v=null!==d?null:this._pending.get(e)??m,f=Ki(t,v)?v:null,b=null===f?null:ft(f,r);return H`
       <div class="cover ${i?"mismatch":""}">
         <div
           class="name"
@@ -2871,46 +2871,46 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
           @keydown=${this._onNameKeydown}
           ${Ao(e)}
         >
-          ${a}
+          ${l}
         </div>
         <div class="num">
-          ${n&&!_?H`<ha-icon
+          ${n&&!g?H`<ha-icon
                 class="transit transit-${n}"
                 icon=${"opening"===n?"mdi:arrow-up-thin":"mdi:arrow-down-thin"}
                 ${Ao(st("covers."+n,this.hass))}
-              ></ha-icon>`:V}${_?H`<span class="num-state">${_}</span><span class="num-sep"> · </span>`:V}<span class="num-pct">${d}</span>
+              ></ha-icon>`:V}${g?H`<span class="num-state">${g}</span>${a?H`<span class="num-sep"> · </span>`:V}`:V}${a?H`<span class="num-pct">${h}</span>`:V}
         </div>
-        <div
-          class="track"
-          role="slider"
-          tabindex="0"
-          aria-valuemin="0"
-          aria-valuemax="100"
-          aria-valuenow=${p}
-          aria-valuetext=${st("covers.position_open_value",this.hass,{pct:d})}
-          aria-label=${st("covers.position_slider_label",this.hass)}
-          @click=${t=>this._handleTrackClick(t,e,r)}
-          @pointerdown=${t=>this._onTrackPointerDown(t,e,r)}
-          @pointermove=${t=>this._onTrackPointerMove(t,e,r)}
-          @pointerup=${()=>this._onTrackPointerEnd(e)}
-          @pointercancel=${()=>this._onTrackPointerEnd(e)}
-          @keydown=${t=>this._onTrackKeydown(t,e,p,r)}
-          ${Ao(st("covers.click_to_set",this.hass))}
-        >
-          <div class="fill" style="width:${p}%"></div>
-          <div class="fill-closed" style="width:${100-p}%"></div>
-          ${null!==v&&null!==f?Hi({hass:this.hass,liveFrac:p,pendingFrac:f,pending:v}):V}
-          ${null!==o?H`<div
-                class="marker"
-                style="left:clamp(1px, ${u}%, calc(100% - 1px))"
-                ${Ao(st(s?"covers.target_tooltip_override":"covers.target_tooltip",this.hass,{pct:l}))}
-              ></div>`:V}
-        </div>
-        ${null!==o&&Zi(this.hass)?H`<button
+        ${a?H`<div
+              class="track"
+              role="slider"
+              tabindex="0"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow=${u}
+              aria-valuetext=${st("covers.position_open_value",this.hass,{pct:h})}
+              aria-label=${st("covers.position_slider_label",this.hass)}
+              @click=${t=>this._handleTrackClick(t,e,r)}
+              @pointerdown=${t=>this._onTrackPointerDown(t,e,r)}
+              @pointermove=${t=>this._onTrackPointerMove(t,e,r)}
+              @pointerup=${()=>this._onTrackPointerEnd(e)}
+              @pointercancel=${()=>this._onTrackPointerEnd(e)}
+              @keydown=${t=>this._onTrackKeydown(t,e,u,r)}
+              ${Ao(st("covers.click_to_set",this.hass))}
+            >
+              <div class="fill" style="width:${u}%"></div>
+              <div class="fill-closed" style="width:${100-u}%"></div>
+              ${null!==f&&null!==b?Hi({hass:this.hass,liveFrac:u,pendingFrac:b,pending:f}):V}
+              ${null!==o?H`<div
+                    class="marker"
+                    style="left:clamp(1px, ${_}%, calc(100% - 1px))"
+                    ${Ao(st(s?"covers.target_tooltip_override":"covers.target_tooltip",this.hass,{pct:c}))}
+                  ></div>`:V}
+            </div>`:H`<span class="track-spacer"></span>`}
+        ${a&&null!==o&&Zi(this.hass)?H`<button
               class="goto-target"
               type="button"
-              aria-label=${st("covers.goto_target",this.hass,{pct:l})}
-              ${Ao(st("covers.goto_target",this.hass,{pct:l}))}
+              aria-label=${st("covers.goto_target",this.hass,{pct:c})}
+              ${Ao(st("covers.goto_target",this.hass,{pct:c}))}
               @click=${()=>this._gotoTarget(e,o)}
             >
               <ha-icon icon="mdi:target"></ha-icon>
