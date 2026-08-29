@@ -1289,3 +1289,280 @@ describe('acp-cover-bar inverse_tilt frame normalization (#236)', () => {
     expect(tiltBarOf(el).actual).toBe(35);
   });
 });
+
+// ── tilt-only entry — no phantom position rail (#277) ────────────────────────
+
+describe('acp-cover-bar tilt-only entry — no phantom position rail (#277)', () => {
+  interface AxisBarLike extends HTMLElement {
+    updateComplete: Promise<boolean>;
+    actual: number | null;
+    target: number | null;
+  }
+
+  /**
+   * A louvered roof: `LouveredRoofPolicy.axes = (TILT_AXIS_PRIMARY,)`, so tilt
+   * is the ONLY declared axis and it carries the primary-axis `inverse_state`
+   * semantics. No `target_tilt_sensor` in `entities` — the integration creates
+   * `Cover_Tilt` only where `exposes_dual_axis_sensor` is true (venetian /
+   * day-night shade), so this entry's slat target lives on `Cover_Position`.
+   */
+  const louveredDiscovered: DiscoveredEntities = {
+    ...baseDiscovered,
+    cover_type: 'cover_louvered_roof',
+    entities: { target_position_sensor: 'sensor.cover_position' },
+    discovery: {
+      cover_type: 'cover_louvered_roof',
+      axes: [{ id: 'tilt', state_attr: 'current_tilt_position', supported: true, inverted: true }],
+    },
+  };
+
+  function louveredHass(callService = vi.fn()): HomeAssistant {
+    return {
+      services: { adaptive_cover_pro: { set_axes: {}, set_position: {}, set_tilt: {} } },
+      states: {
+        // For a tilt-only policy this sensor carries the SLAT target and the
+        // slat actuals — the integration publishes the PRIMARY axis under the
+        // position-named surfaces, whatever that axis happens to be called.
+        'sensor.cover_position': {
+          state: '60',
+          attributes: { actual_positions: { 'cover.a': 60 } },
+        },
+        'cover.a': {
+          state: 'open',
+          attributes: {
+            friendly_name: 'Cover A',
+            current_position: 60,
+            current_tilt_position: 65,
+          },
+        },
+      },
+      callService,
+    } as unknown as HomeAssistant;
+  }
+
+  async function mount(hass: HomeAssistant, discovered: DiscoveredEntities): Promise<CoverBarLike> {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    document.body.appendChild(el);
+    el.hass = hass;
+    el.discovered = discovered;
+    await el.updateComplete;
+    return el;
+  }
+
+  const tiltBarOf = (el: CoverBarLike): AxisBarLike =>
+    el.shadowRoot!.querySelector('acp-tilt-bar') as AxisBarLike;
+
+  it('renders no position track for a tilt-only entry', async () => {
+    const el = await mount(louveredHass(), louveredDiscovered);
+    // The host's `.fill` is the position track; the slat track lives inside the
+    // nested acp-tilt-bar's shadow root, so it is unaffected.
+    expect(el.shadowRoot!.querySelector('.fill')).toBeNull();
+    expect(tiltBarOf(el)).not.toBeNull();
+  });
+
+  it('hands the slat bar its target from the Cover_Position sensor', async () => {
+    const el = await mount(louveredHass(), louveredDiscovered);
+    expect(tiltBarOf(el).target).toBe(60);
+    // `inverted: true` on the slat axis, so the cover-frame 65 reads logical 35.
+    expect(tiltBarOf(el).actual).toBe(35);
+  });
+
+  it('shows one target chip — the slat axis, no position target', async () => {
+    const el = await mount(louveredHass(), louveredDiscovered);
+    const chips = el.shadowRoot!.querySelectorAll('.head .targets .target');
+    expect(chips.length).toBe(1);
+    expect(chips[0].textContent).toContain(
+      t('covers.tilt_target', undefined, { pct: formatPercent(60) }),
+    );
+  });
+
+  it('renders no go-to-target button for a tilt-only entry', async () => {
+    // `_gotoTarget` hardcodes `{position: target}`, which `set_axes` rejects on
+    // an entry that declares no position axis — so the button must not appear
+    // even though `set_axes` is exposed and a target exists.
+    const el = await mount(louveredHass(), louveredDiscovered);
+    expect(el.shadowRoot!.querySelector('.goto-target')).toBeNull();
+  });
+
+  // ── the row's non-position chrome survives (audit follow-up) ───────────────
+  // Dropping the position VALUE surfaces must not drop the row itself: two
+  // managed covers would otherwise render as two identical "Tilt" bars with no
+  // name, no more-info entry point and no mismatch alert.
+
+  it('keeps the cover-name row and its more-info affordance', async () => {
+    const el = await mount(louveredHass(), louveredDiscovered);
+    const name = el.shadowRoot!.querySelector('.cover .name') as HTMLElement | null;
+    expect(name).not.toBeNull();
+    expect(name!.textContent!.trim()).toBe('Cover A');
+    expect(name!.getAttribute('role')).toBe('button');
+    expect(name!.getAttribute('tabindex')).toBe('0');
+  });
+
+  it('keeps the position-mismatch warn icon for a mismatched tilt-only cover', async () => {
+    const hass = louveredHass();
+    (hass.states as Record<string, unknown>)['binary_sensor.position_mismatch'] = {
+      state: 'on',
+      attributes: { entities: { 'cover.a': { mismatch: true } } },
+    };
+    const el = await mount(hass, {
+      ...louveredDiscovered,
+      entities: {
+        target_position_sensor: 'sensor.cover_position',
+        position_mismatch_binary: 'binary_sensor.position_mismatch',
+      },
+    });
+    expect(el.shadowRoot!.querySelector('.cover ha-icon.warn')).not.toBeNull();
+  });
+
+  it('renders the entity state word with no position percent', async () => {
+    const el = await mount(louveredHass(), louveredDiscovered);
+    const num = el.shadowRoot!.querySelector('.cover .num') as HTMLElement | null;
+    expect(num).not.toBeNull();
+    // The cover's own HA state is not a card-fabricated number, so it stays;
+    // the `%` half describes an axis this entry does not have, so it goes.
+    expect(num!.textContent!.trim()).toBe('Open');
+    expect(num!.querySelector('.num-pct')).toBeNull();
+    expect(num!.querySelector('.num-sep')).toBeNull();
+  });
+
+  // ── the leading axis rides the POSITION target pipeline (audit follow-up) ──
+  // Its target sensor IS `Cover_Position`, so the two things the position path
+  // already applies to that sensor — the held-vs-solar swap (#158) and the
+  // linear-preferred read (#219) — apply to it too. Reading the sensor's raw
+  // STATE here would show the HELD value where a position entry's rail shows
+  // the solar one.
+
+  /** The same entry with the pipeline surfaces the POSITION path reads off this
+   *  sensor: the held value in `state`, the pre-interpolation logical value in
+   *  `linear_position`, the solar would-be target in `raw_calculated_position`. */
+  function louveredPipelineHass(opts: {
+    state?: string;
+    linear?: number;
+    solar?: number;
+    override?: boolean;
+  }): HomeAssistant {
+    const hass = louveredHass();
+    (hass.states as Record<string, unknown>)['sensor.cover_position'] = {
+      state: opts.state ?? '60',
+      attributes: {
+        actual_positions: { 'cover.a': 60 },
+        ...(opts.linear !== undefined ? { linear_position: opts.linear } : {}),
+        ...(opts.solar !== undefined ? { raw_calculated_position: opts.solar } : {}),
+      },
+    };
+    (hass.states as Record<string, unknown>)['binary_sensor.manual_override'] = {
+      state: opts.override ? 'on' : 'off',
+      attributes: {},
+    };
+    return hass;
+  }
+
+  const pipelineDiscovered: DiscoveredEntities = {
+    ...louveredDiscovered,
+    entities: {
+      target_position_sensor: 'sensor.cover_position',
+      manual_override_binary: 'binary_sensor.manual_override',
+    },
+  };
+
+  it('marks the slat target with the solar would-be value during a diverging override (#158)', async () => {
+    const el = await mount(
+      louveredPipelineHass({ state: '60', solar: 20, override: true }),
+      pipelineDiscovered,
+    );
+    // The sensor STATE is the HELD 60 while the pipeline's would-be answer is
+    // 20. A position entry's rail marks 20 here; the slat bar must agree.
+    expect(tiltBarOf(el).target).toBe(20);
+    const chip = el.shadowRoot!.querySelector('.head .targets .target')!.textContent!;
+    expect(chip).toContain('20');
+    expect(chip).not.toContain('60');
+  });
+
+  it('prefers linear_position over the motor state for the slat target (#219)', async () => {
+    const el = await mount(louveredPipelineHass({ state: '60', linear: 55 }), pipelineDiscovered);
+    // `coverHeldPosition` prefers the pre-interpolation logical value; the raw
+    // state 60 is what the motor was actually sent.
+    expect(tiltBarOf(el).target).toBe(55);
+  });
+
+  it('discloses the motor value on the slat target chip when interpolation bends it (#219)', async () => {
+    const el = await mount(louveredPipelineHass({ state: '60', linear: 55 }), pipelineDiscovered);
+    const chip = el.shadowRoot!.querySelector('.head .targets .target') as HTMLElement;
+    expect(chip.getAttribute('data-tooltip')).toContain('Motor: 60%');
+  });
+
+  it('attaches no motor tooltip to the slat chip when there is nothing to disclose', async () => {
+    const el = await mount(louveredPipelineHass({ state: '60' }), pipelineDiscovered);
+    const chip = el.shadowRoot!.querySelector('.head .targets .target') as HTMLElement;
+    expect(chip.getAttribute('data-tooltip')).toBeNull();
+  });
+
+  it("leaves a venetian's slat target on its own Cover_Tilt sensor", async () => {
+    // The pipeline belongs to the axis whose target lives on `Cover_Position`.
+    // A venetian's tilt is a genuine SECONDARY axis with its own sensor, so a
+    // diverging override on the position axis must not leak into it.
+    const hass = louveredPipelineHass({ state: '60', solar: 20, override: true });
+    (hass.states as Record<string, unknown>)['sensor.cover_tilt'] = {
+      state: '70',
+      attributes: {},
+    };
+    const el = await mount(hass, {
+      ...pipelineDiscovered,
+      cover_type: 'cover_venetian',
+      entities: {
+        ...pipelineDiscovered.entities,
+        target_tilt_sensor: 'sensor.cover_tilt',
+      },
+      discovery: {
+        cover_type: 'cover_venetian',
+        axes: [
+          { id: 'position', state_attr: 'current_position', supported: true, inverted: false },
+          { id: 'tilt', state_attr: 'current_tilt_position', supported: true, inverted: false },
+        ],
+      },
+    });
+    expect(tiltBarOf(el).target).toBe(70);
+  });
+
+  // ── layout invariants that no other assertion catches (audit follow-up) ────
+
+  it('holds the track column with a .track-spacer so the slat bar stays aligned', async () => {
+    // NOT redundant with "renders no position track". `.cover` is a CSS grid
+    // whose `grid-template-columns` `acp-axis-bar`'s `.row.cover` copies
+    // verbatim so the two tracks line up. Emitting `nothing` for the track
+    // instead of this placeholder would slide the go-to-target spacer and the
+    // warn badge one column left and offset the slat track drawn directly
+    // below — a silent layout break that passes every other test in this file.
+    // Do not delete this as duplicative: it is the ONLY guard on the spacer.
+    const el = await mount(louveredHass(), louveredDiscovered);
+    const row = el.shadowRoot!.querySelector('.cover') as HTMLElement;
+    expect(row.querySelector('.track-spacer')).not.toBeNull();
+    // Column order, left to right, against the 5-column grid: name · readout ·
+    // track cell · go-to-target cell. (The 5th, the warn badge, renders only on
+    // a mismatch — see the mismatch test above.)
+    expect([...row.children].map((c) => c.className)).toEqual([
+      'name',
+      'num',
+      'track-spacer',
+      'goto-target-spacer',
+    ]);
+  });
+
+  it('keeps a placeholder in the readout cell for an unavailable tilt-only cover', async () => {
+    const hass = louveredHass();
+    (hass.states as Record<string, unknown>)['cover.a'] = {
+      state: 'unavailable',
+      attributes: { friendly_name: 'Cover A' },
+    };
+    const el = await mount(hass, louveredDiscovered);
+    const num = el.shadowRoot!.querySelector('.cover .num') as HTMLElement;
+    // `formatCoverState` returns null for an unavailable cover and there is no
+    // transit glyph either, so with the `%` half gated off the cell would be
+    // completely blank — a dead row with no cue that it is dead. The position
+    // path never blanks: it always emits `.num-pct`, which renders
+    // `formatPercent(null)` = "—" when there is no value to show. Same cell,
+    // same placeholder.
+    expect(num.querySelector('.num-pct')).not.toBeNull();
+    expect(num.textContent!.trim()).toBe(formatPercent(null));
+  });
+});

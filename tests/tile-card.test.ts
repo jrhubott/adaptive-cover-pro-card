@@ -1853,6 +1853,7 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
       integrationEnabled?: boolean;
       customPositionMinimumMode?: boolean;
       priority?: number | null;
+      sensorName?: string | null;
     } = {},
   ): HomeAssistant {
     const {
@@ -1862,6 +1863,7 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
       integrationEnabled = true,
       customPositionMinimumMode = false,
       priority = 1,
+      sensorName = 'Aeration',
     } = opts;
     const hass = makeHass({
       decisionState: winner,
@@ -1874,7 +1876,7 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
             slot: 1,
             enabled: true,
             sensor: 'input_boolean.floor_sensor',
-            sensor_name: 'Aeration',
+            sensor_name: sensorName,
             position: 25,
             priority,
             min_mode: true,
@@ -1925,7 +1927,14 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeFloorHass());
     const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
     expect(chip).toBeTruthy();
-    expect(chip!.textContent?.trim()).toMatch(/↥\s*25%/);
+    expect(chip!.textContent?.trim()).toMatch(/↥\s*Aeration\s*·\s*25%/);
+  });
+
+  it('omits the name segment when the winning slot has no sensor_name', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeFloorHass({ sensorName: null }));
+    const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
+    expect(chip).toBeTruthy();
+    expect(chip!.textContent?.trim()).toMatch(/^↥\s*25%$/);
   });
 
   it('detailed: floor chip rides the dedicated badge row, not the one-line grid (#208 follow-up)', async () => {
@@ -2061,6 +2070,9 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
     expect(chip).toBeTruthy();
     // Should show the highest floor (45%), not the lower one (20%)
     expect(chip!.textContent?.trim()).toMatch(/45%/);
+    // Only the winning (highest-position) slot's name should surface.
+    expect(chip!.textContent).toContain('High floor');
+    expect(chip!.textContent).not.toContain('Low floor');
   });
 });
 
@@ -3175,6 +3187,268 @@ describe('adaptive-cover-pro-tile-card — inverse_tilt frame normalization (#23
       { axes: { tilt: 80 } },
       { entity_id: 'cover.left' },
     );
+  });
+});
+
+// ── tilt-only cover type — louvered roof (#277) ──────────────────────────────
+
+/** The reporter's entry: no `Cover_Tilt` sensor, because the integration only
+ *  creates one where `exposes_dual_axis_sensor` is true (venetian / day-night
+ *  shade). A louvered roof's slat target lives on `Cover_Position`. */
+const LOUVERED_REGISTRY: EntityRegistryEntry[] = [
+  ...REGISTRY,
+  {
+    entity_id: 'sensor.control_status',
+    unique_id: `${ENTRY}_control_status`,
+    config_entry_id: ENTRY,
+    platform: 'adaptive_cover_pro',
+    device_id: null,
+  },
+];
+
+const SLATS = 'cover.pergola_slats';
+
+/** `LouveredRoofPolicy.axes = (TILT_AXIS_PRIMARY,)` — one axis, and it is the
+ *  slat axis. There is no position axis anywhere in the payload. */
+const TILT_ONLY_AXES = [
+  {
+    id: 'tilt',
+    label: 'Tilt',
+    state_attr: 'current_tilt_position',
+    supported: true,
+    inverted: false,
+  },
+];
+
+/** Every dual-axis policy declares `(POSITION_AXIS, TILT_AXIS)` in that order. */
+const VENETIAN_AXES = [
+  {
+    id: 'position',
+    label: 'Position',
+    state_attr: 'current_position',
+    supported: true,
+    inverted: false,
+  },
+  {
+    id: 'tilt',
+    label: 'Tilt',
+    state_attr: 'current_tilt_position',
+    supported: true,
+    inverted: false,
+  },
+];
+
+/**
+ * The field-reported shape: the cover reports `current_position: 0` (an axis
+ * this entry does not drive) while the slats it DOES drive sit at 23, and the
+ * entry's `Cover_Position` sensor carries the slat target (80).
+ */
+function louveredHass(
+  opts: {
+    tilt?: number;
+    position?: number;
+    coverType?: string;
+    axes?: Record<string, unknown>[];
+    callService?: (...args: unknown[]) => unknown;
+  } = {},
+): HomeAssistant {
+  const tilt = opts.tilt ?? 23;
+  const coverType = opts.coverType ?? 'cover_louvered_roof';
+  const h = makeHass({
+    callService: opts.callService,
+    coverPositionSensorAttrs: { actual_positions: { [SLATS]: tilt } },
+  });
+  h.states['sensor.cover_position'].state = '80';
+  h.states['sensor.control_status'] = {
+    state: 'auto',
+    attributes: {
+      cover_type: coverType,
+      cover_discovery: { cover_type: coverType, axes: opts.axes ?? TILT_ONLY_AXES },
+    },
+  } as never;
+  h.states[SLATS] = {
+    state: 'open',
+    attributes: {
+      friendly_name: 'Pergola Slats',
+      device_class: 'blind',
+      current_position: opts.position ?? 0,
+      current_tilt_position: tilt,
+    },
+  } as never;
+  (h as unknown as { services: unknown }).services = { adaptive_cover_pro: { set_axes: {} } };
+  (h as unknown as { callWS: unknown }).callWS = vi.fn().mockResolvedValue(LOUVERED_REGISTRY);
+  return h;
+}
+
+async function mountLouvered(
+  hass: HomeAssistant,
+  config: Partial<AdaptiveCoverProTileCardConfig> = {},
+): Promise<CardLike> {
+  const el = makeCard();
+  el.setConfig({ type: TYPE, entry_id: ENTRY, ...config });
+  el.hass = hass;
+  document.body.appendChild(el);
+  el._registry = LOUVERED_REGISTRY;
+  await el.updateComplete;
+  return el;
+}
+
+describe('adaptive-cover-pro-tile-card — tilt-only cover type (#277)', () => {
+  const btn = (el: CardLike, cls: string): HTMLButtonElement =>
+    el.shadowRoot!.querySelector(`button.${cls}`) as HTMLButtonElement;
+
+  it('↑ dispatches set_axes {tilt: 100}, never {position: 100}', async () => {
+    // `set_axes` validates every key against `policy.supported_axes(caps)` and
+    // raises for an unsupported one, so a `{position: …}` payload here is not a
+    // no-op — it is an error toast and a cover that never moves.
+    const callService = vi.fn();
+    const el = await mountLouvered(louveredHass({ callService }));
+    btn(el, 'up').click();
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { tilt: 100 } },
+      { entity_id: SLATS },
+    );
+  });
+
+  it('keeps ↓ live at current_position: 0 — at-closed gates on the slat axis', async () => {
+    // The reporter's exact symptom: `current_position` is 0 for an axis the
+    // entry does not have, so Close was greyed out on slats sitting at 23.
+    const el = await mountLouvered(louveredHass());
+    expect(btn(el, 'down').disabled).toBe(false);
+    expect(btn(el, 'up').disabled).toBe(false);
+  });
+
+  it('renders no position rail for an entry with no position axis', async () => {
+    const el = await mountLouvered(louveredHass());
+    expect(el.shadowRoot!.querySelector('.pos-bar')).toBeNull();
+  });
+
+  it('renders no % readout, but keeps the entity state text', async () => {
+    // `stateText` is the cover's own HA state, not a card-fabricated number —
+    // "Open" for a pergola with slats at 23% is true and useful. Only the `%`
+    // half describes an axis the entry does not have.
+    const el = await mountLouvered(louveredHass());
+    const readout = el.shadowRoot!.querySelector('.state')?.textContent?.trim();
+    expect(readout).toBe('Open');
+    expect(readout).not.toContain('0%');
+  });
+
+  it('hands the slat bar its target from the Cover_Position sensor', async () => {
+    const el = await mountLouvered(louveredHass());
+    const tiltBar = el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
+      actual: number | null;
+      target: number | null;
+    };
+    expect(tiltBar).not.toBeNull();
+    expect(tiltBar.actual).toBe(23);
+    expect(tiltBar.target).toBe(80);
+  });
+
+  it('does not force the fully-closed icon variant from a position the entry does not have', async () => {
+    const el = await mountLouvered(louveredHass());
+    const icon = el.shadowRoot!.querySelector('ha-icon.cover-icon') as HTMLElement;
+    expect(icon).not.toBeNull();
+    // device_class `blind`: a live 0 picks `closed`, no live value picks
+    // `partial`. The tile must not paint "fully closed" off a phantom axis.
+    expect(icon.getAttribute('icon')).not.toBe('mdi:blinds-horizontal-closed');
+    expect(icon.getAttribute('icon')).toBe('mdi:blinds-horizontal');
+  });
+
+  // ── pins: green before and after, so the fix cannot overshoot ──────────────
+
+  it('disables ↓ only when the slat axis itself is at its minimum', async () => {
+    const el = await mountLouvered(louveredHass({ tilt: 0 }));
+    expect(btn(el, 'down').disabled).toBe(true);
+    expect(btn(el, 'up').disabled).toBe(false);
+  });
+
+  it('a dual-axis (venetian) entry still defaults ↑/↓ to {position: …}', async () => {
+    // The hazard the old `axes[0]` revert was about. A venetian declares
+    // position FIRST, so the leading-axis default resolves to it unchanged.
+    const callService = vi.fn();
+    const el = await mountLouvered(
+      louveredHass({ callService, coverType: 'cover_venetian', axes: VENETIAN_AXES, position: 60 }),
+    );
+    btn(el, 'down').click();
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { position: 0 } },
+      { entity_id: SLATS },
+    );
+  });
+
+  it('controls_axis: "tilt" explicitly retargets ↑/↓ on a dual-axis entry', async () => {
+    const callService = vi.fn();
+    const el = await mountLouvered(
+      louveredHass({ callService, coverType: 'cover_venetian', axes: VENETIAN_AXES, position: 60 }),
+      { controls_axis: 'tilt' },
+    );
+    btn(el, 'down').click();
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'set_axes',
+      { axes: { tilt: 0 } },
+      { entity_id: SLATS },
+    );
+  });
+
+  // ── audit follow-ups ──────────────────────────────────────────────────────
+
+  const slatBar = (
+    el: CardLike,
+  ): HTMLElement & { target: number | null; movingTo: number | null } =>
+    el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
+      target: number | null;
+      movingTo: number | null;
+    };
+
+  it('prefers linear_position over the raw sensor state for the slat target (#219)', async () => {
+    // The leading axis's target sensor IS `Cover_Position`, so it takes the same
+    // read the tile's own position rail takes off that sensor — the
+    // pre-interpolation logical value, not the value dispatched to the motor.
+    const hass = louveredHass();
+    (hass.states['sensor.cover_position'].attributes as Record<string, unknown>).linear_position =
+      74;
+    const el = await mountLouvered(hass);
+    expect(slatBar(el).target).toBe(74);
+  });
+
+  it('arms the slat bar’s moving-to indicator when ↓ drives the leading axis', async () => {
+    // The ↑/↓ buttons drive the leading axis straight to its max/min without
+    // going near the bar, so the bar cannot arm its own indicator — the tile
+    // has to hand it the destination or a tilt-only entry gets no feedback at
+    // all from a button press.
+    const el = await mountLouvered(louveredHass());
+    expect(slatBar(el).movingTo).toBeNull();
+    btn(el, 'down').click();
+    await el.updateComplete;
+    expect(slatBar(el).movingTo).toBe(0);
+  });
+
+  it('leaves the moving-to hint alone when the slat bar itself commanded the move', async () => {
+    // A venetian's secondary axis is driven THROUGH `acp-axis-bar`, which arms
+    // its own indicator; a second host-owned band for the same command would be
+    // two answers to one question.
+    const el = await mountLouvered(
+      louveredHass({ coverType: 'cover_venetian', axes: VENETIAN_AXES, position: 60 }),
+    );
+    const bar = slatBar(el);
+    bar.dispatchEvent(new CustomEvent('acp-tilt-set', { detail: 80, bubbles: true }));
+    await el.updateComplete;
+    expect(bar.movingTo).toBeNull();
+  });
+
+  it('a dual-axis ↓ still arms the POSITION rail, not the slat bar', async () => {
+    const el = await mountLouvered(
+      louveredHass({ coverType: 'cover_venetian', axes: VENETIAN_AXES, position: 60 }),
+    );
+    btn(el, 'down').click();
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('.pos-pending')).not.toBeNull();
+    expect(slatBar(el).movingTo).toBeNull();
   });
 });
 

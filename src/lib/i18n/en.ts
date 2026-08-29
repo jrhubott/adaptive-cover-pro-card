@@ -216,6 +216,9 @@ export const en = {
     cover_position_target_awning: 'Target (extended): {pct}%',
     cover_position_actual: 'Actual: {pct}%',
     blind_spot: 'Blind spot: {from} – {to}',
+    blind_spot_active: 'Blind spot active',
+    blind_spot_active_tooltip:
+      'The sun is inside a configured blind spot, but the integration isn’t publishing its geometry yet — the wedge can’t be drawn.',
     elev_suffix: ' · elev {min}–{max}',
   },
   covers: {

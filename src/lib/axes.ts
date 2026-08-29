@@ -97,6 +97,17 @@ function capitalize(id: string): string {
  * declared order, and map each axis id onto its target-sensor role. Every field
  * is read defensively so a partial payload still resolves.
  *
+ * The role mapping is id-based with one exception: the entry's *declared
+ * leading* axis always takes `target_position_sensor`, whatever its id. That
+ * mirrors the integration exactly — `Cover_Position` carries the PRIMARY axis's
+ * target for every cover type, and `Cover_Tilt` is created only where
+ * `exposes_dual_axis_sensor` is true (venetian / day-night shade). Without it a
+ * tilt-only policy's slat axis looks for a `Cover_Tilt` entity that was never
+ * created, and its target renders nowhere (issue #277). It keys on the DECLARED
+ * leader rather than the surviving one, so a dual-axis entry whose position axis
+ * is merely undrivable keeps its real `Cover_Tilt` sensor. No-op for every entry
+ * whose leading axis is already `position`, which is every non-tilt-only policy.
+ *
  * Fallback path (no `cover_discovery`, or a malformed one): synthesize a
  * `position` axis always, and a `tilt` axis only when `target_tilt_sensor`
  * exists — the card's original dual-axis gate. Labels/min/max/unit take card
@@ -105,6 +116,7 @@ function capitalize(id: string): string {
 export function resolveAxes(discovered: DiscoveredEntities): ResolvedAxis[] {
   const axes = discovered.discovery?.axes;
   if (Array.isArray(axes)) {
+    const leadingDeclaredId = axes.find((a) => !!a && typeof a.id === 'string')?.id;
     return axes
       .filter(
         (a): a is NonNullable<typeof a> => !!a && typeof a.id === 'string' && a.supported !== false,
@@ -116,7 +128,10 @@ export function resolveAxes(discovered: DiscoveredEntities): ResolvedAxis[] {
         max: typeof a.max === 'number' ? a.max : DEFAULT_MAX,
         unit: typeof a.unit === 'string' ? a.unit : DEFAULT_UNIT,
         stateAttr: typeof a.state_attr === 'string' ? a.state_attr : undefined,
-        targetRole: AXIS_TARGET_SENSOR_ROLES[a.id as string],
+        targetRole:
+          a.id === leadingDeclaredId
+            ? 'target_position_sensor'
+            : AXIS_TARGET_SENSOR_ROLES[a.id as string],
         inverted: a.inverted === true,
         // Read defensively like every other field: an integration that publishes
         // `cover_discovery` but predates `open_blocks_sun` must not have its
@@ -161,14 +176,20 @@ export function resolveAxes(discovered: DiscoveredEntities): ResolvedAxis[] {
 }
 
 /**
- * The entry's position axis, always resolvable.
+ * The entry's position axis, always resolvable — the card's POLARITY oracle.
  *
  * Discovery publishes it for every cover type that HAS one; a tilt-only type
  * (`cover_tilt`, louvered roof) publishes only its slat axis, and an older
- * integration publishes nothing at all. Both cases still render position rails,
- * so they need a defined polarity rather than whatever `axes[0]` happens to be —
- * handing a slat axis to {@link axisDisplayValue} would take its min/max, which
- * need not be the 0–100 a track fraction is expressed in.
+ * integration publishes nothing at all. Those two cases still need a defined
+ * `open_blocks_sun` and a 0–100 range, because the sky compass wedge, the three
+ * group surfaces and `geometry.ts` all take one from here — handing a slat axis
+ * to {@link axisDisplayValue} instead would take its min/max, which need not be
+ * the 0–100 a track fraction is expressed in.
+ *
+ * It is deliberately NOT the answer to "does this entry drive a position?" —
+ * it always says yes. Surfaces that render a position VALUE ask
+ * {@link hasPositionAxis}, and the ↑■↓ buttons take {@link primaryAxisFor}
+ * (issue #277).
  *
  * Single source for that fallback: it was synthesized in three places, and the
  * copies had already drifted apart.
@@ -187,6 +208,46 @@ export function positionAxisFor(discovered: DiscoveredEntities): ResolvedAxis {
       openBlocksSun: fallbackOpenBlocksSun(discovered, 'position'),
     }
   );
+}
+
+/**
+ * Does this entry actually HAVE a position axis?
+ *
+ * The predicate {@link positionAxisFor} deliberately cannot answer: it always
+ * returns one, because the compass wedge and the group surfaces need a defined
+ * polarity even for an entry that drives no position. The surfaces that render
+ * a position *value* — the tile's `%` readout, its position rail, the dialog's
+ * Position track, the icon's open/closed variant — need the real answer, or a
+ * tilt-only entry gets a rail whose fill and target tick are two different axes
+ * (issue #277).
+ *
+ * True on every legacy / no-discovery entry, because the fallback path
+ * synthesizes a position axis — so every gate built on this is inert there.
+ * Reads the SUPPORTED axes only: an axis the entry cannot drive is not one the
+ * card can render.
+ */
+export function hasPositionAxis(discovered: DiscoveredEntities): boolean {
+  return resolveAxes(discovered).some((a) => a.id === 'position');
+}
+
+/**
+ * The axis this entry is primarily *about* — the one the ↑■↓ buttons drive and
+ * the one the position-named integration surfaces describe.
+ *
+ * The integration's leading declared axis, which is the position axis for every
+ * policy that has one: all eleven declare it first (`blind`, `awning`,
+ * `oscillating_awning`, `sliding_curtain`, `roof_window`, and the two dual-axis
+ * policies whose tuple is `(POSITION_AXIS, TILT_AXIS)`), and `supported_axes`
+ * only ever filters the declared tuple, never reorders it. So this differs from
+ * {@link positionAxisFor} in exactly one case: a tilt-only type (`cover_tilt`,
+ * louvered roof) that declares no position axis at all, where the slat axis is
+ * the only thing `set_axes` will accept.
+ *
+ * Falls back to the synthesized position axis when nothing survives the
+ * `supported` filter — identical to today's behavior for that degenerate case.
+ */
+export function primaryAxisFor(discovered: DiscoveredEntities): ResolvedAxis {
+  return resolveAxes(discovered)[0] ?? positionAxisFor(discovered);
 }
 
 /**

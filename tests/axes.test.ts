@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   axisDisplayValue,
+  hasPositionAxis,
   positionAxisFor,
   positionAxisInverted,
+  primaryAxisFor,
   resolveAxes,
 } from '../src/lib/axes';
 import type { CoverDiscovery, DiscoveredEntities } from '../src/types';
@@ -282,6 +284,158 @@ describe('positionAxisFor', () => {
     expect(axis.id).toBe('position');
     expect(axis.min).toBe(0);
     expect(axis.max).toBe(100);
+  });
+});
+
+// ── tilt-only cover types: no fabricated position axis (#277) ────────────────
+// A louvered roof / `cover_tilt` entry declares exactly one axis and it is the
+// slat axis. `positionAxisFor` synthesizes a position axis anyway (it is the
+// polarity oracle for the compass and the group surfaces), so the surfaces that
+// must NOT fabricate one — the ↑■↓ buttons, the `%` readout, the position rail —
+// need their own predicate and their own default axis.
+
+describe('hasPositionAxis (#277)', () => {
+  it('is false for a tilt-only discovery (cover_louvered_roof)', () => {
+    const d = {
+      ...base,
+      cover_type: 'cover_louvered_roof',
+      discovery: {
+        cover_type: 'cover_louvered_roof',
+        axes: [{ id: 'tilt', state_attr: 'current_tilt_position', supported: true }],
+      },
+    } as DiscoveredEntities;
+    expect(hasPositionAxis(d)).toBe(false);
+  });
+
+  it('is true when discovery declares a position axis', () => {
+    const d = withDiscovery({
+      axes: [
+        { id: 'position', supported: true },
+        { id: 'tilt', supported: true },
+      ],
+    });
+    expect(hasPositionAxis(d)).toBe(true);
+  });
+
+  it('is true on a legacy entry with no discovery — the fallback synthesizes one', () => {
+    // Inert for every pre-discovery install: the gates this predicate feeds must
+    // not change anything on an integration that publishes no `cover_discovery`.
+    expect(hasPositionAxis(base)).toBe(true);
+  });
+
+  it('is false when the position axis is declared but supported: false', () => {
+    // Reads the SUPPORTED axes, like every other consumer of `resolveAxes`: an
+    // axis the entry cannot drive is not a position axis the card can render.
+    const d = withDiscovery({
+      axes: [
+        { id: 'position', supported: false },
+        { id: 'tilt', supported: true },
+      ],
+    });
+    expect(hasPositionAxis(d)).toBe(false);
+  });
+});
+
+describe('primaryAxisFor (#277)', () => {
+  it('returns the slat axis for a tilt-only cover type', () => {
+    const d = {
+      ...base,
+      cover_type: 'cover_louvered_roof',
+      discovery: {
+        cover_type: 'cover_louvered_roof',
+        axes: [{ id: 'tilt', state_attr: 'current_tilt_position', supported: true }],
+      },
+    } as DiscoveredEntities;
+    const axis = primaryAxisFor(d);
+    expect(axis.id).toBe('tilt');
+    expect(axis.stateAttr).toBe('current_tilt_position');
+  });
+
+  it('returns the position axis on a dual-axis (venetian) entry — dual-axis policies declare position first', () => {
+    const d = withDiscovery({
+      cover_type: 'cover_venetian',
+      axes: [
+        { id: 'position', state_attr: 'current_position', supported: true },
+        { id: 'tilt', state_attr: 'current_tilt_position', supported: true },
+      ],
+    });
+    expect(primaryAxisFor(d).id).toBe('position');
+  });
+
+  it('returns the surviving tilt axis when the declared position axis is supported: false', () => {
+    // `set_axes` accepts only the supported axes, so the surviving one is the
+    // only payload that can move this cover.
+    const d = withDiscovery({
+      axes: [
+        { id: 'position', supported: false },
+        { id: 'tilt', state_attr: 'current_tilt_position', supported: true },
+      ],
+    });
+    expect(primaryAxisFor(d).id).toBe('tilt');
+  });
+
+  it('falls back to the synthesized position axis on a legacy entry', () => {
+    expect(primaryAxisFor(base).id).toBe('position');
+  });
+
+  it('falls back to the synthesized position axis when every declared axis is unsupported', () => {
+    const d = withDiscovery({
+      axes: [
+        { id: 'position', supported: false },
+        { id: 'tilt', supported: false },
+      ],
+    });
+    const axis = primaryAxisFor(d);
+    expect(axis.id).toBe('position');
+    expect(axis.min).toBe(0);
+    expect(axis.max).toBe(100);
+  });
+});
+
+describe('resolveAxes — leading-axis targetRole (#277)', () => {
+  it('maps a leading non-position axis to target_position_sensor (tilt-only)', () => {
+    // The integration publishes the PRIMARY axis under the position-named
+    // surfaces: `Cover_Position` carries its target for every cover type, and
+    // `Cover_Tilt` exists only where `exposes_dual_axis_sensor` is true
+    // (venetian / day-night shade). A louvered roof's slat target therefore
+    // lives on `Cover_Position`, not on a sensor that was never created.
+    const d = {
+      ...base,
+      cover_type: 'cover_louvered_roof',
+      discovery: {
+        cover_type: 'cover_louvered_roof',
+        axes: [{ id: 'tilt', state_attr: 'current_tilt_position', supported: true }],
+      },
+    } as DiscoveredEntities;
+    expect(resolveAxes(d)[0].targetRole).toBe('target_position_sensor');
+  });
+
+  it('keeps id-based roles on a position-led dual-axis entry', () => {
+    const d = withDiscovery({
+      cover_type: 'cover_venetian',
+      axes: [
+        { id: 'position', supported: true },
+        { id: 'tilt', supported: true },
+      ],
+    });
+    expect(resolveAxes(d).map((a) => a.targetRole)).toEqual([
+      'target_position_sensor',
+      'target_tilt_sensor',
+    ]);
+  });
+
+  it('keeps target_tilt_sensor on a surviving tilt axis when the declared leader (position) was filtered as unsupported', () => {
+    // The re-map keys on the DECLARED leader, not the surviving one: this entry
+    // is a dual-axis type whose position axis happens to be undrivable, so its
+    // `Cover_Tilt` sensor still exists and still carries the slat target.
+    const d = withDiscovery({
+      cover_type: 'cover_venetian',
+      axes: [
+        { id: 'position', supported: false },
+        { id: 'tilt', supported: true },
+      ],
+    });
+    expect(resolveAxes(d).map((a) => a.targetRole)).toEqual(['target_tilt_sensor']);
   });
 });
 

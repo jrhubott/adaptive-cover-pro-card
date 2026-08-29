@@ -27,7 +27,14 @@ import {
 import { createDiscoveryMemo } from './lib/entity-discovery';
 import { resolveTileName, isValidAcpName } from './lib/name-parts';
 import { makeEntitySuggestion } from './lib/entity-suggestion';
-import { axisDisplayValue, positionAxisFor, resolveAxes, type ResolvedAxis } from './lib/axes';
+import {
+  axisDisplayValue,
+  hasPositionAxis,
+  positionAxisFor,
+  primaryAxisFor,
+  resolveAxes,
+  type ResolvedAxis,
+} from './lib/axes';
 import { railsAreOneCover } from './lib/rail-model';
 import { PendingMoves, isMovingState, isPendingVisible } from './lib/pending-move';
 import { renderRailOverlay, railOverlayStyles } from './components/rail-overlay';
@@ -206,14 +213,30 @@ export class AdaptiveCoverProTileCard extends LitElement {
   /** Moves this card commanded, keyed by cover id — see `lib/pending-move.ts`. */
   private _posPending = new PendingMoves(this);
 
+  /** Moves this card commanded on a NON-position axis, keyed by cover + axis.
+   *  Separate from {@link _posPending} because the two feed different rails:
+   *  `_posBar` reads the position one, this one is handed to `acp-axis-bar` as
+   *  `movingTo` for an axis the bar itself did not command (issue #277). */
+  private _axisPending = new PendingMoves(this);
+
+  /** Key for {@link _axisPending}: a retargeted `controls_cover` must not paint
+   *  a travel band on a different cover's bar. */
+  private _axisPendingKey(cover: string, axisId: string): string {
+    return `${cover}|${axisId}`;
+  }
+
   /** Live value per rail as of the last render. A plain field, deliberately not
    *  `@state`: `updated()` reads it to retire arrived moves, and writing it must
    *  not schedule another render. */
   private _lastRailLive = new Map<string, number | null>();
 
+  /** Same, for the secondary-axis bar — keyed like {@link _axisPending}. */
+  private _lastAxisLive = new Map<string, number | null>();
+
   protected updated(changed: Map<string, unknown>): void {
     if (changed.has('hass') && this.hass) this._ensureRegistry();
     this._posPending.settle((cover) => this._lastRailLive.get(cover) ?? null);
+    this._axisPending.settle((key) => this._lastAxisLive.get(key) ?? null);
   }
 
   // Re-render only on hass ticks that touched one of this entry's entities (the union
@@ -476,6 +499,13 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // same as any other no-feedback cover (issue #232).
     const reportedPosition = noLiveData ? null : this._liveCoverPosition(discovered, cover);
     const livePosition = offline ? null : (reportedPosition ?? calculatedPosition);
+    // Does this entry drive a position axis at all? A tilt-only cover type
+    // (`cover_tilt`, louvered roof) declares only its slat axis, and every
+    // position-shaped surface below — the `%` readout, the rail, the icon's
+    // open/closed variant — would otherwise render a number about an axis the
+    // entry does not have (issue #277). True on every legacy/no-discovery entry,
+    // so these gates are inert there.
+    const hasPosition = hasPositionAxis(discovered);
     const icon =
       cfg.icon ??
       (offline
@@ -489,7 +519,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
             // derive from `livePosition` — a leftover stale `current_position`
             // attribute on an `unknown` cover must not paint a fully-open/
             // fully-closed variant that the rest of the tile disagrees with.
-            position: livePosition,
+            // Withheld entirely when the entry has no position axis, for the
+            // same reason: a louvered roof's `current_position: 0` would paint a
+            // fully-closed glyph over slats sitting wide open.
+            position: hasPosition ? livePosition : null,
           }));
     const iconColor = cfg.state_color !== false ? coverStateColor(stateObj?.state) : null;
     // Drives both the icon's own tap target and HA's tinted-pill background,
@@ -526,20 +559,46 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // always-live diagnostic sensor (issue #212 follow-up), but an `unknown`
     // cover's live solar tilt target is legitimate to show.
     const liveTilt = !noLiveData && secondaryAxis ? this._liveAxis(cover, secondaryAxis) : null;
+    // A secondary axis whose target sensor IS `Cover_Position` — the entry's
+    // LEADING axis, which on a tilt-only cover type is the slat axis (issue
+    // #277) — takes the same read the tile's own position rail takes off that
+    // sensor: `coverHeldPosition`, which prefers the pre-interpolation
+    // `linear_position` over the value actually dispatched to the motor (#219).
+    // Reading the raw STATE here would draw this bar's tick from the motor
+    // value while the rail above draws its own from the linear one. A genuine
+    // SECONDARY axis (a venetian's tilt) has its own `Cover_Tilt` sensor and
+    // keeps the plain read — this is about one sensor, not one axis id.
     const tiltTarget =
-      !offline && secondaryAxis ? this._axisTarget(discovered, secondaryAxis) : null;
+      !offline && secondaryAxis
+        ? secondaryAxis.targetRole === 'target_position_sensor'
+          ? calculatedPosition
+          : this._axisTarget(discovered, secondaryAxis)
+        : null;
+    // Where the ↑/↓ buttons last sent this axis, for the bar to draw as a
+    // travel band. The bar arms its own indicator for a gesture it saw; a
+    // button press never reaches it, so the destination is handed down here
+    // (issue #277). See `_setAxis`.
+    const axisPendingKey =
+      cover && secondaryAxis ? this._axisPendingKey(cover, secondaryAxis.id) : null;
+    const axisMovingTo = axisPendingKey ? this._axisPending.get(axisPendingKey) : null;
+    // Remembered for `updated()`'s arrival check — the same contract as
+    // `_lastRailLive`.
+    if (axisPendingKey) this._lastAxisLive.set(axisPendingKey, liveTilt);
     // The ↑■↓ buttons are retargetable (`controls_cover` / `controls_axis`):
     // by default they drive the resolved cover's position axis exactly as
     // before, but a day/night shade in the integration's `dual_entity` model
     // binds two rail entities and a venetian exposes a second axis, and either
     // can be the thing the user wants the buttons on.
-    // Falls back to the POSITION axis, never `axes[0]`. On a tilt-only cover
-    // type (cover_tilt, louvered roof) discovery publishes only the slat axis,
-    // and taking axes[0] silently changed the default ↑/↓ payload from
-    // `{position: …}` to `{tilt: …}` and re-gated at-open/at-closed on
-    // `current_tilt_position`.
-    const controlsAxis =
-      axes.find((a) => a.id === cfg.controls_axis) ?? positionAxisFor(discovered);
+    // Falls back to the entry's LEADING declared axis, which is the position
+    // axis for every policy that has one — all of them declare it first, and
+    // `supported_axes` only ever filters the declared tuple, never reorders it.
+    // So a dual-axis entry (venetian, day/night shade) still defaults to
+    // `{position: …}` exactly as before; the one intended divergence is a
+    // tilt-only cover type (cover_tilt, louvered roof), which declares ONLY its
+    // slat axis. There, a fabricated position axis gated at-open/at-closed on a
+    // `current_position` the entry does not drive and dispatched a
+    // `{position: …}` payload that `set_axes` rejects outright (issue #277).
+    const controlsAxis = axes.find((a) => a.id === cfg.controls_axis) ?? primaryAxisFor(discovered);
     // Validated against the roster exactly like `covers` is. Unvalidated, a
     // `controls_cover` left behind by an entry change (or hand-written) would
     // aim `set_axes` at a cover in a DIFFERENT config entry — the integration
@@ -681,7 +740,11 @@ export class AdaptiveCoverProTileCard extends LitElement {
       : showState
         ? formatCoverState(this.hass, cover, transitDir ?? undefined)
         : null;
-    const positionText = showPosition && livePosition !== null ? formatPercent(livePosition) : null;
+    // `stateText` above stays for a tilt-only entry — it is the cover entity's
+    // own HA state, not a card-fabricated number. Only the `%` half describes an
+    // axis the entry may not have, so only it is gated (issue #277).
+    const positionText =
+      showPosition && hasPosition && livePosition !== null ? formatPercent(livePosition) : null;
     // One-line has no room for the bar, so fold tilt into the readout as ⟂30%.
     const tiltText =
       showTilt && !detailed && liveTilt !== null ? `⟂${formatPercent(liveTilt)}` : null;
@@ -769,7 +832,8 @@ export class AdaptiveCoverProTileCard extends LitElement {
             activeFloor!.resistsManual ? ' resists-manual' : ' is-bypassable'
           }`}
           ${tooltip(t('dialog.floor_tooltip', this.hass))}
-          >${t('dialog.floor', this.hass)} ${formatPercent(activeFloor!.position)}</span
+          >${t('dialog.floor', this.hass)}${activeFloor!.name ? ` ${activeFloor!.name} ·` : ''}
+          ${formatPercent(activeFloor!.position)}</span
         >`
       : nothing;
     const badgeTpl = renderBadge
@@ -848,8 +912,16 @@ export class AdaptiveCoverProTileCard extends LitElement {
     const commandTargets = coverCommandTargets(this.hass, discovered);
     const railTarget = (id: string): number | null =>
       id === cover ? calculatedPosition : (commandTargets[id] ?? null);
+    // No position axis, no position rail (issue #277): on a tilt-only entry its
+    // fill came from the cover's `current_position` while its target tick came
+    // from `Cover_Position` — which for such a policy holds the SLAT target. Two
+    // different axes inside one widget. The slat bar below renders both from the
+    // one axis that exists.
     const showPositionBar =
-      detailed && cfg.show_position_bar !== false && barCovers.some((id) => railLive(id) !== null);
+      detailed &&
+      hasPosition &&
+      cfg.show_position_bar !== false &&
+      barCovers.some((id) => railLive(id) !== null);
     // A single cover shows a bare rail — no glyph, there is nothing to tell apart.
     // The stack reserves a glyph lane to its LEFT rather than taking it out of the
     // rails, so a stacked rail and a lone rail are the same length and line up on
@@ -967,10 +1039,11 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 .unit=${secondaryAxis?.unit ?? '%'}
                 .actual=${liveTilt}
                 .target=${tiltTarget}
+                .movingTo=${axisMovingTo}
                 .openBlocksSun=${secondaryAxis?.openBlocksSun ?? false}
                 .disabled=${offline}
                 @acp-tilt-set=${(e: CustomEvent<number>) =>
-                  secondaryAxis && this._setAxis(cover, secondaryAxis.id, e.detail)}
+                  secondaryAxis && this._setAxis(cover, secondaryAxis.id, e.detail, true)}
               ></acp-tilt-bar>
             </div>`
           : nothing}
@@ -991,7 +1064,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
                 type="button"
                 aria-label=${t('tile.stop', this.hass)}
                 ?disabled=${!controlsCover || controlsOffline}
-                @click=${() => this._stopCover(controlsCover)}
+                @click=${() => this._stopCover(controlsCover, controlsAxis?.id)}
               >
                 <ha-icon icon="mdi:stop"></ha-icon>
               </button>
@@ -1311,27 +1384,45 @@ export class AdaptiveCoverProTileCard extends LitElement {
     this._setCoverPosition(cover, axisDisplayValue(Math.max(0, Math.min(100, next)), axis));
   }
 
-  private _stopCover(cover: string | undefined): void {
+  private _stopCover(cover: string | undefined, axisId?: string): void {
     if (!cover) return;
     // Stop cancels the destination rather than becoming one: wherever the cover
     // halts IS its position now, so an indicator still pointing somewhere else
-    // would promise a move that was just abandoned.
+    // would promise a move that was just abandoned. That holds for whichever
+    // axis ■ sits beside — on a tilt-only entry it is the slat axis (#277).
     this._posPending.clear(cover);
+    if (axisId && axisId !== 'position')
+      this._axisPending.clear(this._axisPendingKey(cover, axisId));
     this.hass.callService(INTEGRATION_DOMAIN, 'stop', {}, { entity_id: cover });
   }
 
   /** Move a single axis. Routes through {@link setAxes} (combined `set_axes`
    *  when available, legacy per-axis service otherwise). Omits `force` so the
    *  service default preserves today's override semantics. */
-  private _setAxis(cover: string | undefined, axisId: string, value: number): void {
+  private _setAxis(
+    cover: string | undefined,
+    axisId: string,
+    value: number,
+    fromAxisBar = false,
+  ): void {
     if (!cover) return;
     // Arm the "moving to" indicator HERE rather than at the rail, because this
-    // is the one funnel every position command passes through: rail tap, drag
-    // release (which rides the trailing click), arrow keys, AND the ↑/↓
-    // buttons, which drive the axis straight to its max/min without going near
-    // the rail. Position only — a secondary axis is drawn by `acp-axis-bar`,
-    // which arms its own.
+    // is the one funnel every command passes through: rail tap, drag release
+    // (which rides the trailing click), arrow keys, AND the ↑/↓ buttons, which
+    // drive the axis straight to its max/min without going near any rail.
+    //
+    // Which store depends on the axis DRIVEN, not on the id being `position`.
+    // The ↑/↓ buttons default to the entry's LEADING axis, and on a tilt-only
+    // cover type (cover_tilt, louvered roof) that is the slat axis, drawn by
+    // `acp-axis-bar` (issue #277). That bar arms its own indicator only for a
+    // gesture it saw, so a button press would leave it with nothing to draw;
+    // `_axisPending` is what the render pass hands it as `movingTo`.
+    //
+    // `fromAxisBar` is the one exception: a command that came from the bar has
+    // already armed the bar's own indicator, and a second band for the same
+    // move would be two answers to one question.
     if (axisId === 'position') this._posPending.start(cover, value);
+    else if (!fromAxisBar) this._axisPending.start(this._axisPendingKey(cover, axisId), value);
     setAxes(this.hass, cover, { [axisId]: value });
   }
 
@@ -2071,6 +2162,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
       }
       .acp-floor-chip {
         grid-area: floor-chip;
+        min-width: 0;
         font-size: 0.7rem;
         padding: 1px 6px;
         border-radius: 999px;

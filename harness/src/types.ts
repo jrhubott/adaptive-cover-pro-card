@@ -5,6 +5,13 @@ export type CoverType =
   | 'cover_blind'
   | 'cover_awning'
   | 'cover_tilt'
+  /** Slats rotating in a horizontal/pitched roof plane (a pergola). Like
+   *  `cover_tilt` it is TILT-ONLY: the policy declares the slat axis and nothing
+   *  else, so that axis carries the primary-axis semantics — `inverse_state`
+   *  inverts it, and the integration publishes its value and target under the
+   *  position-named surfaces (`Cover_Position`, `actual_positions`). There is no
+   *  position axis anywhere in its discovery payload (issue #277). */
+  | 'cover_louvered_roof'
   | 'cover_venetian'
   /** Day/night dual-fabric shade. In the integration's `dual_entity` control
    *  model one entry binds two rail cover entities, so the card must handle a
@@ -172,6 +179,14 @@ export interface HarnessEntry {
    *  first slot (`[0, 0]`) to reproduce #269 — a card reading only the legacy
    *  attribute then draws nothing. */
   blind_spot_ranges?: Array<[number, number]>;
+  /** Reproduces the #269/#274 upstream diagnostics omission
+   *  (jrhubott/adaptive-cover-pro#1291): the decision pipeline still evaluates
+   *  {@link blind_spot_range}/{@link blind_spot_ranges} for `in_blind_spot`,
+   *  but the sun sensor omits BOTH `blind_spot_range` and `blind_spot_ranges`
+   *  from its published attributes — so the card gets the boolean with no
+   *  geometry to draw a wedge from. Exercises the compass's "Blind spot
+   *  active" fallback indicator. */
+  blind_spot_geometry_unavailable?: boolean;
   /** Target position 0..100 (integration output). */
   target_position: number;
   /** Solar tilt target 0..100 for venetian dual-axis covers (integration

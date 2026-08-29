@@ -565,9 +565,10 @@ export function arrowheadPath(
 }
 
 /**
- * Convert the integration's blind_spot_range (FOV-left-relative offsets,
- * [fov_left − blind_spot_right, fov_left − blind_spot_left]) into absolute
- * compass bearings [startAzi, endAzi] suitable for wedgePath.
+ * Convert the integration's blind_spot_range (a signed-gamma pair measured
+ * from the window normal, [-right_gamma, left_gamma], as of the integration's
+ * v3.8) into absolute compass bearings [startAzi, endAzi] suitable for
+ * wedgePath.
  */
 export function blindSpotBearings(
   windowAziDeg: number,

@@ -138,6 +138,7 @@ function makeEntry(
     max_elevation: overrides.max_elevation,
     blind_spot_range: overrides.blind_spot_range,
     blind_spot_ranges: overrides.blind_spot_ranges,
+    blind_spot_geometry_unavailable: overrides.blind_spot_geometry_unavailable,
     target_position: overrides.target_position ?? 40,
     target_tilt: overrides.target_tilt ?? 50,
     covers: overrides.covers ?? [
@@ -733,7 +734,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'ha-tile-badge-row',
     label: 'HA tile layout — badges on the dedicated row',
     description:
-      "HA-tile layout match (#208 follow-up): the detailed Tile card now mirrors HA's native tile — a state-tinted 36px icon shape, a name-over-state label column, and HA-metric control buttons — with ACP's own chrome (Auto / Manual / floor badges) dropped onto a dedicated full-width row that starts at the label's left edge. This scenario arms a manual override AND an enabled min-mode floor slot, so the badge row shows the Manual badge alongside the ↥ floor chip; the top two rows read exactly like a native HA tile. Regression guard: the floor chip must ride this badge row, not collapse the detailed grid back to the one-line layout.",
+      "HA-tile layout match (#208 follow-up): the detailed Tile card now mirrors HA's native tile — a state-tinted 36px icon shape, a name-over-state label column, and HA-metric control buttons — with ACP's own chrome (Auto / Manual / floor badges) dropped onto a dedicated full-width row that starts at the label's left edge. This scenario arms a manual override AND an enabled, named min-mode floor slot ('Aeration floor'), so the badge row shows the Manual badge alongside the ↥ Aeration floor · 40% chip (#278: the floor chip now surfaces the slot's configured name); the top two rows read exactly like a native HA tile. Regression guard: the floor chip must ride this badge row, not collapse the detailed grid back to the one-line layout.",
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'ha-tile-badge-row';
@@ -1090,6 +1091,39 @@ export const SCENARIOS: Scenario[] = [
         }),
       ];
       c.entries[0].flags.inverse_tilt = true;
+      return c;
+    },
+  },
+  {
+    id: 'louvered-roof-tilt-only',
+    label: 'Louvered roof — tilt-only (#277)',
+    description:
+      'A pergola whose policy declares ONE axis and it is the slat axis (LouveredRoofPolicy.axes = (TILT_AXIS_PRIMARY,)). There is no position axis anywhere in the discovery payload, and no Cover_Tilt sensor either — the integration creates that one only for venetian / day-night shade — so the slat target rides on Cover_Position (80%) while the cover reports current_tilt_position: 23 and a vestigial current_position: 0. The tile must show "Open" with NO "· 0%" after it, NO Position rail, and one INCLINAISON bar carrying the live 23 AND the orange target tick at 80. ↓ (close) must be LIVE — pre-fix the phantom position axis read the vestigial 0 and greyed out the only direction the roof could move. Click ↑ and the service log must show set_axes { tilt: 100 }: a { position: 100 } payload is not a no-op, the integration validates every key against supported_axes and raises. Open the more-info dialog and the Covers section still names the cover — the name row stays a tap target for more-info and still carries the mismatch badge — with a bare "Open" readout (no "· 0%"), no Position track and no go-to-target button, above the slat bar; the header shows one Tilt target chip and no Position target. Flip "Inverse state" and the flag lands on the SLAT axis (it is the primary one here), so the cover reports 77 while the card keeps rendering 23. Press ↑ or ↓ and the slat bar paints the striped "moving to" band and its destination pip: the buttons drive the axis straight to its max/min without going near that bar, so the tile hands the bar the destination rather than the bar arming itself — ■ (stop) cancels it again. The slat tick rides the same target pipeline the Position rail uses on every other cover type, because its target sensor IS Cover_Position: flip "Manual override" and the tick swings to the solar would-be target while the sensor state holds at the manually-set value, and an interpolated entry shows the pre-interpolation value with the dispatched one disclosed in the Tilt chip\'s tooltip.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 13 * 60);
+      c.scenario = 'louvered-roof-tilt-only';
+      c.entries = [
+        makeEntry({
+          entry_id: 'pergola',
+          title: 'Pergola',
+          cover_type: 'cover_louvered_roof',
+          window_azimuth: 180,
+          color: '#ffa726',
+          // The position-named surfaces carry the PRIMARY axis, so the slat
+          // target is what Cover_Position publishes for this cover type.
+          target_position: 80,
+          target_tilt: 80,
+          covers: [
+            {
+              entity_id: 'cover.pergola_slats',
+              friendly_name: 'Pergola slats',
+              // Vestigial: the cover reports it, the entry does not drive it.
+              position: 0,
+              tilt: 23,
+            },
+          ],
+        }),
+      ];
       return c;
     },
   },
@@ -2537,6 +2571,40 @@ export const SCENARIOS: Scenario[] = [
           fov_right: 90,
           color: '#43a047',
           blind_spot_range: [10, 30],
+        }),
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'blind-spot-active-no-geometry',
+    label: 'Blind spot active, no geometry — compass fallback (#274)',
+    added: '2026-08-16',
+    issue: 274,
+    description:
+      "Card-side follow-up to blind-spot-slots (#269): when the integration's diagnostics omit `left_gamma`/`right_gamma` for a gamma-only blind spot (upstream bug, jrhubott/adaptive-cover-pro#1291), the sun sensor publishes NEITHER `blind_spot_range` NOR `blind_spot_ranges` even though `decision_trace.in_blind_spot` still comes through true — the compass used to draw an unbroken SAA band that visually contradicted its own decision trace (@Taknok: 'computed state is 0% but compass seems to indicate the awning should be open'). Two entries, same window/SAA/blind-spot geometry so they're directly comparable: 'No Geometry' has the sun currently inside its configured blind spot but the sun sensor omits the geometry attributes entirely — the compass legend must show a red 'Blind spot active' row (single-entry) instead of drawing nothing, and the sun dot still carries its existing (subtler) in_fov_not_valid treatment. 'With Geometry' is the control — same blind spot, geometry published normally, so the red hatched wedge draws as usual and the fallback text must NOT appear (it would double up with the wedge). Toggle 'Geometry unavailable' under Entries → Blind spot to flip either entry between the two states live; toggling the 'Blind spots' display switch off in Per-card config must hide the fallback text along with the wedges.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'blind-spot-active-no-geometry';
+      c.entries = [
+        makeEntry({
+          entry_id: 'no_geometry',
+          title: 'No Geometry',
+          window_azimuth: 180,
+          fov_left: 90,
+          fov_right: 90,
+          color: '#e53935',
+          blind_spot_range: [-25, 25],
+          blind_spot_geometry_unavailable: true,
+        }),
+        makeEntry({
+          entry_id: 'with_geometry',
+          title: 'With Geometry',
+          window_azimuth: 180,
+          fov_left: 90,
+          fov_right: 90,
+          color: '#1e88e5',
+          blind_spot_range: [-25, 25],
         }),
       ];
       return c;
