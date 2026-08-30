@@ -1850,7 +1850,13 @@ describe('adaptive-cover-pro-tile-card hold / double-tap actions', () => {
   // understands call-service. setConfig normalizes perform-action configs
   // before handleAction ever sees them — these prove that for all four
   // action-config options.
-  it('tap_action fires via handleAction using perform-action syntax (#281)', async () => {
+  // HA's visual editor's actual default emission for a perform-action config
+  // is `target: {entity_id: [...]}` plus `data` for extras (entity_id inside
+  // `data`, as the other three dispatch tests use, is a hand-written
+  // shorthand) — this is the only one of the four dispatch tests that
+  // exercises that real shape end-to-end, proving `target` reaches
+  // `hass.callService`'s 4th argument and isn't dropped by normalization.
+  it('tap_action fires via handleAction using perform-action syntax with a target (#281)', async () => {
     const callService = vi.fn();
     const el = await mount(
       {
@@ -1858,8 +1864,9 @@ describe('adaptive-cover-pro-tile-card hold / double-tap actions', () => {
         entry_id: ENTRY,
         tap_action: {
           action: 'perform-action',
-          perform_action: 'cover.open_cover',
-          data: { entity_id: 'cover.left' },
+          perform_action: 'cover.set_cover_position',
+          target: { entity_id: ['cover.left'] },
+          data: { position: 50 },
         } as unknown as AdaptiveCoverProTileCardConfig['tap_action'],
       },
       makeHass({ callService }),
@@ -1868,9 +1875,9 @@ describe('adaptive-cover-pro-tile-card hold / double-tap actions', () => {
     body.click();
     expect(callService).toHaveBeenCalledWith(
       'cover',
-      'open_cover',
-      { entity_id: 'cover.left' },
-      undefined,
+      'set_cover_position',
+      { position: 50 },
+      { entity_id: ['cover.left'] },
     );
   });
 
