@@ -1820,6 +1820,115 @@ describe('adaptive-cover-pro-tile-card hold / double-tap actions', () => {
     );
   });
 
+  it('tap_action fires via handleAction using call-service syntax', async () => {
+    const callService = vi.fn();
+    const el = await mount(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        tap_action: {
+          action: 'call-service',
+          service: 'cover.open_cover',
+          service_data: { entity_id: 'cover.left' },
+        },
+      },
+      makeHass({ callService }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body') as HTMLElement;
+    body.click();
+    expect(callService).toHaveBeenCalledWith(
+      'cover',
+      'open_cover',
+      { entity_id: 'cover.left' },
+      undefined,
+    );
+  });
+
+  // #281: HA renamed call-service → perform-action (service → perform_action,
+  // service_data → data) in 2024.8; the card's ha-selector editor now emits
+  // this vocabulary by default, but pinned custom-card-helpers@2.0.0 only
+  // understands call-service. setConfig normalizes perform-action configs
+  // before handleAction ever sees them — these prove that for all four
+  // action-config options.
+  it('tap_action fires via handleAction using perform-action syntax (#281)', async () => {
+    const callService = vi.fn();
+    const el = await mount(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        tap_action: {
+          action: 'perform-action',
+          perform_action: 'cover.open_cover',
+          data: { entity_id: 'cover.left' },
+        } as unknown as AdaptiveCoverProTileCardConfig['tap_action'],
+      },
+      makeHass({ callService }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body') as HTMLElement;
+    body.click();
+    expect(callService).toHaveBeenCalledWith(
+      'cover',
+      'open_cover',
+      { entity_id: 'cover.left' },
+      undefined,
+    );
+  });
+
+  it('hold_action fires via handleAction using perform-action syntax (#281)', async () => {
+    vi.useFakeTimers();
+    try {
+      const callService = vi.fn();
+      const el = await mount(
+        {
+          type: TYPE,
+          entry_id: ENTRY,
+          hold_action: {
+            action: 'perform-action',
+            perform_action: 'cover.open_cover',
+            data: { entity_id: 'cover.left' },
+          } as unknown as AdaptiveCoverProTileCardConfig['hold_action'],
+        },
+        makeHass({ callService }),
+      );
+      const body = el.shadowRoot!.querySelector('.tile-body') as HTMLElement;
+      body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      vi.advanceTimersByTime(600);
+      expect(callService).toHaveBeenCalledWith(
+        'cover',
+        'open_cover',
+        { entity_id: 'cover.left' },
+        undefined,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('double_tap_action fires via handleAction using perform-action syntax (#281)', async () => {
+    const callService = vi.fn();
+    const el = await mount(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        double_tap_action: {
+          action: 'perform-action',
+          perform_action: 'cover.close_cover',
+          data: { entity_id: 'cover.left' },
+        } as unknown as AdaptiveCoverProTileCardConfig['double_tap_action'],
+      },
+      makeHass({ callService }),
+    );
+    const body = el.shadowRoot!.querySelector('.tile-body') as HTMLElement;
+    body.click();
+    body.click();
+    expect(callService).toHaveBeenCalledWith(
+      'cover',
+      'close_cover',
+      { entity_id: 'cover.left' },
+      undefined,
+    );
+  });
+
   it('single click still opens the ACP dialog when double_tap_action is configured (after timeout)', async () => {
     vi.useFakeTimers();
     try {
@@ -3692,6 +3801,61 @@ describe('adaptive-cover-pro-tile-card — icon_tap_action', () => {
     expect(css).toContain('border-radius: var(--ha-border-radius-pill, 9999px)');
     expect(css).toContain('opacity: 0.2');
     expect(css).toContain('opacity: 0.35');
+  });
+
+  it('fires hass.callService when icon_tap_action uses call-service syntax', async () => {
+    const callService = vi.fn();
+    const el = await mount(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        icon_tap_action: {
+          action: 'call-service',
+          service: 'cover.open_cover',
+          service_data: { entity_id: 'cover.left' },
+        },
+      },
+      makeHass({ callService }),
+    );
+    const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap') as HTMLElement;
+    wrap.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    await el.updateComplete;
+    expect(callService).toHaveBeenCalledWith(
+      'cover',
+      'open_cover',
+      { entity_id: 'cover.left' },
+      undefined,
+    );
+  });
+
+  // #281: icon_tap_action goes through the same setConfig-time normalization
+  // as the other three action-config options — see the perform-action tests
+  // in the "hold / double-tap actions" describe block above for context.
+  it('fires hass.callService when icon_tap_action uses perform-action syntax (#281)', async () => {
+    const callService = vi.fn();
+    const el = await mount(
+      {
+        type: TYPE,
+        entry_id: ENTRY,
+        layout: 'detailed',
+        icon_tap_action: {
+          action: 'perform-action',
+          perform_action: 'cover.open_cover',
+          data: { entity_id: 'cover.left' },
+        } as unknown as AdaptiveCoverProTileCardConfig['icon_tap_action'],
+      },
+      makeHass({ callService }),
+    );
+    const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap') as HTMLElement;
+    wrap.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    await el.updateComplete;
+    expect(callService).toHaveBeenCalledWith(
+      'cover',
+      'open_cover',
+      { entity_id: 'cover.left' },
+      undefined,
+    );
   });
 });
 

@@ -24,6 +24,7 @@ import {
   TILE_CARD_EDITOR_NAME,
   COVER_ICON_FALLBACK_UNAVAILABLE,
 } from './const';
+import { normalizeActionConfig, type ActionConfigInput } from './lib/action-config';
 import { createDiscoveryMemo } from './lib/entity-discovery';
 import { resolveTileName, isValidAcpName } from './lib/name-parts';
 import { makeEntitySuggestion } from './lib/entity-suggestion';
@@ -149,6 +150,21 @@ export class AdaptiveCoverProTileCard extends LitElement {
         tap_action: next.tap_action === 'none' ? { action: 'none' } : undefined,
       };
     }
+    // #281: HA renamed call-service → perform-action in 2024.8; the card's
+    // ha-selector editor now emits that vocabulary by default, but pinned
+    // custom-card-helpers@2.0.0's handleAction() only understands
+    // call-service and silently no-ops on anything else. Normalize once here
+    // — the single place _config gets assigned — rather than at each of the
+    // two handleAction() call sites.
+    next = {
+      ...next,
+      tap_action: normalizeActionConfig(
+        next.tap_action as ActionConfigInput,
+      ) as AdaptiveCoverProTileCardConfig['tap_action'],
+      hold_action: normalizeActionConfig(next.hold_action as ActionConfigInput),
+      double_tap_action: normalizeActionConfig(next.double_tap_action as ActionConfigInput),
+      icon_tap_action: normalizeActionConfig(next.icon_tap_action as ActionConfigInput),
+    };
     this._config = next;
     if (next.tooltips) setTooltipDefaults(next.tooltips);
     // Warm-start synchronously from the persisted ACP slice so a reload skips the Loading
