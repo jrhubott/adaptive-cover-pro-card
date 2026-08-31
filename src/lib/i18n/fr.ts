@@ -84,6 +84,8 @@ export const fr: EnDict = {
     automation_count: '{count} membre(s) sur {total} automatisé(s)',
     clear_overrides: 'Effacer les dérogations',
     clear_overrides_none: 'Aucune dérogation de membre à effacer',
+    climate: 'Régulation climatique',
+    climate_count: '{count} membre(s) sur {total} utilisent la régulation climatique',
     who_won:
       '{count} membre(s) sur {total} sont pilotés par le groupe — une scène de groupe ou le verrouillage du groupe détermine actuellement leur position',
     members: 'Membres',
@@ -462,6 +464,9 @@ export const fr: EnDict = {
       show_compass_legend_desc: 'Clé de couleur sous la boussole céleste.',
       show_moon_label: 'Afficher la lune sur la boussole',
       show_moon_desc: 'Position et phase de la lune en superposition sur la boussole céleste.',
+      show_climate_label: 'Afficher l’interrupteur climatique (groupes de volets)',
+      show_climate_desc:
+        'Ajoute un interrupteur marche/arrêt de régulation climatique à la barre de contrôle d’un groupe de volets. Une pression active ou désactive le mode climatique sur tous les membres.',
       hide_inactive_label: 'Masquer les gestionnaires inactifs',
       hide_inactive_desc:
         'Afficher uniquement le gestionnaire sélectionné et les gestionnaires du pipeline actifs.',
@@ -501,6 +506,7 @@ export const fr: EnDict = {
       show_scene_select: 'Afficher le sélecteur de scène',
       show_lock: 'Afficher le verrouillage du groupe',
       show_automation: "Afficher l'interrupteur d'automatisation des membres",
+      show_climate: 'Afficher l’interrupteur de régulation climatique',
       show_clear_overrides: 'Afficher le bouton d’effacement des dérogations',
       show_member_badges: 'Afficher les badges de dérogation des membres',
       badge_section: 'Badges',

@@ -59,6 +59,7 @@ export class GroupTile extends LitElement {
   @property({ type: Boolean }) public showSceneSelect = true;
   @property({ type: Boolean }) public showLock = true;
   @property({ type: Boolean }) public showAutomation = true;
+  @property({ type: Boolean }) public showClimate = false;
   @property({ type: Boolean }) public showClearOverrides = true;
   /** Card config `show_member_badges` — the member-override rollup. */
   @property({ type: Boolean }) public showMemberBadges = true;
@@ -337,6 +338,7 @@ export class GroupTile extends LitElement {
           .showSceneSelect=${this.showSceneSelect}
           .showLock=${this.showLock}
           .showAutomation=${this.showAutomation}
+          .showClimate=${this.showClimate}
           .showClearOverrides=${this.showClearOverrides}
         ></acp-group-controls-row>
       </div>

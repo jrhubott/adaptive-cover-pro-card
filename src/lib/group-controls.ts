@@ -3,7 +3,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import { normalizeHandler } from './decision-summary';
 import { coverStateIcon } from './icons';
 import { isOffline } from './formatters';
-import { rollupMemberAutomation, type MemberAutomationRollup } from './member-automation';
+import { rollupMemberAutomation, rollupMemberClimate, type MemberRollup } from './member-rollup';
 import { getCachedRegistry } from './registry-store';
 import {
   groupSelectScene,
@@ -62,13 +62,28 @@ export interface GroupSnapshot {
   automationOn: boolean;
   /** Live all/some/none rollup of the members' own automation, or `unknown`
    *  when nothing resolves (cold registry cache, all-generic roster). */
-  memberAutomation: MemberAutomationRollup;
-  /** The lock / automation switch entities, when the integration exposes them.
-   *  A surface must render each toggle only when its id is present: the booleans
-   *  above fall back to sensible defaults, so an absent switch would otherwise
-   *  render a live-looking control whose click is a silent no-op. */
+  memberAutomation: MemberRollup;
+  /** The group's `group_climate_mode` switch — a bulk latch over the members'
+   *  own Climate Mode switches, with the same write-only caveat as
+   *  {@link automationOn}. Use it to decide what a press should send, never to
+   *  describe the members; that is {@link memberClimate}'s job.
+   *
+   *  Note the read-only `sensor.<group>_climate_mode` beside this switch does
+   *  NOT answer the same question — it reports which climate MODE is acting
+   *  (`summer_mode` / `winter_mode` / `mixed`), not whether climate control is
+   *  enabled, which is why {@link memberClimate} surveys the members directly. */
+  climateOn: boolean;
+  /** Live all/some/none rollup of the members' own climate mode, or `unknown`
+   *  when nothing resolves. Same contract as {@link memberAutomation}. */
+  memberClimate: MemberRollup;
+  /** The lock / automation / climate switch entities, when the integration
+   *  exposes them. A surface must render each toggle only when its id is
+   *  present: the booleans above fall back to sensible defaults, so an absent
+   *  switch would otherwise render a live-looking control whose click is a
+   *  silent no-op. */
   lockId: string | undefined;
   automationId: string | undefined;
+  climateId: string | undefined;
   /** The clear-member-overrides button entity, when the integration exposes it. */
   clearId: string | undefined;
   /** Target for the `group_*` services, or undefined when the group exposes no
@@ -126,6 +141,14 @@ export function readGroup(hass: HomeAssistant, discovered: DiscoveredEntities): 
     automationOn: e.group_automation_switch
       ? hass.states[e.group_automation_switch]?.state === 'on'
       : true,
+    // `false`, not `automationOn`'s optimistic `true`. Neither fallback is ever
+    // painted — every toggle is gated on its own id — so this is about what the
+    // value MEANS when read outside that gate: an absent automation switch is an
+    // old build of an always-automating integration, whereas an absent climate
+    // switch is an integration with no group climate feature at all.
+    climateOn: e.group_climate_mode_switch
+      ? hass.states[e.group_climate_mode_switch]?.state === 'on'
+      : false,
     // `member_winners` — the ACP members — NOT the `member_positions` roster.
     // The roster can also list a cover that another ACP entry manages but that
     // this group does not drive (the integration filters ACP-owned covers out of
@@ -138,8 +161,10 @@ export function readGroup(hass: HomeAssistant, discovered: DiscoveredEntities): 
       getCachedRegistry(),
       Object.keys(memberWinners ?? {}),
     ),
+    memberClimate: rollupMemberClimate(hass, getCachedRegistry(), Object.keys(memberWinners ?? {})),
     lockId: e.group_lock_switch,
     automationId: e.group_automation_switch,
+    climateId: e.group_climate_mode_switch,
     clearId: e.group_clear_overrides_button,
     // The `group_*` services resolve the group through the registry from ANY
     // entity of its config entry, so the always-present aggregate-position
@@ -241,6 +266,7 @@ export function restrictSnapshot(
       getCachedRegistry(),
       Object.keys(memberWinners ?? {}),
     ),
+    memberClimate: rollupMemberClimate(hass, getCachedRegistry(), Object.keys(memberWinners ?? {})),
     deviceClass: classes.size === 1 ? [...classes][0] : undefined,
   };
 }
@@ -424,6 +450,15 @@ export function toggleAutomation(
   on: boolean,
 ): void {
   const id = discovered.entities.group_automation_switch;
+  if (id) groupSetSwitch(hass, id, !on);
+}
+
+export function toggleClimate(
+  hass: HomeAssistant,
+  discovered: DiscoveredEntities,
+  on: boolean,
+): void {
+  const id = discovered.entities.group_climate_mode_switch;
   if (id) groupSetSwitch(hass, id, !on);
 }
 

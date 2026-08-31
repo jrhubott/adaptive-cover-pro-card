@@ -363,6 +363,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
             .showSceneSelect=${this._config.show_scene_select !== false}
             .showLock=${this._config.show_lock !== false}
             .showAutomation=${this._config.show_automation !== false}
+            .showClimate=${this._config.show_climate === true}
             .showClearOverrides=${this._config.show_clear_overrides !== false}
             .showMemberBadges=${this._config.show_member_badges !== false}
             .iconInteractive=${this._hasIconAction()}
@@ -383,6 +384,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
           .showSceneSelect=${this._config.show_scene_select !== false}
           .showLock=${this._config.show_lock !== false}
           .showAutomation=${this._config.show_automation !== false}
+          .showClimate=${this._config.show_climate === true}
           .showClearOverrides=${this._config.show_clear_overrides !== false}
           .showMemberBadges=${this._config.show_member_badges !== false}
           @acp-dialog-close=${this._closeDialog}

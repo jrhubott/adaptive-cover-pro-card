@@ -42,6 +42,7 @@ function defaultGroupFields(): GroupFields {
     scene_option: 'auto',
     locked: false,
     automation: true,
+    climate: true,
     climate_mode: 'summer_mode',
   };
 }
@@ -857,6 +858,11 @@ export class AcpHarnessControlPanel extends LitElement {
             ${this._checkbox('Automatic control', e.flags.automatic_control, (v) =>
               this._patchFlags(idx, { automatic_control: v }),
             )}
+            ${this._checkbox(
+              'Climate mode',
+              e.flags.climate_mode ?? e.flags.climate_strategy !== 'intermediate',
+              (v) => this._patchFlags(idx, { climate_mode: v }),
+            )}
             ${this._checkbox('Manual override', e.flags.manual_override, (v) =>
               this._patchFlags(idx, { manual_override: v }),
             )}
@@ -1211,6 +1217,9 @@ export class AcpHarnessControlPanel extends LitElement {
         ${this._checkbox('Color icon by state', this.config.root.state_color, (v) =>
           this._emit({ ...this.config, root: { ...this.config.root, state_color: v } }),
         )}
+        ${this._checkbox('Show climate toggle (groups)', this.config.root.show_climate, (v) =>
+          this._emit({ ...this.config, root: { ...this.config.root, show_climate: v } }),
+        )}
         ${this._numberSlider('North offset °', this.config.root.north_offset, -180, 180, 1, (v) =>
           this._emit({ ...this.config, root: { ...this.config.root, north_offset: v } }),
         )}
@@ -1294,6 +1303,7 @@ export class AcpHarnessControlPanel extends LitElement {
             'show_scene_select',
             'show_lock',
             'show_automation',
+            'show_climate',
             'show_clear_overrides',
             'show_member_badges',
             'show_compass',
