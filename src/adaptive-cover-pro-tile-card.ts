@@ -1243,20 +1243,21 @@ export class AdaptiveCoverProTileCard extends LitElement {
       @keydown=${(e: KeyboardEvent) => this._onPosKeydown(e, id, shownFill, axis)}
     >
       <div class="pos-bar" ${tooltip(tip)}>
-        ${pending !== null && pendingFill !== null
-          ? renderRailOverlay({
-              hass: this.hass,
-              liveFrac: shownFill,
-              pendingFrac: pendingFill,
-              pending,
-              prefix: 'pos-',
-            })
-          : nothing}
         ${renderRailFill({
           fillPct: shownFill,
           target,
           targetPct: targetFill ?? 0,
           prefix: 'pos-',
+          overlay:
+            pending !== null && pendingFill !== null
+              ? renderRailOverlay({
+                  hass: this.hass,
+                  liveFrac: shownFill,
+                  pendingFrac: pendingFill,
+                  pending,
+                  prefix: 'pos-',
+                })
+              : nothing,
         })}
       </div>
       ${dragging

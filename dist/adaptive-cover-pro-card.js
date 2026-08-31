@@ -1154,10 +1154,11 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
       transparent 3px 6px
     );
   }
-`;function Zi(e){const{fillPct:t,closedPct:o,target:i,targetPct:s,tooltip:n}=e,r=e.prefix??"";return H`<div class=${`${r}fill`} style="width:${t}%"></div>
-    ${void 0!==o?H`<div class=${`${r}fill-closed`} style="width:${o}%"></div>`:V}
+`;function Zi(e){const{fillPct:t,closedPct:o,target:i,targetPct:s,tooltip:n,overlay:r}=e,a=e.prefix??"";return H`<div class=${`${a}fill`} style="width:${t}%"></div>
+    ${void 0!==o?H`<div class=${`${a}fill-closed`} style="width:${o}%"></div>`:V}
+    ${r??V}
     ${null!==i?H`<div
-          class=${`${r}marker`}
+          class=${`${a}marker`}
           style="left:clamp(1px, ${s}%, calc(100% - 1px))"
           ${void 0!==n?n:V}
         ></div>`:V}`}const Qi=a`
@@ -1579,8 +1580,7 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
           @keydown=${this._onKeydown}
           ${So(st(this.hintKey??"covers.tilt_click_to_set",this.hass))}
         >
-          ${null!==r&&null!==a?Vi({hass:this.hass,liveFrac:i,pendingFrac:a,pending:r}):V}
-          ${Zi({fillPct:i,closedPct:100-i,target:this.target,targetPct:s,tooltip:null===this.target?void 0:So(st(this.targetHintKey??"covers.tilt_target_tooltip",this.hass,{pct:this.target}))})}
+          ${Zi({fillPct:i,closedPct:100-i,target:this.target,targetPct:s,overlay:null!==r&&null!==a?Vi({hass:this.hass,liveFrac:i,pendingFrac:a,pending:r}):V,tooltip:null===this.target?void 0:So(st(this.targetHintKey??"covers.tilt_target_tooltip",this.hass,{pct:this.target}))})}
         </div>
       </div>
     `}_commit(e){this._pending.start(ys.PENDING_KEY,e),this.dispatchEvent(new CustomEvent("acp-tilt-set",{detail:e,bubbles:!0,composed:!0}))}_onClick(e){this.disabled||this._commit(this._rail.valueFromEvent(e,e.currentTarget,this))}_onKeydown(e){if(this.disabled)return;const t=this._rail.keydownValue(e,this.actual,this);null!==t&&this._commit(t)}};function xs(e,t){const o=[],i=[];for(const s of Object.values(e))"number"!=typeof s||Number.isNaN(s)||(o.push(ft(s,t)),i.push(s));if(0===o.length)return null;o.sort((e,t)=>e-t),i.sort((e,t)=>e-t);const s=o.filter((e,t)=>0===t||e!==o[t-1]);return{min:o[0],max:o[o.length-1],ticks:s,readable:o.length,aligned:o[0]===o[o.length-1],logicalMin:i[0],logicalMax:i[i.length-1]}}ws.RAIL_KEY="axis",ws.PENDING_KEY="axis",ws.styles=[Yi,Qi,a`
@@ -2916,8 +2916,7 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
               @keydown=${t=>this._onTrackKeydown(t,e,u,r)}
               ${So(st("covers.click_to_set",this.hass))}
             >
-              ${null!==f&&null!==b?Vi({hass:this.hass,liveFrac:u,pendingFrac:b,pending:f}):V}
-              ${Zi({fillPct:u,closedPct:100-u,target:o,targetPct:_,tooltip:null===o?void 0:So(st(s?"covers.target_tooltip_override":"covers.target_tooltip",this.hass,{pct:c}))})}
+              ${Zi({fillPct:u,closedPct:100-u,target:o,targetPct:_,overlay:null!==f&&null!==b?Vi({hass:this.hass,liveFrac:u,pendingFrac:b,pending:f}):V,tooltip:null===o?void 0:So(st(s?"covers.target_tooltip_override":"covers.target_tooltip",this.hass,{pct:c}))})}
             </div>`:H`<span class="track-spacer"></span>`}
         ${a&&null!==o&&ts(this.hass)?H`<button
               class="goto-target"
@@ -5510,8 +5509,7 @@ function e(e,t,o,i){var s,n=arguments.length,r=n<3?t:null===i?i=Object.getOwnPro
       @keydown=${t=>this._onPosKeydown(t,e,l,i)}
     >
       <div class="pos-bar" ${So(_)}>
-        ${null!==p&&null!==u?Vi({hass:this.hass,liveFrac:l,pendingFrac:u,pending:p,prefix:"pos-"}):V}
-        ${Zi({fillPct:l,target:o,targetPct:c??0,prefix:"pos-"})}
+        ${Zi({fillPct:l,target:o,targetPct:c??0,prefix:"pos-",overlay:null!==p&&null!==u?Vi({hass:this.hass,liveFrac:l,pendingFrac:u,pending:p,prefix:"pos-"}):V})}
       </div>
       ${r?H`<div
             class="pos-readout"

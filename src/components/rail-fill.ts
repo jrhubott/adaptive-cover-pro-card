@@ -47,15 +47,26 @@ export interface RailFillOptions {
    *  `tooltip(text)`). i18n stays owned by the host — the tile card's marker
    *  passes none. */
   tooltip?: DirectiveResult;
+  /** The "moving to" overlay (typically a `renderRailOverlay(...)` result, or
+   *  `nothing`), rendered between the fill segments and the marker. On the
+   *  two-segment dialog rails `.fill`/`.fill-closed` are unpositioned flex
+   *  items, so their place in this order is cosmetic. On the dense tile
+   *  rails `.pos-fill`, the overlay's `.pos-travel`/`.pos-pending`, and
+   *  `.pos-marker` are all `position: absolute` with `z-index: auto` — DOM
+   *  order there IS paint order, so this slot is what keeps the fill under
+   *  the travel band and the marker on top of both, instead of leaving each
+   *  rail to re-derive that ordering itself. */
+  overlay?: TemplateResult | typeof nothing;
 }
 
 export function renderRailFill(opts: RailFillOptions): TemplateResult {
-  const { fillPct, closedPct, target, targetPct, tooltip: tip } = opts;
+  const { fillPct, closedPct, target, targetPct, tooltip: tip, overlay } = opts;
   const prefix = opts.prefix ?? '';
   return html`<div class=${`${prefix}fill`} style="width:${fillPct}%"></div>
     ${closedPct !== undefined
       ? html`<div class=${`${prefix}fill-closed`} style="width:${closedPct}%"></div>`
       : nothing}
+    ${overlay ?? nothing}
     ${target !== null
       ? html`<div
           class=${`${prefix}marker`}

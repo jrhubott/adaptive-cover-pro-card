@@ -459,19 +459,20 @@ export class CoverBar extends LitElement {
               @keydown=${(e: KeyboardEvent) => this._onTrackKeydown(e, entityId, fillPct, axis)}
               ${tooltip(t('covers.click_to_set', this.hass))}
             >
-              ${pending !== null && pendingPct !== null
-                ? renderRailOverlay({
-                    hass: this.hass,
-                    liveFrac: fillPct,
-                    pendingFrac: pendingPct,
-                    pending,
-                  })
-                : nothing}
               ${renderRailFill({
                 fillPct,
                 closedPct: 100 - fillPct,
                 target,
                 targetPct: markerPct,
+                overlay:
+                  pending !== null && pendingPct !== null
+                    ? renderRailOverlay({
+                        hass: this.hass,
+                        liveFrac: fillPct,
+                        pendingFrac: pendingPct,
+                        pending,
+                      })
+                    : nothing,
                 tooltip:
                   target === null
                     ? undefined

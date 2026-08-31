@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { html, render } from 'lit';
+import type { HomeAssistant } from 'custom-card-helpers';
 import { renderRailFill, railFillStyles, type RailFillOptions } from '../src/components/rail-fill';
+import { renderRailOverlay } from '../src/components/rail-overlay';
 import { tooltip, _resetTooltipSingleton } from '../src/lib/tooltip';
 
 beforeEach(() => {
@@ -70,6 +72,56 @@ describe('renderRailFill', () => {
     expect(host.querySelector('.pos-marker')).toBeTruthy();
     expect(host.querySelector('.fill')).toBeNull();
     expect(host.querySelector('.marker')).toBeNull();
+  });
+});
+
+// On the dense tile rails, `.pos-fill`, the overlay's `.pos-travel`/
+// `.pos-pending`, and `.pos-marker` are all `position: absolute` with
+// `z-index: auto` (see `rail-overlay.ts` and the `.pos-*` rules in
+// `railFillStyles`), so DOM order IS paint order there — unlike the
+// two-segment dialog rails, where `.fill`/`.fill-closed` are unpositioned
+// flex items and their place in the order is cosmetic. A refactor that
+// rendered the `overlay` slot before the fill segments would silently sink
+// the "moving to" indicator under the 55%-opaque fill (#272), invisible to
+// every other test in this suite: happy-dom has no paint model, so nothing
+// but an explicit order assertion on the real elements catches it.
+describe('renderRailFill — layer stacking order (#272 paint-order guard)', () => {
+  const hass = {} as unknown as HomeAssistant;
+
+  it('renders the overlay between the fill and the marker on the pos- prefixed (dense tile) rail', () => {
+    const host = mountFill({
+      fillPct: 40,
+      target: 70,
+      targetPct: 70,
+      prefix: 'pos-',
+      overlay: renderRailOverlay({
+        hass,
+        liveFrac: 40,
+        pendingFrac: 60,
+        pending: 60,
+        prefix: 'pos-',
+      }),
+    });
+    const order = Array.from(host.children).map((el) => el.className);
+    expect(order).toEqual(['pos-fill', 'pos-travel', 'pos-pending', 'pos-marker']);
+  });
+
+  it('renders the overlay between the fill segments and the marker on the unprefixed (dialog) rail', () => {
+    const host = mountFill({
+      fillPct: 40,
+      closedPct: 60,
+      target: 70,
+      targetPct: 70,
+      overlay: renderRailOverlay({ hass, liveFrac: 40, pendingFrac: 60, pending: 60 }),
+    });
+    const order = Array.from(host.children).map((el) => el.className);
+    expect(order).toEqual(['fill', 'fill-closed', 'travel', 'pending-marker', 'marker']);
+  });
+
+  it('renders no overlay nodes at all when the overlay option is omitted', () => {
+    const host = mountFill({ fillPct: 40, target: 70, targetPct: 70, prefix: 'pos-' });
+    const order = Array.from(host.children).map((el) => el.className);
+    expect(order).toEqual(['pos-fill', 'pos-marker']);
   });
 });
 

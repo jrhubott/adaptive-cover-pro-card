@@ -158,19 +158,20 @@ export class AxisBar extends LitElement {
           @keydown=${this._onKeydown}
           ${tooltip(t(this.hintKey ?? 'covers.tilt_click_to_set', this.hass))}
         >
-          ${pending !== null && pendingFrac !== null
-            ? renderRailOverlay({
-                hass: this.hass,
-                liveFrac: actualFrac,
-                pendingFrac,
-                pending,
-              })
-            : nothing}
           ${renderRailFill({
             fillPct: actualFrac,
             closedPct: 100 - actualFrac,
             target: this.target,
             targetPct: targetFrac,
+            overlay:
+              pending !== null && pendingFrac !== null
+                ? renderRailOverlay({
+                    hass: this.hass,
+                    liveFrac: actualFrac,
+                    pendingFrac,
+                    pending,
+                  })
+                : nothing,
             // The VALUE, not the drawn fraction — those diverge the moment the
             // axis is mirrored or its range is not 0..100.
             tooltip:
