@@ -1,10 +1,12 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
+import { axisDisplayValue, axisFraction } from '../lib/axes';
 import { formatPercent } from '../lib/formatters';
 import { t } from '../lib/i18n';
 import { PendingMoves, isPendingVisible } from '../lib/pending-move';
+import { RailGestures } from '../lib/rail-gestures';
 import { renderRailOverlay, railOverlayStyles } from './rail-overlay';
 import { tooltip } from '../lib/tooltip';
 
@@ -71,10 +73,12 @@ export class AxisBar extends LitElement {
    *  target hint. */
   @property({ attribute: false }) public targetHintKey: string | null = null;
 
-  /** Live client-side value while a drag is in flight, in axis units. Drives
-   *  the fill and the percentage readout; never dispatches on its own. Null
-   *  whenever no gesture is active. */
-  @state() private _dragValue: number | null = null;
+  /** The shared drag-to-set contract — see `lib/rail-gestures.ts`. Default
+   *  `'click'` mode, so the preview starts on contact and the commit rides the
+   *  trailing compatibility `click` into `_onClick`, exactly as before. One
+   *  track per bar, so the key is a constant. */
+  private _rail = new RailGestures(this);
+  private static readonly RAIL_KEY = 'axis';
 
   /** Where the HOST knows this axis is heading when the move did not come from
    *  this bar — an automatic pipeline move. The bar cannot derive it: it sees
@@ -102,28 +106,19 @@ export class AxisBar extends LitElement {
    *  integration gives every tilt axis. See `lib/axes.ts → axisDisplayValue`. */
   @property({ type: Boolean }) public openBlocksSun = true;
 
-  /** Map an axis value onto a 0–100 track fraction using min/max, in the
-   *  direction the rail draws (see {@link openBlocksSun}). */
-  private _frac(v: number | null): number {
-    // "No reading" draws EMPTY, never full. Substituting `min` was harmless
-    // while the track drew the value directly, but on a mirrored axis it maps
-    // to a completely full bar — an unknown cover would read as fully blocking.
-    if (v === null || v === undefined || Number.isNaN(v)) return 0;
-    const span = this.max - this.min;
-    if (span === 0) return 0;
-    const pct = ((v - this.min) / span) * 100;
-    const clamped = Math.max(0, Math.min(100, pct));
-    return this.openBlocksSun ? clamped : 100 - clamped;
-  }
-
   protected render(): TemplateResult | typeof nothing {
     if (!this.hass) return nothing;
     // A drag in flight overrides server truth for this bar's fill and readout;
     // once it ends, `actual` takes over again with no extra bookkeeping.
-    const dragging = this._dragValue !== null;
-    const shownValue = this._dragValue ?? this.actual;
-    const actualFrac = this._frac(shownValue);
-    const targetFrac = this._frac(this.target);
+    const drag = this._rail.preview(AxisBar.RAIL_KEY);
+    const dragging = drag !== null;
+    const shownValue = drag ?? this.actual;
+    // `axisFraction` normalizes min/max onto the track and applies the same
+    // mirroring rule `axisDisplayValue` does — this bar's own `_frac` was that
+    // rule written a second time. The element's `min`/`max`/`openBlocksSun`
+    // properties satisfy the helper's axis shape structurally.
+    const actualFrac = axisFraction(shownValue, this);
+    const targetFrac = axisFraction(this.target, this);
     // Hidden while a drag is in flight: the drag preview already paints where
     // the finger is, and a band to the PREVIOUS command underneath it would be
     // two answers to the same question.
@@ -135,7 +130,7 @@ export class AxisBar extends LitElement {
     // changes and nothing ever settles the move — the indicator would sit there
     // as a zero-width band and a stray pip until the timeout.
     const pending = isPendingVisible(shownValue, commanded) ? commanded : null;
-    const pendingFrac = pending === null ? null : this._frac(pending);
+    const pendingFrac = pending === null ? null : axisFraction(pending, this);
     const label = this.label ?? t('covers.tilt_title', this.hass);
     return html`
       <div
@@ -151,18 +146,14 @@ export class AxisBar extends LitElement {
           aria-disabled=${this.disabled ? 'true' : 'false'}
           aria-valuemin=${this.min}
           aria-valuemax=${this.max}
-          aria-valuenow=${shownValue === null
-            ? this.min
-            : this.openBlocksSun
-              ? shownValue
-              : this.min + this.max - shownValue}
+          aria-valuenow=${shownValue === null ? this.min : axisDisplayValue(shownValue, this)}
           aria-valuetext=${formatPercent(shownValue)}
           aria-label=${label}
           @click=${this._onClick}
           @pointerdown=${this._onPointerDown}
           @pointermove=${this._onPointerMove}
           @pointerup=${this._onPointerEnd}
-          @pointercancel=${this._onPointerEnd}
+          @pointercancel=${this._onPointerCancel}
           @keydown=${this._onKeydown}
           ${tooltip(t(this.hintKey ?? 'covers.tilt_click_to_set', this.hass))}
         >
@@ -194,22 +185,6 @@ export class AxisBar extends LitElement {
     `;
   }
 
-  /** Map a pointer's clientX onto an axis value in [min,max]. Shared by the
-   *  click commit path and the drag preview so both read the track identically. */
-  private _valueFromEvent(e: { clientX: number }, track: HTMLElement): number {
-    const rect = track.getBoundingClientRect();
-    const drawn = (e.clientX - rect.left) / rect.width;
-    // Un-draw before mapping to axis units, so the value committed is the one
-    // the fill under the finger represents.
-    const frac = this.openBlocksSun ? drawn : 1 - drawn;
-    const raw = this.min + frac * (this.max - this.min);
-    return this._clamp(raw);
-  }
-
-  private _clamp(v: number): number {
-    return Math.max(this.min, Math.min(this.max, Math.round(v)));
-  }
-
   private _commit(value: number): void {
     this._pending.start(AxisBar.PENDING_KEY, value);
     this.dispatchEvent(
@@ -217,77 +192,43 @@ export class AxisBar extends LitElement {
     );
   }
 
+  /* The four handlers below are thin adapters: the `disabled` gate is this
+     bar's own policy and stays here, the gesture itself belongs to
+     `RailGestures`. `this` doubles as the axis descriptor — the controller
+     takes `min`/`max`/`openBlocksSun` structurally, which is what lets a bar
+     whose range is a mutable reactive property use it. */
   private _onClick(e: MouseEvent): void {
     if (this.disabled) return;
-    this._commit(this._valueFromEvent(e, e.currentTarget as HTMLElement));
+    this._commit(this._rail.valueFromEvent(e, e.currentTarget as HTMLElement, this));
   }
 
-  /** Begin a drag: capture the pointer (best-effort, happy-dom may not implement
-   *  it) and start the live preview. Deliberately no `preventDefault()` —
-   *  suppressing it would also suppress the trailing `click` that commits. */
   private _onPointerDown = (e: PointerEvent): void => {
     if (this.disabled) return;
-    const track = e.currentTarget as HTMLElement;
-    (track as HTMLElement & { setPointerCapture?: (id: number) => void }).setPointerCapture?.(
-      e.pointerId,
-    );
-    this._dragValue = this._valueFromEvent(e, track);
+    this._rail.pointerDown(e, AxisBar.RAIL_KEY, this);
   };
 
   private _onPointerMove = (e: PointerEvent): void => {
-    if (this.disabled || this._dragValue === null) return;
-    this._dragValue = this._valueFromEvent(e, e.currentTarget as HTMLElement);
+    if (this.disabled) return;
+    this._rail.pointerMove(e, AxisBar.RAIL_KEY, this);
   };
 
   /** End of gesture. Never commits: on pointerup the browser's trailing `click`
    *  reaches `_onClick`, and on pointercancel there is no commit at all. */
   private _onPointerEnd = (): void => {
-    this._dragValue = null;
+    this._rail.pointerUp(AxisBar.RAIL_KEY);
+  };
+
+  private _onPointerCancel = (): void => {
+    this._rail.pointerCancel(AxisBar.RAIL_KEY);
   };
 
   /** Standard WAI-ARIA slider keys, stepping in axis units so a non-percent
    *  range (e.g. slat angle -90..90) behaves sensibly. */
   private _onKeydown(e: KeyboardEvent): void {
     if (this.disabled) return;
-    // Every key is expressed in the DRAWN direction, so the thumb always moves
-    // the way the key points and `aria-valuenow` (also drawn) steps with it.
-    // Home/End included: they name the ends of the TRACK, so on a mirrored axis
-    // Home is the axis maximum. Leaving them in axis units put Home on
-    // `aria-valuemax` and End on `aria-valuemin`.
-    const step = this.openBlocksSun ? 1 : -1;
-    const trackStart = this.openBlocksSun ? this.min : this.max;
-    const trackEnd = this.openBlocksSun ? this.max : this.min;
-    // With no reading the track draws EMPTY, so stepping has to start from the
-    // empty end — not `min`, which on a mirrored axis is the FULL end and made
-    // a rightward key jump the fill from empty to completely full.
-    const current = this.actual ?? trackStart;
-    let next: number;
-    switch (e.key) {
-      case 'ArrowRight':
-      case 'ArrowUp':
-        next = current + step;
-        break;
-      case 'ArrowLeft':
-      case 'ArrowDown':
-        next = current - step;
-        break;
-      case 'PageUp':
-        next = current + 10 * step;
-        break;
-      case 'PageDown':
-        next = current - 10 * step;
-        break;
-      case 'Home':
-        next = trackStart;
-        break;
-      case 'End':
-        next = trackEnd;
-        break;
-      default:
-        return;
-    }
-    e.preventDefault();
-    this._commit(this._clamp(next));
+    const next = this._rail.keydownValue(e, this.actual, this);
+    if (next === null) return;
+    this._commit(next);
   }
 
   public static styles = [

@@ -4320,8 +4320,22 @@ describe('tile card — low-battery overlay (#260)', () => {
 });
 
 describe('tile card — drag position readout (#260)', () => {
-  interface Draggable extends CardLike {
-    _posDrag: { id: string; pct: number } | null;
+  const RECT = { left: 0, width: 100, top: 0, bottom: 6, right: 100, height: 6 };
+
+  /** Put the first rail into a live drag through the real gesture path, and
+   *  hand back the slider so the caller can end it. On a mirrored blind the
+   *  drawn 63 under the finger is logical 37 — the value these tests assert. */
+  async function dragFirstRail(el: CardLike): Promise<HTMLElement> {
+    const slider = el.shadowRoot!.querySelectorAll('.pos-slider')[0] as HTMLElement;
+    Object.defineProperty(slider, 'getBoundingClientRect', {
+      value: () => RECT,
+      configurable: true,
+    });
+    slider.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, composed: true, clientX: 63, pointerId: 1 }),
+    );
+    await el.updateComplete;
+    return slider;
   }
 
   it('shows no readout when idle', async () => {
@@ -4335,12 +4349,11 @@ describe('tile card — drag position readout (#260)', () => {
   // The hover tooltip carries the same number, but a tooltip is mouse-only —
   // on a phone the finger setting the position also covers the rail.
   it('shows the live logical percentage on the dragged rail only', async () => {
-    const el = (await mount(
+    const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({ coverLeftCurrentPosition: 60 }),
-    )) as Draggable;
-    el._posDrag = { id: 'cover.left', pct: 37 };
-    await el.updateComplete;
+    );
+    await dragFirstRail(el);
 
     const readouts = el.shadowRoot!.querySelectorAll('.pos-readout');
     expect(readouts.length).toBe(1);
@@ -4348,15 +4361,16 @@ describe('tile card — drag position readout (#260)', () => {
   });
 
   it('clears the readout when the drag ends', async () => {
-    const el = (await mount(
+    const el = await mount(
       { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
       makeHass({ coverLeftCurrentPosition: 60 }),
-    )) as Draggable;
-    el._posDrag = { id: 'cover.left', pct: 37 };
-    await el.updateComplete;
+    );
+    const slider = await dragFirstRail(el);
     expect(el.shadowRoot!.querySelector('.pos-readout')).toBeTruthy();
 
-    el._posDrag = null;
+    slider.dispatchEvent(
+      new PointerEvent('pointerup', { bubbles: true, composed: true, clientX: 63, pointerId: 1 }),
+    );
     await el.updateComplete;
     expect(el.shadowRoot!.querySelector('.pos-readout')).toBeFalsy();
   });
@@ -4364,12 +4378,11 @@ describe('tile card — drag position readout (#260)', () => {
   // .pos-bar is overflow:hidden to clip the fill, so the readout must not live
   // inside it, and it must never swallow the drag it reports on.
   it('sits outside the clipped bar and is pointer-transparent', async () => {
-    const el = (await mount(
+    const el = await mount(
       { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
       makeHass({ coverLeftCurrentPosition: 60 }),
-    )) as Draggable;
-    el._posDrag = { id: 'cover.left', pct: 37 };
-    await el.updateComplete;
+    );
+    await dragFirstRail(el);
 
     expect(el.shadowRoot!.querySelector('.pos-slider > .pos-readout')).toBeTruthy();
     expect(el.shadowRoot!.querySelector('.pos-bar .pos-readout')).toBeFalsy();

@@ -64,6 +64,36 @@ export function axisDisplayValue(
   return axis.openBlocksSun ? value : axis.min + axis.max - value;
 }
 
+/**
+ * Map a logical axis value onto its 0–100 DRAWN track fraction.
+ *
+ * {@link axisDisplayValue} mirrors in axis units, which is all a 0–100 position
+ * rail ever needs; an axis with its own range (a slat angle at −90..90) has to
+ * be normalized onto the track first. The two are the same mirroring rule —
+ * `normalize(axisDisplayValue(v)) === 100 − normalize(v)` — so this is
+ * `axisDisplayValue` composed with the normalize step the position rails can
+ * skip, and every rail can take its fill from here.
+ *
+ * Deliberately not a `Pick<>` of the pointer helpers' argument by accident:
+ * `acp-axis-bar` satisfies this shape structurally from its own reactive
+ * `min`/`max`/`openBlocksSun` properties, which is what lets a component with
+ * no `ResolvedAxis` in hand call it.
+ */
+export function axisFraction(
+  value: number | null | undefined,
+  axis: Pick<ResolvedAxis, 'min' | 'max' | 'openBlocksSun'>,
+): number {
+  // "No reading" draws EMPTY, never full. Substituting `min` was harmless
+  // while the track drew the value directly, but on a mirrored axis it maps
+  // to a completely full bar — an unknown cover would read as fully blocking.
+  if (value === null || value === undefined || Number.isNaN(value)) return 0;
+  const span = axis.max - axis.min;
+  if (span === 0) return 0;
+  const pct = ((value - axis.min) / span) * 100;
+  const clamped = Math.max(0, Math.min(100, pct));
+  return axis.openBlocksSun ? clamped : 100 - clamped;
+}
+
 const DEFAULT_MIN = 0;
 const DEFAULT_MAX = 100;
 const DEFAULT_UNIT = '%';

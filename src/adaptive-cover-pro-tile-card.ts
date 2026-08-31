@@ -38,6 +38,7 @@ import {
 } from './lib/axes';
 import { railsAreOneCover } from './lib/rail-model';
 import { PendingMoves, isMovingState, isPendingVisible } from './lib/pending-move';
+import { RailGestures } from './lib/rail-gestures';
 import { renderRailOverlay, railOverlayStyles } from './components/rail-overlay';
 import { setAxes, engageManualOverride, hasEngageManualOverride } from './lib/services';
 import { buildOverridePresets } from './lib/override-presets';
@@ -108,13 +109,12 @@ export class AdaptiveCoverProTileCard extends LitElement {
   @state() public _registry: EntityRegistryEntry[] | null = null;
   @state() private _registryError: string | null = null;
   @state() private _dialogOpen = false;
-  /** Live client-side percent while the position slider is being dragged.
-   *  Drives the fill and readout; the write happens on the gesture's trailing
-   *  click, never mid-drag. Null whenever no drag is in flight. */
-  /** In-flight position drag, keyed by the cover entity being dragged — a
-   *  multi-cover entry renders one rail per cover, so a single scalar would
-   *  paint every rail with whichever one has the finger on it. */
-  @state() private _posDrag: { id: string; pct: number } | null = null;
+  /** The shared drag-to-set contract — see `lib/rail-gestures.ts`. Keyed by the
+   *  cover entity being dragged: a multi-cover entry renders one rail per
+   *  cover, so a single scalar would paint every rail with whichever one has
+   *  the finger on it. Default `'click'` mode — the write happens on the
+   *  gesture's trailing click, never mid-drag. */
+  private _rail = new RailGestures(this);
   @state() private _extendOpen = false;
 
   private _unsubRegistry: (() => void) | null = null;
@@ -1205,8 +1205,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // A drag in flight overrides the server-truth fill and readout. Post-#234
     // the live value is logical-frame and `set_axes` takes logical values, so
     // the percentage you drag to is exactly the one that gets sent.
-    const dragging = this._posDrag?.id === id;
-    const shown = dragging ? this._posDrag!.pct : live;
+    const drag = this._rail.preview(id);
+    const dragging = drag !== null;
+    const shown = drag ?? live;
     // What the rail paints. ARIA describes the visual, so `aria-valuenow` is
     // this too — a screen reader stepping the slider must move the fill the way
     // the arrow key points. The open percentage is still spoken, via valuetext.
@@ -1250,8 +1251,8 @@ export class AdaptiveCoverProTileCard extends LitElement {
       @click=${(e: MouseEvent) => this._onPosClick(e, id, axis)}
       @pointerdown=${(e: PointerEvent) => this._onPosPointerDown(e, id, axis)}
       @pointermove=${(e: PointerEvent) => this._onPosPointerMove(e, id, axis)}
-      @pointerup=${this._onPosPointerEnd}
-      @pointercancel=${this._onPosPointerEnd}
+      @pointerup=${(e: PointerEvent) => this._onPosPointerEnd(e, id)}
+      @pointercancel=${(e: PointerEvent) => this._onPosPointerCancel(e, id)}
       @keydown=${(e: KeyboardEvent) => this._onPosKeydown(e, id, shownFill, axis)}
     >
       <div class="pos-bar" ${tooltip(tip)}>
@@ -1312,92 +1313,60 @@ export class AdaptiveCoverProTileCard extends LitElement {
     return full;
   }
 
-  /** Percent along the position slider from a pointer's clientX. */
-  private _posPctFromEvent(e: { clientX: number }, el: HTMLElement): number {
-    const rect = el.getBoundingClientRect();
-    const pct = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-    return Math.max(0, Math.min(100, pct));
-  }
-
   /* The tile body is itself a tap target that opens the more-info dialog, so
-     every slider gesture stops propagation, exactly as `.controls` does. No
-     `preventDefault()` on pointerdown: that would also suppress the trailing
-     compatibility `click` the commit rides on. */
-  /* `_posDrag.pct` is stored in the LOGICAL frame, like every other value the
-     card holds — `axisDisplayValue` converts the rail fraction back on the way
-     in, so the drag preview, the readout and the eventual service call are all
-     the same number and no caller has to remember which frame it is holding. */
+     every slider gesture stops propagation, exactly as `.controls` does — that
+     policy stays here, in the adapters, while the gesture itself belongs to
+     `RailGestures`. The controller never calls `preventDefault()` on
+     pointerdown: that would also suppress the trailing compatibility `click`
+     the commit rides on. Its preview is in the LOGICAL frame, like every other
+     value the card holds, so the drag preview, the readout and the eventual
+     service call are all the same number. */
   private _onPosPointerDown = (e: PointerEvent, id: string, axis: ResolvedAxis): void => {
     e.stopPropagation();
-    const el = e.currentTarget as HTMLElement;
-    (el as HTMLElement & { setPointerCapture?: (id: number) => void }).setPointerCapture?.(
-      e.pointerId,
-    );
-    this._posDrag = { id, pct: axisDisplayValue(this._posPctFromEvent(e, el), axis) };
+    this._rail.pointerDown(e, id, axis);
   };
 
   private _onPosPointerMove = (e: PointerEvent, id: string, axis: ResolvedAxis): void => {
-    if (this._posDrag?.id !== id) return;
+    if (!this._rail.isActive(id)) return;
     e.stopPropagation();
-    this._posDrag = {
-      id,
-      pct: axisDisplayValue(this._posPctFromEvent(e, e.currentTarget as HTMLElement), axis),
-    };
+    this._rail.pointerMove(e, id, axis);
   };
 
   /** Ends the gesture without writing: on pointerup the trailing `click`
    *  commits, on pointercancel nothing is sent at all. */
-  private _onPosPointerEnd = (e: PointerEvent): void => {
+  private _onPosPointerEnd = (e: PointerEvent, id: string): void => {
     e.stopPropagation();
-    this._posDrag = null;
+    this._rail.pointerUp(id);
+  };
+
+  private _onPosPointerCancel = (e: PointerEvent, id: string): void => {
+    e.stopPropagation();
+    this._rail.pointerCancel(id);
   };
 
   private _onPosClick(e: MouseEvent, cover: string | undefined, axis: ResolvedAxis): void {
     e.stopPropagation();
     this._setCoverPosition(
       cover,
-      axisDisplayValue(this._posPctFromEvent(e, e.currentTarget as HTMLElement), axis),
+      this._rail.valueFromEvent(e, e.currentTarget as HTMLElement, axis),
     );
   }
 
   /** Standard WAI-ARIA slider keys: arrows ±1, Page ±10, Home/End to the ends.
-   *  `current` and `next` are rail fractions, matching `aria-valuenow`, so the
-   *  arrow keys always move the fill the way they point; the step is converted
-   *  back to a logical value at the write. */
+   *  `current` is the rail fraction that `aria-valuenow` shows, so it goes
+   *  through `axisDisplayValue` on the way in and comes back as a logical
+   *  value ready for the write — the arrow keys still move the fill the way
+   *  they point. */
   private _onPosKeydown(
     e: KeyboardEvent,
     cover: string | undefined,
     current: number,
     axis: ResolvedAxis,
   ): void {
-    let next: number;
-    switch (e.key) {
-      case 'ArrowRight':
-      case 'ArrowUp':
-        next = current + 1;
-        break;
-      case 'ArrowLeft':
-      case 'ArrowDown':
-        next = current - 1;
-        break;
-      case 'PageUp':
-        next = current + 10;
-        break;
-      case 'PageDown':
-        next = current - 10;
-        break;
-      case 'Home':
-        next = 0;
-        break;
-      case 'End':
-        next = 100;
-        break;
-      default:
-        return;
-    }
-    e.preventDefault();
+    const next = this._rail.keydownValue(e, axisDisplayValue(current, axis), axis);
+    if (next === null) return;
     e.stopPropagation();
-    this._setCoverPosition(cover, axisDisplayValue(Math.max(0, Math.min(100, next)), axis));
+    this._setCoverPosition(cover, next);
   }
 
   private _stopCover(cover: string | undefined, axisId?: string): void {

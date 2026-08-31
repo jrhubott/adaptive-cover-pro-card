@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing, type TemplateResult, type PropertyValues } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
 import { entityStateChanged } from '../lib/hass-change';
@@ -22,6 +22,7 @@ import {
 } from '../lib/axes';
 import { setAxes, hasSetAxes } from '../lib/services';
 import { PendingMoves, isMovingState, isPendingVisible } from '../lib/pending-move';
+import { RailGestures } from '../lib/rail-gestures';
 import { renderRailOverlay, railOverlayStyles } from './rail-overlay';
 import { t } from '../lib/i18n';
 import { tooltip } from '../lib/tooltip';
@@ -43,12 +44,11 @@ export class CoverBar extends LitElement {
    *  the entry doesn't manage are ignored. */
   @property({ attribute: false }) public coverOrder?: string[];
 
-  /** Live client-side preview for a Position track drag/keyboard-in-progress —
-   *  set on pointerdown/pointermove, cleared on pointerup/pointercancel. Drives
-   *  `.fill`/`.num` for the matching row only; never itself calls a service
-   *  (the trailing native `click` after a drag commits via `_handleTrackClick`,
-   *  exactly as it does for a plain tap today). */
-  @state() private _dragPreview: { entityId: string; pct: number } | null = null;
+  /** The shared drag-to-set contract — see `lib/rail-gestures.ts`. Keyed by
+   *  cover entity_id so a drag paints `.fill`/`.num` for its own row only, and
+   *  in the default `'click'` mode so the commit keeps riding the trailing
+   *  native `click` into `_handleTrackClick`, exactly as a plain tap does. */
+  private _rail = new RailGestures(this);
 
   /** Moves this bar commanded, keyed by cover entity_id — see
    *  `lib/pending-move.ts`. Keyed because the dialog stacks one track per
@@ -374,7 +374,7 @@ export class CoverBar extends LitElement {
     // A drag/keyboard gesture in progress for this row overrides the server-truth
     // percentage in the fill bar and the percent readout; every other row (and
     // this row once the drag ends) renders from `actual` unchanged.
-    const dragPct = this._dragPreview?.entityId === entityId ? this._dragPreview.pct : null;
+    const dragPct = this._rail.preview(entityId);
     const numText = dragPct !== null ? formatPercent(dragPct) : formatPercent(actual);
     // What the track paints: the sun-blocking fraction, per the axis's own
     // `open_blocks_sun` polarity. The readout above stays the integration's
@@ -451,10 +451,10 @@ export class CoverBar extends LitElement {
               aria-valuetext=${t('covers.position_open_value', this.hass, { pct: numText })}
               aria-label=${t('covers.position_slider_label', this.hass)}
               @click=${(e: MouseEvent) => this._handleTrackClick(e, entityId, axis)}
-              @pointerdown=${(e: PointerEvent) => this._onTrackPointerDown(e, entityId, axis)}
-              @pointermove=${(e: PointerEvent) => this._onTrackPointerMove(e, entityId, axis)}
-              @pointerup=${() => this._onTrackPointerEnd(entityId)}
-              @pointercancel=${() => this._onTrackPointerEnd(entityId)}
+              @pointerdown=${(e: PointerEvent) => this._rail.pointerDown(e, entityId, axis)}
+              @pointermove=${(e: PointerEvent) => this._rail.pointerMove(e, entityId, axis)}
+              @pointerup=${() => this._rail.pointerUp(entityId)}
+              @pointercancel=${() => this._rail.pointerCancel(entityId)}
               @keydown=${(e: KeyboardEvent) => this._onTrackKeydown(e, entityId, fillPct, axis)}
               ${tooltip(t('covers.click_to_set', this.hass))}
             >
@@ -521,85 +521,27 @@ export class CoverBar extends LitElement {
     this._openMoreInfo();
   };
 
-  /** Shared clientX→0-100 track-fraction math, used by the click commit path
-   *  and the drag-preview pointer handlers alike. */
-  private _pctFromEvent(e: { clientX: number }, track: HTMLElement): number {
-    const rect = track.getBoundingClientRect();
-    const pct = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-    return Math.max(0, Math.min(100, pct));
-  }
-
+  /** The commit path for both a plain tap and the trailing compatibility
+   *  `click` a real browser fires at the end of a drag. */
   private _handleTrackClick(e: MouseEvent, entityId: string, axis: ResolvedAxis): void {
     const track = e.currentTarget as HTMLElement;
-    const clamped = this._pctFromEvent(e, track);
-    this._setAxis(entityId, 'position', axisDisplayValue(clamped, axis));
+    this._setAxis(entityId, 'position', this._rail.valueFromEvent(e, track, axis));
   }
-
-  /** Begin a drag: capture the pointer (best-effort — happy-dom may not
-   *  implement it) and start the live client-side preview for this row. No
-   *  `preventDefault()` here — suppressing it would also suppress the
-   *  trailing compatibility `click` the commit path depends on. */
-  private _onTrackPointerDown = (e: PointerEvent, entityId: string, axis: ResolvedAxis): void => {
-    const track = e.currentTarget as HTMLElement;
-    (track as HTMLElement & { setPointerCapture?: (id: number) => void }).setPointerCapture?.(
-      e.pointerId,
-    );
-    this._dragPreview = { entityId, pct: axisDisplayValue(this._pctFromEvent(e, track), axis) };
-  };
-
-  /** Update the live preview while dragging. No-op for any row other than the
-   *  one that owns the current drag. */
-  private _onTrackPointerMove = (e: PointerEvent, entityId: string, axis: ResolvedAxis): void => {
-    if (this._dragPreview?.entityId !== entityId) return;
-    const track = e.currentTarget as HTMLElement;
-    this._dragPreview = { entityId, pct: axisDisplayValue(this._pctFromEvent(e, track), axis) };
-  };
-
-  /** End of gesture: clear the preview for this row. Never calls a service —
-   *  on pointerup, the browser's native trailing `click` fires and
-   *  `_handleTrackClick` commits; on pointercancel there is no commit at all. */
-  private _onTrackPointerEnd = (entityId: string): void => {
-    if (this._dragPreview?.entityId !== entityId) return;
-    this._dragPreview = null;
-  };
 
   /** Standard WAI-ARIA slider keyboard pattern on the focused `.track`:
    *  Arrow keys step by 1, Page keys by 10, Home/End jump to the extremes.
-   *  Commits immediately via `_setAxis` (no drag preview involved). */
+   *  Commits immediately via `_setAxis` (no drag preview involved). `current`
+   *  is the DRAWN fill, so it goes through `axisDisplayValue` on the way in —
+   *  the controller speaks logical values in both directions. */
   private _onTrackKeydown(
     e: KeyboardEvent,
     entityId: string,
     current: number,
     axis: ResolvedAxis,
   ): void {
-    let next: number;
-    switch (e.key) {
-      case 'ArrowRight':
-      case 'ArrowUp':
-        next = current + 1;
-        break;
-      case 'ArrowLeft':
-      case 'ArrowDown':
-        next = current - 1;
-        break;
-      case 'PageUp':
-        next = current + 10;
-        break;
-      case 'PageDown':
-        next = current - 10;
-        break;
-      case 'Home':
-        next = 0;
-        break;
-      case 'End':
-        next = 100;
-        break;
-      default:
-        return;
-    }
-    e.preventDefault();
-    const clamped = Math.max(0, Math.min(100, next));
-    this._setAxis(entityId, 'position', axisDisplayValue(clamped, axis));
+    const next = this._rail.keydownValue(e, axisDisplayValue(current, axis), axis);
+    if (next === null) return;
+    this._setAxis(entityId, 'position', next);
   }
 
   public static styles = [
