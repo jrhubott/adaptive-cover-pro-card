@@ -2698,6 +2698,30 @@ describe('adaptive-cover-pro-tile-card HA tile layout (detailed)', () => {
     expect(marker.getAttribute('style') ?? '').toContain('58%');
   });
 
+  // `.pos-fill`, the overlay's `.pos-travel`/`.pos-pending`, and `.pos-marker`
+  // are all `position: absolute` with `z-index: auto` (see `railFillStyles`
+  // and `rail-overlay.ts`), so on THIS rail DOM order is paint order — a call
+  // site that re-siblings the overlay ahead of (or the marker behind) the
+  // fill would silently sink the "moving to" indicator under the fill (#272),
+  // invisible to every other assertion in this suite. This pins the order at
+  // the actual `_posBar` call site, not just inside the shared helper.
+  it('detailed: keeps .pos-fill before the overlay before the marker when a move is pending AND a target is set (#272 call-site order guard)', async () => {
+    // coverLeftState 'closing' arms isMovingState → the rail's own automatic-
+    // move hint, which is what drives the "moving to" overlay without a drag.
+    // current_position 60 vs. the default sensor.cover_position target (42)
+    // is well past the 2-point arrival tolerance, so the overlay stays live.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftCurrentPosition: 60, coverLeftState: 'closing' }),
+    );
+    const bar = el.shadowRoot!.querySelector(
+      '.tile-body.detailed .chrome-line .pos-bar',
+    ) as HTMLElement;
+    expect(bar).toBeTruthy();
+    const order = Array.from(bar.children).map((c) => c.className);
+    expect(order).toEqual(['pos-fill', 'pos-travel', 'pos-pending', 'pos-marker']);
+  });
+
   it('detailed: keeps the position bar when show_badge is false (bar is independent of badges)', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY, show_badge: false },

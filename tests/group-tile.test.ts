@@ -661,3 +661,58 @@ describe('group tile — position rail gestures (#267 characterization)', () => 
     expect(sent()).toEqual([59, 100, 0]);
   });
 });
+
+// The #272 fix threaded `renderRailOverlay(...)` through `renderRailFill`'s
+// `overlay` slot at the cover-bar/tilt-bar/tile-card call sites, since DOM
+// order IS paint order for their `position: absolute; z-index: auto` layers.
+// The group rail's non-spread fast path was deliberately left calling
+// `renderRailOverlay` as a following sibling instead — it never renders a
+// marker, so there is only `.pos-fill` and the overlay to order, and that
+// order already matches baseline. That is a property of THIS call site,
+// though, not something the shared helper enforces for it. This guard pins
+// it directly so a future edit that re-siblings the overlay ahead of the
+// fill (echoing the #272 bug on the one rail the helper's own order tests
+// can't see, since they only exercise the `overlay` slot) fails loudly.
+describe('group tile — position rail fill/overlay order (#272 call-site order guard)', () => {
+  const RECT = { left: 0, width: 100, top: 0, bottom: 8, right: 100, height: 8 };
+
+  it('renders .pos-fill before the overlay once a committed move is pending', async () => {
+    const callService = vi.fn();
+    const el = await mount(
+      makeHass({ callService: callService as unknown as (...a: unknown[]) => unknown }),
+      makeDiscovered(),
+    );
+    const slider = el.shadowRoot!.querySelector('.pos-slider') as HTMLElement;
+    Object.defineProperty(slider, 'getBoundingClientRect', {
+      value: () => RECT,
+      configurable: true,
+    });
+    // A past-threshold drag-then-release, same as the #267 suite uses to
+    // commit a move — the commit is what arms the "moving to" overlay.
+    slider.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        bubbles: true,
+        composed: true,
+        clientX: 20,
+        pointerId: 1,
+      }),
+    );
+    slider.dispatchEvent(
+      new PointerEvent('pointermove', {
+        bubbles: true,
+        composed: true,
+        clientX: 80,
+        pointerId: 1,
+      }),
+    );
+    slider.dispatchEvent(
+      new PointerEvent('pointerup', { bubbles: true, composed: true, clientX: 80, pointerId: 1 }),
+    );
+    await el.updateComplete;
+    expect(callService).toHaveBeenCalledTimes(1);
+    const bar = el.shadowRoot!.querySelector('.pos-bar') as HTMLElement;
+    expect(bar).toBeTruthy();
+    const order = Array.from(bar.children).map((c) => c.className);
+    expect(order).toEqual(['pos-fill', 'pos-travel', 'pos-pending']);
+  });
+});

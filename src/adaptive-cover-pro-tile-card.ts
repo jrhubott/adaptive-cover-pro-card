@@ -1,12 +1,4 @@
-import {
-  LitElement,
-  html,
-  css,
-  nothing,
-  unsafeCSS,
-  type TemplateResult,
-  type PropertyValues,
-} from 'lit';
+import { LitElement, html, css, nothing, type TemplateResult, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import {
   handleAction,
@@ -40,6 +32,7 @@ import { railsAreOneCover } from './lib/rail-model';
 import { PendingMoves, isMovingState, isPendingVisible } from './lib/pending-move';
 import { RailGestures } from './lib/rail-gestures';
 import { renderRailOverlay, railOverlayStyles } from './components/rail-overlay';
+import { renderRailFill, railFillStyles } from './components/rail-fill';
 import { setAxes, engageManualOverride, hasEngageManualOverride } from './lib/services';
 import { buildOverridePresets } from './lib/override-presets';
 import './components/extend-override-dialog';
@@ -47,13 +40,7 @@ import { AXIS_LABEL_I18N_KEYS } from './const';
 import { entityStateChanged } from './lib/hass-change';
 import { resolveCoverBatteries, lowestBattery, batteryIcon, isLowBattery } from './lib/battery';
 import { fetchAcpConfigEntries } from './lib/config-entries';
-import {
-  coverStateIcon,
-  coverStateColor,
-  coverOpenIcon,
-  coverCloseIcon,
-  COVER_ACTIVE_COLOR,
-} from './lib/icons';
+import { coverStateIcon, coverStateColor, coverOpenIcon, coverCloseIcon } from './lib/icons';
 import { subscribeEntityRegistry, type EntityRegistryEntry } from './lib/entity-registry';
 import { loadEntityRegistry, getCachedRegistry } from './lib/registry-store';
 import { registryCache } from './lib/registry-cache';
@@ -1217,7 +1204,11 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // because the browser drops the invalid declaration. The sibling bars both
     // normalize here too.
     const shownFill = shown === null ? 0 : axisDisplayValue(shown, axis);
-    const targetFill = target === null ? null : axisDisplayValue(target, axis);
+    // Defaulted the same way as `shownFill` above (and cover-bar's own
+    // `targetPct`): `renderRailFill`'s `target` param is what gates the
+    // marker, so this value is simply unused, never read as null, when
+    // `target` is null — no need to thread the null through a second time.
+    const targetFill = axisDisplayValue(target ?? 0, axis);
     // Remembered for `updated()`'s arrival check — see `_lastRailLive`.
     this._lastRailLive.set(id, live);
     // Suppressed mid-drag: the drag preview already paints where the finger is,
@@ -1258,22 +1249,22 @@ export class AdaptiveCoverProTileCard extends LitElement {
       @keydown=${(e: KeyboardEvent) => this._onPosKeydown(e, id, shownFill, axis)}
     >
       <div class="pos-bar" ${tooltip(tip)}>
-        <div class="pos-fill" style=${`width:${shownFill}%`}></div>
-        ${pending !== null && pendingFill !== null
-          ? renderRailOverlay({
-              hass: this.hass,
-              liveFrac: shownFill,
-              pendingFrac: pendingFill,
-              pending,
-              prefix: 'pos-',
-            })
-          : nothing}
-        ${targetFill !== null
-          ? html`<div
-              class="pos-marker"
-              style=${`left:clamp(1px, ${targetFill}%, calc(100% - 1px))`}
-            ></div>`
-          : nothing}
+        ${renderRailFill({
+          fillPct: shownFill,
+          target,
+          targetPct: targetFill,
+          prefix: 'pos-',
+          overlay:
+            pending !== null && pendingFill !== null
+              ? renderRailOverlay({
+                  hass: this.hass,
+                  liveFrac: shownFill,
+                  pendingFrac: pendingFill,
+                  pending,
+                  prefix: 'pos-',
+                })
+              : nothing,
+        })}
       </div>
       ${dragging
         ? html`<div
@@ -1590,6 +1581,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
 
   public static styles = [
     railOverlayStyles,
+    railFillStyles,
     css`
       :host {
         display: block;
@@ -1905,37 +1897,6 @@ export class AdaptiveCoverProTileCard extends LitElement {
         white-space: nowrap;
         pointer-events: none;
         z-index: 2;
-      }
-      .chrome-line .pos-bar {
-        position: relative;
-        width: 100%;
-        height: 6px;
-        border-radius: 6px;
-        background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
-        overflow: hidden;
-      }
-      .chrome-line .pos-fill {
-        position: absolute;
-        inset: 0 auto 0 0;
-        /* One constant color for every rail, never the cover's state color: a rail
-         that changed hue as it crossed open/closed read as a status light rather
-         than a measurement, and on a multi-rail tile the rails disagreed with
-         each other. The icon still carries state color (the state_color option),
-         which is where that signal belongs. Overridable per-theme via
-         --acp-pos-fill-color. */
-        background: var(--acp-pos-fill-color, ${unsafeCSS(COVER_ACTIVE_COLOR)});
-        opacity: 0.55;
-        border-radius: 6px;
-        transition: width 0.3s ease;
-      }
-      .chrome-line .pos-marker {
-        position: absolute;
-        top: 0;
-        width: 2px;
-        height: 100%;
-        background: var(--accent-color, #ff9800);
-        transform: translateX(-50%);
-        transition: left 0.3s ease;
       }
       .tilt-line {
         grid-area: tilt;
