@@ -81,6 +81,8 @@ export const de: EnDict = {
     automation_count: '{count} von {total} Mitgliedern automatisiert',
     clear_overrides: 'Übersteuerungen löschen',
     clear_overrides_none: 'Keine Mitglieder-Übersteuerungen zum Löschen',
+    climate_on: 'Klimasteuerung für alle Mitglieder aktivieren',
+    climate_off: 'Klimasteuerung für alle Mitglieder deaktivieren',
     who_won:
       '{count} von {total} Mitgliedern sind gruppengesteuert — eine Gruppenszene oder die Gruppensperre bestimmt derzeit ihre Position',
     members: 'Mitglieder',
@@ -454,6 +456,9 @@ export const de: EnDict = {
       show_compass_legend_desc: 'Farbschlüssel unterhalb des Himmelskompasses.',
       show_moon_label: 'Mond auf Kompass anzeigen',
       show_moon_desc: 'Mondposition und Mondphase als Überlagerung auf dem Himmelskompass.',
+      show_climate_label: 'Klima-Umschalter anzeigen (Abdeckungsgruppen)',
+      show_climate_desc:
+        'Fügt der Steuerleiste einer Abdeckungsgruppe einen Ein/Aus-Schalter für die Klimasteuerung hinzu. Ein Druck aktiviert oder deaktiviert den Klimamodus für alle Mitglieder.',
       hide_inactive_label: 'Inaktive Handler ausblenden',
       hide_inactive_desc: 'Nur den Gewinner und aktiv übereinstimmende Pipeline-Handler anzeigen.',
       state_color_label: 'Symbol nach Status einfärben',
@@ -492,6 +497,7 @@ export const de: EnDict = {
       show_scene_select: 'Szenenauswahl anzeigen',
       show_lock: 'Gruppensperre anzeigen',
       show_automation: 'Umschalter für Mitglieder-Automatisierung anzeigen',
+      show_climate: 'Umschalter für Klimasteuerung anzeigen',
       show_clear_overrides: 'Schaltfläche „Übersteuerungen löschen“ anzeigen',
       show_member_badges: 'Mitglieder-Übersteuerungs-Badges anzeigen',
       badge_section: 'Badges',

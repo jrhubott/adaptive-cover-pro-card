@@ -46,6 +46,10 @@ export interface GroupFields {
   locked: boolean;
   /** group_automation switch on/off. */
   automation: boolean;
+  /** group_climate_mode SWITCH on/off — the writable bulk latch. Distinct from
+   *  {@link climate_mode}, which is the read-only rollup sensor sharing the same
+   *  translation key on a different platform. */
+  climate: boolean;
   /** Aggregate climate mode string (group_climate_mode sensor). */
   climate_mode: string;
   /** Emit the integration's OPT-IN aggregate `cover.…group_cover` entity. It is
@@ -300,6 +304,8 @@ export interface RootCardOptions {
   show_compass_legend: boolean;
   show_moon: boolean;
   hide_inactive_handlers: boolean;
+  /** Cover Group entries only — the group view's climate on/off toggle. */
+  show_climate: boolean;
   show_decision_summary: boolean;
   /** Color the header cover icon by state, HA-style (default true). */
   state_color: boolean;
@@ -335,6 +341,7 @@ export interface TileCardOptions {
   show_scene_select: boolean;
   show_lock: boolean;
   show_automation: boolean;
+  show_climate: boolean;
   show_clear_overrides: boolean;
   show_member_badges: boolean;
   /** Per-member roster display-name overrides, keyed by member entry_id (or a

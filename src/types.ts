@@ -37,6 +37,10 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
    *  cascade (default true). */
   state_color?: boolean;
   hide_inactive_handlers?: boolean;
+  /** Cover Group entries only: render the climate on/off toggle in the group
+   *  view's control row (default **false**). Same opt-in rationale as the tile
+   *  card's option of the same name. */
+  show_climate?: boolean;
   /** Render a plain-English "Why this position?" sentence above the decision
    *  strip's row grid. Defaults to true. */
   show_decision_summary?: boolean;
@@ -200,6 +204,11 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   show_lock?: boolean;
   /** Render the member-automation toggle (default true). */
   show_automation?: boolean;
+  /** Render the group climate on/off toggle (default **false**). The only
+   *  opt-IN control in the group row: a press enables or disables climate mode
+   *  on every ACP member at once, with no group-level readout that makes the
+   *  resulting state obvious afterwards. */
+  show_climate?: boolean;
   /** Render the clear-member-overrides button (default true). Turn it off to
    *  keep a shared dashboard from clearing everyone's overrides. */
   show_clear_overrides?: boolean;

@@ -55,6 +55,7 @@ export class GroupDialog extends LitElement {
   @property({ type: Boolean }) public showSceneSelect = true;
   @property({ type: Boolean }) public showLock = true;
   @property({ type: Boolean }) public showAutomation = true;
+  @property({ type: Boolean }) public showClimate = false;
   @property({ type: Boolean }) public showClearOverrides = true;
   @property({ type: Boolean }) public showMemberBadges = true;
   @property({ type: Boolean }) public stateColor = true;
@@ -160,6 +161,7 @@ export class GroupDialog extends LitElement {
             .showSceneSelect=${this.showSceneSelect}
             .showLock=${this.showLock}
             .showAutomation=${this.showAutomation}
+            .showClimate=${this.showClimate}
             .showClearOverrides=${this.showClearOverrides}
           ></acp-group-controls-row>
 

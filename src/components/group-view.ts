@@ -57,6 +57,11 @@ export class GroupView extends LitElement {
   @property({ attribute: false }) public memberNames?: Record<string, string>;
   /** Card `members` — roster order + subset, keyed like {@link memberNames}. */
   @property({ attribute: false }) public members?: string[];
+  /** Card `show_climate`. The only control this view forwards to the shared
+   *  row: the other three default to `true` there and the main card has never
+   *  exposed a switch for them, whereas climate defaults to hidden and would
+   *  otherwise be unreachable here. */
+  @property({ type: Boolean }) public showClimate = false;
 
   /** Per-instance roster memo — see `createRosterMemo`. */
   private _roster = createRosterMemo();
@@ -120,6 +125,7 @@ export class GroupView extends LitElement {
           .hass=${this.hass}
           .discovered=${this.discovered}
           .snapshot=${s}
+          .showClimate=${this.showClimate}
         ></acp-group-controls-row>
 
         ${this._membersTpl(s, memberIds, rows)}

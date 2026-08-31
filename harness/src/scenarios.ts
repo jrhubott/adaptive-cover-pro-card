@@ -18,6 +18,7 @@ function defaultRoot(): HarnessConfig['root'] {
     show_compass_legend: true,
     show_moon: false,
     hide_inactive_handlers: false,
+    show_climate: false,
     show_decision_summary: true,
     state_color: true,
     north_offset: 0,
@@ -109,6 +110,7 @@ function defaultTile(): HarnessConfig['tile'] {
     show_scene_select: true,
     show_lock: true,
     show_automation: true,
+    show_climate: false,
     show_clear_overrides: true,
     show_member_badges: true,
     badges: defaultBadges(),
@@ -240,6 +242,7 @@ function makeGroupEntry(
       scene_option: 'auto',
       locked: false,
       automation: true,
+      climate: true,
       climate_mode: 'summer_mode',
     },
   };
@@ -293,6 +296,7 @@ function automationGroupEntries(auto: [boolean, boolean]): HarnessEntry[] {
         scene_option: 'auto',
         locked: false,
         automation: true,
+        climate: true,
         climate_mode: 'summer_mode',
       },
     }),
@@ -1438,7 +1442,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'group-tile',
     label: 'Cover Group — tile variant (issue #185)',
     description:
-      "A Cover Group entry rendered as the group tile, now carrying the cover tile's full control surface: a position-aware glyph tinted by the aggregate state, the ↑■↓ button row, a drag-to-set aggregate slider, and the group row (scene select, lock, automation, clear overrides) — plus the who-won \"2/3\" badge. Drag the slider or press ↑/↓ → adaptive_cover_pro.group_set_position fans out to every member; ■ → group_stop; pick a scene → select.select_option; toggle lock/automation → switch.turn_on/off; clear overrides → button.press. Tap the tile body to open the group dialog, where every member row is independently controllable. This group's members are bare cover entity_ids with no ACP entries behind them, so the Automation button has nothing to roll up and holds its pre-rollup look — driven by the group's own switch. That degradation is the point of keeping it here; the three colors live in the group-automation-* scenarios.",
+      "A Cover Group entry rendered as the group tile, now carrying the cover tile's full control surface: a position-aware glyph tinted by the aggregate state, the ↑■↓ button row, a drag-to-set aggregate slider, and the group row (scene select, lock, automation, climate, clear overrides) — plus the who-won \"2/3\" badge. Drag the slider or press ↑/↓ → adaptive_cover_pro.group_set_position fans out to every member; ■ → group_stop; pick a scene → select.select_option; toggle lock/automation/climate → switch.turn_on/off; clear overrides → button.press. The climate toggle (issue #225) is the one control that defaults to HIDDEN — `show_climate` is on here, and it starts OFF, so a press sends switch.turn_on to the group's bulk climate latch and flips the button. Like the Automation button beside it, it has nothing to fan out to in this scenario: these members are bare cover entity_ids with no ACP entries, so no member climate switch exists to follow. cover-group-full carries the on state. Tap the tile body to open the group dialog, where every member row is independently controllable. This group's members are bare cover entity_ids with no ACP entries behind them, so the Automation button has nothing to roll up and holds its pre-rollup look — driven by the group's own switch. That degradation is the point of keeping it here; the three colors live in the group-automation-* scenarios.",
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'group-tile';
@@ -1450,6 +1454,10 @@ export const SCENARIOS: Scenario[] = [
       c.decision.enabled = false;
       c.solarChart.enabled = false;
       c.tile.layout = 'detailed';
+      // Climate is the one opt-in control, so it needs turning on to appear at
+      // all. Shown in its OFF state here; cover-group-full carries the on state.
+      c.tile.show_climate = true;
+      c.entries[0].group!.climate = false;
       return c;
     },
   },
@@ -1483,6 +1491,7 @@ export const SCENARIOS: Scenario[] = [
             scene_option: 'auto',
             locked: false,
             automation: true,
+            climate: true,
             climate_mode: 'summer_mode',
           },
         }),
@@ -1549,6 +1558,7 @@ export const SCENARIOS: Scenario[] = [
             scene_option: 'auto',
             locked: false,
             automation: true,
+            climate: true,
             climate_mode: 'summer_mode',
           },
         }),
@@ -1649,6 +1659,7 @@ export const SCENARIOS: Scenario[] = [
             scene_option: 'auto',
             locked: false,
             automation: true,
+            climate: true,
             climate_mode: 'summer_mode',
             aggregate_cover: true,
             tilt: 45,
@@ -1667,7 +1678,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'cover-group-full',
     label: 'Cover Group — full main-card view (issue #185)',
     description:
-      'A Cover Group entry rendered through the ROOT main card, which routes it to the group view (no sun/window geometry). The view now carries the same control surface as the tile dialog: an aggregate position track, the ↑■↓ row, the scene select, lock / automation toggles, a clear-overrides button, and a member roster of 4 covers where every row is independently controllable. Winners are mixed — solar, group_scene, and group_lock drive three ACP members, while a generic cover shows its position with no who-won badge and takes native cover.* services. The group is locked.',
+      'A Cover Group entry rendered through the ROOT main card, which routes it to the group view (no sun/window geometry). The view now carries the same control surface as the tile dialog: an aggregate position track, the ↑■↓ row, the scene select, lock / automation / climate toggles, a clear-overrides button, and a member roster of 4 covers where every row is independently controllable. The climate toggle (issue #225) is opt-in and reaches this surface through the MAIN card’s own `show_climate`, which is the only route to it here — the other three controls have never been configurable on the main card. It starts ON, so a press disables climate mode across every member. Winners are mixed — solar, group_scene, and group_lock drive three ACP members, while a generic cover shows its position with no who-won badge and takes native cover.* services. The group is locked.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'cover-group-full';
@@ -1693,6 +1704,7 @@ export const SCENARIOS: Scenario[] = [
             scene_option: 'all_closed',
             locked: true,
             automation: true,
+            climate: true,
             climate_mode: 'summer_mode',
           },
         }),
@@ -1701,6 +1713,9 @@ export const SCENARIOS: Scenario[] = [
       // cards are cover-oriented and hidden here. The root card routes to the
       // group view automatically via `is_group`.
       c.root.enabled = true;
+      // The main card's own opt-in for the climate toggle — this is the surface
+      // that would otherwise have no way to reach it. Shown in its ON state.
+      c.root.show_climate = true;
       c.tile.enabled = false;
       c.compass.enabled = false;
       c.decision.enabled = false;
@@ -2477,6 +2492,7 @@ export const SCENARIOS: Scenario[] = [
             scene_option: 'auto',
             locked: false,
             automation: true,
+            climate: true,
             climate_mode: 'summer_mode',
           },
         }),
@@ -2977,6 +2993,7 @@ export const SCENARIOS: Scenario[] = [
             scene_option: 'auto',
             locked: false,
             automation: true,
+            climate: true,
             climate_mode: 'summer_mode',
           },
         }),
@@ -3046,6 +3063,7 @@ export const SCENARIOS: Scenario[] = [
             scene_option: 'auto',
             locked: false,
             automation: true,
+            climate: true,
             climate_mode: 'summer_mode',
           },
         }),
@@ -3120,6 +3138,7 @@ export const SCENARIOS: Scenario[] = [
             scene_option: 'auto',
             locked: false,
             automation: true,
+            climate: true,
             climate_mode: 'summer_mode',
           },
         }),

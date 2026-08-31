@@ -399,6 +399,7 @@ export class AdaptiveCoverProCard extends LitElement {
               .discovered=${discovered}
               .memberNames=${this._config.member_names}
               .members=${this._config.members}
+              .showClimate=${this._config.show_climate === true}
               ?compact=${!!this._config.compact}
             ></acp-group-view>
           </div>

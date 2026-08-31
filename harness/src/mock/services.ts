@@ -190,6 +190,12 @@ function toggleSwitchEntity(
         found = true;
         return { ...e, group: { ...e.group, automation: set(e.group.automation) } };
       }
+      // Matches the SWITCH only — the read-only rollup sensor shares this
+      // suffix but never reaches a switch service call.
+      if (/group_climate_mode/i.test(entityId)) {
+        found = true;
+        return { ...e, group: { ...e.group, climate: set(e.group.climate) } };
+      }
       return e;
     }
     const next = { ...e, flags: { ...e.flags } };
