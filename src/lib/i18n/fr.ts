@@ -84,8 +84,6 @@ export const fr: EnDict = {
     automation_count: '{count} membre(s) sur {total} automatisé(s)',
     clear_overrides: 'Effacer les dérogations',
     clear_overrides_none: 'Aucune dérogation de membre à effacer',
-    climate_on: 'Activer la régulation climatique pour tous les membres',
-    climate_off: 'Désactiver la régulation climatique pour tous les membres',
     climate: 'Régulation climatique',
     climate_count: '{count} membre(s) sur {total} utilisent la régulation climatique',
     who_won:

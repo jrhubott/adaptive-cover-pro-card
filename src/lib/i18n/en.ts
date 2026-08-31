@@ -81,14 +81,12 @@ export const en = {
     automation_count: '{count} of {total} members automating',
     clear_overrides: 'Clear overrides',
     clear_overrides_none: 'No member overrides to clear',
-    // Action-named like lock/unlock — the label states what a press does, not
-    // what the current state is. Used only on the unresolved fallback, where
-    // the button has no member count to report.
-    climate_on: 'Enable climate control for all members',
-    climate_off: 'Disable climate control for all members',
-    // Name + count, once the rollup resolves — same shape as `automation`, and
-    // for the same reason: the state has to live in the accessible name because
-    // the tooltip directive owns aria-describedby.
+    // Name, then name + count once the rollup resolves — same pair as
+    // `automation`/`automation_count`, and for the same reason: the state has to
+    // live in the accessible name because the tooltip directive owns
+    // aria-describedby. (#225's action-named `climate_on`/`climate_off` are
+    // gone: once the button reports the members rather than the latch, a label
+    // naming a single action no longer describes it.)
     climate: 'Climate',
     climate_count: '{count} of {total} members using climate',
     who_won:

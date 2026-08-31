@@ -81,8 +81,6 @@ export const de: EnDict = {
     automation_count: '{count} von {total} Mitgliedern automatisiert',
     clear_overrides: 'Übersteuerungen löschen',
     clear_overrides_none: 'Keine Mitglieder-Übersteuerungen zum Löschen',
-    climate_on: 'Klimasteuerung für alle Mitglieder aktivieren',
-    climate_off: 'Klimasteuerung für alle Mitglieder deaktivieren',
     climate: 'Klimasteuerung',
     climate_count: '{count} von {total} Mitgliedern nutzen die Klimasteuerung',
     who_won:

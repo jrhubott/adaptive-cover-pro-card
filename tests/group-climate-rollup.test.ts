@@ -240,6 +240,34 @@ describe('climate rollup falls back to the latch when nothing resolves', () => {
     const off = await climateButton(undefined, { groupLatch: false });
     expect(off.querySelector('ha-icon')!.getAttribute('icon')).toBe('mdi:thermometer-off');
   });
+
+  // The automation half of the same table. `LATCH_ICONS` is indirection this
+  // refactor introduced, and the automation off-latch is its one entry nothing
+  // else reaches — group-tile.test.ts covers the ON latch and the resolved
+  // `none`, but not this. A typo here would ship silently on a button that
+  // already ships.
+  it('keeps the automation off-latch glyph', async () => {
+    const hass = makeHass({ groupLatch: false });
+    const discovered: DiscoveredEntities = {
+      ...makeDiscovered(),
+      entities: {
+        ...makeDiscovered().entities,
+        group_automation_switch: 'switch.group_automation',
+      },
+    };
+    const el = document.createElement('acp-group-controls-row') as RowLike;
+    el.hass = {
+      ...hass,
+      states: { ...hass.states, 'switch.group_automation': { state: 'off', attributes: {} } },
+    } as unknown as HomeAssistant;
+    el.discovered = discovered;
+    el.snapshot = readGroup(el.hass, discovered);
+    document.body.appendChild(el);
+    await el.updateComplete;
+    const btn = el.shadowRoot!.querySelector('.automation-toggle') as HTMLElement;
+    expect(btn.querySelector('ha-icon')!.getAttribute('icon')).toBe('mdi:robot-off');
+    expect(btn.classList.contains('active')).toBe(false);
+  });
 });
 
 describe('memberClimate on the snapshot', () => {

@@ -109,10 +109,11 @@ describe('group climate toggle — discovery', () => {
     expect(s.climateOn).toBe(false);
   });
 
-  // Climate is a group-level latch, not a per-member rollup, so hiding members
-  // must not change it — unlike position/aggregate/whoWonCount, which are
-  // recomputed over the survivors.
-  it('carries climate through restrictSnapshot untouched', () => {
+  // `climateOn`/`climateId` describe the group's own switch, so hiding members
+  // must not change them — unlike position/aggregate/whoWonCount, which are
+  // recomputed over the survivors. The members' side of the story lives on
+  // `memberClimate`, which IS recomputed; see group-climate-rollup.test.ts.
+  it('carries the group latch through restrictSnapshot untouched', () => {
     const hass = makeHass({ climate: true });
     const s = readGroup(hass, makeDiscovered());
     const restricted = restrictSnapshot(hass, s, new Set(['cover.b']));
