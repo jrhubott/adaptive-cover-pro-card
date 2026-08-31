@@ -23,26 +23,25 @@ import { COVER_ACTIVE_COLOR } from '../lib/icons';
  * dialog bars use `fill`/`fill-closed`/`marker`, the dense tile rails
  * `pos-fill`/`pos-fill-closed`/`pos-marker`. `closedPct` is opt-in — only the
  * two-segment dialog rails draw a trailing segment; the dense tile rails and
- * the group rail's non-spread fast path render `.fill` alone. `target: null`
- * suppresses the marker entirely (a group write has no single target). The
- * marker's tooltip text differs per surface (cover-bar/tilt-bar carry i18n
- * copy, the tile card's marker has none), so it is threaded through as an
- * already-built directive result rather than owned here.
+ * the group rail's non-spread fast path render `.pos-fill` alone.
+ * `target: null` suppresses the marker entirely (a group write has no single
+ * target). The marker's tooltip text differs per surface (cover-bar/tilt-bar
+ * carry i18n copy, the tile card's marker has none), so it is threaded
+ * through as an already-built directive result rather than owned here.
+ *
+ * Split into two interfaces below rather than one with everything optional:
+ * `closedPct` only means something for the unprefixed dialog rails, so
+ * pairing it with `prefix: 'pos-'` is a type error instead of a silently
+ * unstyled div (there is no `.pos-fill-closed` rule).
  */
-export interface RailFillOptions {
+interface RailFillCommonOptions {
   /** Where the cover is now, as a DRAWN track percentage (0-100). */
   fillPct: number;
-  /** Trailing "closed" segment percentage. Opt-in: only the two-segment
-   *  dialog rails (`acp-cover-bar` / `acp-axis-bar`) draw a second segment. */
-  closedPct?: number;
   /** The target in axis units. `null` suppresses the marker entirely. */
   target: number | null;
   /** Where to draw the marker, as a DRAWN track percentage. Ignored when
    *  `target` is null. */
   targetPct: number;
-  /** Class prefix: '' → `fill`/`fill-closed`/`marker`, 'pos-' →
-   *  `pos-fill`/`pos-fill-closed`/`pos-marker`. */
-  prefix?: '' | 'pos-';
   /** Marker tooltip, an already-built element-part directive result (e.g.
    *  `tooltip(text)`). i18n stays owned by the host — the tile card's marker
    *  passes none. */
@@ -58,6 +57,26 @@ export interface RailFillOptions {
    *  rail to re-derive that ordering itself. */
   overlay?: TemplateResult | typeof nothing;
 }
+
+/** The two-segment dialog rails (`acp-cover-bar` / `acp-axis-bar`):
+ *  unprefixed `fill`/`fill-closed`/`marker` classes, `closedPct` on offer. */
+interface DialogRailFillOptions extends RailFillCommonOptions {
+  prefix?: '';
+  /** Trailing "closed" segment percentage. */
+  closedPct?: number;
+}
+
+/** The dense tile rails (the cover tile's `_posBar`, the group rail's
+ *  non-spread fast path): `pos-` prefixed classes, single-segment only.
+ *  `closedPct` is a TYPE ERROR here rather than a silently unstyled div —
+ *  `railFillStyles` has no `.pos-fill-closed` rule, and no `pos-` call site
+ *  has ever needed a second segment. */
+interface DenseRailFillOptions extends RailFillCommonOptions {
+  prefix: 'pos-';
+  closedPct?: never;
+}
+
+export type RailFillOptions = DialogRailFillOptions | DenseRailFillOptions;
 
 export function renderRailFill(opts: RailFillOptions): TemplateResult {
   const { fillPct, closedPct, target, targetPct, tooltip: tip, overlay } = opts;
@@ -86,7 +105,10 @@ export function renderRailFill(opts: RailFillOptions): TemplateResult {
  * the way `rail-overlay.ts` combines its band/pip. `.pos-bar` (the dense
  * rail's track) is included too: its markup stays host-owned (it also wraps
  * the drag readout), but its CSS was byte-identical between the tile card
- * and the group tile, so it belongs here alongside the rule it clips.
+ * and the group tile, so it belongs here alongside the rule it clips. This
+ * `overflow: hidden` is intentionally DEAD on the group tile: it locally
+ * overrides back to `overflow: visible` so its `.pos-tick` marks can overhang
+ * the rail — that override is not something to "clean up".
  */
 export const railFillStyles: CSSResult = css`
   /* Both segments derive from the cover colour (override, else --primary-color),

@@ -1202,7 +1202,11 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // because the browser drops the invalid declaration. The sibling bars both
     // normalize here too.
     const shownFill = shown === null ? 0 : axisDisplayValue(shown, axis);
-    const targetFill = target === null ? null : axisDisplayValue(target, axis);
+    // Defaulted the same way as `shownFill` above (and cover-bar's own
+    // `targetPct`): `renderRailFill`'s `target` param is what gates the
+    // marker, so this value is simply unused, never read as null, when
+    // `target` is null — no need to thread the null through a second time.
+    const targetFill = axisDisplayValue(target ?? 0, axis);
     // Remembered for `updated()`'s arrival check — see `_lastRailLive`.
     this._lastRailLive.set(id, live);
     // Suppressed mid-drag: the drag preview already paints where the finger is,
@@ -1246,7 +1250,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
         ${renderRailFill({
           fillPct: shownFill,
           target,
-          targetPct: targetFill ?? 0,
+          targetPct: targetFill,
           prefix: 'pos-',
           overlay:
             pending !== null && pendingFill !== null

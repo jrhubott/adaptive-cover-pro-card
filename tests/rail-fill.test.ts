@@ -125,25 +125,36 @@ describe('renderRailFill — layer stacking order (#272 paint-order guard)', () 
   });
 });
 
+// These assert declarations a rail actually DEPENDS on breaking, not just the
+// rule's presence — a regex that only re-confirms a rule exists catches a
+// deletion but waves a wrong value through unnoticed.
 describe('railFillStyles', () => {
   const text = (): string => railFillStyles.toString();
 
-  it('contains the .fill rule body', () => {
+  it('gives .fill the stronger (50%) tint and .fill-closed the fainter (18%) one — "lighter = more open"', () => {
     expect(text()).toMatch(/\.fill\s*{[^}]*--acp-cover-color,\s*var\(--primary-color\)\)\s*50%/);
-  });
-
-  it('contains the .fill-closed rule body', () => {
     expect(text()).toMatch(
       /\.fill-closed\s*{[^}]*--acp-cover-color,\s*var\(--primary-color\)\)\s*18%/,
     );
   });
 
-  it('contains the .marker rule body', () => {
-    expect(text()).toMatch(/\.marker\s*{[^}]*translateX\(-50%\)/);
+  it('positions .marker absolutely and centers it on its left value (#158)', () => {
+    expect(text()).toMatch(/\.marker\s*{[^}]*position:\s*absolute/);
+    expect(text()).toMatch(/\.marker\s*{[^}]*transform:\s*translateX\(-50%\)/);
   });
 
-  it('contains the .pos-fill and .pos-marker rule bodies', () => {
+  // If either of these lost `position: absolute`, it would drop out of the
+  // z-index:auto layer stack the `overlay` slot's ordering promise depends on
+  // (see `RailFillOptions.overlay`'s doc comment and the #272 order guard
+  // above) — silently, since happy-dom has no paint model to catch it any
+  // other way.
+  it('positions .pos-fill and .pos-marker absolutely — load-bearing for the #272 DOM-order-is-paint-order contract', () => {
+    expect(text()).toMatch(/\.pos-fill\s*{[^}]*position:\s*absolute/);
+    expect(text()).toMatch(/\.pos-marker\s*{[^}]*position:\s*absolute/);
+  });
+
+  it('themes .pos-fill via --acp-pos-fill-color and centers .pos-marker the same way .marker is', () => {
     expect(text()).toMatch(/\.pos-fill\s*{[^}]*--acp-pos-fill-color/);
-    expect(text()).toMatch(/\.pos-marker\s*{[^}]*translateX\(-50%\)/);
+    expect(text()).toMatch(/\.pos-marker\s*{[^}]*transform:\s*translateX\(-50%\)/);
   });
 });
