@@ -3,7 +3,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import { normalizeHandler } from './decision-summary';
 import { coverStateIcon } from './icons';
 import { isOffline } from './formatters';
-import { rollupMemberAutomation, type MemberAutomationRollup } from './member-automation';
+import { rollupMemberAutomation, rollupMemberClimate, type MemberRollup } from './member-rollup';
 import { getCachedRegistry } from './registry-store';
 import {
   groupSelectScene,
@@ -62,15 +62,20 @@ export interface GroupSnapshot {
   automationOn: boolean;
   /** Live all/some/none rollup of the members' own automation, or `unknown`
    *  when nothing resolves (cold registry cache, all-generic roster). */
-  memberAutomation: MemberAutomationRollup;
+  memberAutomation: MemberRollup;
   /** The group's `group_climate_mode` switch — a bulk latch over the members'
    *  own Climate Mode switches, with the same write-only caveat as
-   *  {@link automationOn}. There is deliberately no member rollup behind it:
-   *  the read-only `sensor.<group>_climate_mode` beside it reports which climate
-   *  MODE is acting (`summer_mode` / `winter_mode` / `mixed`), which is a
-   *  different question from whether climate control is enabled, so it cannot
-   *  stand in the way `rollupMemberAutomation` does for automation. */
+   *  {@link automationOn}. Use it to decide what a press should send, never to
+   *  describe the members; that is {@link memberClimate}'s job.
+   *
+   *  Note the read-only `sensor.<group>_climate_mode` beside this switch does
+   *  NOT answer the same question — it reports which climate MODE is acting
+   *  (`summer_mode` / `winter_mode` / `mixed`), not whether climate control is
+   *  enabled, which is why {@link memberClimate} surveys the members directly. */
   climateOn: boolean;
+  /** Live all/some/none rollup of the members' own climate mode, or `unknown`
+   *  when nothing resolves. Same contract as {@link memberAutomation}. */
+  memberClimate: MemberRollup;
   /** The lock / automation / climate switch entities, when the integration
    *  exposes them. A surface must render each toggle only when its id is
    *  present: the booleans above fall back to sensible defaults, so an absent
@@ -156,6 +161,7 @@ export function readGroup(hass: HomeAssistant, discovered: DiscoveredEntities): 
       getCachedRegistry(),
       Object.keys(memberWinners ?? {}),
     ),
+    memberClimate: rollupMemberClimate(hass, getCachedRegistry(), Object.keys(memberWinners ?? {})),
     lockId: e.group_lock_switch,
     automationId: e.group_automation_switch,
     climateId: e.group_climate_mode_switch,
@@ -260,6 +266,7 @@ export function restrictSnapshot(
       getCachedRegistry(),
       Object.keys(memberWinners ?? {}),
     ),
+    memberClimate: rollupMemberClimate(hass, getCachedRegistry(), Object.keys(memberWinners ?? {})),
     deviceClass: classes.size === 1 ? [...classes][0] : undefined,
   };
 }

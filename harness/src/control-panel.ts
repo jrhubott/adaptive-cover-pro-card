@@ -858,6 +858,11 @@ export class AcpHarnessControlPanel extends LitElement {
             ${this._checkbox('Automatic control', e.flags.automatic_control, (v) =>
               this._patchFlags(idx, { automatic_control: v }),
             )}
+            ${this._checkbox(
+              'Climate mode',
+              e.flags.climate_mode ?? e.flags.climate_strategy !== 'intermediate',
+              (v) => this._patchFlags(idx, { climate_mode: v }),
+            )}
             ${this._checkbox('Manual override', e.flags.manual_override, (v) =>
               this._patchFlags(idx, { manual_override: v }),
             )}

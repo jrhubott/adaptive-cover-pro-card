@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { HomeAssistant } from 'custom-card-helpers';
 
-import { rollupMemberAutomation } from '../src/lib/member-automation';
+import { rollupMemberAutomation } from '../src/lib/member-rollup';
 import { INTEGRATION_DOMAIN } from '../src/const';
 import type { EntityRegistryEntry } from '../src/lib/entity-registry';
 

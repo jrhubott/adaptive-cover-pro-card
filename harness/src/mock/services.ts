@@ -208,6 +208,16 @@ function toggleSwitchEntity(
     } else if (/manual_override/i.test(entityId)) {
       next.flags.manual_override = set(e.flags.manual_override);
       found = true;
+    } else if (/climate_mode/i.test(entityId)) {
+      // Writes the explicit flag rather than the `climate_strategy` proxy it
+      // otherwise derives from — a press means "climate off for this cover",
+      // not "switch to the intermediate strategy". This is what makes the
+      // group-climate-* scenarios interactive: the member's own switch is what
+      // rollupMemberClimate surveys.
+      next.flags.climate_mode = set(
+        e.flags.climate_mode ?? e.flags.climate_strategy !== 'intermediate',
+      );
+      found = true;
     }
     return next;
   });

@@ -303,6 +303,22 @@ function automationGroupEntries(auto: [boolean, boolean]): HarnessEntry[] {
   ];
 }
 
+/**
+ * The climate twin of {@link automationGroupEntries} (issue #287).
+ *
+ * Same two real ACP members behind one group, but the per-entry switch the
+ * scenario drives is `climate_mode` rather than `automatic_control`. The group's
+ * own `climate: true` latch is left ON in every case on purpose: that is the
+ * write-only latch the integration restores, so a scenario where the members
+ * disagree with it is exactly the one the pre-rollup button got wrong.
+ */
+function climateGroupEntries(climate: [boolean, boolean]): HarnessEntry[] {
+  const entries = automationGroupEntries([true, true]);
+  entries[0].flags.climate_mode = climate[0];
+  entries[1].flags.climate_mode = climate[1];
+  return entries;
+}
+
 function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): HarnessConfig {
   return {
     latitude: lat,
@@ -1623,6 +1639,60 @@ export const SCENARIOS: Scenario[] = [
       c.decision.enabled = false;
       c.solarChart.enabled = false;
       c.tile.layout = 'detailed';
+      return c;
+    },
+  },
+  {
+    id: 'group-climate-all',
+    label: 'Cover Group — Climate green (every member on)',
+    description:
+      'The climate twin of the three group-automation-* scenarios (issue #287). Both ACP members have their own Climate Mode switch on, so the button is green with the filled mdi:sun-thermometer glyph and reads “Climate — 2 of 2 members using climate”. `show_climate` is on here; it defaults to hidden, so this is the only family of scenarios where the button appears at all. A press sends switch.turn_off to the group latch, since every member is already on.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-climate-all';
+      c.entries = climateGroupEntries([true, true]);
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      c.tile.show_climate = true;
+      return c;
+    },
+  },
+  {
+    id: 'group-climate-mixed',
+    label: 'Cover Group — Climate amber (members disagree)',
+    description:
+      'The case #287 exists for. Side Yard Shade has Climate Mode OFF while Backyard Shade has it on, so the button is amber with the outlined glyph and reads “Climate — 1 of 2 members using climate”, with aria-pressed="mixed". The group climate latch still says ON: as shipped in #225 that painted the button fully-on and a press sent turn_OFF, moving the group further from what the icon claimed. Now a press sends turn_ON and brings the straggler up. Toggle Side Yard Shade’s own climate switch to watch the group button follow — the whole thing the latch could not do.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-climate-mixed';
+      c.entries = climateGroupEntries([true, false]);
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      c.tile.show_climate = true;
+      return c;
+    },
+  },
+  {
+    id: 'group-climate-none',
+    label: 'Cover Group — Climate grey (no member on)',
+    description:
+      'Both ACP members have Climate Mode off, so the button is grey and untinted, reading “Climate — 0 of 2 members using climate”. Its glyph is mdi:thermometer-off — the one place the climate set leaves the sun-thermometer family, because MDI has no sun-thermometer-off and the off state is the one that most needs to be unmistakable at 20px. Grey rather than red for the same reason automation is: climate off is a state the user chose, not a fault. The group latch is STILL on, so this is the pure form of the bug.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-climate-none';
+      c.entries = climateGroupEntries([false, false]);
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      c.tile.show_climate = true;
       return c;
     },
   },
