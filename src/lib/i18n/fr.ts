@@ -86,6 +86,8 @@ export const fr: EnDict = {
     clear_overrides_none: 'Aucune dérogation de membre à effacer',
     climate_on: 'Activer la régulation climatique pour tous les membres',
     climate_off: 'Désactiver la régulation climatique pour tous les membres',
+    climate: 'Régulation climatique',
+    climate_count: '{count} membre(s) sur {total} utilisent la régulation climatique',
     who_won:
       '{count} membre(s) sur {total} sont pilotés par le groupe — une scène de groupe ou le verrouillage du groupe détermine actuellement leur position',
     members: 'Membres',

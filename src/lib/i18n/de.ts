@@ -83,6 +83,8 @@ export const de: EnDict = {
     clear_overrides_none: 'Keine Mitglieder-Übersteuerungen zum Löschen',
     climate_on: 'Klimasteuerung für alle Mitglieder aktivieren',
     climate_off: 'Klimasteuerung für alle Mitglieder deaktivieren',
+    climate: 'Klimasteuerung',
+    climate_count: '{count} von {total} Mitgliedern nutzen die Klimasteuerung',
     who_won:
       '{count} von {total} Mitgliedern sind gruppengesteuert — eine Gruppenszene oder die Gruppensperre bestimmt derzeit ihre Position',
     members: 'Mitglieder',

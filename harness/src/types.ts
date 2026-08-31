@@ -206,6 +206,12 @@ export interface HarnessEntry {
   flags: {
     integration_enabled: boolean;
     automatic_control: boolean;
+    /** The entry's own Climate Mode switch. Omit and it derives from
+     *  `climate_strategy` as it always has (`intermediate` → off), which is a
+     *  proxy, not the switch — set this explicitly whenever the scenario is
+     *  ABOUT whether climate is enabled, such as the group climate rollup
+     *  (issue #287), rather than about which strategy is acting. */
+    climate_mode?: boolean;
     manual_override: boolean;
     /** Minutes from "now" when the manual override expires. */
     manual_override_minutes_from_now: number;

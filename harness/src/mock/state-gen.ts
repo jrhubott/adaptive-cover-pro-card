@@ -602,7 +602,7 @@ function addEntryStates(
   );
   states[id('climate_mode_switch')] = mkState(
     id('climate_mode_switch'),
-    f.climate_strategy === 'intermediate' ? 'off' : 'on',
+    (f.climate_mode ?? f.climate_strategy !== 'intermediate') ? 'on' : 'off',
     { friendly_name: `${entry.title} Climate Mode` },
   );
   states[id('motion_control_switch')] = mkState(id('motion_control_switch'), 'on', {

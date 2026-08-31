@@ -13,23 +13,40 @@ import {
   toggleLock,
   type GroupSnapshot,
 } from '../lib/group-controls';
-import type { MemberAutomationStatus } from '../lib/member-automation';
+import type { MemberRollup, MemberRollupStatus } from '../lib/member-rollup';
 import { t } from '../lib/i18n';
 import { tooltip } from '../lib/tooltip';
 
-/** Glyph per automation status. The shape changes with the color so the state
- *  survives a colorblind reading and a 20px icon. */
-const AUTOMATION_ICONS: Record<Exclude<MemberAutomationStatus, 'unknown'>, string> = {
-  all: 'mdi:robot',
-  some: 'mdi:robot-outline',
-  none: 'mdi:robot-off',
+type ResolvedStatus = Exclude<MemberRollupStatus, 'unknown'>;
+
+/** Glyph per status, per button. The shape changes with the color so the state
+ *  survives a colorblind reading and a 20px icon.
+ *
+ *  Climate has no `sun-thermometer-off` in MDI, so its `none` drops the sun and
+ *  takes `thermometer-off` — a bigger shape jump than automation's family of
+ *  three, which is if anything an improvement for the state that most needs to
+ *  be unmistakable. */
+const STATUS_ICONS: Record<'automation' | 'climate', Record<ResolvedStatus, string>> = {
+  automation: { all: 'mdi:robot', some: 'mdi:robot-outline', none: 'mdi:robot-off' },
+  climate: {
+    all: 'mdi:sun-thermometer',
+    some: 'mdi:sun-thermometer-outline',
+    none: 'mdi:thermometer-off',
+  },
 };
 
-/** Everything the Automation button renders and writes, derived once.
+/** The unresolved-fallback glyph pair, used when the rollup cannot report and the
+ *  button paints from the group's own latch instead. */
+const LATCH_ICONS: Record<'automation' | 'climate', { on: string; off: string }> = {
+  automation: { on: STATUS_ICONS.automation.all, off: STATUS_ICONS.automation.none },
+  climate: { on: STATUS_ICONS.climate.all, off: STATUS_ICONS.climate.none },
+};
+
+/** Everything a rollup-backed button renders and writes, derived once.
  *
  *  `on` is deliberately one value driving three things — the pill's pressed
  *  look, `aria-pressed`, and what a press sends — so they cannot disagree. */
-interface AutomationView {
+interface RollupView {
   /** Status modifier class, or `active`/`''` on the unresolved fallback. */
   cls: string;
   icon: string;
@@ -40,7 +57,7 @@ interface AutomationView {
    *  and that IDREF points at a bubble in `document.body` that no IDREF reaches
    *  across a shadow boundary. So the state goes in the name or nowhere. */
   label: string;
-  /** Treated-as-on; `toggleAutomation` sends the inverse. */
+  /** Treated-as-on; the toggle sends the inverse. */
   on: boolean;
 }
 
@@ -113,21 +130,18 @@ export class GroupControlsRow extends LitElement {
             >
               <ha-icon icon=${s.locked ? 'mdi:lock' : 'mdi:lock-open-variant'}></ha-icon>
             </button>`}
-        ${!automation ? nothing : this._automationButton(this._automationView(s))}
+        ${!automation
+          ? nothing
+          : this._rollupButton(
+              'automation',
+              this._rollupView('automation', s.memberAutomation, s.automationOn),
+            )}
         ${!climate
           ? nothing
-          : html`<button
-              class="ctrl climate-toggle ${s.climateOn ? 'active' : ''}"
-              type="button"
-              aria-pressed=${s.climateOn ? 'true' : 'false'}
-              aria-label=${t(s.climateOn ? 'group.climate_off' : 'group.climate_on', this.hass)}
-              ${tooltip(t(s.climateOn ? 'group.climate_off' : 'group.climate_on', this.hass))}
-              @click=${() => toggleClimate(this.hass, this.discovered, s.climateOn)}
-            >
-              <ha-icon
-                icon=${s.climateOn ? 'mdi:sun-thermometer' : 'mdi:sun-thermometer-outline'}
-              ></ha-icon>
-            </button>`}
+          : this._rollupButton(
+              'climate',
+              this._rollupView('climate', s.memberClimate, s.climateOn),
+            )}
         ${clearId
           ? html`<button
               class="ctrl clear-overrides"
@@ -147,51 +161,62 @@ export class GroupControlsRow extends LitElement {
   }
 
   /**
-   * Resolve the Automation button from the members' live state, falling back to
+   * Resolve a rollup-backed button from the members' live state, falling back to
    * the group's own latch when nothing resolves.
    *
-   * The latch (`s.automationOn`) records the last bulk command and defaults to
-   * on, so it says "everything automated" after a restart and stays put when a
-   * member is toggled at its own tile. `s.memberAutomation` is the real answer;
-   * `unknown` means the registry cache is still cold or the roster is all
-   * generic covers, and then this reproduces the pre-rollup button exactly.
+   * The latch (`s.automationOn` / `s.climateOn`) records the last bulk command,
+   * so it says "everything on" after a restart and stays put when a member is
+   * toggled at its own tile. The rollup is the real answer; `unknown` means the
+   * registry cache is still cold or the roster is all generic covers, and then
+   * this reproduces the pre-rollup button exactly.
+   *
+   * Automation and Climate ask different questions of the same walk and differ
+   * only in glyphs and strings, so they share this rather than keeping two
+   * copies that can drift — which is how the group surfaces got into trouble
+   * before `group-controls.ts` existed.
    */
-  private _automationView(s: GroupSnapshot): AutomationView {
-    const name = t('group.automation', this.hass);
-    const status = s.memberAutomation.status;
+  private _rollupView(
+    kind: 'automation' | 'climate',
+    rollup: MemberRollup,
+    latchOn: boolean,
+  ): RollupView {
+    const name = t(kind === 'automation' ? 'group.automation' : 'group.climate', this.hass);
+    const status = rollup.status;
     if (status === 'unknown') {
       return {
-        cls: s.automationOn ? 'active' : '',
-        icon: s.automationOn ? AUTOMATION_ICONS.all : AUTOMATION_ICONS.none,
-        ariaPressed: s.automationOn ? 'true' : 'false',
+        cls: latchOn ? 'active' : '',
+        icon: latchOn ? LATCH_ICONS[kind].on : LATCH_ICONS[kind].off,
+        ariaPressed: latchOn ? 'true' : 'false',
         label: name,
-        on: s.automationOn,
+        on: latchOn,
       };
     }
     const on = status === 'all';
-    const count = t('group.automation_count', this.hass, {
-      count: s.memberAutomation.on,
-      total: s.memberAutomation.total,
-    });
+    const count = t(
+      kind === 'automation' ? 'group.automation_count' : 'group.climate_count',
+      this.hass,
+      { count: rollup.on, total: rollup.total },
+    );
     return {
       cls: `auto-${status}`,
-      icon: AUTOMATION_ICONS[status],
-      // A partly-automated roster is genuinely tri-state, and ARIA has a value
-      // for exactly that.
+      icon: STATUS_ICONS[kind][status],
+      // A partly-on roster is genuinely tri-state, and ARIA has a value for
+      // exactly that.
       ariaPressed: status === 'some' ? 'mixed' : on ? 'true' : 'false',
       label: `${name} — ${count}`,
       on,
     };
   }
 
-  private _automationButton(v: AutomationView): TemplateResult {
+  private _rollupButton(kind: 'automation' | 'climate', v: RollupView): TemplateResult {
+    const toggle = kind === 'automation' ? toggleAutomation : toggleClimate;
     return html`<button
-      class="ctrl automation-toggle ${v.cls}"
+      class="ctrl ${kind}-toggle ${v.cls}"
       type="button"
       aria-pressed=${v.ariaPressed}
       aria-label=${v.label}
       ${tooltip(v.label)}
-      @click=${() => toggleAutomation(this.hass, this.discovered, v.on)}
+      @click=${() => toggle(this.hass, this.discovered, v.on)}
     >
       <ha-icon icon=${v.icon}></ha-icon>
     </button>`;
