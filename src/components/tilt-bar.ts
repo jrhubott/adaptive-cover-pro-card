@@ -8,6 +8,7 @@ import { t } from '../lib/i18n';
 import { PendingMoves, isPendingVisible } from '../lib/pending-move';
 import { RailGestures } from '../lib/rail-gestures';
 import { renderRailOverlay, railOverlayStyles } from './rail-overlay';
+import { renderRailFill, railFillStyles } from './rail-fill';
 import { tooltip } from '../lib/tooltip';
 
 /**
@@ -157,8 +158,6 @@ export class AxisBar extends LitElement {
           @keydown=${this._onKeydown}
           ${tooltip(t(this.hintKey ?? 'covers.tilt_click_to_set', this.hass))}
         >
-          <div class="fill" style="width:${actualFrac}%"></div>
-          <div class="fill-closed" style="width:${100 - actualFrac}%"></div>
           ${pending !== null && pendingFrac !== null
             ? renderRailOverlay({
                 hass: this.hass,
@@ -167,19 +166,22 @@ export class AxisBar extends LitElement {
                 pending,
               })
             : nothing}
-          ${this.target !== null
-            ? html`<div
-                class="marker"
-                style="left:clamp(1px, ${targetFrac}%, calc(100% - 1px))"
-                ${tooltip(
-                  // The VALUE, not the drawn fraction — those diverge the moment
-                  // the axis is mirrored or its range is not 0..100.
-                  t(this.targetHintKey ?? 'covers.tilt_target_tooltip', this.hass, {
-                    pct: this.target,
-                  }),
-                )}
-              ></div>`
-            : nothing}
+          ${renderRailFill({
+            fillPct: actualFrac,
+            closedPct: 100 - actualFrac,
+            target: this.target,
+            targetPct: targetFrac,
+            // The VALUE, not the drawn fraction — those diverge the moment the
+            // axis is mirrored or its range is not 0..100.
+            tooltip:
+              this.target === null
+                ? undefined
+                : tooltip(
+                    t(this.targetHintKey ?? 'covers.tilt_target_tooltip', this.hass, {
+                      pct: this.target,
+                    }),
+                  ),
+          })}
         </div>
       </div>
     `;
@@ -233,6 +235,7 @@ export class AxisBar extends LitElement {
 
   public static styles = [
     railOverlayStyles,
+    railFillStyles,
     css`
       :host {
         display: block;
@@ -313,35 +316,6 @@ export class AxisBar extends LitElement {
       .track.disabled {
         cursor: default;
         touch-action: auto;
-      }
-      .fill {
-        height: 100%;
-        flex-shrink: 0;
-        background: color-mix(
-          in srgb,
-          var(--acp-cover-color, var(--primary-color)) 50%,
-          transparent
-        );
-        transition: width 0.3s ease;
-      }
-      .fill-closed {
-        height: 100%;
-        flex-shrink: 0;
-        background: color-mix(
-          in srgb,
-          var(--acp-cover-color, var(--primary-color)) 18%,
-          transparent
-        );
-        transition: width 0.3s ease;
-      }
-      .marker {
-        position: absolute;
-        top: -2px;
-        width: 2px;
-        height: 14px;
-        background: var(--accent-color, red);
-        transform: translateX(-50%);
-        transition: left 0.3s ease;
       }
     `,
   ];

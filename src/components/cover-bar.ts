@@ -24,6 +24,7 @@ import { setAxes, hasSetAxes } from '../lib/services';
 import { PendingMoves, isMovingState, isPendingVisible } from '../lib/pending-move';
 import { RailGestures } from '../lib/rail-gestures';
 import { renderRailOverlay, railOverlayStyles } from './rail-overlay';
+import { renderRailFill, railFillStyles } from './rail-fill';
 import { t } from '../lib/i18n';
 import { tooltip } from '../lib/tooltip';
 import './tilt-bar';
@@ -458,8 +459,6 @@ export class CoverBar extends LitElement {
               @keydown=${(e: KeyboardEvent) => this._onTrackKeydown(e, entityId, fillPct, axis)}
               ${tooltip(t('covers.click_to_set', this.hass))}
             >
-              <div class="fill" style="width:${fillPct}%"></div>
-              <div class="fill-closed" style="width:${100 - fillPct}%"></div>
               ${pending !== null && pendingPct !== null
                 ? renderRailOverlay({
                     hass: this.hass,
@@ -468,21 +467,24 @@ export class CoverBar extends LitElement {
                     pending,
                   })
                 : nothing}
-              ${target !== null
-                ? html`<div
-                    class="marker"
-                    style="left:clamp(1px, ${markerPct}%, calc(100% - 1px))"
-                    ${tooltip(
-                      t(
-                        overrideDivergence
-                          ? 'covers.target_tooltip_override'
-                          : 'covers.target_tooltip',
-                        this.hass,
-                        { pct: targetPct },
+              ${renderRailFill({
+                fillPct,
+                closedPct: 100 - fillPct,
+                target,
+                targetPct: markerPct,
+                tooltip:
+                  target === null
+                    ? undefined
+                    : tooltip(
+                        t(
+                          overrideDivergence
+                            ? 'covers.target_tooltip_override'
+                            : 'covers.target_tooltip',
+                          this.hass,
+                          { pct: targetPct },
+                        ),
                       ),
-                    )}
-                  ></div>`
-                : nothing}
+              })}
             </div>`
           : // The row is a grid, so the track column has to be HELD, not
             // collapsed: dropping the element outright slides the trailing
@@ -546,6 +548,7 @@ export class CoverBar extends LitElement {
 
   public static styles = [
     railOverlayStyles,
+    railFillStyles,
     css`
       :host {
         display: block;
@@ -695,47 +698,6 @@ export class CoverBar extends LitElement {
       }
       :host([compact]) .head {
         display: none;
-      }
-      /* Both segments derive from the cover colour (override, else --primary-color),
-       distinguished by opacity: blocking is solid, clear is pale — "lighter =
-       more open" — matching the compass FOV (light) vs cover wedge (solid) of
-       the same hue. No gold, so nothing competes with the gold sun on the compass.
-
-       .fill is the LEADING segment and now carries the sun-blocking portion, so
-       the track fills from the left as the cover closes — the same polarity as
-       the tile rails and the compass wedge. Class names are kept (a rename buys
-       nothing the comment does not) but the colours swapped with the meaning. */
-      .fill {
-        height: 100%;
-        flex-shrink: 0;
-        background: color-mix(
-          in srgb,
-          var(--acp-cover-color, var(--primary-color)) 50%,
-          transparent
-        );
-        transition: width 0.3s ease;
-      }
-      .fill-closed {
-        height: 100%;
-        flex-shrink: 0;
-        background: color-mix(
-          in srgb,
-          var(--acp-cover-color, var(--primary-color)) 18%,
-          transparent
-        );
-        transition: width 0.3s ease;
-      }
-      /* The marker is centred on its left value via translateX(-50%) and its
-       left is clamped 1px inside the rail (inline), so the 2px box never gets
-       clipped by .track { overflow:hidden } at the 0%/100% extremes (#158). */
-      .marker {
-        position: absolute;
-        top: -2px;
-        width: 2px;
-        height: 14px;
-        background: var(--accent-color, red);
-        transform: translateX(-50%);
-        transition: left 0.3s ease;
       }
       .num {
         font-variant-numeric: tabular-nums;

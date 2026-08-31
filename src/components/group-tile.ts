@@ -22,6 +22,7 @@ import { hiddenMemberCovers } from '../lib/group-roster';
 import { PendingMoves, isPendingVisible } from '../lib/pending-move';
 import { RailGestures } from '../lib/rail-gestures';
 import { renderRailOverlay, railOverlayStyles } from './rail-overlay';
+import { renderRailFill, railFillStyles } from './rail-fill';
 import { t } from '../lib/i18n';
 import { tooltip } from '../lib/tooltip';
 
@@ -270,7 +271,13 @@ export class GroupTile extends LitElement {
               >
                 <div class="pos-bar">
                   ${dragging || pending !== null || !spread
-                    ? html`<div class="pos-fill" style=${`width:${shownFill}%`}></div>`
+                    ? // A group write has no single target — no marker.
+                      renderRailFill({
+                        fillPct: shownFill,
+                        target: null,
+                        targetPct: 0,
+                        prefix: 'pos-',
+                      })
                     : html`
                         <!-- Solid to the LEAST-covered member: the coverage every
                              member has reached. Band on top spans to the most-
@@ -454,6 +461,7 @@ export class GroupTile extends LitElement {
 
   public static styles = [
     railOverlayStyles,
+    railFillStyles,
     css`
       :host {
         display: block;
@@ -625,25 +633,6 @@ export class GroupTile extends LitElement {
         cursor: default;
         opacity: 0.4;
         touch-action: auto;
-      }
-      .pos-bar {
-        position: relative;
-        width: 100%;
-        height: 6px;
-        border-radius: 6px;
-        background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
-        overflow: hidden;
-      }
-      .pos-fill {
-        position: absolute;
-        inset: 0 auto 0 0;
-        /* One constant color for every rail, never the cover's state color: a rail
-         that changed hue as it crossed open/closed read as a status light rather
-         than a measurement. Overridable per-theme via --acp-pos-fill-color. */
-        background: var(--acp-pos-fill-color, ${unsafeCSS(COVER_ACTIVE_COLOR)});
-        opacity: 0.55;
-        border-radius: 6px;
-        transition: width 0.3s ease;
       }
       /* Disagreement band: from the least-covered member to the most-covered one.
        Same hue as the fill at a lower opacity, so it reads as "some of them are
