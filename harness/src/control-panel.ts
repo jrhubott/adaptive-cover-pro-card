@@ -42,6 +42,7 @@ function defaultGroupFields(): GroupFields {
     scene_option: 'auto',
     locked: false,
     automation: true,
+    climate: true,
     climate_mode: 'summer_mode',
   };
 }
@@ -1294,6 +1295,7 @@ export class AcpHarnessControlPanel extends LitElement {
             'show_scene_select',
             'show_lock',
             'show_automation',
+            'show_climate',
             'show_clear_overrides',
             'show_member_badges',
             'show_compass',

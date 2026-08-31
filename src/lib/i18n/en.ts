@@ -81,6 +81,10 @@ export const en = {
     automation_count: '{count} of {total} members automating',
     clear_overrides: 'Clear overrides',
     clear_overrides_none: 'No member overrides to clear',
+    // Action-named like lock/unlock — the label states what a press does, not
+    // what the current state is.
+    climate_on: 'Enable climate control for all members',
+    climate_off: 'Disable climate control for all members',
     who_won:
       '{count} of {total} members are group-driven — a group scene or the group lock is currently deciding their position',
     members: 'Members',
@@ -449,6 +453,9 @@ export const en = {
       show_compass_legend_desc: 'Color key below the sky compass.',
       show_moon_label: 'Show moon on compass',
       show_moon_desc: 'Moon position and phase overlay on the sky compass.',
+      show_climate_label: 'Show climate toggle (Cover Groups)',
+      show_climate_desc:
+        'Adds an on/off climate control to a Cover Group’s control row. One press enables or disables climate mode on every member.',
       hide_inactive_label: 'Hide inactive handlers',
       hide_inactive_desc: 'Show only the winner and actively matched pipeline handlers.',
       state_color_label: 'Color icon by state',
@@ -487,6 +494,7 @@ export const en = {
       show_scene_select: 'Show scene selector',
       show_lock: 'Show group lock',
       show_automation: 'Show member automation toggle',
+      show_climate: 'Show climate on/off toggle',
       show_clear_overrides: 'Show clear-overrides button',
       show_member_badges: 'Show member override badges',
       badge_section: 'Badges',

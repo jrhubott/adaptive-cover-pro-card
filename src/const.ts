@@ -391,6 +391,7 @@ export type EntityRole =
   | 'group_scene_select'
   | 'group_automation_switch'
   | 'group_lock_switch'
+  | 'group_climate_mode_switch'
   | 'group_scene_all_open_button'
   | 'group_scene_all_closed_button'
   | 'group_scene_privacy_button'
@@ -602,6 +603,11 @@ export const UNIQUE_ID_ROLES: Record<string, EntityRole> = {
   'select:group_scene_select': 'group_scene_select',
   'switch:group_automation': 'group_automation_switch',
   'switch:group_lock': 'group_lock_switch',
+  // Same suffix as `sensor:group_climate_mode` above — the integration gives the
+  // writable bulk switch and the read-only rollup sensor one translation key, so
+  // the platform is what separates them. Exactly the `manual_override` case this
+  // map's header documents.
+  'switch:group_climate_mode': 'group_climate_mode_switch',
   'button:group_scene_all_open': 'group_scene_all_open_button',
   'button:group_scene_all_closed': 'group_scene_all_closed_button',
   'button:group_scene_privacy': 'group_scene_privacy_button',

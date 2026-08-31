@@ -63,12 +63,22 @@ export interface GroupSnapshot {
   /** Live all/some/none rollup of the members' own automation, or `unknown`
    *  when nothing resolves (cold registry cache, all-generic roster). */
   memberAutomation: MemberAutomationRollup;
-  /** The lock / automation switch entities, when the integration exposes them.
-   *  A surface must render each toggle only when its id is present: the booleans
-   *  above fall back to sensible defaults, so an absent switch would otherwise
-   *  render a live-looking control whose click is a silent no-op. */
+  /** The group's `group_climate_mode` switch — a bulk latch over the members'
+   *  own Climate Mode switches, with the same write-only caveat as
+   *  {@link automationOn}. There is deliberately no member rollup behind it:
+   *  the read-only `sensor.<group>_climate_mode` beside it reports which climate
+   *  MODE is acting (`summer_mode` / `winter_mode` / `mixed`), which is a
+   *  different question from whether climate control is enabled, so it cannot
+   *  stand in the way `rollupMemberAutomation` does for automation. */
+  climateOn: boolean;
+  /** The lock / automation / climate switch entities, when the integration
+   *  exposes them. A surface must render each toggle only when its id is
+   *  present: the booleans above fall back to sensible defaults, so an absent
+   *  switch would otherwise render a live-looking control whose click is a
+   *  silent no-op. */
   lockId: string | undefined;
   automationId: string | undefined;
+  climateId: string | undefined;
   /** The clear-member-overrides button entity, when the integration exposes it. */
   clearId: string | undefined;
   /** Target for the `group_*` services, or undefined when the group exposes no
@@ -126,6 +136,12 @@ export function readGroup(hass: HomeAssistant, discovered: DiscoveredEntities): 
     automationOn: e.group_automation_switch
       ? hass.states[e.group_automation_switch]?.state === 'on'
       : true,
+    // No optimistic default here, unlike `automationOn`: the climate toggle is
+    // the one control a surface renders only when `climateId` resolves, so this
+    // fallback is never what the button paints from.
+    climateOn: e.group_climate_mode_switch
+      ? hass.states[e.group_climate_mode_switch]?.state === 'on'
+      : false,
     // `member_winners` — the ACP members — NOT the `member_positions` roster.
     // The roster can also list a cover that another ACP entry manages but that
     // this group does not drive (the integration filters ACP-owned covers out of
@@ -140,6 +156,7 @@ export function readGroup(hass: HomeAssistant, discovered: DiscoveredEntities): 
     ),
     lockId: e.group_lock_switch,
     automationId: e.group_automation_switch,
+    climateId: e.group_climate_mode_switch,
     clearId: e.group_clear_overrides_button,
     // The `group_*` services resolve the group through the registry from ANY
     // entity of its config entry, so the always-present aggregate-position
@@ -424,6 +441,15 @@ export function toggleAutomation(
   on: boolean,
 ): void {
   const id = discovered.entities.group_automation_switch;
+  if (id) groupSetSwitch(hass, id, !on);
+}
+
+export function toggleClimate(
+  hass: HomeAssistant,
+  discovered: DiscoveredEntities,
+  on: boolean,
+): void {
+  const id = discovered.entities.group_climate_mode_switch;
   if (id) groupSetSwitch(hass, id, !on);
 }
 

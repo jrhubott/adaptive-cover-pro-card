@@ -9,6 +9,7 @@ import {
   hasMemberOverrides,
   selectScene,
   toggleAutomation,
+  toggleClimate,
   toggleLock,
   type GroupSnapshot,
 } from '../lib/group-controls';
@@ -44,8 +45,9 @@ interface AutomationView {
 }
 
 /**
- * The group-only control row — scene `<select>`, lock, member automation, and
- * clear-member-overrides — shared by the tile, its dialog, and the main-card
+ * The group-only control row — scene `<select>`, lock, member automation,
+ * climate on/off, and clear-member-overrides — shared by the tile, its dialog,
+ * and the main-card
  * view so the three cannot disagree about what a group offers or when a control
  * is available.
  *
@@ -62,6 +64,11 @@ export class GroupControlsRow extends LitElement {
   @property({ type: Boolean }) public showLock = true;
   @property({ type: Boolean }) public showAutomation = true;
   @property({ type: Boolean }) public showClearOverrides = true;
+  /** The one control in this row that defaults to HIDDEN. A press disables
+   *  climate mode on every ACP member at once, and unlike lock or a scene there
+   *  is no group-level readout that makes the resulting state obvious, so it is
+   *  opt-in per card rather than opt-out. */
+  @property({ type: Boolean }) public showClimate = false;
 
   protected render(): TemplateResult | typeof nothing {
     if (!this.hass || !this.discovered || !this.snapshot) return nothing;
@@ -71,8 +78,9 @@ export class GroupControlsRow extends LitElement {
     const clearId = this.showClearOverrides ? s.clearId : undefined;
     const lock = this.showLock && !!s.lockId;
     const automation = this.showAutomation && !!s.automationId;
+    const climate = this.showClimate && !!s.climateId;
     const scene = this.showSceneSelect && !!this.discovered.entities.group_scene_select;
-    if (!scene && !lock && !automation && !clearId) return nothing;
+    if (!scene && !lock && !automation && !climate && !clearId) return nothing;
     // Unknown state must not disable a button whose service would still do work
     // — see hasMemberOverrides for why a locked/weather-held group reads unknown.
     const clearable = hasMemberOverrides(s.memberWinners);
@@ -106,6 +114,20 @@ export class GroupControlsRow extends LitElement {
               <ha-icon icon=${s.locked ? 'mdi:lock' : 'mdi:lock-open-variant'}></ha-icon>
             </button>`}
         ${!automation ? nothing : this._automationButton(this._automationView(s))}
+        ${!climate
+          ? nothing
+          : html`<button
+              class="ctrl climate-toggle ${s.climateOn ? 'active' : ''}"
+              type="button"
+              aria-pressed=${s.climateOn ? 'true' : 'false'}
+              aria-label=${t(s.climateOn ? 'group.climate_off' : 'group.climate_on', this.hass)}
+              ${tooltip(t(s.climateOn ? 'group.climate_off' : 'group.climate_on', this.hass))}
+              @click=${() => toggleClimate(this.hass, this.discovered, s.climateOn)}
+            >
+              <ha-icon
+                icon=${s.climateOn ? 'mdi:sun-thermometer' : 'mdi:sun-thermometer-outline'}
+              ></ha-icon>
+            </button>`}
         ${clearId
           ? html`<button
               class="ctrl clear-overrides"
