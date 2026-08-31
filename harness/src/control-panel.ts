@@ -1212,6 +1212,9 @@ export class AcpHarnessControlPanel extends LitElement {
         ${this._checkbox('Color icon by state', this.config.root.state_color, (v) =>
           this._emit({ ...this.config, root: { ...this.config.root, state_color: v } }),
         )}
+        ${this._checkbox('Show climate toggle (groups)', this.config.root.show_climate, (v) =>
+          this._emit({ ...this.config, root: { ...this.config.root, show_climate: v } }),
+        )}
         ${this._numberSlider('North offset °', this.config.root.north_offset, -180, 180, 1, (v) =>
           this._emit({ ...this.config, root: { ...this.config.root, north_offset: v } }),
         )}

@@ -146,6 +146,8 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
   'group.automation_count': '{count} of {total} members automating',
   'group.clear_overrides': 'Clear overrides',
   'group.clear_overrides_none': 'No member overrides to clear',
+  'group.climate_on': 'Enable climate control for all members',
+  'group.climate_off': 'Disable climate control for all members',
   'group.who_won':
     '{count} of {total} members are group-driven — a group scene or the group lock is currently deciding their position',
   'group.members': 'Members',

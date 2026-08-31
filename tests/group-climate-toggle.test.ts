@@ -232,6 +232,35 @@ describe('acp-group-controls-row — climate button', () => {
     await el.updateComplete;
     expect(el.shadowRoot!.querySelector('.group-row')).toBeNull();
   });
+
+  // The other side of that gate, and the case that pins the `!climate` term in
+  // it: climate is the ONLY enabled control and it DOES resolve, so the row must
+  // render. Without that term the early return fires on a group whose card asked
+  // for exactly one control and the row comes back empty.
+  it('renders the row when climate is the only enabled control and it resolves', async () => {
+    const el = document.createElement('acp-group-controls-row') as RowLike & {
+      showSceneSelect: boolean;
+      showLock: boolean;
+      showAutomation: boolean;
+      showClearOverrides: boolean;
+    };
+    const hass = makeHass({ climate: true });
+    el.hass = hass;
+    el.discovered = makeDiscovered();
+    el.snapshot = readGroup(hass, makeDiscovered());
+    el.showSceneSelect = false;
+    el.showLock = false;
+    el.showAutomation = false;
+    el.showClearOverrides = false;
+    el.showClimate = true;
+    document.body.appendChild(el);
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('.group-row')).toBeTruthy();
+    expect(el.shadowRoot!.querySelector('.climate-toggle')).toBeTruthy();
+    // ...and nothing else came along for the ride.
+    expect(el.shadowRoot!.querySelector('.lock-toggle')).toBeNull();
+    expect(el.shadowRoot!.querySelector('.scene-select')).toBeNull();
+  });
 });
 
 /**

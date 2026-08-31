@@ -136,9 +136,11 @@ export function readGroup(hass: HomeAssistant, discovered: DiscoveredEntities): 
     automationOn: e.group_automation_switch
       ? hass.states[e.group_automation_switch]?.state === 'on'
       : true,
-    // No optimistic default here, unlike `automationOn`: the climate toggle is
-    // the one control a surface renders only when `climateId` resolves, so this
-    // fallback is never what the button paints from.
+    // `false`, not `automationOn`'s optimistic `true`. Neither fallback is ever
+    // painted — every toggle is gated on its own id — so this is about what the
+    // value MEANS when read outside that gate: an absent automation switch is an
+    // old build of an always-automating integration, whereas an absent climate
+    // switch is an integration with no group climate feature at all.
     climateOn: e.group_climate_mode_switch
       ? hass.states[e.group_climate_mode_switch]?.state === 'on'
       : false,
