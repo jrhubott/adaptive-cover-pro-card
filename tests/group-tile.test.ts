@@ -3,6 +3,7 @@ import { GroupTile } from '../src/components/group-tile';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities } from '../src/types';
 import { loadEntityRegistry } from '../src/lib/registry-store';
+import { INTEGRATION_DOMAIN } from '../src/const';
 
 interface GroupTileLike extends HTMLElement {
   updateComplete: Promise<boolean>;
@@ -529,5 +530,134 @@ describe('group tile — rail color is constant (#260)', () => {
     const fill = el.shadowRoot!.querySelector('.pos-fill');
     expect(fill).toBeTruthy();
     expect(fill!.getAttribute('style') ?? '').not.toContain('background');
+  });
+});
+
+// ── #267 characterization: the group rail's gesture contract ────────────────
+//
+// Written BEFORE the `RailGestures` extraction and against the hand-rolled
+// handlers, so it records what ships today rather than what the refactor
+// produces. `group_set_position` flattens every member onto one value and takes
+// them off their own solar targets, which is why this rail — alone among the
+// four — refuses to commit a tap and previews nothing below the drag threshold.
+// Until now that behavior had no automated guard at all.
+describe('group tile — position rail gestures (#267 characterization)', () => {
+  const RECT = { left: 0, width: 100, top: 0, bottom: 8, right: 100, height: 8 };
+
+  /** The default roster is `{a:40, b:60, generic:0}` on a `cover_blind`, so the
+   *  position axis is MIRRORED: drawn = 100 − logical. Drawn members are
+   *  40/60/100, giving a spread whose solid fill stops at 40%. */
+  async function mountRail(): Promise<{
+    el: GroupTileLike;
+    slider: HTMLElement;
+    callService: ReturnType<typeof vi.fn>;
+  }> {
+    const callService = vi.fn();
+    const el = await mount(
+      makeHass({ callService: callService as unknown as (...a: unknown[]) => unknown }),
+      makeDiscovered(),
+    );
+    const slider = el.shadowRoot!.querySelector('.pos-slider') as HTMLElement;
+    Object.defineProperty(slider, 'getBoundingClientRect', {
+      value: () => RECT,
+      configurable: true,
+    });
+    return { el, slider, callService };
+  }
+
+  const down = (x: number): PointerEvent =>
+    new PointerEvent('pointerdown', { bubbles: true, composed: true, clientX: x, pointerId: 1 });
+  const move = (x: number): PointerEvent =>
+    new PointerEvent('pointermove', { bubbles: true, composed: true, clientX: x, pointerId: 1 });
+  const up = (x: number): PointerEvent =>
+    new PointerEvent('pointerup', { bubbles: true, composed: true, clientX: x, pointerId: 1 });
+
+  const fillWidth = (el: GroupTileLike): string =>
+    (el.shadowRoot!.querySelector('.pos-fill') as HTMLElement).getAttribute('style') ?? '';
+  const isDragging = (slider: HTMLElement): boolean => slider.classList.contains('dragging');
+
+  it('a tap with no pointer movement commits nothing', async () => {
+    const { el, slider, callService } = await mountRail();
+    slider.dispatchEvent(down(50));
+    await el.updateComplete;
+    expect(isDragging(slider)).toBe(false);
+    slider.dispatchEvent(up(50));
+    await el.updateComplete;
+    expect(isDragging(slider)).toBe(false);
+    // Real browsers fire a trailing compatibility click at the release point.
+    // Rails 1–3 commit on it; this one must not.
+    slider.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: 50 }));
+    await el.updateComplete;
+    expect(callService).not.toHaveBeenCalled();
+  });
+
+  it('movement below the 4px threshold neither previews nor commits', async () => {
+    const { el, slider, callService } = await mountRail();
+    slider.dispatchEvent(down(50));
+    slider.dispatchEvent(move(52));
+    await el.updateComplete;
+    expect(isDragging(slider)).toBe(false);
+    // The spread band is still drawn: nothing has collapsed onto one value.
+    expect(fillWidth(el)).toContain('width:40%');
+    expect(el.shadowRoot!.querySelector('.pos-band')).not.toBeNull();
+    slider.dispatchEvent(up(52));
+    await el.updateComplete;
+    expect(callService).not.toHaveBeenCalled();
+  });
+
+  it('a drag past the threshold previews live and commits on release, once', async () => {
+    const { el, slider, callService } = await mountRail();
+    slider.dispatchEvent(down(20));
+    slider.dispatchEvent(move(80));
+    await el.updateComplete;
+    expect(isDragging(slider)).toBe(true);
+    // Drawn 80 on a mirrored axis is logical 20, and the preview collapses the
+    // spread band because the write is about to flatten every member.
+    expect(fillWidth(el)).toContain('width:80%');
+    expect(el.shadowRoot!.querySelector('.pos-band')).toBeNull();
+    expect(callService).not.toHaveBeenCalled();
+    slider.dispatchEvent(up(80));
+    await el.updateComplete;
+    expect(callService).toHaveBeenCalledTimes(1);
+    expect(callService).toHaveBeenCalledWith(
+      INTEGRATION_DOMAIN,
+      'group_set_position',
+      { position: 20 },
+      { entity_id: 'sensor.group_position' },
+    );
+    slider.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: 80 }));
+    await el.updateComplete;
+    expect(callService).toHaveBeenCalledTimes(1);
+  });
+
+  it('pointercancel discards a past-threshold drag without committing', async () => {
+    const { el, slider, callService } = await mountRail();
+    slider.dispatchEvent(down(20));
+    slider.dispatchEvent(move(80));
+    await el.updateComplete;
+    expect(isDragging(slider)).toBe(true);
+    slider.dispatchEvent(
+      new PointerEvent('pointercancel', { bubbles: true, composed: true, pointerId: 1 }),
+    );
+    await el.updateComplete;
+    expect(callService).not.toHaveBeenCalled();
+    expect(isDragging(slider)).toBe(false);
+    expect(fillWidth(el)).toContain('width:40%');
+  });
+
+  it('arrow and Home/End keys step the drawn fill and commit immediately', async () => {
+    const { el, slider, callService } = await mountRail();
+    const sent = (): number[] =>
+      callService.mock.calls.map((c) => (c[2] as { position: number }).position);
+    // Steps from the drawn spread MINIMUM (40), not the aggregate mean.
+    slider.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowRight' }));
+    await el.updateComplete;
+    expect(sent()).toEqual([59]);
+    // Home/End name the ends of the TRACK, so on a mirrored axis Home is
+    // logical 100 and End is logical 0.
+    slider.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Home' }));
+    slider.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'End' }));
+    await el.updateComplete;
+    expect(sent()).toEqual([59, 100, 0]);
   });
 });

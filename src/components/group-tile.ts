@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing, unsafeCSS, type TemplateResult } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
 import type { DiscoveredEntities } from '../types';
@@ -20,6 +20,7 @@ import {
 } from '../lib/group-controls';
 import { hiddenMemberCovers } from '../lib/group-roster';
 import { PendingMoves, isPendingVisible } from '../lib/pending-move';
+import { RailGestures } from '../lib/rail-gestures';
 import { renderRailOverlay, railOverlayStyles } from './rail-overlay';
 import { t } from '../lib/i18n';
 import { tooltip } from '../lib/tooltip';
@@ -77,10 +78,22 @@ export class GroupTile extends LitElement {
    *  show. */
   @property({ attribute: false }) public members?: string[];
 
-  /** Live percentage while a slider drag is in flight; null when idle. Drives
-   *  the fill + readout so the bar tracks the finger instead of waiting on the
-   *  server round-trip (mirrors the cover tile's `_posDrag`). */
-  @state() private _posDrag: number | null = null;
+  /** How far the pointer must travel before the gesture counts as a deliberate
+   *  drag. A group write is not like a cover write: `group_set_position` flattens
+   *  EVERY member onto one value and takes them off their own solar targets, so
+   *  a stray tap while reaching for the tile must not commit it. Below this it is
+   *  a tap, and a tap on a group rail now does nothing at all. */
+  private static readonly DRAG_THRESHOLD_PX = 4;
+
+  /** The shared drag-to-set contract — see `lib/rail-gestures.ts`. Alone among
+   *  the four rails this one commits on RELEASE and only past a movement
+   *  threshold; see {@link GroupTile.DRAG_THRESHOLD_PX} for why. One track per
+   *  tile, so the key is a constant. */
+  private _rail = new RailGestures(this, {
+    commitOn: 'release',
+    dragThresholdPx: GroupTile.DRAG_THRESHOLD_PX,
+  });
+  private static readonly RAIL_KEY = 'group';
 
   /** Where the group was last told to go, until it gets there — see
    *  `lib/pending-move.ts`. A single key: a group write flattens every member
@@ -114,7 +127,8 @@ export class GroupTile extends LitElement {
     const s = this._snapshot();
 
     const stateText = t(`group.state_${s.aggregate}`, this.hass);
-    const shownPosition = this._posDrag ?? s.position;
+    const drag = this._rail.preview(GroupTile.RAIL_KEY);
+    const shownPosition = drag ?? s.position;
     // Rail polarity, same source as every other position surface. A group
     // publishes no axes of its own (GroupPolicy.axes is empty), so this is
     // the synthesized fallback — mirrored unless the entry is an awning.
@@ -127,7 +141,7 @@ export class GroupTile extends LitElement {
     // Mid-drag the rail previews a SINGLE value, deliberately: the drag is about
     // to flatten every member onto it, and collapsing the spread as the finger
     // moves is the clearest possible statement of that.
-    const dragging = this._posDrag !== null;
+    const dragging = this._rail.isDragging(GroupTile.RAIL_KEY);
     // A pending group move collapses the spread for the same reason a drag does:
     // the write flattens every member onto one value, so the disagreement the
     // band describes is about to stop existing. Suppressed mid-drag — the drag
@@ -225,9 +239,7 @@ export class GroupTile extends LitElement {
           )}
           ${this.showPositionBar
             ? html`<div
-                class="pos-slider${this._posDrag !== null ? ' dragging' : ''}${controllable
-                  ? ''
-                  : ' disabled'}"
+                class="pos-slider${dragging ? ' dragging' : ''}${controllable ? '' : ' disabled'}"
                 role="slider"
                 tabindex=${controllable ? 0 : -1}
                 aria-disabled=${controllable ? 'false' : 'true'}
@@ -369,75 +381,44 @@ export class GroupTile extends LitElement {
     this._openMoreInfo();
   };
 
-  /* Slider gestures mirror the cover tile's: capture the pointer, preview the
-     fill locally, and let the trailing compatibility `click` do the commit — so
-     no `preventDefault()` on pointerdown. Every handler stops propagation so a
-     drag never reads as a tap on the tile body. */
-  private _pctFromEvent(e: { clientX: number }, el: HTMLElement): number {
-    const rect = el.getBoundingClientRect();
-    const pct = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-    return Math.max(0, Math.min(100, pct));
-  }
+  /* Slider gesture adapters. The gesture itself lives in `RailGestures`; what
+     stays here is this rail's own policy — the `controllable` gate, and the
+     `stopPropagation()` on every handler that keeps a drag from reading as a
+     tap on the tile body. No `preventDefault()` on pointerdown.
 
-  /** How far the pointer must travel before the gesture counts as a deliberate
-   *  drag. A group write is not like a cover write: `group_set_position` flattens
-   *  EVERY member onto one value and takes them off their own solar targets, so
-   *  a stray tap while reaching for the tile must not commit it. Below this it is
-   *  a tap, and a tap on a group rail now does nothing at all. */
-  private static readonly DRAG_THRESHOLD_PX = 4;
-
-  /** Pointer x at gesture start, and whether it has since passed the threshold. */
-  private _posDownX: number | null = null;
-  private _posMoved = false;
-
+     The axis is resolved at EVENT time rather than held: it is derived from
+     `discovered`, which is a reactive property. */
   private _onPosPointerDown(e: PointerEvent, controllable: boolean): void {
     e.stopPropagation();
     if (!controllable) return;
-    const el = e.currentTarget as HTMLElement;
-    (el as HTMLElement & { setPointerCapture?: (id: number) => void }).setPointerCapture?.(
-      e.pointerId,
-    );
-    this._posDownX = e.clientX;
-    this._posMoved = false;
-    // Deliberately NO preview yet. The rail commits only past the threshold, so
-    // previewing on contact showed a committed-looking flatten for a tap that
-    // does nothing — the spread collapsed and the state line changed, then both
+    // Deliberately no preview on contact — the controller's drag threshold sees
+    // to that. Previewing here showed a committed-looking flatten for a tap that
+    // does nothing: the spread collapsed and the state line changed, then both
     // sprang back on release.
+    this._rail.pointerDown(e, GroupTile.RAIL_KEY, positionAxisFor(this.discovered));
   }
 
   private _onPosPointerMove = (e: PointerEvent): void => {
-    if (this._posDownX === null) return;
+    if (!this._rail.isActive(GroupTile.RAIL_KEY)) return;
     e.stopPropagation();
-    if (Math.abs(e.clientX - this._posDownX) >= GroupTile.DRAG_THRESHOLD_PX) {
-      this._posMoved = true;
-    }
-    if (!this._posMoved) return;
-    this._posDrag = axisDisplayValue(
-      this._pctFromEvent(e, e.currentTarget as HTMLElement),
-      positionAxisFor(this.discovered),
-    );
+    this._rail.pointerMove(e, GroupTile.RAIL_KEY, positionAxisFor(this.discovered));
   };
 
   /** Commit on release, and ONLY when the gesture actually travelled. The commit
    *  moved here from the trailing `click` precisely so a tap can be distinguished
-   *  from a drag — `click` fires for both and cannot tell them apart. */
+   *  from a drag — `click` fires for both and cannot tell them apart, which is
+   *  why `@click` on this rail does nothing but stop propagation. */
   private _onPosPointerEnd = (e: PointerEvent, s: GroupSnapshot): void => {
     e.stopPropagation();
-    const value = this._posDrag;
-    const moved = this._posMoved;
-    this._posDrag = null;
-    this._posDownX = null;
-    this._posMoved = false;
-    if (!moved || value === null || !s.target) return;
+    const value = this._rail.pointerUp(GroupTile.RAIL_KEY);
+    if (value === null || !s.target) return;
     this._pending.start(GroupTile.PENDING_KEY, value);
     setGroupPosition(this.hass, s, value);
   };
 
   private _onPosCancel = (e: PointerEvent): void => {
     e.stopPropagation();
-    this._posDrag = null;
-    this._posDownX = null;
-    this._posMoved = false;
+    this._rail.pointerCancel(GroupTile.RAIL_KEY);
   };
 
   /** Standard WAI-ARIA slider keys: arrows ±1, Page ±10, Home/End to the ends. */
@@ -457,35 +438,12 @@ export class GroupTile extends LitElement {
     const spread = memberSpread(s.memberPositions, posAxis);
     const current =
       spread?.min ?? (s.position === null ? 0 : axisDisplayValue(s.position, posAxis));
-    let next: number;
-    switch (e.key) {
-      case 'ArrowRight':
-      case 'ArrowUp':
-        next = current + 1;
-        break;
-      case 'ArrowLeft':
-      case 'ArrowDown':
-        next = current - 1;
-        break;
-      case 'PageUp':
-        next = current + 10;
-        break;
-      case 'PageDown':
-        next = current - 10;
-        break;
-      case 'Home':
-        next = 0;
-        break;
-      case 'End':
-        next = 100;
-        break;
-      default:
-        return;
-    }
-    e.preventDefault();
+    // `current` is DRAWN; the controller speaks logical values in both
+    // directions, so it goes through `axisDisplayValue` on the way in.
+    const value = this._rail.keydownValue(e, axisDisplayValue(current, posAxis), posAxis);
+    if (value === null) return;
     e.stopPropagation();
     if (!s.target) return;
-    const value = axisDisplayValue(Math.max(0, Math.min(100, next)), posAxis);
     this._pending.start(GroupTile.PENDING_KEY, value);
     setGroupPosition(this.hass, s, value);
   }
