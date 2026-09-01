@@ -627,7 +627,10 @@ function addEntryStates(
         ? s.enabled && entry.flags.safety_slot_active
         : s.enabled;
     states[sensorId] = mkState(sensorId, armed ? 'on' : 'off', {
-      friendly_name: `${entry.title} ${s.name}`,
+      // s.name is optional (issue #278 audit optional finding #2, simulating
+      // an integration that hasn't sent a configured name for this slot) —
+      // fall back rather than interpolating a literal "undefined".
+      friendly_name: `${entry.title} ${s.name ?? s.sensorFriendlyName ?? `Slot ${s.slot}`}`,
     });
   }
 }

@@ -453,13 +453,13 @@ describe('acp-more-info-dialog: slot management', () => {
     expect(labels[1]).toContain('Movie');
   });
 
-  it('prefers configured_name over sensor_name in the slot row (issue #278 audit finding #5)', async () => {
-    // sensor_name is the bound sensor's HA friendly_name; configured_name is
+  it('prefers custom_name over sensor_name in the slot row (issue #278 audit finding #5)', async () => {
+    // sensor_name is the bound sensor's HA friendly_name; custom_name is
     // the slot's own custom_position_name_N. The row must show the latter.
     const mismatchedSlots = [
       {
         ...slots[0],
-        configured_name: 'Living Room Window Open',
+        custom_name: 'Living Room Window Open',
         sensor_name: 'Living Room Shades Default',
       },
       slots[1],
@@ -590,14 +590,21 @@ describe('acp-more-info-dialog: slot management', () => {
   });
 });
 
-// Issue #278 audit finding #5: the dialog header badge's `.slotName` wiring
-// (`custom_position_active_slot_configured_name ?? custom_position_active_slot_name`)
-// had no regression guard at all — these lock in the preference order.
-describe('acp-more-info-dialog: header badge slot name preference (issue #278 audit)', () => {
+// Issue #278 audit finding #5 / optional finding #1: the dialog header
+// badge's `.slotName` wiring now prefers the active slot's locally-
+// verifiable snapshot `custom_name` over the trace-level
+// `custom_position_active_slot_name`, whose "already resolves the configured
+// name first, server-side" behaviour the card cannot verify (evidence
+// packet: "asserted by maintainer, unverifiable locally" — the exact class
+// of single-source claim that shipped broken twice already, #279 and #292).
+// Falls back to the trace field when the snapshot has no matching row/name,
+// and to `#N` when neither carries a name. resolveConfiguredName's
+// blank-guard (audit finding #2) still applies throughout.
+describe('acp-more-info-dialog: header badge slot name (issue #278 audit)', () => {
   function customPositionHass(
     overrides: Partial<{
-      sensorName: string | null;
-      configuredName: string | null;
+      slotName: string | null;
+      snapshotCustomName: string | null;
     }> = {},
   ): HomeAssistant {
     return hass({
@@ -606,11 +613,24 @@ describe('acp-more-info-dialog: header badge slot name preference (issue #278 au
       traceExtraAttrs: {
         custom_position_active_slot: 1,
         custom_position_minimum_mode: false,
-        ...('sensorName' in overrides
-          ? { custom_position_active_slot_name: overrides.sensorName }
+        ...('slotName' in overrides
+          ? { custom_position_active_slot_name: overrides.slotName }
           : {}),
-        ...('configuredName' in overrides
-          ? { custom_position_active_slot_configured_name: overrides.configuredName }
+        ...('snapshotCustomName' in overrides
+          ? {
+              custom_position_slots: [
+                {
+                  slot: 1,
+                  enabled: true,
+                  sensor: 'input_boolean.slot1',
+                  sensor_name: 'Sensor Name',
+                  custom_name: overrides.snapshotCustomName,
+                  position: 55,
+                  priority: 1,
+                  min_mode: false,
+                },
+              ],
+            }
           : {}),
       },
     });
@@ -621,30 +641,39 @@ describe('acp-more-info-dialog: header badge slot name preference (issue #278 au
     return badge!.shadowRoot!.querySelector('span.badge')!.textContent?.trim() ?? '';
   }
 
-  it('prefers the configured name over the sensor name when both are present', async () => {
+  it("prefers the active slot's snapshot custom_name over the trace-level custom_position_active_slot_name", async () => {
     const el = await mount({
       hass: customPositionHass({
-        sensorName: 'Living Room Shades Default',
-        configuredName: 'Living Room Window Open',
+        slotName: 'Trace Name (unverifiable)',
+        snapshotCustomName: 'Snapshot Name',
       }),
       discovered: discovered(),
       open: true,
     });
     const text = headerBadgeText(el);
-    expect(text).toContain('Living Room Window Open');
-    expect(text).not.toContain('Living Room Shades Default');
+    expect(text).toContain('Snapshot Name');
+    expect(text).not.toContain('Trace Name');
   });
 
-  it('falls back to the sensor name when the configured name is absent', async () => {
+  it('falls back to custom_position_active_slot_name when the snapshot has no matching row', async () => {
     const el = await mount({
-      hass: customPositionHass({ sensorName: 'Living Room Shades Default' }),
+      hass: customPositionHass({ slotName: 'Living Room Window Open' }),
       discovered: discovered(),
       open: true,
     });
-    expect(headerBadgeText(el)).toContain('Living Room Shades Default');
+    expect(headerBadgeText(el)).toContain('Living Room Window Open');
   });
 
-  it('falls back to #N when neither the configured name nor the sensor name is present', async () => {
+  it('treats a blank/whitespace-only slot name as absent, falling back to #N', async () => {
+    const el = await mount({
+      hass: customPositionHass({ slotName: '   ' }),
+      discovered: discovered(),
+      open: true,
+    });
+    expect(headerBadgeText(el)).toContain('#1');
+  });
+
+  it('falls back to #N when neither the snapshot nor the trace carries a name', async () => {
     const el = await mount({
       hass: customPositionHass(),
       discovered: discovered(),

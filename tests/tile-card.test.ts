@@ -776,6 +776,72 @@ describe('adaptive-cover-pro-tile-card render', () => {
     expect(text).toBe('Table terrasse · 60% ↥');
   });
 
+  it("badge prefers the active slot's snapshot custom_name over the trace-level custom_position_active_slot_name (issue #278 audit optional finding #1)", async () => {
+    // custom_position_active_slot_name's "already resolves configured-name-
+    // first, server-side" behaviour rests entirely on the maintainer's word
+    // (evidence packet: "asserted by maintainer, unverifiable locally") — the
+    // exact class of single-source claim that shipped broken twice already
+    // (#279, #292). The badge hedges by preferring the active slot's own
+    // snapshot custom_name, which the card can verify locally via a plain
+    // array lookup, matching resolveActiveMinModeFloor's identical
+    // snapshot-first preference for the floor chip.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'one-line' },
+      makeHass({
+        decisionState: 'custom_position_1',
+        decisionAttrs: {
+          trace: [{ handler: 'custom_position_1', matched: true, reason: '', position: 60 }],
+          custom_position_active_slot: 1,
+          custom_position_active_slot_name: 'Trace Name (unverifiable)',
+          custom_position_slots: [
+            {
+              slot: 1,
+              enabled: true,
+              sensor: 'input_number.table',
+              sensor_name: 'Sensor Name',
+              custom_name: 'Snapshot Name',
+              position: 60,
+              priority: 1,
+              min_mode: false,
+            },
+            {
+              slot: 2,
+              enabled: false,
+              sensor: null,
+              sensor_name: null,
+              position: null,
+              priority: null,
+              min_mode: null,
+            },
+            {
+              slot: 3,
+              enabled: false,
+              sensor: null,
+              sensor_name: null,
+              position: null,
+              priority: null,
+              min_mode: null,
+            },
+            {
+              slot: 4,
+              enabled: false,
+              sensor: null,
+              sensor_name: null,
+              position: null,
+              priority: null,
+              min_mode: null,
+            },
+          ],
+        },
+      }),
+    );
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).toContain('Snapshot Name');
+    expect(text).not.toContain('Trace Name');
+  });
+
   it('shows Manual badge when manual_override is on even if pipeline winner is not manual', async () => {
     // Symptom 3b: winner = solar but manual_override binary = on → badge must say "Manual".
     // Use a registry without the end-time sensor so manualEndIso is undefined and the
@@ -1998,7 +2064,7 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
       customPositionMinimumMode?: boolean;
       priority?: number | null;
       sensorName?: string | null;
-      configuredName?: string | null;
+      customName?: string | null;
     } = {},
   ): HomeAssistant {
     const {
@@ -2009,7 +2075,7 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
       customPositionMinimumMode = false,
       priority = 1,
       sensorName = 'Aeration',
-      configuredName = undefined,
+      customName = undefined,
     } = opts;
     const hass = makeHass({
       decisionState: winner,
@@ -2023,7 +2089,7 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
             enabled: true,
             sensor: 'input_boolean.floor_sensor',
             sensor_name: sensorName,
-            ...(configuredName !== undefined ? { configured_name: configuredName } : {}),
+            ...(customName !== undefined ? { custom_name: customName } : {}),
             position: 25,
             priority,
             min_mode: true,
@@ -2084,20 +2150,20 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
     expect(chip!.textContent?.trim()).toMatch(/^↥\s*25%$/);
   });
 
-  it("prefers the slot's configured_name over sensor_name when both present (issue #278)", async () => {
-    // sensor_name is the bound sensor's HA friendly_name; configured_name is
+  it("prefers the slot's custom_name over sensor_name when both present (issue #278)", async () => {
+    // sensor_name is the bound sensor's HA friendly_name; custom_name is
     // the slot's own custom_position_name_N — the value the user actually
     // typed as the slot's label. The chip must show the latter.
     const el = await mount(
       { type: TYPE, entry_id: ENTRY },
-      makeFloorHass({ sensorName: 'Living Room Shades Default', configuredName: 'Aeration floor' }),
+      makeFloorHass({ sensorName: 'Living Room Shades Default', customName: 'Aeration floor' }),
     );
     const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
     expect(chip).toBeTruthy();
     expect(chip!.textContent?.trim()).toMatch(/↥\s*Aeration floor\s*·\s*25%/);
   });
 
-  it('falls back to sensor_name when configured_name is absent (older integrations)', async () => {
+  it('falls back to sensor_name when custom_name is absent (older integrations)', async () => {
     const el = await mount({ type: TYPE, entry_id: ENTRY }, makeFloorHass());
     const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
     expect(chip).toBeTruthy();

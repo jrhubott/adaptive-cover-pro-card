@@ -41,7 +41,6 @@ const baseAttrs = (
   | 'custom_position_active_slot'
   | 'custom_position_minimum_mode'
   | 'custom_position_active_slot_name'
-  | 'custom_position_active_slot_configured_name'
   | 'custom_position_slots'
 > => ({
   reason: '',
@@ -174,38 +173,21 @@ describe('buildDecisionSentence', () => {
     expect(noName).toBe('Custom Position #3 45% floor');
   });
 
-  it('prefers custom_position_active_slot_configured_name over custom_position_active_slot_name (issue #278)', () => {
-    // custom_position_active_slot_name is the bound sensor's HA friendly_name;
-    // custom_position_active_slot_configured_name is the slot's own
-    // custom_position_name_N. When the integration sends both (forward-compat),
-    // the sentence must use the slot's own configured name.
-    const sentence = buildDecisionSentence(
-      [step('custom_position_1', true, 60)],
-      baseAttrs({
-        custom_position_active_slot: 1,
-        custom_position_minimum_mode: true,
-        custom_position_active_slot_name: 'Living Room Shades Default',
-        custom_position_active_slot_configured_name: 'Living Room Window Open',
-      }),
-      'custom_position',
-    );
-    expect(sentence).toBe('Custom Position · Living Room Window Open 60% floor');
-  });
-
-  it('falls through an empty configured_name to the sensor name (audit finding #2)', () => {
-    // An empty string is not nullish, so a plain `??` chain would have kept
-    // it and rendered a blank slot label. resolveConfiguredName treats it
-    // as absent, the same as if the field had never been sent.
+  it('treats a blank/whitespace-only custom_position_active_slot_name as absent (audit finding #2)', () => {
+    // An empty/whitespace string is not nullish, so a plain `??` chain would
+    // have kept it and rendered a blank slot label. resolveConfiguredName
+    // treats it as absent, the same as if the field had never been sent —
+    // custom_position_active_slot_name already resolves the slot's configured
+    // name first, server-side, so this is the only candidate formatStep reads.
     const sentence = buildDecisionSentence(
       [step('custom_position_3', true, 45)],
       baseAttrs({
         custom_position_active_slot: 3,
-        custom_position_active_slot_name: 'Slot 3 sensor',
-        custom_position_active_slot_configured_name: '',
+        custom_position_active_slot_name: '   ',
       }),
       'custom_position',
     );
-    expect(sentence).toBe('Custom Position · Slot 3 sensor 45%');
+    expect(sentence).toBe('Custom Position #3 45%');
   });
 
   it('omits the floor suffix in exact mode (minimum_mode is null/undefined)', () => {
@@ -658,43 +640,48 @@ describe('resolveActiveMinModeFloor', () => {
     expect(result!.name).toBeNull();
   });
 
-  it("prefers the slot's own configured_name over sensor_name when both present (issue #278)", () => {
-    // sensor_name is the bound sensor's HA friendly_name; configured_name is
-    // the slot's own custom_position_name_N. They can legitimately differ
+  it("prefers the slot's own custom_name over sensor_name when both present (issue #278)", () => {
+    // sensor_name is the bound sensor's HA friendly_name; custom_name is
+    // the slot's own custom_position_name_N (on the wire since integration
+    // v2026.8.0, adaptive-cover-pro#867). They can legitimately differ
     // (issue #278) and the chip must surface the slot's own name.
     const result = resolveActiveMinModeFloor(
-      { custom_position_slots: [{ ...slot1On, configured_name: 'Living Room Window Open' }] },
+      { custom_position_slots: [{ ...slot1On, custom_name: 'Living Room Window Open' }] },
       hassStates({ 'input_boolean.slot1': 'on' }),
       40,
     );
     expect(result!.name).toBe('Living Room Window Open');
   });
 
-  it('falls back to sensor_name when configured_name is null (older integrations)', () => {
+  it('falls back to sensor_name when custom_name is null (older integrations)', () => {
     const result = resolveActiveMinModeFloor(
-      { custom_position_slots: [{ ...slot1On, configured_name: null }] },
+      { custom_position_slots: [{ ...slot1On, custom_name: null }] },
       hassStates({ 'input_boolean.slot1': 'on' }),
       40,
     );
     expect(result!.name).toBe('Slot 1');
   });
 
-  // Split-field rollout guard (audit finding #8): the per-slot `configured_name`
-  // and the trace-level `custom_position_active_slot_configured_name` are two
-  // independent fields an integration could ship separately. Without this
-  // guard, an integration that ships only the trace-level field would show a
-  // different name in the tile badge (trace-level) than in the floor chip
-  // (snapshot-level, which would fall all the way back to sensor_name) for
-  // the SAME slot in the SAME tile.
-  it("borrows the trace-level configured name only when the snapshot row is the trace's active slot (split rollout, audit finding #8)", () => {
-    // slot1On has no configured_name of its own; only the trace level carries
+  // Split-field rollout guard (audit finding #8): the per-slot `custom_name`
+  // (on the snapshot array) and the trace-level `custom_position_active_slot_name`
+  // are two independent fields the integration can roll out separately — the
+  // snapshot field shipped in adaptive-cover-pro#867, while the trace-level
+  // field's configured-name-first resolution predates and is independent of
+  // that rollout (per the maintainer). Without this guard, an integration
+  // whose snapshot doesn't carry `custom_name` yet, but whose trace-level
+  // field already resolves the configured name, would show a different name
+  // in the tile badge (trace-level) than in the floor chip (snapshot-level,
+  // which would fall all the way back to sensor_name) for the SAME slot in
+  // the SAME tile.
+  it("borrows the trace-level custom_position_active_slot_name only when the snapshot row is the trace's active slot (split rollout, audit finding #8)", () => {
+    // slot1On has no custom_name of its own; only the trace level carries
     // the slot's configured name here, naming slot 1 (the dominant floor) as
     // active — the split-rollout state this guard exists for.
     const result = resolveActiveMinModeFloor(
       {
         custom_position_slots: [slot1On],
         custom_position_active_slot: 1,
-        custom_position_active_slot_configured_name: 'Living Room Window Open',
+        custom_position_active_slot_name: 'Living Room Window Open',
       },
       hassStates({ 'input_boolean.slot1': 'on' }),
       40,
@@ -702,7 +689,7 @@ describe('resolveActiveMinModeFloor', () => {
     expect(result!.name).toBe('Living Room Window Open');
   });
 
-  it('ignores the trace-level configured name when the trace names a different slot as active', () => {
+  it('ignores the trace-level custom_position_active_slot_name when the trace names a different slot as active', () => {
     // The trace's active slot is 2, not slot 1 (the dominant floor
     // resolveActiveMinModeFloor picked) — the trace-level name says nothing
     // about slot 1, so it must not leak onto it.
@@ -710,7 +697,7 @@ describe('resolveActiveMinModeFloor', () => {
       {
         custom_position_slots: [slot1On],
         custom_position_active_slot: 2,
-        custom_position_active_slot_configured_name: 'Some Other Slot Name',
+        custom_position_active_slot_name: 'Some Other Slot Name',
       },
       hassStates({ 'input_boolean.slot1': 'on' }),
       40,
@@ -718,7 +705,7 @@ describe('resolveActiveMinModeFloor', () => {
     expect(result!.name).toBe('Slot 1');
   });
 
-  it('reduces to sensor_name ?? null when both new fields are absent, even with an active slot in the trace (audit finding #8)', () => {
+  it('reduces to sensor_name ?? null when custom_name and custom_position_active_slot_name are both absent, even with an active slot in the trace (audit finding #8)', () => {
     const result = resolveActiveMinModeFloor(
       { custom_position_slots: [slot1On], custom_position_active_slot: 1 },
       hassStates({ 'input_boolean.slot1': 'on' }),

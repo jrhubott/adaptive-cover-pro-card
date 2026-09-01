@@ -92,11 +92,18 @@ export interface CustomPositionSlotCfg {
   slot: 1 | 2 | 3 | 4 | 5;
   enabled: boolean;
   position: number;
-  /** The slot's own configured name — mirrors the card's
-   *  `configured_name` / `custom_position_active_slot_configured_name`
-   *  (issue #278). This is what scenarios have always set; it's kept as the
-   *  "name" the harness UI edits. */
-  name: string;
+  /** The slot's own configured name — mirrors the card's `custom_name`
+   *  (on the `custom_position_slots[]` snapshot) / `custom_position_active_slot_name`
+   *  (trace-level, issue #278). Optional (issue #278 audit optional finding
+   *  #2): absent models an integration that hasn't sent a configured name for
+   *  this slot, so `activeSlotName()` falls back to `sensorFriendlyName`.
+   *  Before this the field was required `string`, which made that `??` arm
+   *  in `decider.ts` unreachable — `custom_position_active_slot_name` and
+   *  `custom_position_slots[].custom_name` were always the same string, so no
+   *  scenario could model "slot has no configured name, trace falls back to
+   *  the sensor's friendly name," the one state that actually distinguishes
+   *  the two production fields. */
+  name?: string;
   /** The bound sensor's HA friendly_name, when it differs from the slot's own
    *  `name` (issue #278). Absent (default) means the sensor and slot share
    *  the same string, mirroring most real setups — set this to exercise the
@@ -295,6 +302,23 @@ export interface HarnessEntry {
      *  entry's covers so the tile shows the localized "Opening"/"Closing" state
      *  text. null/undefined = at rest (no transit_states emitted). */
     transit_direction?: 'opening' | 'closing' | null;
+    /** Force the trace's `custom_position_minimum_mode` independent of the
+     *  winning slot's own `min_mode` config (issue #278 audit optional
+     *  finding #5). The mock's default derives `custom_position_minimum_mode`
+     *  directly from `winningSlot(entry).min_mode` — a static "is this slot a
+     *  floor type" fact — but the real integration's field means "is the
+     *  floor actively clamping THIS cycle," a dynamic per-cycle fact that can
+     *  legitimately be `false` even while a floor-type slot wins (the floor
+     *  is configured but a no-op this cycle). Without this override there is
+     *  no way to model that state: whenever a min_mode-type slot is also the
+     *  winner, the mock always reports `custom_position_minimum_mode: true`,
+     *  which makes `resolveActiveMinModeFloor`'s `isActiveSlot` borrow branch
+     *  (armed floor === the winning slot) impossible to exercise without
+     *  `showFloorChip` suppressing the very chip meant to demonstrate it
+     *  (that suppression fires whenever winner===custom_position &&
+     *  minimum_mode===true). undefined = today's default (mirror the slot's
+     *  own `min_mode`). */
+    custom_position_minimum_mode_override?: boolean;
   };
   /** When true this entry is a Cover Group (issue #185): the mock emits the
    *  `group_*` entities from {@link group} and skips the per-cover sensor block,
@@ -474,14 +498,19 @@ export interface HarnessConfig {
    *  the mock hass omits the `set_axes` service, so the card exercises its
    *  legacy fallback (synthesized axes + per-axis set_position/set_tilt). */
   legacyIntegration: boolean;
-  /** Simulate a pre-jrhubott/adaptive-cover-pro#1336 integration — i.e. every
-   *  real install today — that doesn't send the slot's own configured name
-   *  yet (issue #278 audit finding #3): when true, the decision trace omits
-   *  `custom_position_active_slot_configured_name` and every
-   *  `custom_position_slots[]` row omits `configured_name`, so the card falls
-   *  back to `custom_position_active_slot_name` / `sensor_name` — the branch
-   *  that's otherwise unreachable in the harness because the mock decider
-   *  emits both new fields unconditionally. */
+  /** Simulate a pre-jrhubott/adaptive-cover-pro#867 integration that hasn't
+   *  rolled the slot's own `custom_name` out to the `custom_position_slots[]`
+   *  snapshot yet (issue #278 audit finding #3): when true, every slot row
+   *  omits `custom_name`, so the snapshot-level read site (the floor chip)
+   *  falls back to `sensor_name` — the branch that's otherwise unreachable in
+   *  the harness because the mock decider emits `custom_name` unconditionally
+   *  — except when that row is also the trace's active slot and
+   *  `custom_position_minimum_mode` is not `true`, in which case
+   *  `resolveActiveMinModeFloor`'s `isActiveSlot` borrow supplies the
+   *  trace-level name instead and the `sensor_name` fallback never runs.
+   *  `custom_position_active_slot_name`'s configured-name-first resolution
+   *  predates and is independent of this snapshot-field rollout (per the
+   *  maintainer), so it keeps resolving correctly regardless of this flag. */
   omitConfiguredSlotNames: boolean;
   /** Entries to simulate (1..4). */
   entries: HarnessEntry[];

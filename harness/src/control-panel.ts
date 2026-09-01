@@ -1120,11 +1120,13 @@ export class AcpHarnessControlPanel extends LitElement {
                   <span class="slot-num">#${s.slot}</span>
                   <input
                     type="text"
-                    title="Slot's own configured name"
-                    .value=${s.name}
+                    title="Slot's own configured name — leave blank to simulate an integration that hasn't sent a configured name for this slot (issue #278 audit optional finding #2)"
+                    placeholder="(no configured name)"
+                    .value=${s.name ?? ''}
                     @change=${(ev: Event) => {
+                      const value = (ev.target as HTMLInputElement).value;
                       const slots = e.slots.map((ss, i) =>
-                        i === si ? { ...ss, name: (ev.target as HTMLInputElement).value } : ss,
+                        i === si ? { ...ss, name: value === '' ? undefined : value } : ss,
                       );
                       this._patchEntry(idx, { slots });
                     }}

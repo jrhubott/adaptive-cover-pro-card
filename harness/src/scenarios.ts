@@ -838,7 +838,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'custom-position-name-mismatch-winner',
     label: 'Custom position wins — configured name ≠ sensor name (#278)',
     description:
-      "Issue #278 audit finding #4: `ha-tile-badge-row` only exercises the per-slot SNAPSHOT mismatch (the floor chip's `configured_name`), because it wins via manual override — `custom_position_active_slot_configured_name` stays undefined there. Here the custom-position slot itself WINS the decision outright (not as a min-mode floor riding under another winner), with its configured name ('Reading nook') deliberately differing from its bound sensor's HA friendly name ('Office Window Trigger'). That's what populates the TRACE-level `custom_position_active_slot_configured_name` field, which feeds the tile's direct-action badge and the decision-strip sentence (\"Custom Position · {name}\") — both must show the configured name, never the sensor's friendly name.",
+      "Issue #278 audit finding #4: `ha-tile-badge-row` only exercises the per-slot SNAPSHOT mismatch (the floor chip's `custom_name`), because it wins via manual override — the trace-level `custom_position_active_slot` fields describe the floor slot there, not the winner. Here the custom-position slot itself WINS the decision outright (not as a min-mode floor riding under another winner), with its configured name ('Reading nook') deliberately differing from its bound sensor's HA friendly name ('Office Window Trigger'). That's what populates the TRACE-level `custom_position_active_slot_name` field — which, per the maintainer, already resolves the slot's configured name first, server-side — feeding the tile's direct-action badge and the decision-strip sentence (\"Custom Position · {name}\") — both must show the configured name, never the sensor's friendly name.",
     build: () => {
       const c = baseConfig('2026-06-21', 13 * 60);
       c.scenario = 'custom-position-name-mismatch-winner';
@@ -853,6 +853,44 @@ export const SCENARIOS: Scenario[] = [
           name: 'Reading nook',
           sensorFriendlyName: 'Office Window Trigger',
           min_mode: false,
+          priority: 60,
+        },
+        { slot: 2, enabled: false, position: 20, name: 'Privacy', min_mode: false, priority: 70 },
+        {
+          slot: 3,
+          enabled: false,
+          position: 100,
+          name: 'Welcome home',
+          min_mode: false,
+          priority: 50,
+        },
+        { slot: 4, enabled: false, position: 50, name: 'Floor', min_mode: true, priority: 90 },
+        { slot: 5, enabled: false, position: 0, name: 'Safety', min_mode: false, priority: 100 },
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'custom-position-floor-borrows-trace-name',
+    label: 'Floor chip borrows the trace name (#278 audit optional finding #5)',
+    description:
+      "Issue #278 audit optional finding #5: resolveActiveMinModeFloor's isActiveSlot borrow — the floor chip falls through to the trace-level custom_position_active_slot_name only when the snapshot row IS the trace's active/winning slot — had no scenario reaching it. Slot 1 wins the decision outright AND is itself the armed min-mode floor (its own sensor is on). omitConfiguredSlotNames is true so the snapshot's custom_name is withheld, forcing resolveActiveMinModeFloor past its first candidate. custom_position_minimum_mode is forced false via the mock's override flag: the real integration can report a floor-type slot as a this-cycle no-op independent of its static min_mode config, a state the harness's default winningSlot().min_mode mirror cannot express, and without it showFloorChip's badge-redundancy suppression (winner===custom_position && minimum_mode===true) would hide the very chip meant to demonstrate the borrow. The floor chip should read '↥ Greenhouse floor · 45%' — the slot's OWN configured name, borrowed from the trace, never the bound sensor's friendly name ('Greenhouse Trigger').",
+    build: () => {
+      const c = baseConfig('2026-06-21', 13 * 60);
+      c.scenario = 'custom-position-floor-borrows-trace-name';
+      c.omitConfiguredSlotNames = true;
+      c.entries[0].flags.automatic_control = true;
+      c.entries[0].flags.custom_position_minimum_mode_override = false;
+      c.entries[0].target_position = 45;
+      c.entries[0].covers[0].position = 45;
+      c.entries[0].slots = [
+        {
+          slot: 1,
+          enabled: true,
+          position: 45,
+          name: 'Greenhouse floor',
+          sensorFriendlyName: 'Greenhouse Trigger',
+          min_mode: true,
           priority: 60,
         },
         { slot: 2, enabled: false, position: 20, name: 'Privacy', min_mode: false, priority: 70 },
