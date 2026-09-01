@@ -4,6 +4,7 @@ import { INTEGRATION_DOMAIN } from '../src/const';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { AdaptiveCoverProTileCardConfig } from '../src/types';
 import type { EntityRegistryEntry } from '../src/lib/entity-registry';
+import { railRoot, railSettled } from './rail-query';
 
 const TYPE = 'custom:adaptive-cover-pro-tile-card';
 
@@ -2477,8 +2478,8 @@ describe('adaptive-cover-pro-tile-card unavailable dual-axis cover (issue #212)'
     const tiltBar = el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
       updateComplete: Promise<boolean>;
     };
-    await tiltBar.updateComplete;
-    const track = tiltBar.shadowRoot!.querySelector('.track') as HTMLElement;
+    await railSettled(tiltBar);
+    const track = railRoot(tiltBar.shadowRoot!).querySelector('.track') as HTMLElement;
     Object.defineProperty(track, 'getBoundingClientRect', {
       value: () => ({ left: 0, width: 100, top: 0, bottom: 8, right: 100, height: 8 }),
       configurable: true,
@@ -2506,8 +2507,8 @@ describe('adaptive-cover-pro-tile-card unavailable dual-axis cover (issue #212)'
       updateComplete: Promise<boolean>;
     };
     expect(tiltBar.disabled).toBe(false);
-    await tiltBar.updateComplete;
-    const track = tiltBar.shadowRoot!.querySelector('.track') as HTMLElement;
+    await railSettled(tiltBar);
+    const track = railRoot(tiltBar.shadowRoot!).querySelector('.track') as HTMLElement;
     Object.defineProperty(track, 'getBoundingClientRect', {
       value: () => ({ left: 0, width: 100, top: 0, bottom: 8, right: 100, height: 8 }),
       configurable: true,
