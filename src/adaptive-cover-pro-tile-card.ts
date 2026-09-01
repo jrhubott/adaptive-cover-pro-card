@@ -52,6 +52,7 @@ import type {
 import type { OverridePreset } from './lib/override-presets';
 import {
   buildDecisionSentence,
+  findActiveCustomPositionSlot,
   isWinningSlotSafety,
   normalizeHandler,
   resolveConfiguredName,
@@ -855,8 +856,10 @@ export class AdaptiveCoverProTileCard extends LitElement {
           .kindOverride=${winnerKind ?? undefined}
           .integrationEnabled=${integrationEnabled}
           .slotNumber=${traceAttrs?.custom_position_active_slot}
-          .slotName=${resolveConfiguredName(traceAttrs?.custom_position_active_slot_name) ??
-          undefined}
+          .slotName=${resolveConfiguredName(
+            findActiveCustomPositionSlot(traceAttrs)?.custom_name,
+            traceAttrs?.custom_position_active_slot_name,
+          ) ?? undefined}
           .pct=${resolveCustomPositionPct(traceAttrs, calculatedPosition) ?? undefined}
           .minimumMode=${traceAttrs?.custom_position_minimum_mode}
           .safetyActive=${safetyActive}

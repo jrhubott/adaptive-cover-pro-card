@@ -15,6 +15,7 @@ import {
 } from '../const';
 import {
   buildDecisionSentence,
+  findActiveCustomPositionSlot,
   isWinningSlotSafety,
   resolveConfiguredName,
   resolveCustomPositionPct,
@@ -250,8 +251,10 @@ export class MoreInfoDialog extends LitElement {
                             ? attrs?.custom_position_active_slot
                             : undefined}
                           .slotName=${h === 'custom_position'
-                            ? (resolveConfiguredName(attrs?.custom_position_active_slot_name) ??
-                              undefined)
+                            ? (resolveConfiguredName(
+                                findActiveCustomPositionSlot(attrs)?.custom_name,
+                                attrs?.custom_position_active_slot_name,
+                              ) ?? undefined)
                             : undefined}
                           .pct=${h === 'custom_position'
                             ? (resolveCustomPositionPct(attrs, target) ?? undefined)

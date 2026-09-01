@@ -871,6 +871,44 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'custom-position-floor-borrows-trace-name',
+    label: 'Floor chip borrows the trace name (#278 audit optional finding #5)',
+    description:
+      "Issue #278 audit optional finding #5: resolveActiveMinModeFloor's isActiveSlot borrow — the floor chip falls through to the trace-level custom_position_active_slot_name only when the snapshot row IS the trace's active/winning slot — had no scenario reaching it. Slot 1 wins the decision outright AND is itself the armed min-mode floor (its own sensor is on). omitConfiguredSlotNames is true so the snapshot's custom_name is withheld, forcing resolveActiveMinModeFloor past its first candidate. custom_position_minimum_mode is forced false via the mock's override flag: the real integration can report a floor-type slot as a this-cycle no-op independent of its static min_mode config, a state the harness's default winningSlot().min_mode mirror cannot express, and without it showFloorChip's badge-redundancy suppression (winner===custom_position && minimum_mode===true) would hide the very chip meant to demonstrate the borrow. The floor chip should read '↥ Greenhouse floor · 45%' — the slot's OWN configured name, borrowed from the trace, never the bound sensor's friendly name ('Greenhouse Trigger').",
+    build: () => {
+      const c = baseConfig('2026-06-21', 13 * 60);
+      c.scenario = 'custom-position-floor-borrows-trace-name';
+      c.omitConfiguredSlotNames = true;
+      c.entries[0].flags.automatic_control = true;
+      c.entries[0].flags.custom_position_minimum_mode_override = false;
+      c.entries[0].target_position = 45;
+      c.entries[0].covers[0].position = 45;
+      c.entries[0].slots = [
+        {
+          slot: 1,
+          enabled: true,
+          position: 45,
+          name: 'Greenhouse floor',
+          sensorFriendlyName: 'Greenhouse Trigger',
+          min_mode: true,
+          priority: 60,
+        },
+        { slot: 2, enabled: false, position: 20, name: 'Privacy', min_mode: false, priority: 70 },
+        {
+          slot: 3,
+          enabled: false,
+          position: 100,
+          name: 'Welcome home',
+          min_mode: false,
+          priority: 50,
+        },
+        { slot: 4, enabled: false, position: 50, name: 'Floor', min_mode: true, priority: 90 },
+        { slot: 5, enabled: false, position: 0, name: 'Safety', min_mode: false, priority: 100 },
+      ];
+      return c;
+    },
+  },
+  {
     id: 'winter-morning-east',
     label: 'Winter morning — east window',
     description: 'Low elevation sun rising, narrow east FOV.',

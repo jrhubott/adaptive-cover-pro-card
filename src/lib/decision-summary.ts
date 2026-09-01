@@ -5,7 +5,7 @@ import {
   MANUAL_OVERRIDE_PRIORITY,
   type HandlerName,
 } from '../const';
-import type { DecisionStep, DecisionTraceAttributes } from '../types';
+import type { CustomPositionSlotSnapshot, DecisionStep, DecisionTraceAttributes } from '../types';
 import type { HomeAssistant } from 'custom-card-helpers';
 import { formatPercent } from './formatters';
 
@@ -33,6 +33,30 @@ export function resolveConfiguredName(
     if (trimmed.length > 0) return trimmed;
   }
   return null;
+}
+
+/**
+ * Find the trace's currently-active custom-position slot's own snapshot row,
+ * or undefined when there is no active slot or no matching row.
+ *
+ * Shared by every read site that needs the active slot's locally-verifiable
+ * `custom_name` as a first candidate ahead of the trace-level
+ * `custom_position_active_slot_name` — whose claim to already resolve the
+ * configured name first, server-side, rests entirely on the maintainer's
+ * word (issue #278 evidence packet: "asserted by maintainer, unverifiable
+ * locally"), the same class of single-source claim that shipped broken
+ * twice already (#279, #292). `resolveActiveMinModeFloor` needs a
+ * conceptually identical slot-number comparison inline for its own
+ * `isActiveSlot` guard below.
+ */
+export function findActiveCustomPositionSlot(
+  attrs:
+    | Pick<DecisionTraceAttributes, 'custom_position_slots' | 'custom_position_active_slot'>
+    | undefined,
+): CustomPositionSlotSnapshot | undefined {
+  if (!attrs || !Array.isArray(attrs.custom_position_slots)) return undefined;
+  const activeSlot = attrs.custom_position_active_slot;
+  return attrs.custom_position_slots.find((s) => s.slot === activeSlot);
 }
 
 export interface ActiveFloor {
@@ -228,8 +252,8 @@ export function normalizeHandler(raw: string): string {
  *   "Solar Tracking 100% → Custom Position #1 60% floor → Manual Override 60%"
  *
  * Custom-position slots use `custom_position_active_slot[_name]` to render
- * either "Custom Position · {sensor name}" or "Custom Position #N", and append
- * ` floor` only when `custom_position_minimum_mode === true` (the configured
+ * either "Custom Position · {configured name}" or "Custom Position #N", and
+ * append ` floor` only when `custom_position_minimum_mode === true` (the configured
  * floor is actively constraining). The `false` case (floor configured but a
  * no-op right now) drops the suffix because the position already reflects raw.
  *
