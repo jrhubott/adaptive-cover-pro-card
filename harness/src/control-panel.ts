@@ -210,6 +210,11 @@ export class AcpHarnessControlPanel extends LitElement {
         this.config.legacyIntegration,
         (v) => this._emit({ ...this.config, legacyIntegration: v }),
       )}
+      ${this._checkbox(
+        "Integration doesn't send slot name yet (issue #278)",
+        this.config.omitConfiguredSlotNames,
+        (v) => this._emit({ ...this.config, omitConfiguredSlotNames: v }),
+      )}
       <label class="row">
         <span>Tooltips</span>
         <select
@@ -1115,10 +1120,26 @@ export class AcpHarnessControlPanel extends LitElement {
                   <span class="slot-num">#${s.slot}</span>
                   <input
                     type="text"
+                    title="Slot's own configured name"
                     .value=${s.name}
                     @change=${(ev: Event) => {
                       const slots = e.slots.map((ss, i) =>
                         i === si ? { ...ss, name: (ev.target as HTMLInputElement).value } : ss,
+                      );
+                      this._patchEntry(idx, { slots });
+                    }}
+                  />
+                  <input
+                    type="text"
+                    title="Bound sensor's HA friendly_name — leave blank to match the slot name (issue #278)"
+                    placeholder="(same as name)"
+                    .value=${s.sensorFriendlyName ?? ''}
+                    @change=${(ev: Event) => {
+                      const value = (ev.target as HTMLInputElement).value;
+                      const slots = e.slots.map((ss, i) =>
+                        i === si
+                          ? { ...ss, sensorFriendlyName: value === '' ? undefined : value }
+                          : ss,
                       );
                       this._patchEntry(idx, { slots });
                     }}

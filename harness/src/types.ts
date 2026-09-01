@@ -474,6 +474,15 @@ export interface HarnessConfig {
    *  the mock hass omits the `set_axes` service, so the card exercises its
    *  legacy fallback (synthesized axes + per-axis set_position/set_tilt). */
   legacyIntegration: boolean;
+  /** Simulate a pre-jrhubott/adaptive-cover-pro#1336 integration — i.e. every
+   *  real install today — that doesn't send the slot's own configured name
+   *  yet (issue #278 audit finding #3): when true, the decision trace omits
+   *  `custom_position_active_slot_configured_name` and every
+   *  `custom_position_slots[]` row omits `configured_name`, so the card falls
+   *  back to `custom_position_active_slot_name` / `sensor_name` — the branch
+   *  that's otherwise unreachable in the harness because the mock decider
+   *  emits both new fields unconditionally. */
+  omitConfiguredSlotNames: boolean;
   /** Entries to simulate (1..4). */
   entries: HarnessEntry[];
   /** Forces a specific handler winner instead of running the mock pipeline. */

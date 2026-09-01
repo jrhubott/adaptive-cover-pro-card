@@ -13,6 +13,15 @@ export interface DecisionInput {
   sunElevation: number;
   /** Used by the custom_position handler — pick a slot that's enabled. */
   nowMs: number;
+  /** Simulate a pre-#1336 integration that hasn't shipped the slot's own
+   *  configured-name fields yet (issue #278 audit finding #3) — the state
+   *  every real install is in today. When true, `configured_name` and
+   *  `custom_position_active_slot_configured_name` are omitted entirely
+   *  (not even `undefined`-valued keys), so every read site exercises the
+   *  fallback to `sensor_name` / `custom_position_active_slot_name`. Mirrors
+   *  the harness's existing `legacyIntegration` "simulate an old integration"
+   *  pattern. Omitted/false = both new fields are sent (today's default). */
+  omitConfiguredSlotNames?: boolean;
 }
 
 export interface DecisionResult {
@@ -33,7 +42,7 @@ export interface DecisionResult {
  * exactly. Position numbers and reason strings are reasonable approximations.
  */
 export function decide(input: DecisionInput): DecisionResult {
-  const { entry, sunAzimuth, sunElevation } = input;
+  const { entry, sunAzimuth, sunElevation, omitConfiguredSlotNames } = input;
   const f = entry.flags;
   const trace: DecisionStep[] = [];
   let winner: HandlerName | string = 'default';
@@ -99,13 +108,15 @@ export function decide(input: DecisionInput): DecisionResult {
     custom_position_active_slot_name:
       winner === 'custom_position' ? activeSlotSensorName(entry) : undefined,
     custom_position_active_slot_configured_name:
-      winner === 'custom_position' ? activeSlotConfiguredName(entry) : undefined,
+      winner === 'custom_position' && !omitConfiguredSlotNames
+        ? activeSlotConfiguredName(entry)
+        : undefined,
     custom_position_slots: entry.slots.map((s) => ({
       slot: s.slot,
       enabled: s.enabled,
       sensor: `sensor.custom_${entry.entry_id}_slot${s.slot}`,
       sensor_name: s.sensorFriendlyName ?? s.name,
-      configured_name: s.name,
+      ...(omitConfiguredSlotNames ? {} : { configured_name: s.name }),
       position: s.position,
       priority: s.priority,
       min_mode: s.min_mode,
@@ -330,6 +341,7 @@ export function scriptedDecision(
   sunAzimuth: number,
   sunElevation: number,
   alsoMatched: readonly HandlerName[] = [],
+  omitConfiguredSlotNames = false,
 ): DecisionResult {
   const trace: DecisionStep[] = HANDLER_ORDER.map((h) => ({
     handler: h,
@@ -382,13 +394,15 @@ export function scriptedDecision(
       custom_position_active_slot_name:
         winner === 'custom_position' ? activeSlotSensorName(entry) : undefined,
       custom_position_active_slot_configured_name:
-        winner === 'custom_position' ? activeSlotConfiguredName(entry) : undefined,
+        winner === 'custom_position' && !omitConfiguredSlotNames
+          ? activeSlotConfiguredName(entry)
+          : undefined,
       custom_position_slots: entry.slots.map((s) => ({
         slot: s.slot,
         enabled: s.enabled,
         sensor: `sensor.custom_${entry.entry_id}_slot${s.slot}`,
         sensor_name: s.sensorFriendlyName ?? s.name,
-        configured_name: s.name,
+        ...(omitConfiguredSlotNames ? {} : { configured_name: s.name }),
         position: s.position,
         priority: s.priority,
         min_mode: s.min_mode,
