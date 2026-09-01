@@ -2046,7 +2046,7 @@ function e(e,t,i,o){var s,n=arguments.length,r=n<3?t:null===o?o=Object.getOwnPro
                 @pointercancel=${this._onRailPointerEnd}
                 @keydown=${this._stopIfConsumed}
                 @acp-rail-set=${t=>this._onRailSet(t.detail,e)}
-                @acp-rail-preview=${e=>{this._drag=e.detail}}
+                @acp-rail-preview=${e=>this._onRailPreview(e.detail)}
               >
                 ${c||null!==h||!l?V:H`${l.aligned?V:H`<div
                           class="pos-band"
@@ -2086,7 +2086,7 @@ function e(e,t,i,o){var s,n=arguments.length,r=n<3?t:null===o?o=Object.getOwnPro
           .showClearOverrides=${this.showClearOverrides}
         ></acp-group-controls-row>
       </div>
-    `}_move(e,t){if("stop"===e.detail)return this._pending.clear(tn.PENDING_KEY),void Rs(this.hass,this.discovered,t);const i="open"===e.detail?100:0;this._pending.start(tn.PENDING_KEY,i),Fs(this.hass,t,i)}_onRailSet(e,t){t.target&&(this._pending.start(tn.PENDING_KEY,e),Fs(this.hass,t,e))}_onRailPointerDown(e,t){e.stopPropagation(),this._railActive=t}_stopIfConsumed(e){e.defaultPrevented&&e.stopPropagation()}_stop(e){e.stopPropagation()}};on.DRAG_THRESHOLD_PX=4,on.PENDING_KEY="group",on.styles=[a`
+    `}_move(e,t){if("stop"===e.detail)return this._pending.clear(tn.PENDING_KEY),void Rs(this.hass,this.discovered,t);const i="open"===e.detail?100:0;this._pending.start(tn.PENDING_KEY,i),Fs(this.hass,t,i)}_onRailSet(e,t){t.target&&(this._pending.start(tn.PENDING_KEY,e),Fs(this.hass,t,e))}_onRailPreview(e){this._drag=e,null===e&&(this._railActive=!1)}_onRailPointerDown(e,t){e.stopPropagation(),this._railActive=t}_stopIfConsumed(e){e.defaultPrevented&&e.stopPropagation()}_stop(e){e.stopPropagation()}};on.DRAG_THRESHOLD_PX=4,on.PENDING_KEY="group",on.styles=[a`
       :host {
         display: block;
       }
