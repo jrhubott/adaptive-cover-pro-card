@@ -13,9 +13,10 @@ export interface ActiveFloor {
   slot: 1 | 2 | 3 | 4 | 5;
   position: number;
   /**
-   * The slot's configured `sensor_name`, or null when the slot is unnamed —
-   * the chip omits the name segment entirely rather than falling back to a
-   * `#N` label.
+   * The slot's own `configured_name` when the integration sends it (issue
+   * #278), falling back to `sensor_name` on older integrations, or null when
+   * neither is present — the chip omits the name segment entirely rather than
+   * falling back to a `#N` label.
    */
   name: string | null;
   /**
@@ -73,7 +74,7 @@ export function resolveActiveMinModeFloor(
   return {
     slot: best.slot,
     position,
-    name: best.sensor_name ?? null,
+    name: best.configured_name ?? best.sensor_name ?? null,
     clamping: targetPosition !== null && position > targetPosition,
     sensorOn: true,
     priority,
@@ -195,6 +196,7 @@ export function buildDecisionSentence(
     | 'custom_position_active_slot'
     | 'custom_position_minimum_mode'
     | 'custom_position_active_slot_name'
+    | 'custom_position_active_slot_configured_name'
     | 'custom_position_slots'
   >,
   // winnerHandler is reserved for callers that want to verify the winner
@@ -231,6 +233,7 @@ function formatStep(
     | 'custom_position_active_slot'
     | 'custom_position_minimum_mode'
     | 'custom_position_active_slot_name'
+    | 'custom_position_active_slot_configured_name'
     | 'custom_position_slots'
   >,
   labels: Record<string, string>,
@@ -242,8 +245,13 @@ function formatStep(
 
   if (handler !== 'custom_position') return `${baseLabel}${pct}`.trimEnd();
 
-  const slotLabel = attrs.custom_position_active_slot_name
-    ? `${baseLabel} · ${attrs.custom_position_active_slot_name}`
+  // Prefer the slot's own configured name (issue #278) over the bound
+  // sensor's friendly name; fall back to the sensor name on integrations
+  // that don't yet send the configured-name field.
+  const slotName =
+    attrs.custom_position_active_slot_configured_name ?? attrs.custom_position_active_slot_name;
+  const slotLabel = slotName
+    ? `${baseLabel} · ${slotName}`
     : attrs.custom_position_active_slot
       ? `${baseLabel} #${attrs.custom_position_active_slot}`
       : baseLabel;

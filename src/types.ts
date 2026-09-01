@@ -575,10 +575,19 @@ export interface DecisionTraceAttributes {
    *  autonomous calculation. False when the floor is configured but is a no-op
    *  this cycle. Absent in exact mode or when any non-custom handler wins. */
   custom_position_minimum_mode?: boolean;
-  /** Friendly name of the winning slot's bound sensor — surfaces as the
-   *  human-readable slot label. Integration v2.22.1+; absent when the sensor
-   *  has no friendly_name. */
+  /** Friendly name of the winning slot's bound SENSOR (HA `friendly_name`) —
+   *  NOT the slot's own configured name; the two can differ whenever a user
+   *  renames the slot without renaming the sensor it's bound to (issue #278).
+   *  Integration v2.22.1+; absent when the sensor has no friendly_name. Prefer
+   *  {@link custom_position_active_slot_configured_name} when present. */
   custom_position_active_slot_name?: string;
+  /** The winning slot's OWN configured name (`custom_position_name_N` in the
+   *  integration's config entry) — the value the user actually typed into the
+   *  slot editor, distinct from {@link custom_position_active_slot_name} (the
+   *  bound sensor's HA friendly_name). Requested in
+   *  jrhubott/adaptive-cover-pro#1336; absent until the integration ships it,
+   *  in which case the card falls back to `custom_position_active_slot_name`. */
+  custom_position_active_slot_configured_name?: string;
   /** Snapshot of all custom-position slots' configured state. Stable list (one
    *  row per slot); unconfigured slots read `sensor=null`. v2.28.0+ adds a 5th
    *  row for the priority-100 safety slot. Absent on integrations that pre-date
@@ -624,7 +633,16 @@ export interface CustomPositionSlotSnapshot {
   slot: 1 | 2 | 3 | 4 | 5;
   enabled: boolean;
   sensor: string | null;
+  /** The bound sensor's HA friendly_name — NOT the slot's own configured name
+   *  (see {@link configured_name}). Null when the sensor has no friendly_name. */
   sensor_name: string | null;
+  /** The slot's OWN configured name (`custom_position_name_N`) — distinct from
+   *  {@link sensor_name}, which is the bound sensor's HA friendly_name and can
+   *  differ from what the user typed as the slot's label (issue #278).
+   *  Requested in jrhubott/adaptive-cover-pro#1336; absent/null until the
+   *  integration ships it, in which case the card falls back to
+   *  `sensor_name`. */
+  configured_name?: string | null;
   position: number | null;
   priority: number | null;
   min_mode: boolean | null;

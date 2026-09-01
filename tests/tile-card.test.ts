@@ -1998,6 +1998,7 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
       customPositionMinimumMode?: boolean;
       priority?: number | null;
       sensorName?: string | null;
+      configuredName?: string | null;
     } = {},
   ): HomeAssistant {
     const {
@@ -2008,6 +2009,7 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
       customPositionMinimumMode = false,
       priority = 1,
       sensorName = 'Aeration',
+      configuredName = undefined,
     } = opts;
     const hass = makeHass({
       decisionState: winner,
@@ -2021,6 +2023,7 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
             enabled: true,
             sensor: 'input_boolean.floor_sensor',
             sensor_name: sensorName,
+            ...(configuredName !== undefined ? { configured_name: configuredName } : {}),
             position: 25,
             priority,
             min_mode: true,
@@ -2079,6 +2082,26 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
     const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
     expect(chip).toBeTruthy();
     expect(chip!.textContent?.trim()).toMatch(/^↥\s*25%$/);
+  });
+
+  it("prefers the slot's configured_name over sensor_name when both present (issue #278)", async () => {
+    // sensor_name is the bound sensor's HA friendly_name; configured_name is
+    // the slot's own custom_position_name_N — the value the user actually
+    // typed as the slot's label. The chip must show the latter.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeFloorHass({ sensorName: 'Living Room Shades Default', configuredName: 'Aeration floor' }),
+    );
+    const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
+    expect(chip).toBeTruthy();
+    expect(chip!.textContent?.trim()).toMatch(/↥\s*Aeration floor\s*·\s*25%/);
+  });
+
+  it('falls back to sensor_name when configured_name is absent (older integrations)', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeFloorHass());
+    const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
+    expect(chip).toBeTruthy();
+    expect(chip!.textContent?.trim()).toMatch(/↥\s*Aeration\s*·\s*25%/);
   });
 
   it('detailed: floor chip rides the dedicated badge row, not the one-line grid (#208 follow-up)', async () => {

@@ -40,6 +40,7 @@ const baseAttrs = (
   | 'custom_position_active_slot'
   | 'custom_position_minimum_mode'
   | 'custom_position_active_slot_name'
+  | 'custom_position_active_slot_configured_name'
   | 'custom_position_slots'
 > => ({
   reason: '',
@@ -135,6 +136,24 @@ describe('buildDecisionSentence', () => {
       'custom_position',
     );
     expect(noName).toBe('Custom Position #3 45% floor');
+  });
+
+  it('prefers custom_position_active_slot_configured_name over custom_position_active_slot_name (issue #278)', () => {
+    // custom_position_active_slot_name is the bound sensor's HA friendly_name;
+    // custom_position_active_slot_configured_name is the slot's own
+    // custom_position_name_N. When the integration sends both (forward-compat),
+    // the sentence must use the slot's own configured name.
+    const sentence = buildDecisionSentence(
+      [step('custom_position_1', true, 60)],
+      baseAttrs({
+        custom_position_active_slot: 1,
+        custom_position_minimum_mode: true,
+        custom_position_active_slot_name: 'Living Room Shades Default',
+        custom_position_active_slot_configured_name: 'Living Room Window Open',
+      }),
+      'custom_position',
+    );
+    expect(sentence).toBe('Custom Position · Living Room Window Open 60% floor');
   });
 
   it('omits the floor suffix in exact mode (minimum_mode is null/undefined)', () => {
@@ -585,6 +604,27 @@ describe('resolveActiveMinModeFloor', () => {
       40,
     );
     expect(result!.name).toBeNull();
+  });
+
+  it("prefers the slot's own configured_name over sensor_name when both present (issue #278)", () => {
+    // sensor_name is the bound sensor's HA friendly_name; configured_name is
+    // the slot's own custom_position_name_N. They can legitimately differ
+    // (issue #278) and the chip must surface the slot's own name.
+    const result = resolveActiveMinModeFloor(
+      { custom_position_slots: [{ ...slot1On, configured_name: 'Living Room Window Open' }] },
+      hassStates({ 'input_boolean.slot1': 'on' }),
+      40,
+    );
+    expect(result!.name).toBe('Living Room Window Open');
+  });
+
+  it('falls back to sensor_name when configured_name is null (older integrations)', () => {
+    const result = resolveActiveMinModeFloor(
+      { custom_position_slots: [{ ...slot1On, configured_name: null }] },
+      hassStates({ 'input_boolean.slot1': 'on' }),
+      40,
+    );
+    expect(result!.name).toBe('Slot 1');
   });
 });
 

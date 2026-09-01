@@ -92,7 +92,17 @@ export interface CustomPositionSlotCfg {
   slot: 1 | 2 | 3 | 4 | 5;
   enabled: boolean;
   position: number;
+  /** The slot's own configured name — mirrors the card's
+   *  `configured_name` / `custom_position_active_slot_configured_name`
+   *  (issue #278). This is what scenarios have always set; it's kept as the
+   *  "name" the harness UI edits. */
   name: string;
+  /** The bound sensor's HA friendly_name, when it differs from the slot's own
+   *  `name` (issue #278). Absent (default) means the sensor and slot share
+   *  the same string, mirroring most real setups — set this to exercise the
+   *  mismatch the card must resolve in favor of `name`. Feeds the card's
+   *  `sensor_name` / `custom_position_active_slot_name` fields. */
+  sensorFriendlyName?: string;
   min_mode: boolean;
   /** Slot priority (mirrors the integration). >80 resists a manual ↓; the
    *  v2.28.0 safety slot (slot 5) uses priority 100. */

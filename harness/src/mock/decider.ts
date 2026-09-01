@@ -97,12 +97,15 @@ export function decide(input: DecisionInput): DecisionResult {
     custom_position_minimum_mode:
       winner === 'custom_position' ? activeSlotMinMode(entry) : undefined,
     custom_position_active_slot_name:
-      winner === 'custom_position' ? activeSlotName(entry) : undefined,
+      winner === 'custom_position' ? activeSlotSensorName(entry) : undefined,
+    custom_position_active_slot_configured_name:
+      winner === 'custom_position' ? activeSlotConfiguredName(entry) : undefined,
     custom_position_slots: entry.slots.map((s) => ({
       slot: s.slot,
       enabled: s.enabled,
       sensor: `sensor.custom_${entry.entry_id}_slot${s.slot}`,
-      sensor_name: s.name,
+      sensor_name: s.sensorFriendlyName ?? s.name,
+      configured_name: s.name,
       position: s.position,
       priority: s.priority,
       min_mode: s.min_mode,
@@ -286,8 +289,19 @@ function activeSlot(entry: HarnessEntry): 1 | 2 | 3 | 4 | 5 | undefined {
   return winningSlot(entry)?.slot;
 }
 
-function activeSlotName(entry: HarnessEntry): string | undefined {
+/** The winning slot's own configured name — mirrors the card's
+ *  `custom_position_active_slot_configured_name` (issue #278). */
+function activeSlotConfiguredName(entry: HarnessEntry): string | undefined {
   return winningSlot(entry)?.name;
+}
+
+/** The winning slot's bound sensor's friendly name — mirrors the card's
+ *  `custom_position_active_slot_name`. Falls back to the slot's own name when
+ *  no distinct `sensorFriendlyName` is configured (issue #278), matching most
+ *  real setups where the two happen to be the same string. */
+function activeSlotSensorName(entry: HarnessEntry): string | undefined {
+  const slot = winningSlot(entry);
+  return slot ? (slot.sensorFriendlyName ?? slot.name) : undefined;
 }
 
 function activeSlotMinMode(entry: HarnessEntry): boolean | undefined {
@@ -366,12 +380,15 @@ export function scriptedDecision(
       custom_position_minimum_mode:
         winner === 'custom_position' ? activeSlotMinMode(entry) : undefined,
       custom_position_active_slot_name:
-        winner === 'custom_position' ? activeSlotName(entry) : undefined,
+        winner === 'custom_position' ? activeSlotSensorName(entry) : undefined,
+      custom_position_active_slot_configured_name:
+        winner === 'custom_position' ? activeSlotConfiguredName(entry) : undefined,
       custom_position_slots: entry.slots.map((s) => ({
         slot: s.slot,
         enabled: s.enabled,
         sensor: `sensor.custom_${entry.entry_id}_slot${s.slot}`,
-        sensor_name: s.name,
+        sensor_name: s.sensorFriendlyName ?? s.name,
+        configured_name: s.name,
         position: s.position,
         priority: s.priority,
         min_mode: s.min_mode,
