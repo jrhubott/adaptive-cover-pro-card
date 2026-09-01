@@ -4,6 +4,8 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities } from '../src/types';
 import { loadEntityRegistry } from '../src/lib/registry-store';
 import { INTEGRATION_DOMAIN } from '../src/const';
+import { RailTrack } from '../src/components/rail-track';
+import { railRoot, railSettled } from './rail-query';
 
 interface GroupTileLike extends HTMLElement {
   updateComplete: Promise<boolean>;
@@ -243,7 +245,7 @@ describe('acp-group-tile', () => {
     el.discovered = makeDiscovered();
     el.showMemberBadges = false;
     document.body.appendChild(el);
-    await el.updateComplete;
+    await railSettled(el);
     const badges = Array.from(
       el.shadowRoot!.querySelectorAll('.chrome-line acp-tile-badge'),
     ) as (HTMLElement & { winner?: string; kindOverride?: string })[];
@@ -467,7 +469,7 @@ describe('acp-group-tile — icon interactivity', () => {
     el.discovered = makeDiscovered();
     el.iconInteractive = interactive;
     document.body.appendChild(el);
-    await el.updateComplete;
+    await railSettled(el);
     return el;
   }
 
@@ -494,7 +496,7 @@ describe('acp-group-tile — icon interactivity', () => {
     el.addEventListener('acp-open-more-info', moreInfo);
     const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap') as HTMLElement;
     wrap.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
-    await el.updateComplete;
+    await railSettled(el);
     expect(iconAction).toHaveBeenCalled();
     expect(moreInfo).not.toHaveBeenCalled();
   });
@@ -507,7 +509,7 @@ describe('acp-group-tile — icon interactivity', () => {
     el.addEventListener('acp-open-more-info', moreInfo);
     const wrap = el.shadowRoot!.querySelector('.cover-icon-wrap') as HTMLElement;
     wrap.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
-    await el.updateComplete;
+    await railSettled(el);
     expect(iconAction).not.toHaveBeenCalled();
     expect(moreInfo).toHaveBeenCalled();
   });
@@ -519,7 +521,7 @@ describe('group tile — rail color is constant (#260)', () => {
   // `.pos-fill` had NO background in CSS at all before that — it relied entirely
   // on the inline style — so the CSS default is load-bearing, not cosmetic.
   it('declares a background on .pos-fill in CSS', () => {
-    const css = GroupTile.styles.toString();
+    const css = RailTrack.styles.toString();
     expect(css).toMatch(/\.pos-fill\s*\{[^}]*background:/);
     expect(css).toContain('--acp-pos-fill-color');
     expect(css).toContain('var(--state-cover-active-color');
@@ -527,7 +529,7 @@ describe('group tile — rail color is constant (#260)', () => {
 
   it('never writes an inline background onto the fill', async () => {
     const el = await mount(makeHass(), makeDiscovered());
-    const fill = el.shadowRoot!.querySelector('.pos-fill');
+    const fill = railRoot(el.shadowRoot!).querySelector('.pos-fill');
     expect(fill).toBeTruthy();
     expect(fill!.getAttribute('style') ?? '').not.toContain('background');
   });
@@ -557,7 +559,7 @@ describe('group tile — position rail gestures (#267 characterization)', () => 
       makeHass({ callService: callService as unknown as (...a: unknown[]) => unknown }),
       makeDiscovered(),
     );
-    const slider = el.shadowRoot!.querySelector('.pos-slider') as HTMLElement;
+    const slider = railRoot(el.shadowRoot!).querySelector('.pos-slider') as HTMLElement;
     Object.defineProperty(slider, 'getBoundingClientRect', {
       value: () => RECT,
       configurable: true,
@@ -573,21 +575,22 @@ describe('group tile — position rail gestures (#267 characterization)', () => 
     new PointerEvent('pointerup', { bubbles: true, composed: true, clientX: x, pointerId: 1 });
 
   const fillWidth = (el: GroupTileLike): string =>
-    (el.shadowRoot!.querySelector('.pos-fill') as HTMLElement).getAttribute('style') ?? '';
+    (railRoot(el.shadowRoot!).querySelector('.pos-fill') as HTMLElement).getAttribute('style') ??
+    '';
   const isDragging = (slider: HTMLElement): boolean => slider.classList.contains('dragging');
 
   it('a tap with no pointer movement commits nothing', async () => {
     const { el, slider, callService } = await mountRail();
     slider.dispatchEvent(down(50));
-    await el.updateComplete;
+    await railSettled(el);
     expect(isDragging(slider)).toBe(false);
     slider.dispatchEvent(up(50));
-    await el.updateComplete;
+    await railSettled(el);
     expect(isDragging(slider)).toBe(false);
     // Real browsers fire a trailing compatibility click at the release point.
     // Rails 1–3 commit on it; this one must not.
     slider.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: 50 }));
-    await el.updateComplete;
+    await railSettled(el);
     expect(callService).not.toHaveBeenCalled();
   });
 
@@ -595,13 +598,13 @@ describe('group tile — position rail gestures (#267 characterization)', () => 
     const { el, slider, callService } = await mountRail();
     slider.dispatchEvent(down(50));
     slider.dispatchEvent(move(52));
-    await el.updateComplete;
+    await railSettled(el);
     expect(isDragging(slider)).toBe(false);
     // The spread band is still drawn: nothing has collapsed onto one value.
     expect(fillWidth(el)).toContain('width:40%');
     expect(el.shadowRoot!.querySelector('.pos-band')).not.toBeNull();
     slider.dispatchEvent(up(52));
-    await el.updateComplete;
+    await railSettled(el);
     expect(callService).not.toHaveBeenCalled();
   });
 
@@ -609,7 +612,7 @@ describe('group tile — position rail gestures (#267 characterization)', () => 
     const { el, slider, callService } = await mountRail();
     slider.dispatchEvent(down(20));
     slider.dispatchEvent(move(80));
-    await el.updateComplete;
+    await railSettled(el);
     expect(isDragging(slider)).toBe(true);
     // Drawn 80 on a mirrored axis is logical 20, and the preview collapses the
     // spread band because the write is about to flatten every member.
@@ -617,7 +620,7 @@ describe('group tile — position rail gestures (#267 characterization)', () => 
     expect(el.shadowRoot!.querySelector('.pos-band')).toBeNull();
     expect(callService).not.toHaveBeenCalled();
     slider.dispatchEvent(up(80));
-    await el.updateComplete;
+    await railSettled(el);
     expect(callService).toHaveBeenCalledTimes(1);
     expect(callService).toHaveBeenCalledWith(
       INTEGRATION_DOMAIN,
@@ -626,7 +629,7 @@ describe('group tile — position rail gestures (#267 characterization)', () => 
       { entity_id: 'sensor.group_position' },
     );
     slider.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: 80 }));
-    await el.updateComplete;
+    await railSettled(el);
     expect(callService).toHaveBeenCalledTimes(1);
   });
 
@@ -634,15 +637,83 @@ describe('group tile — position rail gestures (#267 characterization)', () => 
     const { el, slider, callService } = await mountRail();
     slider.dispatchEvent(down(20));
     slider.dispatchEvent(move(80));
-    await el.updateComplete;
+    await railSettled(el);
     expect(isDragging(slider)).toBe(true);
     slider.dispatchEvent(
       new PointerEvent('pointercancel', { bubbles: true, composed: true, pointerId: 1 }),
     );
-    await el.updateComplete;
+    await railSettled(el);
     expect(callService).not.toHaveBeenCalled();
     expect(isDragging(slider)).toBe(false);
     expect(fillWidth(el)).toContain('width:40%');
+  });
+
+  // The pointer-move gate has to survive the rail being torn out mid-gesture.
+  // `RailGestures.isActive()` — what this tile's `_railActive` flag replaced —
+  // also cleared on host disconnect; the flag only saw pointerup/pointercancel
+  // on the tag, and a rail removed under the finger produces neither. The stale
+  // `true` then made the NEXT rail swallow every pointermove until a fresh
+  // down/up pair. Driven entirely through dispatched events plus the card's own
+  // public `show_position_bar` option — nothing reaches into gesture state.
+  it('releases the pointer-move gate when the rail is removed mid-drag', async () => {
+    const { el, slider } = await mountRail();
+    const bar = el as GroupTileLike & { showPositionBar: boolean };
+    slider.dispatchEvent(down(20));
+    slider.dispatchEvent(move(80));
+    await railSettled(el);
+
+    // The rail goes away under the finger: no pointerup ever reaches the tag.
+    bar.showPositionBar = false;
+    await railSettled(el);
+    expect(el.shadowRoot!.querySelector('acp-rail-track')).toBeNull();
+    bar.showPositionBar = true;
+    await railSettled(el);
+
+    // A pointer merely crossing the fresh rail must still reach the dashboard.
+    const seen: string[] = [];
+    const spy = (): void => {
+      seen.push('move');
+    };
+    document.addEventListener('pointermove', spy);
+    try {
+      railRoot(el.shadowRoot!).querySelector('.pos-slider')!.dispatchEvent(move(50));
+    } finally {
+      document.removeEventListener('pointermove', spy);
+    }
+    expect(seen).toEqual(['move']);
+  });
+
+  // The rail swallows only the keys the slider actually CONSUMED, so a key it
+  // ignores still reaches whatever wraps the card. `RailGestures` calls
+  // preventDefault() on exactly the keys it handles and `_stopIfConsumed` reads
+  // that back, which is why these events are `cancelable: true`: without it
+  // happy-dom leaves `defaultPrevented` false and the gate silently degrades to
+  // "never stop" — the state this pair exists to rule out.
+  //
+  // Note the tile body is NOT what this protects: `_onBodyKeydown` ignores any
+  // keydown whose target is not the body itself, precisely so nested controls
+  // keep their own Enter/Space. What is downstream is the dashboard around the
+  // card.
+  it('swallows a consumed slider key and lets an unrelated one through', async () => {
+    const { el, slider, callService } = await mountRail();
+    const escaped: string[] = [];
+    const spy = (e: Event): void => {
+      escaped.push((e as KeyboardEvent).key);
+    };
+    const key = (k: string): KeyboardEvent =>
+      new KeyboardEvent('keydown', { bubbles: true, composed: true, cancelable: true, key: k });
+
+    document.addEventListener('keydown', spy);
+    try {
+      slider.dispatchEvent(key('ArrowRight'));
+      slider.dispatchEvent(key('Enter'));
+    } finally {
+      document.removeEventListener('keydown', spy);
+    }
+    await railSettled(el);
+    expect(escaped).toEqual(['Enter']);
+    // And the consumed one really was consumed: it moved the group, once.
+    expect(callService).toHaveBeenCalledTimes(1);
   });
 
   it('arrow and Home/End keys step the drawn fill and commit immediately', async () => {
@@ -651,28 +722,32 @@ describe('group tile — position rail gestures (#267 characterization)', () => 
       callService.mock.calls.map((c) => (c[2] as { position: number }).position);
     // Steps from the drawn spread MINIMUM (40), not the aggregate mean.
     slider.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowRight' }));
-    await el.updateComplete;
+    await railSettled(el);
     expect(sent()).toEqual([59]);
     // Home/End name the ends of the TRACK, so on a mirrored axis Home is
     // logical 100 and End is logical 0.
     slider.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Home' }));
     slider.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'End' }));
-    await el.updateComplete;
+    await railSettled(el);
     expect(sent()).toEqual([59, 100, 0]);
   });
 });
 
-// The #272 fix threaded `renderRailOverlay(...)` through `renderRailFill`'s
-// `overlay` slot at the cover-bar/tilt-bar/tile-card call sites, since DOM
-// order IS paint order for their `position: absolute; z-index: auto` layers.
-// The group rail's non-spread fast path was deliberately left calling
-// `renderRailOverlay` as a following sibling instead — it never renders a
-// marker, so there is only `.pos-fill` and the overlay to order, and that
-// order already matches baseline. That is a property of THIS call site,
-// though, not something the shared helper enforces for it. This guard pins
-// it directly so a future edit that re-siblings the overlay ahead of the
-// fill (echoing the #272 bug on the one rail the helper's own order tests
-// can't see, since they only exercise the `overlay` slot) fails loudly.
+// DOM order IS paint order for these `position: absolute; z-index: auto`
+// layers, so an overlay drawn before the fill sinks the "moving to" indicator
+// underneath it (#272).
+//
+// This call site used to be the odd one out: its non-spread fast path called
+// `renderRailOverlay` as a following SIBLING of `renderRailFill` rather than
+// through the helper's `overlay` slot, so the shared helper's own order tests
+// could not see it and this guard had to pin the ordering by hand. #271 Part 2
+// removed that divergence — every rail now reaches one call site inside
+// `acp-rail-track`, and the order is decided there once.
+//
+// So what this guard is FOR has changed, and it is still worth its place: it
+// pins that the group host actually threads `pendingPct` down into that shared
+// call site. Drop the thread and the overlay stops rendering here entirely,
+// which no other assertion in this file would notice.
 describe('group tile — position rail fill/overlay order (#272 call-site order guard)', () => {
   const RECT = { left: 0, width: 100, top: 0, bottom: 8, right: 100, height: 8 };
 
@@ -682,7 +757,7 @@ describe('group tile — position rail fill/overlay order (#272 call-site order 
       makeHass({ callService: callService as unknown as (...a: unknown[]) => unknown }),
       makeDiscovered(),
     );
-    const slider = el.shadowRoot!.querySelector('.pos-slider') as HTMLElement;
+    const slider = railRoot(el.shadowRoot!).querySelector('.pos-slider') as HTMLElement;
     Object.defineProperty(slider, 'getBoundingClientRect', {
       value: () => RECT,
       configurable: true,
@@ -708,11 +783,54 @@ describe('group tile — position rail fill/overlay order (#272 call-site order 
     slider.dispatchEvent(
       new PointerEvent('pointerup', { bubbles: true, composed: true, clientX: 80, pointerId: 1 }),
     );
-    await el.updateComplete;
+    await railSettled(el);
     expect(callService).toHaveBeenCalledTimes(1);
-    const bar = el.shadowRoot!.querySelector('.pos-bar') as HTMLElement;
+    const bar = railRoot(el.shadowRoot!).querySelector('.pos-bar') as HTMLElement;
     expect(bar).toBeTruthy();
-    const order = Array.from(bar.children).map((c) => c.className);
+    // The decorations `<slot>` carries no class and is not a drawn layer; its
+    // own place between the pip and the marker is pinned once, at the element
+    // level, in rail-track.test.ts.
+    const order = Array.from(bar.children)
+      .map((c) => c.className)
+      .filter((n) => n !== '');
     expect(order).toEqual(['pos-fill', 'pos-travel', 'pos-pending']);
+  });
+});
+
+// #271 Part 2: the band and the ticks are the group's own chrome, drawn ON the
+// shared rail. They stay light-DOM children — so this component's plain class
+// selectors still style them, and `.pos-band`'s containing block is still the
+// `.pos-bar` it is positioned against in the flattened tree — handed down
+// through the element's decorations slot.
+describe('group tile — spread decorations are slotted onto the shared rail', () => {
+  it('renders the band and one tick per distinct member value into the rail slot', async () => {
+    const el = await mount(makeHass(), makeDiscovered());
+    const bar = railRoot(el.shadowRoot!).querySelector('.pos-bar') as HTMLElement;
+    // The fill is the element's; everything after it comes through the slot.
+    expect(Array.from(bar.children).map((c) => c.className || c.localName)).toEqual([
+      'pos-fill',
+      'slot',
+    ]);
+    const slot = bar.querySelector('slot:not([name])') as HTMLSlotElement;
+    // Drawn members are 60/40/100 on this mirrored blind, so three distinct
+    // ticks, and the band spans the disagreement between the extremes.
+    expect(slot.assignedElements().map((n) => n.className)).toEqual([
+      'pos-band',
+      'pos-tick',
+      'pos-tick',
+      'pos-tick',
+    ]);
+  });
+
+  it('lets the ticks overhang the rail through the --acp-rail-overflow knob', () => {
+    // The `.pos-bar { overflow: visible }` override cannot cross the element's
+    // shadow boundary any more, so the host sets the knob and the element's own
+    // rule reads it.
+    expect(GroupTile.styles.toString()).toMatch(
+      /acp-rail-track\s*\{[^}]*--acp-rail-overflow:\s*visible/,
+    );
+    expect(RailTrack.styles.toString()).toMatch(
+      /\.pos-bar\s*\{[^}]*overflow:\s*var\(\s*--acp-rail-overflow\s*,\s*hidden\s*\)/,
+    );
   });
 });

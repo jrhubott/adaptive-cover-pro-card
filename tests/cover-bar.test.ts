@@ -6,6 +6,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import type { DiscoveredEntities } from '../src/types';
 import { t } from '../src/lib/i18n';
 import { formatPercent } from '../src/lib/formatters';
+import { railEl, railRoot, railSettled } from './rail-query';
 
 interface CoverBarLike extends HTMLElement {
   updateComplete: Promise<boolean>;
@@ -31,7 +32,7 @@ function sheetOf(ctor: unknown): string {
 
 describe('acp-cover-bar fill style — issue #135', () => {
   it('fill CSS uses color-mix for reduced opacity', () => {
-    const styles = sheetOf(CoverBar);
+    const styles = sheetOf(customElements.get('acp-rail-track'));
     expect(styles).toContain('color-mix');
   });
 
@@ -60,12 +61,12 @@ describe('acp-cover-bar fill style — issue #135', () => {
       entities: { target_position_sensor: 'sensor.cover_position' },
     };
 
-    await el.updateComplete;
+    await railSettled(el);
 
     const cover = el.shadowRoot!.querySelector('.cover')!;
     const children = Array.from(cover.children);
     const numIdx = children.findIndex((c) => c.classList.contains('num'));
-    const trackIdx = children.findIndex((c) => c.classList.contains('track'));
+    const trackIdx = children.findIndex((c) => c.localName === 'acp-rail-track');
     expect(numIdx).toBeGreaterThanOrEqual(0);
     expect(trackIdx).toBeGreaterThanOrEqual(0);
     expect(numIdx).toBeLessThan(trackIdx);
@@ -74,7 +75,7 @@ describe('acp-cover-bar fill style — issue #135', () => {
 
 describe('acp-cover-bar two-tone fill — issue #135 follow-up', () => {
   it('both segments derive from the cover colour — blocking solid, clear pale', () => {
-    const styles = sheetOf(CoverBar);
+    const styles = sheetOf(customElements.get('acp-rail-track'));
     // Both segments share the cover hue (override, else --primary-color); no
     // gold, so nothing competes with the gold sun on the compass. `.fill` is the
     // LEADING segment and now carries the sun-blocking portion, so it takes the
@@ -112,17 +113,17 @@ describe('acp-cover-bar two-tone fill — issue #135 follow-up', () => {
       entities: { target_position_sensor: 'sensor.cover_position' },
     };
 
-    await el.updateComplete;
+    await railSettled(el);
 
-    const blocking = el.shadowRoot!.querySelector('.fill') as HTMLElement;
-    const clear = el.shadowRoot!.querySelector('.fill-closed') as HTMLElement;
+    const blocking = railRoot(el.shadowRoot!).querySelector('.fill') as HTMLElement;
+    const clear = railRoot(el.shadowRoot!).querySelector('.fill-closed') as HTMLElement;
     // A blind at 69% OPEN is 31% covered, and the track draws coverage.
     expect(blocking.style.width).toBe('31%');
     expect(clear.style.width).toBe('69%');
   });
 
   it('closed segment falls back to --primary-color when no cover colour is set', () => {
-    const styles = sheetOf(CoverBar);
+    const styles = sheetOf(customElements.get('acp-rail-track'));
     expect(styles).toMatch(/\.fill-closed\s*{[^}]*--acp-cover-color,\s*var\(--primary-color\)/);
   });
 
@@ -152,10 +153,68 @@ describe('acp-cover-bar two-tone fill — issue #135 follow-up', () => {
     };
     el.coverColor = '#ff7043';
 
-    await el.updateComplete;
+    await railSettled(el);
 
     const wrap = el.shadowRoot!.querySelector('.wrap') as HTMLElement;
     expect(wrap.style.getPropertyValue('--acp-cover-color')).toBe('#ff7043');
+  });
+});
+
+/**
+ * #271 Part 2: the dialog's position rail stops hand-writing its own slider
+ * container and composes `acp-rail-track` instead. This is the surface that was
+ * "silently missed" when the moving-to indicator first shipped (#272) precisely
+ * because nobody noticed it was a fourth rail — so the merge is pinned here
+ * directly, and not left to be inferred from the behavioural tests above.
+ */
+describe('acp-cover-bar — composes the shared rail track (#271 Part 2)', () => {
+  async function mountTwo(): Promise<CoverBarLike> {
+    const el = document.createElement('acp-cover-bar') as CoverBarLike;
+    document.body.appendChild(el);
+    el.hass = {
+      states: {
+        'sensor.cover_position': {
+          state: '20',
+          attributes: { actual_positions: { 'cover.a': 20, 'cover.b': 70 } },
+        },
+        'cover.a': { state: 'open', attributes: { friendly_name: 'Cover A' } },
+        'cover.b': { state: 'open', attributes: { friendly_name: 'Cover B' } },
+      },
+      callService: vi.fn(),
+    } as unknown as HomeAssistant;
+    el.discovered = {
+      ...baseDiscovered,
+      entities: { target_position_sensor: 'sensor.cover_position' },
+    };
+    await railSettled(el);
+    return el;
+  }
+
+  it('renders exactly one acp-rail-track per position-capable cover row', async () => {
+    const el = await mountTwo();
+    const rows = el.shadowRoot!.querySelectorAll('.cover');
+    expect(rows.length).toBe(2);
+    expect(el.shadowRoot!.querySelectorAll('acp-rail-track').length).toBe(2);
+    // Each rail really drew its container — the hop throws on a rail that did
+    // not, rather than letting a null flow into an assertion downstream.
+    expect(railRoot(el.shadowRoot!, 0).querySelector('.track')).not.toBeNull();
+    expect(railRoot(el.shadowRoot!, 1).querySelector('.track')).not.toBeNull();
+    // And each is still a direct grid child of its own row, so the readout,
+    // go-to-target and warn cells keep their columns.
+    expect(railEl(el.shadowRoot!, 0).parentElement).toBe(rows[0]);
+    expect(railEl(el.shadowRoot!, 1).parentElement).toBe(rows[1]);
+  });
+
+  it('tints a mismatched row by handing the rail its --acp-rail-fill knob', () => {
+    // `.mismatch .fill` was a descendant rule, and a descendant rule cannot
+    // cross the element's shadow boundary. The host sets the custom property
+    // on the rail instead, and `railFillStyles` inside the element reads it.
+    expect(sheetOf(CoverBar)).toMatch(
+      /\.cover\.mismatch acp-rail-track\s*\{[^}]*--acp-rail-fill:\s*color-mix\(\s*in srgb,\s*var\(--error-color, crimson\)\s*35%,\s*transparent\s*\)/,
+    );
+    expect(sheetOf(customElements.get('acp-rail-track'))).toMatch(
+      /\.fill\s*\{[^}]*background:\s*var\(\s*--acp-rail-fill\s*,/,
+    );
   });
 });
 
@@ -200,7 +259,7 @@ describe('acp-cover-bar manual-override divergence — issue #158', () => {
     document.body.appendChild(el);
     el.hass = hass;
     el.discovered = overrideDiscovered;
-    await el.updateComplete;
+    await railSettled(el);
     return el;
   }
 
@@ -213,8 +272,8 @@ describe('acp-cover-bar manual-override divergence — issue #158', () => {
 
   it('draws the target marker at the solar target while fill/num stay at the held value', async () => {
     const el = await mount(overrideHass(true));
-    const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
-    const open = el.shadowRoot!.querySelector('.fill') as HTMLElement;
+    const marker = railRoot(el.shadowRoot!).querySelector('.marker') as HTMLElement;
+    const open = railRoot(el.shadowRoot!).querySelector('.fill') as HTMLElement;
     const num = el.shadowRoot!.querySelector('.num')!.textContent!;
     // Marker is clamped so its centred 2px box never clips at the rail ends.
     // Both the marker and the fill are drawn in the COVERAGE direction, so a 60%
@@ -236,7 +295,7 @@ describe('acp-cover-bar manual-override divergence — issue #158', () => {
 
   it('uses the override-specific marker tooltip during a diverging override', async () => {
     const el = await mount(overrideHass(true));
-    const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
+    const marker = railRoot(el.shadowRoot!).querySelector('.marker') as HTMLElement;
     const tip = marker.getAttribute('data-tooltip') ?? '';
     // covers.target_tooltip_override mentions the would-be solar target + held.
     expect(tip).toContain('Would-be solar target');
@@ -271,7 +330,7 @@ describe('acp-cover-bar manual-override divergence — issue #158', () => {
     const target = el.shadowRoot!.querySelector('.head .target')!.textContent!;
     expect(target).toContain('Target');
     expect(target).not.toContain('Solar target');
-    const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
+    const marker = railRoot(el.shadowRoot!).querySelector('.marker') as HTMLElement;
     const tip = marker.getAttribute('data-tooltip') ?? '';
     expect(tip).not.toContain('Would-be solar target');
   });
@@ -304,7 +363,7 @@ describe('acp-cover-bar linear position (motor tooltip) — issue #219', () => {
     document.body.appendChild(el);
     el.hass = hass;
     el.discovered = linearDiscovered;
-    await el.updateComplete;
+    await railSettled(el);
     return el;
   }
 
@@ -353,7 +412,7 @@ describe('acp-cover-bar linear position (motor tooltip) — issue #219', () => {
     // Live hass update: linear_position now equals state, so the divergence
     // clears and the tooltip directive detaches from this same element.
     el.hass = linearHass({ state: '31', linear: 31 });
-    await el.updateComplete;
+    await railSettled(el);
 
     expect(target.hasAttribute('data-tooltip')).toBe(false);
     expect(target.hasAttribute('aria-describedby')).toBe(false);
@@ -393,19 +452,19 @@ describe('acp-cover-bar target marker clamp at extremes — issue #158 (trailing
         manual_override_binary: 'binary_sensor.manual_override',
       },
     };
-    await el.updateComplete;
+    await railSettled(el);
     return el;
   }
 
   it('centres the marker on its value via translateX(-50%)', () => {
-    const styles = sheetOf(CoverBar);
+    const styles = sheetOf(customElements.get('acp-rail-track'));
     expect(styles).toMatch(/\.marker\s*{[^}]*translateX\(-50%\)/);
   });
 
   it('clamps the marker inside the rail at the 100% extreme', async () => {
     // Target 0 (fully closed) draws at the 100% end of a coverage track.
     const el = await mountAtTarget(0, 30);
-    const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
+    const marker = railRoot(el.shadowRoot!).querySelector('.marker') as HTMLElement;
     // left:100% would push the centred box off the right edge under
     // overflow:hidden; the clamp keeps it inside the rail.
     expect(marker.getAttribute('style')).toContain('left:clamp(1px, 100%, calc(100% - 1px))');
@@ -414,7 +473,7 @@ describe('acp-cover-bar target marker clamp at extremes — issue #158 (trailing
   it('clamps the marker inside the rail at the 0% extreme', async () => {
     // Target 100 (fully open) draws at the 0% end of a coverage track.
     const el = await mountAtTarget(100, 70);
-    const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
+    const marker = railRoot(el.shadowRoot!).querySelector('.marker') as HTMLElement;
     expect(marker.getAttribute('style')).toContain('left:clamp(1px, 0%, calc(100% - 1px))');
   });
 });
@@ -451,7 +510,7 @@ describe('acp-cover-bar dual-axis tilt row', () => {
     document.body.appendChild(el);
     el.hass = hass;
     el.discovered = discovered;
-    await el.updateComplete;
+    await railSettled(el);
     return el;
   }
 
@@ -555,7 +614,7 @@ describe('acp-cover-bar discovery-driven multi-axis + set_axes', () => {
     document.body.appendChild(el);
     el.hass = hass;
     el.discovered = discovered;
-    await el.updateComplete;
+    await railSettled(el);
     return el;
   }
 
@@ -588,7 +647,7 @@ describe('acp-cover-bar discovery-driven multi-axis + set_axes', () => {
   it('fires set_axes for a position track click when the service is present', async () => {
     const callService = vi.fn();
     const el = await mount(modernHass(callService));
-    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    const track = railRoot(el.shadowRoot!).querySelector('.track') as HTMLElement;
     Object.defineProperty(track, 'getBoundingClientRect', {
       value: () => ({ left: 0, width: 100, top: 0, bottom: 10, right: 100, height: 10 }),
       configurable: true,
@@ -635,7 +694,7 @@ describe('acp-cover-bar legacy fallback parity (no discovery, no set_axes)', () 
     document.body.appendChild(el);
     el.hass = hass;
     el.discovered = legacyDiscovered;
-    await el.updateComplete;
+    await railSettled(el);
     return el;
   }
 
@@ -662,7 +721,7 @@ describe('acp-cover-bar legacy fallback parity (no discovery, no set_axes)', () 
   it('routes a position track click to legacy set_position (NOT set_axes)', async () => {
     const callService = vi.fn();
     const el = await mount(legacyHass(callService));
-    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    const track = railRoot(el.shadowRoot!).querySelector('.track') as HTMLElement;
     Object.defineProperty(track, 'getBoundingClientRect', {
       value: () => ({ left: 0, width: 100, top: 0, bottom: 10, right: 100, height: 10 }),
       configurable: true,
@@ -708,7 +767,7 @@ describe('acp-cover-bar transit motion indicator', () => {
       ...baseDiscovered,
       entities: { target_position_sensor: 'sensor.cover_position' },
     };
-    await el.updateComplete;
+    await railSettled(el);
     return el;
   }
 
@@ -768,9 +827,9 @@ describe('acp-cover-bar track-click → set_position', () => {
       entities: { target_position_sensor: 'sensor.cover_position' },
     };
 
-    await el.updateComplete;
+    await railSettled(el);
 
-    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    const track = railRoot(el.shadowRoot!).querySelector('.track') as HTMLElement;
     // Simulate a click at 50% of the track.
     Object.defineProperty(track, 'getBoundingClientRect', {
       value: () => ({ left: 0, width: 100, top: 0, bottom: 10, right: 100, height: 10 }),
@@ -810,7 +869,7 @@ describe('acp-cover-bar cover name opens more-info', () => {
 
   it('dispatches acp-open-more-info when the cover name is clicked', async () => {
     const el = mount(vi.fn());
-    await el.updateComplete;
+    await railSettled(el);
     const name = el.shadowRoot!.querySelector('.cover .name') as HTMLElement;
     expect(name).toBeTruthy();
     const spy = vi.fn();
@@ -821,7 +880,7 @@ describe('acp-cover-bar cover name opens more-info', () => {
 
   it('dispatches acp-open-more-info on Enter/Space keydown on the cover name', async () => {
     const el = mount(vi.fn());
-    await el.updateComplete;
+    await railSettled(el);
     const name = el.shadowRoot!.querySelector('.cover .name') as HTMLElement;
     const spy = vi.fn();
     el.addEventListener('acp-open-more-info', spy);
@@ -833,8 +892,8 @@ describe('acp-cover-bar cover name opens more-info', () => {
   it('does not dispatch acp-open-more-info when the track is clicked (keeps set-position)', async () => {
     const callService = vi.fn();
     const el = mount(callService);
-    await el.updateComplete;
-    const track = el.shadowRoot!.querySelector('.cover .track') as HTMLElement;
+    await railSettled(el);
+    const track = railRoot(el.shadowRoot!).querySelector('.track') as HTMLElement;
     const spy = vi.fn();
     el.addEventListener('acp-open-more-info', spy);
     Object.defineProperty(track, 'getBoundingClientRect', {
@@ -879,13 +938,13 @@ describe('acp-cover-bar position slider — issue #231', () => {
     document.body.appendChild(el);
     el.hass = hass;
     el.discovered = discovered;
-    await el.updateComplete;
+    await railSettled(el);
     return el;
   }
 
   it('renders .track as an accessible slider with aria-valuenow matching the actual percent', async () => {
     const el = await mount(singleCoverHass(42));
-    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    const track = railRoot(el.shadowRoot!).querySelector('.track') as HTMLElement;
     expect(track.getAttribute('role')).toBe('slider');
     expect(track.getAttribute('tabindex')).toBe('0');
     expect(track.getAttribute('aria-valuemin')).toBe('0');
@@ -902,7 +961,7 @@ describe('acp-cover-bar position slider — issue #231', () => {
   it('previews a live percentage on .num/.fill while dragging, without committing', async () => {
     const callService = vi.fn();
     const el = await mount(singleCoverHass(20, callService));
-    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    const track = railRoot(el.shadowRoot!).querySelector('.track') as HTMLElement;
     stubRect(track);
 
     track.dispatchEvent(
@@ -911,13 +970,13 @@ describe('acp-cover-bar position slider — issue #231', () => {
     track.dispatchEvent(
       new PointerEvent('pointermove', { bubbles: true, clientX: 80, pointerId: 1 }),
     );
-    await el.updateComplete;
+    await railSettled(el);
 
     // 80% along the track is 80% COVERED, i.e. 20% open — the readout stays in
     // the integration's frame while the fill follows the finger.
     const num = el.shadowRoot!.querySelector('.num')!;
     expect(num.textContent).toContain('20');
-    const fill = el.shadowRoot!.querySelector('.fill') as HTMLElement;
+    const fill = railRoot(el.shadowRoot!).querySelector('.fill') as HTMLElement;
     expect(fill.style.width).toBe('80%');
     expect(callService).not.toHaveBeenCalled();
   });
@@ -925,7 +984,7 @@ describe('acp-cover-bar position slider — issue #231', () => {
   it('commits the final dragged value exactly once via the trailing click', async () => {
     const callService = vi.fn();
     const el = await mount(singleCoverHass(20, callService));
-    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    const track = railRoot(el.shadowRoot!).querySelector('.track') as HTMLElement;
     stubRect(track);
 
     track.dispatchEvent(
@@ -939,7 +998,7 @@ describe('acp-cover-bar position slider — issue #231', () => {
     );
     // A real browser fires a trailing compatibility `click` at the release point.
     track.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 80 }));
-    await el.updateComplete;
+    await railSettled(el);
 
     expect(callService).toHaveBeenCalledTimes(1);
     // Released 80% along the track = 80% covered = position 20. The write is
@@ -955,7 +1014,7 @@ describe('acp-cover-bar position slider — issue #231', () => {
   it('reverts the preview and does not commit on pointercancel', async () => {
     const callService = vi.fn();
     const el = await mount(singleCoverHass(20, callService));
-    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    const track = railRoot(el.shadowRoot!).querySelector('.track') as HTMLElement;
     stubRect(track);
 
     track.dispatchEvent(
@@ -965,13 +1024,13 @@ describe('acp-cover-bar position slider — issue #231', () => {
       new PointerEvent('pointermove', { bubbles: true, clientX: 80, pointerId: 1 }),
     );
     track.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 1 }));
-    await el.updateComplete;
+    await railSettled(el);
 
     expect(callService).not.toHaveBeenCalled();
     const num = el.shadowRoot!.querySelector('.num')!;
     expect(num.textContent).toContain('20');
     // Back to server truth: 20% open draws as 80% covered.
-    const fill = el.shadowRoot!.querySelector('.fill') as HTMLElement;
+    const fill = railRoot(el.shadowRoot!).querySelector('.fill') as HTMLElement;
     expect(fill.style.width).toBe('80%');
   });
 
@@ -990,7 +1049,7 @@ describe('acp-cover-bar position slider — issue #231', () => {
   ])('keydown %s from actual=50 calls set_position with %d', async (key, expected) => {
     const callService = vi.fn();
     const el = await mount(singleCoverHass(50, callService));
-    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    const track = railRoot(el.shadowRoot!).querySelector('.track') as HTMLElement;
 
     track.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
 
@@ -1006,7 +1065,7 @@ describe('acp-cover-bar position slider — issue #231', () => {
     const callService = vi.fn();
     // 5% open = 95% covered; PageUp adds 10 points of coverage and clamps.
     const el = await mount(singleCoverHass(5, callService));
-    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    const track = railRoot(el.shadowRoot!).querySelector('.track') as HTMLElement;
     track.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageUp', bubbles: true }));
     expect(callService).toHaveBeenCalledWith(
       INTEGRATION_DOMAIN,
@@ -1020,7 +1079,7 @@ describe('acp-cover-bar position slider — issue #231', () => {
     const callService = vi.fn();
     // 95% open = 5% covered; PageDown removes 10 points of coverage and clamps.
     const el = await mount(singleCoverHass(95, callService));
-    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    const track = railRoot(el.shadowRoot!).querySelector('.track') as HTMLElement;
     track.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown', bubbles: true }));
     expect(callService).toHaveBeenCalledWith(
       INTEGRATION_DOMAIN,
@@ -1044,10 +1103,10 @@ describe('acp-cover-bar position slider — issue #231', () => {
       callService,
     } as unknown as HomeAssistant);
 
-    const tracks = el.shadowRoot!.querySelectorAll('.track');
+    const tracks = el.shadowRoot!.querySelectorAll('acp-rail-track');
     const nums = el.shadowRoot!.querySelectorAll('.num');
     expect(tracks.length).toBe(2);
-    const trackA = tracks[0] as HTMLElement;
+    const trackA = railRoot(el.shadowRoot!, 0).querySelector('.track') as HTMLElement;
     stubRect(trackA);
 
     trackA.dispatchEvent(
@@ -1056,19 +1115,19 @@ describe('acp-cover-bar position slider — issue #231', () => {
     trackA.dispatchEvent(
       new PointerEvent('pointermove', { bubbles: true, clientX: 90, pointerId: 1 }),
     );
-    await el.updateComplete;
+    await railSettled(el);
 
     // Dragged to 90% along the track = 90% covered = position 10.
     expect(nums[0].textContent).toContain('10');
     // Row B is untouched: still 70% open, drawn as 30% covered.
     expect(nums[1].textContent).toContain('70');
-    const fillB = el.shadowRoot!.querySelectorAll('.fill')[1] as HTMLElement;
+    const fillB = railRoot(el.shadowRoot!, 1).querySelector('.fill') as HTMLElement;
     expect(fillB.style.width).toBe('30%');
     expect(callService).not.toHaveBeenCalled();
   });
 
   it('adds touch-action: none to .track so a touch drag does not fight page scroll', () => {
-    const styles = sheetOf(CoverBar);
+    const styles = sheetOf(customElements.get('acp-rail-track'));
     expect(styles).toMatch(/\.track\s*{[^}]*touch-action:\s*none/);
   });
 });
@@ -1113,15 +1172,15 @@ describe('acp-cover-bar inverse_state frame normalization (#234)', () => {
     document.body.appendChild(el);
     el.hass = hass;
     el.discovered = discovered;
-    await el.updateComplete;
+    await railSettled(el);
     return el;
   }
 
   it('fills the per-cover track from the logical frame, matching the Target marker', async () => {
     const el = await mount(inverseHass(), inverseDiscovered());
-    const open = el.shadowRoot!.querySelector('.fill') as HTMLElement;
-    const closed = el.shadowRoot!.querySelector('.fill-closed') as HTMLElement;
-    const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
+    const open = railRoot(el.shadowRoot!).querySelector('.fill') as HTMLElement;
+    const closed = railRoot(el.shadowRoot!).querySelector('.fill-closed') as HTMLElement;
+    const marker = railRoot(el.shadowRoot!).querySelector('.marker') as HTMLElement;
     // A fully-extended AWNING: logical 100, and extending an awning blocks more
     // sun, so the track draws it full — polarity is identity here. Fill and
     // marker still agree, which is what this test is about.
@@ -1137,7 +1196,9 @@ describe('acp-cover-bar inverse_state frame normalization (#234)', () => {
 
   it('un-inverts actual_positions when linear_actual_positions is absent', async () => {
     const el = await mount(inverseHass({ linearActuals: false }), inverseDiscovered());
-    expect((el.shadowRoot!.querySelector('.fill') as HTMLElement).style.width).toBe('100%');
+    expect((railRoot(el.shadowRoot!).querySelector('.fill') as HTMLElement).style.width).toBe(
+      '100%',
+    );
   });
 
   it('suppresses the Motor tooltip when the divergence is the inversion itself', async () => {
@@ -1148,7 +1209,7 @@ describe('acp-cover-bar inverse_state frame normalization (#234)', () => {
 
   it('renders verbatim on a legacy entry with neither new field', async () => {
     const el = await mount(inverseHass({ linearActuals: false }), inverseDiscovered(true));
-    expect((el.shadowRoot!.querySelector('.fill') as HTMLElement).style.width).toBe('0%');
+    expect((railRoot(el.shadowRoot!).querySelector('.fill') as HTMLElement).style.width).toBe('0%');
   });
 });
 
@@ -1218,7 +1279,7 @@ describe('acp-cover-bar inverse_tilt frame normalization (#236)', () => {
     document.body.appendChild(el);
     el.hass = hass;
     el.discovered = discovered;
-    await el.updateComplete;
+    await railSettled(el);
     return el;
   }
 
@@ -1235,9 +1296,9 @@ describe('acp-cover-bar inverse_tilt frame normalization (#236)', () => {
   it('draws the tilt fill and readout in the logical frame', async () => {
     const el = await mount(inverseTiltHass(), inverseTiltDiscovered);
     const tilt = tiltBarOf(el);
-    await tilt.updateComplete;
-    const open = tilt.shadowRoot!.querySelector('.fill') as HTMLElement;
-    const closed = tilt.shadowRoot!.querySelector('.fill-closed') as HTMLElement;
+    await railSettled(tilt);
+    const open = railRoot(tilt.shadowRoot!).querySelector('.fill') as HTMLElement;
+    const closed = railRoot(tilt.shadowRoot!).querySelector('.fill-closed') as HTMLElement;
     // Logical tilt 35; slats block more sun as the value falls, so 35 draws 65.
     expect(open.style.width).toBe('65%');
     expect(closed.style.width).toBe('35%');
@@ -1250,7 +1311,9 @@ describe('acp-cover-bar inverse_tilt frame normalization (#236)', () => {
     // inside the nested acp-tilt-bar's shadow root.
     // Position is logical 60, drawn as 40% blocking — untouched by the tilt
     // axis's own inversion, which is the point of this test.
-    expect((el.shadowRoot!.querySelector('.fill') as HTMLElement).style.width).toBe('40%');
+    expect((railRoot(el.shadowRoot!).querySelector('.fill') as HTMLElement).style.width).toBe(
+      '40%',
+    );
     expect(el.shadowRoot!.querySelector('.head .targets')!.textContent).toContain('60');
   });
 
@@ -1270,8 +1333,8 @@ describe('acp-cover-bar inverse_tilt frame normalization (#236)', () => {
     const callService = vi.fn();
     const el = await mount(inverseTiltHass(callService), inverseTiltDiscovered);
     const tilt = tiltBarOf(el);
-    await tilt.updateComplete;
-    const track = tilt.shadowRoot!.querySelector('.track') as HTMLElement;
+    await railSettled(tilt);
+    const track = railRoot(tilt.shadowRoot!).querySelector('.track') as HTMLElement;
     track.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowUp' }));
     expect(callService).toHaveBeenCalledWith(
       INTEGRATION_DOMAIN,
@@ -1345,7 +1408,7 @@ describe('acp-cover-bar tilt-only entry — no phantom position rail (#277)', ()
     document.body.appendChild(el);
     el.hass = hass;
     el.discovered = discovered;
-    await el.updateComplete;
+    await railSettled(el);
     return el;
   }
 
@@ -1356,7 +1419,7 @@ describe('acp-cover-bar tilt-only entry — no phantom position rail (#277)', ()
     const el = await mount(louveredHass(), louveredDiscovered);
     // The host's `.fill` is the position track; the slat track lives inside the
     // nested acp-tilt-bar's shadow root, so it is unaffected.
-    expect(el.shadowRoot!.querySelector('.fill')).toBeNull();
+    expect(el.shadowRoot!.querySelector('acp-rail-track')).toBeNull();
     expect(tiltBarOf(el)).not.toBeNull();
   });
 

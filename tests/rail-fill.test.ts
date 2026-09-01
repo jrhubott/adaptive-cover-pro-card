@@ -118,6 +118,45 @@ describe('renderRailFill — layer stacking order (#272 paint-order guard)', () 
     expect(order).toEqual(['fill', 'fill-closed', 'travel', 'pending-marker', 'marker']);
   });
 
+  // The `decorations` slot exists for the group rail's spread band + per-member
+  // ticks, which `acp-rail-track` passes down as a `<slot>` so they stay
+  // light-DOM children of the surface that styles them. They belong ABOVE the
+  // travel band (they are member readings, not a destination) and BELOW the
+  // target marker (which must stay the topmost mark on the rail), so the slot
+  // sits exactly where the overlay/marker split already is — pinned here for
+  // the same reason as the overlay itself: happy-dom has no paint model.
+  it('renders decorations between the overlay and the marker on the pos- prefixed (dense tile) rail', () => {
+    const host = mountFill({
+      fillPct: 40,
+      target: 70,
+      targetPct: 70,
+      prefix: 'pos-',
+      overlay: renderRailOverlay({
+        hass,
+        liveFrac: 40,
+        pendingFrac: 60,
+        pending: 60,
+        prefix: 'pos-',
+      }),
+      decorations: html`<span class="deco"></span>`,
+    });
+    const order = Array.from(host.children).map((el) => el.className);
+    expect(order).toEqual(['pos-fill', 'pos-travel', 'pos-pending', 'deco', 'pos-marker']);
+  });
+
+  it('renders decorations between the overlay and the marker on the unprefixed (dialog) rail', () => {
+    const host = mountFill({
+      fillPct: 40,
+      closedPct: 60,
+      target: 70,
+      targetPct: 70,
+      overlay: renderRailOverlay({ hass, liveFrac: 40, pendingFrac: 60, pending: 60 }),
+      decorations: html`<span class="deco"></span>`,
+    });
+    const order = Array.from(host.children).map((el) => el.className);
+    expect(order).toEqual(['fill', 'fill-closed', 'travel', 'pending-marker', 'deco', 'marker']);
+  });
+
   it('renders no overlay nodes at all when the overlay option is omitted', () => {
     const host = mountFill({ fillPct: 40, target: 70, targetPct: 70, prefix: 'pos-' });
     const order = Array.from(host.children).map((el) => el.className);

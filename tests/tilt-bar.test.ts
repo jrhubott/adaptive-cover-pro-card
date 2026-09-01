@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import '../src/components/tilt-bar';
 import type { HomeAssistant } from 'custom-card-helpers';
 
+import { railEl, railRoot, railSettled } from './rail-query';
+
 interface TiltBarLike extends HTMLElement {
   updateComplete: Promise<boolean>;
   hass?: HomeAssistant;
@@ -23,7 +25,9 @@ async function mount(props: Partial<TiltBarLike>): Promise<TiltBarLike> {
   el.hass = hass;
   Object.assign(el, props);
   document.body.appendChild(el);
-  await el.updateComplete;
+  // Settle the nested rail, not just the bar: the container the assertions
+  // reach for lives inside `acp-rail-track`'s own shadow root now.
+  await railSettled(el);
   return el;
 }
 
@@ -38,8 +42,8 @@ function sheetOf(ctor: unknown): string {
 describe('acp-tilt-bar', () => {
   it('splits the track into open + closed widths summing to 100%', async () => {
     const el = await mount({ actual: 35, target: 70 });
-    const open = el.shadowRoot!.querySelector('.fill') as HTMLElement;
-    const closed = el.shadowRoot!.querySelector('.fill-closed') as HTMLElement;
+    const open = railRoot(el.shadowRoot!).querySelector('.fill') as HTMLElement;
+    const closed = railRoot(el.shadowRoot!).querySelector('.fill-closed') as HTMLElement;
     expect(open.style.width).toBe('35%');
     expect(closed.style.width).toBe('65%');
   });
@@ -52,18 +56,18 @@ describe('acp-tilt-bar', () => {
 
   it('clamps the target marker inside the rail', async () => {
     const el = await mount({ actual: 35, target: 70 });
-    const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
+    const marker = railRoot(el.shadowRoot!).querySelector('.marker') as HTMLElement;
     expect(marker.getAttribute('style')).toContain('left:clamp(1px, 70%, calc(100% - 1px))');
   });
 
   it('omits the marker when there is no tilt target', async () => {
     const el = await mount({ actual: 35, target: null });
-    expect(el.shadowRoot!.querySelector('.marker')).toBeNull();
+    expect(railRoot(el.shadowRoot!).querySelector('.marker')).toBeNull();
   });
 
   it('fires acp-tilt-set with the clamped click value', async () => {
     const el = await mount({ actual: 35, target: 70 });
-    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    const track = railRoot(el.shadowRoot!).querySelector('.track') as HTMLElement;
     Object.defineProperty(track, 'getBoundingClientRect', {
       value: () => ({ left: 0, width: 100, top: 0, bottom: 8, right: 100, height: 8 }),
       configurable: true,
@@ -90,7 +94,7 @@ describe('acp-tilt-bar', () => {
 
   it('does not fire acp-tilt-set on a track click when disabled', async () => {
     const el = await mount({ actual: 35, target: 70, disabled: true });
-    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    const track = railRoot(el.shadowRoot!).querySelector('.track') as HTMLElement;
     Object.defineProperty(track, 'getBoundingClientRect', {
       value: () => ({ left: 0, width: 100, top: 0, bottom: 8, right: 100, height: 8 }),
       configurable: true,
@@ -110,7 +114,7 @@ describe('acp-axis-bar generalization', () => {
     el.hass = hass;
     Object.assign(el, props);
     document.body.appendChild(el);
-    await el.updateComplete;
+    await railSettled(el);
     return el;
   }
 
@@ -127,8 +131,8 @@ describe('acp-axis-bar generalization', () => {
   it('maps a non-0–100 range onto the track fill using min/max', async () => {
     // Range -90..90, actual 0 → midpoint → 50% fill, 50% closed.
     const el = await mountAxis({ actual: 0, target: 45, min: -90, max: 90, label: 'Slat' });
-    const open = el.shadowRoot!.querySelector('.fill') as HTMLElement;
-    const closed = el.shadowRoot!.querySelector('.fill-closed') as HTMLElement;
+    const open = railRoot(el.shadowRoot!).querySelector('.fill') as HTMLElement;
+    const closed = railRoot(el.shadowRoot!).querySelector('.fill-closed') as HTMLElement;
     expect(open.style.width).toBe('50%');
     expect(closed.style.width).toBe('50%');
   });
@@ -136,13 +140,13 @@ describe('acp-axis-bar generalization', () => {
   it('positions the marker via min/max mapping', async () => {
     // target 0 within -90..90 → 50% marker position.
     const el = await mountAxis({ actual: -90, target: 0, min: -90, max: 90, label: 'Slat' });
-    const marker = el.shadowRoot!.querySelector('.marker') as HTMLElement;
+    const marker = railRoot(el.shadowRoot!).querySelector('.marker') as HTMLElement;
     expect(marker.getAttribute('style')).toContain('left:clamp(1px, 50%, calc(100% - 1px))');
   });
 
   it('emits a value in [min,max] on click using the range', async () => {
     const el = await mountAxis({ actual: 0, target: 0, min: -90, max: 90, label: 'Slat' });
-    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    const track = railRoot(el.shadowRoot!).querySelector('.track') as HTMLElement;
     Object.defineProperty(track, 'getBoundingClientRect', {
       value: () => ({ left: 0, width: 100, top: 0, bottom: 8, right: 100, height: 8 }),
       configurable: true,
@@ -165,7 +169,7 @@ describe('acp-axis-bar drag slider', () => {
     props: Partial<TiltBarLike>,
   ): Promise<{ el: TiltBarLike; track: HTMLElement; fired: number[] }> {
     const el = await mount(props);
-    const track = el.shadowRoot!.querySelector('.track') as HTMLElement;
+    const track = railRoot(el.shadowRoot!).querySelector('.track') as HTMLElement;
     Object.defineProperty(track, 'getBoundingClientRect', {
       value: () => RECT,
       configurable: true,
@@ -209,8 +213,10 @@ describe('acp-axis-bar drag slider', () => {
     const { el, track, fired } = await mountWithTrack({ actual: 35, target: 70 });
     track.dispatchEvent(down(20));
     track.dispatchEvent(move(80));
-    await el.updateComplete;
-    expect((el.shadowRoot!.querySelector('.fill') as HTMLElement).style.width).toBe('80%');
+    await railSettled(el);
+    expect((railRoot(el.shadowRoot!).querySelector('.fill') as HTMLElement).style.width).toBe(
+      '80%',
+    );
     expect(el.shadowRoot!.querySelector('.num')!.textContent).toContain('80');
     expect(track.getAttribute('aria-valuenow')).toBe('80');
     // Nothing is sent until the gesture completes.
@@ -226,7 +232,7 @@ describe('acp-axis-bar drag slider', () => {
     );
     // Real browsers fire a compatibility click at the release point.
     track.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 80 }));
-    await el.updateComplete;
+    await railSettled(el);
     expect(fired).toEqual([80]);
   });
 
@@ -235,9 +241,11 @@ describe('acp-axis-bar drag slider', () => {
     track.dispatchEvent(down(20));
     track.dispatchEvent(move(80));
     track.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 1 }));
-    await el.updateComplete;
+    await railSettled(el);
     expect(fired).toEqual([]);
-    expect((el.shadowRoot!.querySelector('.fill') as HTMLElement).style.width).toBe('35%');
+    expect((railRoot(el.shadowRoot!).querySelector('.fill') as HTMLElement).style.width).toBe(
+      '35%',
+    );
     expect(el.shadowRoot!.querySelector('.num')!.textContent).toContain('35');
   });
 
@@ -251,7 +259,7 @@ describe('acp-axis-bar drag slider', () => {
     });
     track.dispatchEvent(down(50));
     track.dispatchEvent(move(75)); // 75% of -90..90 → 45
-    await el.updateComplete;
+    await railSettled(el);
     expect(track.getAttribute('aria-valuenow')).toBe('45');
   });
 
@@ -259,19 +267,31 @@ describe('acp-axis-bar drag slider', () => {
     const { el, track } = await mountWithTrack({ actual: 35, target: 70 });
     expect(track.classList.contains('dragging')).toBe(false);
     track.dispatchEvent(down(20));
-    await el.updateComplete;
+    await railSettled(el);
     expect(track.classList.contains('dragging')).toBe(true);
     track.dispatchEvent(
       new PointerEvent('pointerup', { bubbles: true, clientX: 20, pointerId: 1 }),
     );
-    await el.updateComplete;
+    await railSettled(el);
     expect(track.classList.contains('dragging')).toBe(false);
   });
 
+  // Re-pointed at `acp-rail-track` with the merge (#271 Part 2): both rules now
+  // live in the element that owns the container, and asserting them against
+  // this bar's own sheet would pass on nothing.
   it('declares touch-action: none so a touch drag does not scroll the page', () => {
-    const css = sheetOf(customElements.get('acp-axis-bar'));
+    const css = sheetOf(customElements.get('acp-rail-track'));
     expect(css).toContain('touch-action: none');
     expect(css).toContain('.track.dragging');
+  });
+
+  // The compact/tile shrink is the one track rule still decided out here, and
+  // it can only reach the element through the knob.
+  it('shrinks the compact and tile rails through the --acp-rail-height knob', () => {
+    const css = sheetOf(customElements.get('acp-axis-bar'));
+    expect(css).toMatch(
+      /:host\(\[compact\]\) acp-rail-track,\s*\.row\.tile acp-rail-track\s*\{[^}]*--acp-rail-height:\s*6px/,
+    );
   });
 
   it.each([
@@ -321,10 +341,65 @@ describe('acp-axis-bar drag slider', () => {
     expect(track.getAttribute('aria-disabled')).toBe('true');
     track.dispatchEvent(down(20));
     track.dispatchEvent(move(80));
-    await el.updateComplete;
+    await railSettled(el);
     // No preview, no commit.
-    expect((el.shadowRoot!.querySelector('.fill') as HTMLElement).style.width).toBe('35%');
+    expect((railRoot(el.shadowRoot!).querySelector('.fill') as HTMLElement).style.width).toBe(
+      '35%',
+    );
     track.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowRight' }));
     expect(fired).toEqual([]);
+  });
+});
+
+/**
+ * #271 Part 2: the bar stops hand-writing its own slider container and composes
+ * the shared `<acp-rail-track>` instead. Everything above this block is the
+ * behaviour that must survive the swap unchanged — these two tests pin the swap
+ * itself, so a bar that quietly went back to drawing its own track fails here
+ * rather than passing every behavioural test through markup nobody else shares.
+ */
+describe('acp-axis-bar — composes the shared rail track (#271 Part 2)', () => {
+  const at = (type: string, x: number): PointerEvent =>
+    new PointerEvent(type, { bubbles: true, clientX: x, pointerId: 1 });
+
+  it('renders its track through acp-rail-track, ARIA intact on the inner .track', async () => {
+    const el = await mount({ actual: 35, target: 70 });
+    expect(railEl(el.shadowRoot!)).toBeTruthy();
+    const track = railRoot(el.shadowRoot!).querySelector('.track') as HTMLElement;
+    // Byte-for-byte the slider semantics the hand-written container carried.
+    expect(track.getAttribute('role')).toBe('slider');
+    expect(track.getAttribute('tabindex')).toBe('0');
+    expect(track.getAttribute('aria-valuemin')).toBe('0');
+    expect(track.getAttribute('aria-valuemax')).toBe('100');
+    expect(track.getAttribute('aria-valuenow')).toBe('35');
+    expect(track.getAttribute('aria-valuetext')).toContain('35');
+    expect(track.getAttribute('aria-label')).toContain('Tilt');
+  });
+
+  // `acp-tilt-set` is this bar's whole public surface — four hosts listen for
+  // it and nothing else. The rail's own `acp-rail-set` / `acp-rail-preview`
+  // both bubble AND compose, so without containment the swap would silently
+  // widen that surface and a host listening for rail events on a wrapper would
+  // start hearing its nested axis bars' gestures too.
+  it('keeps acp-tilt-set as its only public event — the rail events stay inside', async () => {
+    const el = await mount({ actual: 35, target: 70 });
+    const track = railRoot(el.shadowRoot!).querySelector('.track') as HTMLElement;
+    Object.defineProperty(track, 'getBoundingClientRect', {
+      value: () => ({ left: 0, width: 100, top: 0, bottom: 8, right: 100, height: 8 }),
+      configurable: true,
+    });
+    const escaped: string[] = [];
+    for (const type of ['acp-rail-set', 'acp-rail-preview']) {
+      document.body.addEventListener(type, () => escaped.push(type));
+    }
+    const tiltSets: number[] = [];
+    el.addEventListener('acp-tilt-set', (e) => tiltSets.push((e as CustomEvent<number>).detail));
+    track.dispatchEvent(at('pointerdown', 20));
+    track.dispatchEvent(at('pointermove', 80));
+    track.dispatchEvent(at('pointerup', 80));
+    track.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 80 }));
+    await railSettled(el);
+    expect(tiltSets).toEqual([80]);
+    expect(escaped).toEqual([]);
   });
 });

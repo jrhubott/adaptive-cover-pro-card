@@ -30,9 +30,7 @@ import {
 } from './lib/axes';
 import { railsAreOneCover } from './lib/rail-model';
 import { PendingMoves, isMovingState, isPendingVisible } from './lib/pending-move';
-import { RailGestures } from './lib/rail-gestures';
-import { renderRailOverlay, railOverlayStyles } from './components/rail-overlay';
-import { renderRailFill, railFillStyles } from './components/rail-fill';
+import './components/rail-track';
 import { setAxes, engageManualOverride, hasEngageManualOverride } from './lib/services';
 import { buildOverridePresets } from './lib/override-presets';
 import './components/extend-override-dialog';
@@ -101,7 +99,15 @@ export class AdaptiveCoverProTileCard extends LitElement {
    *  cover, so a single scalar would paint every rail with whichever one has
    *  the finger on it. Default `'click'` mode — the write happens on the
    *  gesture's trailing click, never mid-drag. */
-  private _rail = new RailGestures(this);
+  /** The live value under the finger, per rail cover id, mirrored out of each
+   *  rail's `acp-rail-track` by its `acp-rail-preview` event. Keyed so a drag
+   *  paints one rail of a multi-rail tile and leaves the others alone. Absent
+   *  means "not being dragged"; the value is LOGICAL, exactly what
+   *  `RailGestures.preview()` used to hand back here.
+   *
+   *  A plain field rather than `@state`: a Map mutated in place is invisible to
+   *  Lit's identity check, so the handler asks for the render explicitly. */
+  private _posPreviews = new Map<string, number>();
   @state() private _extendOpen = false;
 
   private _unsubRegistry: (() => void) | null = null;
@@ -1194,7 +1200,7 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // A drag in flight overrides the server-truth fill and readout. Post-#234
     // the live value is logical-frame and `set_axes` takes logical values, so
     // the percentage you drag to is exactly the one that gets sent.
-    const drag = this._rail.preview(id);
+    const drag = this._posPreviews.get(id) ?? null;
     const dragging = drag !== null;
     const shown = drag ?? live;
     // What the rail paints. ARIA describes the visual, so `aria-valuenow` is
@@ -1205,9 +1211,9 @@ export class AdaptiveCoverProTileCard extends LitElement {
     // normalize here too.
     const shownFill = shown === null ? 0 : axisDisplayValue(shown, axis);
     // Defaulted the same way as `shownFill` above (and cover-bar's own
-    // `targetPct`): `renderRailFill`'s `target` param is what gates the
-    // marker, so this value is simply unused, never read as null, when
-    // `target` is null — no need to thread the null through a second time.
+    // `targetPct`): the rail's `target` property is what gates the marker, so
+    // this value is simply unused, never read as null, when `target` is null —
+    // no need to thread the null through a second time.
     const targetFill = axisDisplayValue(target ?? 0, axis);
     // Remembered for `updated()`'s arrival check — see `_lastRailLive`.
     this._lastRailLive.set(id, live);
@@ -1228,53 +1234,49 @@ export class AdaptiveCoverProTileCard extends LitElement {
       target !== null
         ? `${formatPercent(shown)} · ${t('dialog.target', this.hass)} ${formatPercent(target)}`
         : formatPercent(shown);
-    return html`<div
-      class="pos-slider${dragging ? ' dragging' : ''}"
-      role="slider"
-      tabindex="0"
-      aria-valuemin="0"
-      aria-valuemax="100"
-      aria-valuenow=${shownFill}
-      aria-valuetext=${t('covers.position_open_value', this.hass, {
+    return html`<acp-rail-track
+      variant="dense"
+      .hass=${this.hass}
+      .axis=${axis}
+      .value=${
+        // The keyboard's LOGICAL stepping base. `shownFill` is the DRAWN value
+        // `aria-valuenow` shows, and `axisDisplayValue` is its own inverse, so
+        // this is the value it came from — the arrow keys still move the fill
+        // the way they point.
+        axisDisplayValue(shownFill, axis)
+      }
+      .fillPct=${shownFill}
+      .target=${target}
+      .targetPct=${targetFill}
+      .pending=${pending}
+      .pendingPct=${pendingFill}
+      .valueNow=${shownFill}
+      .valueText=${t('covers.position_open_value', this.hass, {
         pct: formatPercent(shown),
       })}
-      aria-label=${railName
+      .label=${railName
         ? `${railName} · ${t('covers.position_slider_label', this.hass)}`
         : t('covers.position_slider_label', this.hass)}
-      @click=${(e: MouseEvent) => this._onPosClick(e, id, axis)}
-      @pointerdown=${(e: PointerEvent) => this._onPosPointerDown(e, id, axis)}
-      @pointermove=${(e: PointerEvent) => this._onPosPointerMove(e, id, axis)}
-      @pointerup=${(e: PointerEvent) => this._onPosPointerEnd(e, id)}
-      @pointercancel=${(e: PointerEvent) => this._onPosPointerCancel(e, id)}
-      @keydown=${(e: KeyboardEvent) => this._onPosKeydown(e, id, shownFill, axis)}
+      .hint=${tip}
+      @click=${this._stop}
+      @pointerdown=${this._stop}
+      @pointermove=${(e: PointerEvent) => this._stopWhileDragging(e, id)}
+      @pointerup=${this._stop}
+      @pointercancel=${this._stop}
+      @keydown=${this._stopIfConsumed}
+      @acp-rail-set=${(e: CustomEvent<number>) => this._setCoverPosition(id, e.detail)}
+      @acp-rail-preview=${(e: CustomEvent<number | null>) => this._onRailPreview(id, e.detail)}
     >
-      <div class="pos-bar" ${tooltip(tip)}>
-        ${renderRailFill({
-          fillPct: shownFill,
-          target,
-          targetPct: targetFill,
-          prefix: 'pos-',
-          overlay:
-            pending !== null && pendingFill !== null
-              ? renderRailOverlay({
-                  hass: this.hass,
-                  liveFrac: shownFill,
-                  pendingFrac: pendingFill,
-                  pending,
-                  prefix: 'pos-',
-                })
-              : nothing,
-        })}
-      </div>
       ${dragging
         ? html`<div
             class="pos-readout"
+            slot="readout"
             style=${`left:clamp(16px, ${shownFill}%, calc(100% - 16px))`}
           >
             ${formatPercent(shown)}
           </div>`
         : nothing}
-    </div>`;
+    </acp-rail-track>`;
   }
 
   /** Glyph for one rail on a multi-cover tile, resolved through the same chain
@@ -1306,60 +1308,40 @@ export class AdaptiveCoverProTileCard extends LitElement {
     return full;
   }
 
-  /* The tile body is itself a tap target that opens the more-info dialog, so
-     every slider gesture stops propagation, exactly as `.controls` does — that
-     policy stays here, in the adapters, while the gesture itself belongs to
-     `RailGestures`. The controller never calls `preventDefault()` on
-     pointerdown: that would also suppress the trailing compatibility `click`
-     the commit rides on. Its preview is in the LOGICAL frame, like every other
-     value the card holds, so the drag preview, the readout and the eventual
-     service call are all the same number. */
-  private _onPosPointerDown = (e: PointerEvent, id: string, axis: ResolvedAxis): void => {
-    e.stopPropagation();
-    this._rail.pointerDown(e, id, axis);
-  };
-
-  private _onPosPointerMove = (e: PointerEvent, id: string, axis: ResolvedAxis): void => {
-    if (!this._rail.isActive(id)) return;
-    e.stopPropagation();
-    this._rail.pointerMove(e, id, axis);
-  };
-
-  /** Ends the gesture without writing: on pointerup the trailing `click`
-   *  commits, on pointercancel nothing is sent at all. */
-  private _onPosPointerEnd = (e: PointerEvent, id: string): void => {
-    e.stopPropagation();
-    this._rail.pointerUp(id);
-  };
-
-  private _onPosPointerCancel = (e: PointerEvent, id: string): void => {
-    e.stopPropagation();
-    this._rail.pointerCancel(id);
-  };
-
-  private _onPosClick(e: MouseEvent, cover: string | undefined, axis: ResolvedAxis): void {
-    e.stopPropagation();
-    this._setCoverPosition(
-      cover,
-      this._rail.valueFromEvent(e, e.currentTarget as HTMLElement, axis),
-    );
+  /**
+   * One rail's live drag value, reported by that rail.
+   *
+   * The rail owns the gesture; this card stays the single source of truth for
+   * what the gesture is allowed to redraw — the fill it pushes back down, the
+   * readout bubble, and the suppression of the pending band underneath. The
+   * value is LOGICAL, like every other value the card holds, so the preview,
+   * the readout and the eventual service call are all the same number.
+   */
+  private _onRailPreview(id: string, value: number | null): void {
+    if (value === null) this._posPreviews.delete(id);
+    else this._posPreviews.set(id, value);
+    this.requestUpdate();
   }
 
-  /** Standard WAI-ARIA slider keys: arrows ±1, Page ±10, Home/End to the ends.
-   *  `current` is the rail fraction that `aria-valuenow` shows, so it goes
-   *  through `axisDisplayValue` on the way in and comes back as a logical
-   *  value ready for the write — the arrow keys still move the fill the way
-   *  they point. */
-  private _onPosKeydown(
-    e: KeyboardEvent,
-    cover: string | undefined,
-    current: number,
-    axis: ResolvedAxis,
-  ): void {
-    const next = this._rail.keydownValue(e, axisDisplayValue(current, axis), axis);
-    if (next === null) return;
-    e.stopPropagation();
-    this._setCoverPosition(cover, next);
+  /* The tile body is itself a tap target that opens the more-info dialog, so
+     every slider gesture stops propagation, exactly as `.controls` does. That
+     policy is the card's, so it stays here — now on the rail's own tag, which
+     the gestures retarget to on their way out of its shadow root. */
+
+  /** Pointer moves are swallowed only while THIS rail is being dragged, so a
+   *  pointer merely crossing a rail still reaches whatever is listening above
+   *  the card. The preview map is the card's own record of that, already
+   *  updated by the time the event reaches the tag. */
+  private _stopWhileDragging(e: PointerEvent, id: string): void {
+    if (this._posPreviews.has(id)) e.stopPropagation();
+  }
+
+  /** Keys are swallowed only when the slider actually consumed them — Enter and
+   *  Space have to stay available to whatever wraps the card. `RailGestures`
+   *  calls `preventDefault()` on exactly the keys it handles, so that is the
+   *  signal rather than a second copy of the key map living out here. */
+  private _stopIfConsumed(e: KeyboardEvent): void {
+    if (e.defaultPrevented) e.stopPropagation();
   }
 
   private _stopCover(cover: string | undefined, axisId?: string): void {
@@ -1580,8 +1562,6 @@ export class AdaptiveCoverProTileCard extends LitElement {
   }
 
   public static styles = [
-    railOverlayStyles,
-    railFillStyles,
     css`
       :host {
         display: block;
@@ -1754,24 +1734,17 @@ export class AdaptiveCoverProTileCard extends LitElement {
       /* Target-vs-actual mini bar: right-aligned (margin-left:auto) so it fills the
        otherwise-empty space beneath the ↑■↓ buttons. Fill = live openness in the
        state color; the tick marks the auto/solar target. */
-      /* Interactive wrapper: carries the flex sizing the rail used to own, so the
-       visible 6px rail below is unchanged while the gesture target is bigger. */
-      .chrome-line .pos-slider {
+      /* The rail is acp-rail-track now, and everything about how it BEHAVES —
+       the relative box, the cursor, the touch-action, the ±8px grab area, the
+       focus ring, the mid-drag transition suppression — lives inside it. What
+       stays here is how it SITS in this row, which is the only part the card
+       knows: right-aligned into the space under the buttons, sized from the
+       shared rail tokens so a lone rail and a stacked rail match. */
+      .chrome-line acp-rail-track {
         margin-left: auto;
         align-self: center;
-        position: relative;
         flex: 0 1 var(--acp-rail-basis);
         max-width: var(--acp-rail-max);
-        cursor: pointer;
-        /* A touch-drag must move the fill, not scroll the dashboard. */
-        touch-action: none;
-      }
-      /* The rail is 6px tall — too thin to grab on a phone. Widen the hit area
-       vertically with an invisible absolute box, which adds no layout height. */
-      .chrome-line .pos-slider::before {
-        content: '';
-        position: absolute;
-        inset: -8px 0;
       }
       /* Multi-cover entry: the rails stack in the slot the single rail occupies,
        each labelled with its cover's glyph. The stack owns the flex sizing so
@@ -1858,30 +1831,21 @@ export class AdaptiveCoverProTileCard extends LitElement {
         height: var(--acp-rail-glyph-size);
         color: var(--secondary-text-color);
       }
-      .chrome-line .pos-stack .pos-slider {
+      .chrome-line .pos-stack acp-rail-track {
         margin-left: 0;
         flex: 1 1 auto;
         max-width: none;
-      }
-      /* Rails sit tight in the stack, so the ±8px grab boxes would overlap and
-       the upper rail would swallow the lower rail's top half. */
-      .chrome-line .pos-stack .pos-slider::before {
-        inset: -2px 0;
-      }
-      .chrome-line .pos-slider:focus-visible {
-        outline: 2px solid var(--primary-color);
-        outline-offset: 3px;
-        border-radius: 6px;
-      }
-      /* The 0.3s ease below smooths server-driven updates; mid-drag it would read
-       as the fill lagging behind the finger. */
-      .chrome-line .pos-slider.dragging .pos-fill {
-        transition: none;
+        /* Rails sit tight in the stack, so the element's default ±8px grab
+         boxes would overlap and the upper rail would swallow the lower rail's
+         top half. The knob is how that reaches inside the element now. */
+        --acp-rail-hit: -2px 0;
       }
       /* Live percentage while a drag is in flight. The hover tooltip carries the
        same number, but a tooltip is mouse-only — on a phone, the finger setting
        the position is also the thing covering the rail, so without this the user
-       is dragging blind. Sits in .pos-slider, NOT .pos-bar: the bar is
+       is dragging blind. Stays a light-DOM child of the rail — so this plain
+       class selector still reaches it — handed to acp-rail-track's readout
+       slot, which sits beside .pos-bar rather than inside it: the bar is
        overflow:hidden to clip the fill, which would clip this too. Pointer-events
        off so it never eats the drag it is reporting on. */
       .chrome-line .pos-readout {

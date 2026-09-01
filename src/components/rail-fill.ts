@@ -14,10 +14,14 @@ import { COVER_ACTIVE_COLOR } from '../lib/icons';
  * rails, same `clamp(1px, …, calc(100% - 1px))` marker geometry. That is
  * exactly the shape #271 flags as having already drifted once per feature.
  *
- * A render helper plus a stylesheet fragment, not its own custom element —
- * same rationale as `rail-overlay.ts`: each rail's track lives in its own
- * shadow root, and moving the fill/marker behind a nested one would put them
- * out of reach of the ~400 existing shadow-DOM assertions that query them.
+ * Still a render helper plus a stylesheet fragment rather than an element of
+ * its own — but no longer because the four rails each own a track. #271 Part 2
+ * merged those four tracks into `acp-rail-track`, and this helper is now that
+ * element's internal building block: it is called ONCE, inside the element's
+ * shadow root, instead of four times at four hand-written call sites. Keeping
+ * it a helper is what lets the element render the fill, the overlay, the
+ * decorations slot and the marker as siblings in one flat layer stack, which
+ * is the ordering contract `overlay`/`decorations` document below.
  *
  * `prefix` names the classes so a rail keeps its existing vocabulary: the
  * dialog bars use `fill`/`fill-closed`/`marker`, the dense tile rails
@@ -56,6 +60,16 @@ interface RailFillCommonOptions {
    *  the travel band and the marker on top of both, instead of leaving each
    *  rail to re-derive that ordering itself. */
   overlay?: TemplateResult | typeof nothing;
+  /** Per-surface marks drawn ON the rail, rendered between the overlay and the
+   *  target marker. Today that is the group rail's spread band and its
+   *  per-member ticks, which `acp-rail-track` hands down as a `<slot>` so they
+   *  stay light-DOM children of the surface whose CSS styles them.
+   *
+   *  Its place in the order is the same decision the `overlay` slot documents
+   *  above, one layer up: member marks read as measurements, so they belong
+   *  over the striped destination band; the solar target marker is the one
+   *  thing that must never be painted over, so it stays last. */
+  decorations?: TemplateResult | typeof nothing;
 }
 
 /** The two-segment dialog rails (`acp-cover-bar` / `acp-axis-bar`):
@@ -79,13 +93,13 @@ interface DenseRailFillOptions extends RailFillCommonOptions {
 export type RailFillOptions = DialogRailFillOptions | DenseRailFillOptions;
 
 export function renderRailFill(opts: RailFillOptions): TemplateResult {
-  const { fillPct, closedPct, target, targetPct, tooltip: tip, overlay } = opts;
+  const { fillPct, closedPct, target, targetPct, tooltip: tip, overlay, decorations } = opts;
   const prefix = opts.prefix ?? '';
   return html`<div class=${`${prefix}fill`} style="width:${fillPct}%"></div>
     ${closedPct !== undefined
       ? html`<div class=${`${prefix}fill-closed`} style="width:${closedPct}%"></div>`
       : nothing}
-    ${overlay ?? nothing}
+    ${overlay ?? nothing} ${decorations ?? nothing}
     ${target !== null
       ? html`<div
           class=${`${prefix}marker`}
@@ -105,10 +119,11 @@ export function renderRailFill(opts: RailFillOptions): TemplateResult {
  * the way `rail-overlay.ts` combines its band/pip. `.pos-bar` (the dense
  * rail's track) is included too: its markup stays host-owned (it also wraps
  * the drag readout), but its CSS was byte-identical between the tile card
- * and the group tile, so it belongs here alongside the rule it clips. This
- * `overflow: hidden` is intentionally DEAD on the group tile: it locally
- * overrides back to `overflow: visible` so its `.pos-tick` marks can overhang
- * the rail — that override is not something to "clean up".
+ * and the group tile, so it belongs here alongside the rule it clips. Its
+ * `overflow` is a knob rather than a literal: the group rail sets
+ * `--acp-rail-overflow: visible` so its `.pos-tick` marks can overhang the
+ * rail, which used to be a host-side rule override and could not survive the
+ * move behind `acp-rail-track`'s shadow boundary.
  */
 export const railFillStyles: CSSResult = css`
   /* Both segments derive from the cover colour (override, else --primary-color),
@@ -120,10 +135,18 @@ export const railFillStyles: CSSResult = css`
    track fills from the left as the cover closes — the same polarity as the
    tile rails and the compass wedge. Class names are kept (a rename buys
    nothing the comment does not) but the colours swapped with the meaning. */
+  /* --acp-rail-fill is the cross-boundary knob for the leading segment: the
+   dialog cover-bar recolours it with the error tint on a position mismatch,
+   and its own .mismatch .fill selector cannot reach in here now that the
+   markup lives inside acp-rail-track's shadow root. The fallback is the tint
+   below, so a host that sets nothing renders exactly as it always has. */
   .fill {
     height: 100%;
     flex-shrink: 0;
-    background: color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 50%, transparent);
+    background: var(
+      --acp-rail-fill,
+      color-mix(in srgb, var(--acp-cover-color, var(--primary-color)) 50%, transparent)
+    );
     transition: width 0.3s ease;
   }
   .fill-closed {
@@ -150,7 +173,11 @@ export const railFillStyles: CSSResult = css`
     height: 6px;
     border-radius: 6px;
     background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
-    overflow: hidden;
+    /* Clipping the fill to the rounded ends is the default. The group rail
+     needs its per-member ticks to overhang, and its own .pos-bar override no
+     longer reaches this rule from outside the element's shadow root, so the
+     override became this knob. */
+    overflow: var(--acp-rail-overflow, hidden);
   }
   /* One constant color for every rail, never the cover's state color: a rail
    that changed hue as it crossed open/closed read as a status light rather

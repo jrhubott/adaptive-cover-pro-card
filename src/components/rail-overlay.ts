@@ -14,13 +14,14 @@ import { tooltip } from '../lib/tooltip';
  * they were four copies of the same two elements and the same twenty lines of
  * CSS, which is exactly how the four rails drifted apart in the first place.
  *
- * Deliberately a render helper plus a stylesheet fragment rather than its own
- * custom element. The overlay is absolutely positioned against the track it
- * belongs to, so as a nested element it would need the track's box passed in;
- * and each rail's track lives in its own shadow root, so a nested element would
- * also move `.fill` / `.marker` out of reach of the ~400 existing assertions
- * that query them. This keeps one source of truth for the markup while leaving
- * each rail's DOM exactly where its tests, and its own CSS, expect it.
+ * A render helper plus a stylesheet fragment rather than an element of its own,
+ * for a reason that outlived the four separate tracks: the overlay is
+ * absolutely positioned against the track it belongs to, so as a nested element
+ * it would need that track's box passed in, and it has to sit in the SAME flat
+ * layer stack as the fill and the marker for DOM order to keep meaning paint
+ * order. #271 Part 2 merged the four tracks into `acp-rail-track`, which now
+ * makes this call once inside its own shadow root — the helper stayed a helper,
+ * and the element it feeds is where the single source of truth ended up.
  *
  * `prefix` names the classes so a rail keeps its existing vocabulary: the
  * dialog bars use `travel`/`pending-marker`, the dense tile rails `pos-travel`/

@@ -1,32 +1,40 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
 import { axisDisplayValue, axisFraction } from '../lib/axes';
 import { formatPercent } from '../lib/formatters';
 import { t } from '../lib/i18n';
 import { PendingMoves, isPendingVisible } from '../lib/pending-move';
-import { RailGestures } from '../lib/rail-gestures';
-import { renderRailOverlay, railOverlayStyles } from './rail-overlay';
-import { renderRailFill, railFillStyles } from './rail-fill';
-import { tooltip } from '../lib/tooltip';
+import type { RailAxis } from '../lib/rail-gestures';
+import './rail-track';
 
 /**
  * Reusable single-axis track row — generalizes the original venetian tilt
  * (slat-angle) row into any secondary cover axis.
  *
  * Shared between the cover-bar (stacked under each Position bar) and the tile
- * card (compact mini bar). It is purely presentational: it renders the
- * drag-to-set track plus the solar target marker and fires an `acp-tilt-set`
+ * card (compact mini bar). It is purely presentational: it wraps the shared
+ * `acp-rail-track` in a label + percentage row and fires an `acp-tilt-set`
  * CustomEvent (`detail: number` in [min,max]) when the gesture commits. The
  * host wires that to `setAxes()` so service routing stays in one place.
  *
- * Dragging paints a live preview (fill + percentage) client-side and dispatches
- * nothing; the commit rides the trailing compatibility `click` a real browser
- * fires at the release point, so the click path below is also the drag path and
- * a plain tap still behaves exactly as it always has. The track is a WAI-ARIA
+ * The container, its gestures and its ARIA belong to `acp-rail-track` (#271
+ * Part 2); this bar stays the source of truth for every value drawn on it and
+ * hands the answers down as properties. Dragging paints a live preview (fill +
+ * percentage) client-side and dispatches nothing: the rail reports the live
+ * value back through `acp-rail-preview`, this bar re-renders its own readout
+ * from it, and the commit arrives as `acp-rail-set` — which for this rail rides
+ * the trailing compatibility `click` a real browser fires at the release point,
+ * so a plain tap behaves exactly as a drag does. The track is a WAI-ARIA
  * slider: arrows step by 1 axis unit, Page keys by 10, Home/End jump to the
  * range ends.
+ *
+ * `acp-tilt-set` stays the ONLY event that leaves this element. The rail's own
+ * `acp-rail-set` / `acp-rail-preview` bubble and compose, so both are stopped
+ * here: letting them out would widen a public contract four hosts depend on,
+ * and any host listening for rail events above one of its own rails would then
+ * also hear every axis bar nested under it.
  *
  * `label`/`min`/`max`/`unit` default to the original tilt values (Tilt title,
  * 0–100, %), so an un-parameterized `acp-tilt-bar` renders exactly as before.
@@ -74,12 +82,11 @@ export class AxisBar extends LitElement {
    *  target hint. */
   @property({ attribute: false }) public targetHintKey: string | null = null;
 
-  /** The shared drag-to-set contract — see `lib/rail-gestures.ts`. Default
-   *  `'click'` mode, so the preview starts on contact and the commit rides the
-   *  trailing compatibility `click` into `_onClick`, exactly as before. One
-   *  track per bar, so the key is a constant. */
-  private _rail = new RailGestures(this);
-  private static readonly RAIL_KEY = 'axis';
+  /** The live value under the finger, mirrored out of `acp-rail-track` by its
+   *  `acp-rail-preview` event. The rail owns the gesture; this bar owns what
+   *  the gesture is allowed to redraw — the fill, the percentage readout, and
+   *  the suppression of the pending band underneath it. */
+  @state() private _drag: number | null = null;
 
   /** Where the HOST knows this axis is heading when the move did not come from
    *  this bar — an automatic pipeline move. The bar cannot derive it: it sees
@@ -111,7 +118,7 @@ export class AxisBar extends LitElement {
     if (!this.hass) return nothing;
     // A drag in flight overrides server truth for this bar's fill and readout;
     // once it ends, `actual` takes over again with no extra bookkeeping.
-    const drag = this._rail.preview(AxisBar.RAIL_KEY);
+    const drag = this._drag;
     const dragging = drag !== null;
     const shownValue = drag ?? this.actual;
     // `axisFraction` normalizes min/max onto the track and applies the same
@@ -140,52 +147,44 @@ export class AxisBar extends LitElement {
       >
         <span class="label">${label}</span>
         <span class="num">${formatPercent(shownValue)}</span>
-        <div
-          class="track ${this.disabled ? 'disabled' : ''}${dragging ? ' dragging' : ''}"
-          role="slider"
-          tabindex=${this.disabled ? -1 : 0}
-          aria-disabled=${this.disabled ? 'true' : 'false'}
-          aria-valuemin=${this.min}
-          aria-valuemax=${this.max}
-          aria-valuenow=${shownValue === null ? this.min : axisDisplayValue(shownValue, this)}
-          aria-valuetext=${formatPercent(shownValue)}
-          aria-label=${label}
-          @click=${this._onClick}
-          @pointerdown=${this._onPointerDown}
-          @pointermove=${this._onPointerMove}
-          @pointerup=${this._onPointerEnd}
-          @pointercancel=${this._onPointerCancel}
-          @keydown=${this._onKeydown}
-          ${tooltip(t(this.hintKey ?? 'covers.tilt_click_to_set', this.hass))}
-        >
-          ${renderRailFill({
-            fillPct: actualFrac,
-            closedPct: 100 - actualFrac,
-            target: this.target,
-            targetPct: targetFrac,
-            overlay:
-              pending !== null && pendingFrac !== null
-                ? renderRailOverlay({
-                    hass: this.hass,
-                    liveFrac: actualFrac,
-                    pendingFrac,
-                    pending,
-                  })
-                : nothing,
+        <acp-rail-track
+          variant="dialog"
+          .hass=${this.hass}
+          .axis=${this._axis()}
+          .value=${this.actual}
+          .fillPct=${actualFrac}
+          .closedPct=${100 - actualFrac}
+          .target=${this.target}
+          .targetPct=${targetFrac}
+          .pending=${pending}
+          .pendingPct=${pendingFrac}
+          .valueNow=${shownValue === null ? this.min : axisDisplayValue(shownValue, this)}
+          .valueText=${formatPercent(shownValue)}
+          .label=${label}
+          .hint=${t(this.hintKey ?? 'covers.tilt_click_to_set', this.hass)}
+          .targetTooltip=${
             // The VALUE, not the drawn fraction — those diverge the moment the
             // axis is mirrored or its range is not 0..100.
-            tooltip:
-              this.target === null
-                ? undefined
-                : tooltip(
-                    t(this.targetHintKey ?? 'covers.tilt_target_tooltip', this.hass, {
-                      pct: this.target,
-                    }),
-                  ),
-          })}
-        </div>
+            this.target === null
+              ? null
+              : t(this.targetHintKey ?? 'covers.tilt_target_tooltip', this.hass, {
+                  pct: this.target,
+                })
+          }
+          ?disabled=${this.disabled}
+          @acp-rail-set=${this._onRailSet}
+          @acp-rail-preview=${this._onRailPreview}
+        ></acp-rail-track>
       </div>
     `;
+  }
+
+  /** The gesture/ARIA range, rebuilt each render rather than passing `this`:
+   *  `min`/`max`/`openBlocksSun` are mutable reactive properties, and handing
+   *  the rail a stable reference would leave `aria-valuemin`/`aria-valuemax`
+   *  stale on the one update where only the range changed. */
+  private _axis(): RailAxis {
+    return { min: this.min, max: this.max, openBlocksSun: this.openBlocksSun };
   }
 
   private _commit(value: number): void {
@@ -195,48 +194,20 @@ export class AxisBar extends LitElement {
     );
   }
 
-  /* The four handlers below are thin adapters: the `disabled` gate is this
-     bar's own policy and stays here, the gesture itself belongs to
-     `RailGestures`. `this` doubles as the axis descriptor — the controller
-     takes `min`/`max`/`openBlocksSun` structurally, which is what lets a bar
-     whose range is a mutable reactive property use it. */
-  private _onClick(e: MouseEvent): void {
-    if (this.disabled) return;
-    this._commit(this._rail.valueFromEvent(e, e.currentTarget as HTMLElement, this));
-  }
-
-  private _onPointerDown = (e: PointerEvent): void => {
-    if (this.disabled) return;
-    this._rail.pointerDown(e, AxisBar.RAIL_KEY, this);
+  /* The rail commits (click, drag release, or the WAI-ARIA key map stepping in
+     axis units from `value`) and reports its live preview; both events stop
+     here so `acp-tilt-set` stays this element's only public one. */
+  private _onRailSet = (e: Event): void => {
+    e.stopPropagation();
+    this._commit((e as CustomEvent<number>).detail);
   };
 
-  private _onPointerMove = (e: PointerEvent): void => {
-    if (this.disabled) return;
-    this._rail.pointerMove(e, AxisBar.RAIL_KEY, this);
+  private _onRailPreview = (e: Event): void => {
+    e.stopPropagation();
+    this._drag = (e as CustomEvent<number | null>).detail;
   };
-
-  /** End of gesture. Never commits: on pointerup the browser's trailing `click`
-   *  reaches `_onClick`, and on pointercancel there is no commit at all. */
-  private _onPointerEnd = (): void => {
-    this._rail.pointerUp(AxisBar.RAIL_KEY);
-  };
-
-  private _onPointerCancel = (): void => {
-    this._rail.pointerCancel(AxisBar.RAIL_KEY);
-  };
-
-  /** Standard WAI-ARIA slider keys, stepping in axis units so a non-percent
-   *  range (e.g. slat angle -90..90) behaves sensibly. */
-  private _onKeydown(e: KeyboardEvent): void {
-    if (this.disabled) return;
-    const next = this._rail.keydownValue(e, this.actual, this);
-    if (next === null) return;
-    this._commit(next);
-  }
 
   public static styles = [
-    railOverlayStyles,
-    railFillStyles,
     css`
       :host {
         display: block;
@@ -283,40 +254,14 @@ export class AxisBar extends LitElement {
       .row.cover .num {
         text-align: right;
       }
-      /* Track mirrors the position bar: the LEADING segment carries the
-       sun-blocking portion and is solid, the trailing clear portion is pale —
-       same hue as the cover wedge. The leading segment is sized from the drawn
-       fraction, so on a mirrored axis it is the closed end. */
-      .track {
-        position: relative;
-        display: flex;
-        height: 10px;
-        background: var(--secondary-background-color, rgba(0, 0, 0, 0.08));
-        border-radius: 6px;
-        cursor: pointer;
-        overflow: hidden;
-        /* A touch-drag must move the fill, not scroll the page — own the gesture. */
-        touch-action: none;
-      }
-      .track:focus-visible {
-        outline: 2px solid var(--primary-color);
-        outline-offset: 2px;
-      }
-      /* The 0.3s ease below smooths server-driven updates; during a drag it would
-       read as the fill lagging behind the finger, so drop it for the gesture. */
-      .track.dragging .fill,
-      .track.dragging .fill-closed {
-        transition: none;
-      }
-      :host([compact]) .track,
-      .row.tile .track {
-        height: 6px;
-      }
-      /* Unavailable cover (issue #212): non-interactive track — no click-to-set,
-       matching the up/stop/down controls disabled elsewhere on the tile. */
-      .track.disabled {
-        cursor: default;
-        touch-action: auto;
+      /* The track itself — its box, its fill segments, its focus ring, its
+       drag/disabled states — belongs to acp-rail-track now. What is left here
+       is the one thing a host still decides: how tall the rail is. Both dense
+       placements shrink it to 6px, and the rule that used to say so reached
+       inside the element, so it goes through the knob instead. */
+      :host([compact]) acp-rail-track,
+      .row.tile acp-rail-track {
+        --acp-rail-height: 6px;
       }
     `,
   ];
