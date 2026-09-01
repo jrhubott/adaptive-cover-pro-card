@@ -855,10 +855,8 @@ export class AdaptiveCoverProTileCard extends LitElement {
           .kindOverride=${winnerKind ?? undefined}
           .integrationEnabled=${integrationEnabled}
           .slotNumber=${traceAttrs?.custom_position_active_slot}
-          .slotName=${resolveConfiguredName(
-            traceAttrs?.custom_position_active_slot_configured_name,
-            traceAttrs?.custom_position_active_slot_name,
-          ) ?? undefined}
+          .slotName=${resolveConfiguredName(traceAttrs?.custom_position_active_slot_name) ??
+          undefined}
           .pct=${resolveCustomPositionPct(traceAttrs, calculatedPosition) ?? undefined}
           .minimumMode=${traceAttrs?.custom_position_minimum_mode}
           .safetyActive=${safetyActive}

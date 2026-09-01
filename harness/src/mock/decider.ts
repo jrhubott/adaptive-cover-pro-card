@@ -13,14 +13,17 @@ export interface DecisionInput {
   sunElevation: number;
   /** Used by the custom_position handler — pick a slot that's enabled. */
   nowMs: number;
-  /** Simulate a pre-#1336 integration that hasn't shipped the slot's own
-   *  configured-name fields yet (issue #278 audit finding #3) — the state
-   *  every real install is in today. When true, `configured_name` and
-   *  `custom_position_active_slot_configured_name` are omitted entirely
-   *  (not even `undefined`-valued keys), so every read site exercises the
-   *  fallback to `sensor_name` / `custom_position_active_slot_name`. Mirrors
-   *  the harness's existing `legacyIntegration` "simulate an old integration"
-   *  pattern. Omitted/false = both new fields are sent (today's default). */
+  /** Simulate a pre-adaptive-cover-pro#867 integration that hasn't rolled the
+   *  slot's own `custom_name` out to the `custom_position_slots[]` snapshot
+   *  yet (issue #278 audit finding #3). When true, `custom_name` is omitted
+   *  entirely from every slot row (not even an `undefined`-valued key), so
+   *  the snapshot-level read site (the floor chip) exercises the fallback to
+   *  `sensor_name`. `custom_position_active_slot_name`'s configured-name-first
+   *  resolution predates and is independent of this snapshot-field rollout
+   *  (per the maintainer), so it continues to resolve correctly regardless of
+   *  this flag. Mirrors the harness's existing `legacyIntegration` "simulate
+   *  an old integration" pattern. Omitted/false = `custom_name` is sent
+   *  (today's default). */
   omitConfiguredSlotNames?: boolean;
 }
 
@@ -106,17 +109,13 @@ export function decide(input: DecisionInput): DecisionResult {
     custom_position_minimum_mode:
       winner === 'custom_position' ? activeSlotMinMode(entry) : undefined,
     custom_position_active_slot_name:
-      winner === 'custom_position' ? activeSlotSensorName(entry) : undefined,
-    custom_position_active_slot_configured_name:
-      winner === 'custom_position' && !omitConfiguredSlotNames
-        ? activeSlotConfiguredName(entry)
-        : undefined,
+      winner === 'custom_position' ? activeSlotName(entry) : undefined,
     custom_position_slots: entry.slots.map((s) => ({
       slot: s.slot,
       enabled: s.enabled,
       sensor: `sensor.custom_${entry.entry_id}_slot${s.slot}`,
       sensor_name: s.sensorFriendlyName ?? s.name,
-      ...(omitConfiguredSlotNames ? {} : { configured_name: s.name }),
+      ...(omitConfiguredSlotNames ? {} : { custom_name: s.name }),
       position: s.position,
       priority: s.priority,
       min_mode: s.min_mode,
@@ -300,19 +299,13 @@ function activeSlot(entry: HarnessEntry): 1 | 2 | 3 | 4 | 5 | undefined {
   return winningSlot(entry)?.slot;
 }
 
-/** The winning slot's own configured name — mirrors the card's
- *  `custom_position_active_slot_configured_name` (issue #278). */
-function activeSlotConfiguredName(entry: HarnessEntry): string | undefined {
-  return winningSlot(entry)?.name;
-}
-
-/** The winning slot's bound sensor's friendly name — mirrors the card's
- *  `custom_position_active_slot_name`. Falls back to the slot's own name when
- *  no distinct `sensorFriendlyName` is configured (issue #278), matching most
- *  real setups where the two happen to be the same string. */
-function activeSlotSensorName(entry: HarnessEntry): string | undefined {
+/** The winning slot's name for display — mirrors the card's
+ *  `custom_position_active_slot_name`, which already resolves the slot's own
+ *  configured name first, server-side, falling back to the bound sensor's
+ *  friendly name only when the slot has none of its own (issue #278). */
+function activeSlotName(entry: HarnessEntry): string | undefined {
   const slot = winningSlot(entry);
-  return slot ? (slot.sensorFriendlyName ?? slot.name) : undefined;
+  return slot ? (slot.name ?? slot.sensorFriendlyName) : undefined;
 }
 
 function activeSlotMinMode(entry: HarnessEntry): boolean | undefined {
@@ -392,17 +385,13 @@ export function scriptedDecision(
       custom_position_minimum_mode:
         winner === 'custom_position' ? activeSlotMinMode(entry) : undefined,
       custom_position_active_slot_name:
-        winner === 'custom_position' ? activeSlotSensorName(entry) : undefined,
-      custom_position_active_slot_configured_name:
-        winner === 'custom_position' && !omitConfiguredSlotNames
-          ? activeSlotConfiguredName(entry)
-          : undefined,
+        winner === 'custom_position' ? activeSlotName(entry) : undefined,
       custom_position_slots: entry.slots.map((s) => ({
         slot: s.slot,
         enabled: s.enabled,
         sensor: `sensor.custom_${entry.entry_id}_slot${s.slot}`,
         sensor_name: s.sensorFriendlyName ?? s.name,
-        ...(omitConfiguredSlotNames ? {} : { configured_name: s.name }),
+        ...(omitConfiguredSlotNames ? {} : { custom_name: s.name }),
         position: s.position,
         priority: s.priority,
         min_mode: s.min_mode,

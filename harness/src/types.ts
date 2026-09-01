@@ -92,10 +92,10 @@ export interface CustomPositionSlotCfg {
   slot: 1 | 2 | 3 | 4 | 5;
   enabled: boolean;
   position: number;
-  /** The slot's own configured name — mirrors the card's
-   *  `configured_name` / `custom_position_active_slot_configured_name`
-   *  (issue #278). This is what scenarios have always set; it's kept as the
-   *  "name" the harness UI edits. */
+  /** The slot's own configured name — mirrors the card's `custom_name`
+   *  (on the `custom_position_slots[]` snapshot) / `custom_position_active_slot_name`
+   *  (trace-level, issue #278). This is what scenarios have always set; it's
+   *  kept as the "name" the harness UI edits. */
   name: string;
   /** The bound sensor's HA friendly_name, when it differs from the slot's own
    *  `name` (issue #278). Absent (default) means the sensor and slot share
@@ -474,14 +474,15 @@ export interface HarnessConfig {
    *  the mock hass omits the `set_axes` service, so the card exercises its
    *  legacy fallback (synthesized axes + per-axis set_position/set_tilt). */
   legacyIntegration: boolean;
-  /** Simulate a pre-jrhubott/adaptive-cover-pro#1336 integration — i.e. every
-   *  real install today — that doesn't send the slot's own configured name
-   *  yet (issue #278 audit finding #3): when true, the decision trace omits
-   *  `custom_position_active_slot_configured_name` and every
-   *  `custom_position_slots[]` row omits `configured_name`, so the card falls
-   *  back to `custom_position_active_slot_name` / `sensor_name` — the branch
-   *  that's otherwise unreachable in the harness because the mock decider
-   *  emits both new fields unconditionally. */
+  /** Simulate a pre-jrhubott/adaptive-cover-pro#867 integration that hasn't
+   *  rolled the slot's own `custom_name` out to the `custom_position_slots[]`
+   *  snapshot yet (issue #278 audit finding #3): when true, every slot row
+   *  omits `custom_name`, so the snapshot-level read site (the floor chip)
+   *  falls back to `sensor_name` — the branch that's otherwise unreachable in
+   *  the harness because the mock decider emits `custom_name` unconditionally.
+   *  `custom_position_active_slot_name`'s configured-name-first resolution
+   *  predates and is independent of this snapshot-field rollout (per the
+   *  maintainer), so it keeps resolving correctly regardless of this flag. */
   omitConfiguredSlotNames: boolean;
   /** Entries to simulate (1..4). */
   entries: HarnessEntry[];

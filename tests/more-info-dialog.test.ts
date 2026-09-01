@@ -453,13 +453,13 @@ describe('acp-more-info-dialog: slot management', () => {
     expect(labels[1]).toContain('Movie');
   });
 
-  it('prefers configured_name over sensor_name in the slot row (issue #278 audit finding #5)', async () => {
-    // sensor_name is the bound sensor's HA friendly_name; configured_name is
+  it('prefers custom_name over sensor_name in the slot row (issue #278 audit finding #5)', async () => {
+    // sensor_name is the bound sensor's HA friendly_name; custom_name is
     // the slot's own custom_position_name_N. The row must show the latter.
     const mismatchedSlots = [
       {
         ...slots[0],
-        configured_name: 'Living Room Window Open',
+        custom_name: 'Living Room Window Open',
         sensor_name: 'Living Room Shades Default',
       },
       slots[1],
@@ -591,13 +591,15 @@ describe('acp-more-info-dialog: slot management', () => {
 });
 
 // Issue #278 audit finding #5: the dialog header badge's `.slotName` wiring
-// (`custom_position_active_slot_configured_name ?? custom_position_active_slot_name`)
-// had no regression guard at all — these lock in the preference order.
-describe('acp-more-info-dialog: header badge slot name preference (issue #278 audit)', () => {
+// reads `custom_position_active_slot_name` directly — that field already
+// resolves the slot's own configured name first, server-side, falling back
+// to the bound sensor's friendly name only when the slot has none. These
+// lock in that it renders and that a blank/whitespace value still degrades
+// to `#N` (resolveConfiguredName's blank-guard, audit finding #2).
+describe('acp-more-info-dialog: header badge slot name (issue #278 audit)', () => {
   function customPositionHass(
     overrides: Partial<{
-      sensorName: string | null;
-      configuredName: string | null;
+      slotName: string | null;
     }> = {},
   ): HomeAssistant {
     return hass({
@@ -606,11 +608,8 @@ describe('acp-more-info-dialog: header badge slot name preference (issue #278 au
       traceExtraAttrs: {
         custom_position_active_slot: 1,
         custom_position_minimum_mode: false,
-        ...('sensorName' in overrides
-          ? { custom_position_active_slot_name: overrides.sensorName }
-          : {}),
-        ...('configuredName' in overrides
-          ? { custom_position_active_slot_configured_name: overrides.configuredName }
+        ...('slotName' in overrides
+          ? { custom_position_active_slot_name: overrides.slotName }
           : {}),
       },
     });
@@ -621,30 +620,25 @@ describe('acp-more-info-dialog: header badge slot name preference (issue #278 au
     return badge!.shadowRoot!.querySelector('span.badge')!.textContent?.trim() ?? '';
   }
 
-  it('prefers the configured name over the sensor name when both are present', async () => {
+  it('renders the slot name from custom_position_active_slot_name', async () => {
     const el = await mount({
-      hass: customPositionHass({
-        sensorName: 'Living Room Shades Default',
-        configuredName: 'Living Room Window Open',
-      }),
+      hass: customPositionHass({ slotName: 'Living Room Window Open' }),
       discovered: discovered(),
       open: true,
     });
-    const text = headerBadgeText(el);
-    expect(text).toContain('Living Room Window Open');
-    expect(text).not.toContain('Living Room Shades Default');
+    expect(headerBadgeText(el)).toContain('Living Room Window Open');
   });
 
-  it('falls back to the sensor name when the configured name is absent', async () => {
+  it('treats a blank/whitespace-only slot name as absent, falling back to #N', async () => {
     const el = await mount({
-      hass: customPositionHass({ sensorName: 'Living Room Shades Default' }),
+      hass: customPositionHass({ slotName: '   ' }),
       discovered: discovered(),
       open: true,
     });
-    expect(headerBadgeText(el)).toContain('Living Room Shades Default');
+    expect(headerBadgeText(el)).toContain('#1');
   });
 
-  it('falls back to #N when neither the configured name nor the sensor name is present', async () => {
+  it('falls back to #N when the slot name is absent', async () => {
     const el = await mount({
       hass: customPositionHass(),
       discovered: discovered(),
