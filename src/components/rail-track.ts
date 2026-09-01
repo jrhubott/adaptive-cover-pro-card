@@ -142,6 +142,25 @@ export class RailTrack extends LitElement {
    *  rather than on every pointer event. */
   private _preview: number | null = null;
 
+  /**
+   * A drag that ends because the rail went away still ended.
+   *
+   * {@link RailGestures} clears its gesture in `hostDisconnected`, but that
+   * happens INSIDE this element and the surface outside hears nothing — so the
+   * host would keep painting a preview (the tile's readout, the group's
+   * collapsed spread, every rail's suppressed pending band) for a gesture that
+   * no longer exists. Before the merge the controller lived on the host and
+   * cleared with it, so this announcement is what keeps that true.
+   *
+   * After `super`, so the controller has already cleared and `preview()` is
+   * genuinely null. Never a commit: a gesture interrupted by teardown is
+   * discarded, exactly as `pointercancel` is.
+   */
+  public override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this._emitPreview();
+  }
+
   private _rail(): RailGestures {
     if (!this._gestures) {
       this._gestures = new RailGestures(this, {

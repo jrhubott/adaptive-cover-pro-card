@@ -646,6 +646,50 @@ describe('acp-rail-track — disabled (#212 unavailable cover, group not control
   });
 });
 
+// A drag that ends because the rail went away still ended. RailGestures clears
+// its gesture in `hostDisconnected`, but that clearing happens INSIDE the rail
+// and the surface outside it hears nothing — so before this the host kept
+// painting a preview (readout, collapsed spread, suppressed pending band) for a
+// gesture that no longer existed. Regression introduced by the merge itself:
+// the controller used to live on the host and clear with it.
+describe('acp-rail-track — disconnect ends the gesture', () => {
+  it('emits the null preview when it is removed mid-drag', async () => {
+    const el = await mount({ variant: 'dense', fillPct: 35, target: null, targetPct: 0 });
+    const node = stubRect(slider(el));
+    const r = record(el);
+    node.dispatchEvent(down(20));
+    expect(r.previews).toEqual([20]);
+    el.remove();
+    expect(r.previews).toEqual([20, null]);
+  });
+
+  it('stays silent when it is removed with no gesture in flight', async () => {
+    const el = await mount({ variant: 'dense', fillPct: 35, target: null, targetPct: 0 });
+    const r = record(el);
+    el.remove();
+    expect(r.previews).toEqual([]);
+    expect(r.sets).toEqual([]);
+  });
+
+  it('does not commit on the way out — a discarded drag writes nothing', async () => {
+    const el = await mount({
+      variant: 'dense',
+      commitOn: 'release',
+      dragThresholdPx: 4,
+      fillPct: 35,
+      target: null,
+      targetPct: 0,
+    });
+    const node = stubRect(slider(el));
+    const r = record(el);
+    node.dispatchEvent(down(20));
+    node.dispatchEvent(move(80));
+    el.remove();
+    expect(r.sets).toEqual([]);
+    expect(r.previews).toEqual([80, null]);
+  });
+});
+
 describe('acp-rail-track — .dragging lifecycle', () => {
   it('marks the container while a preview is live and clears it on release', async () => {
     const el = await mount({ variant: 'dense', fillPct: 35, target: null, targetPct: 0 });
