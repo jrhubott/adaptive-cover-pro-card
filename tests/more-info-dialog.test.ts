@@ -453,6 +453,32 @@ describe('acp-more-info-dialog: slot management', () => {
     expect(labels[1]).toContain('Movie');
   });
 
+  it('prefers configured_name over sensor_name in the slot row (issue #278 audit finding #5)', async () => {
+    // sensor_name is the bound sensor's HA friendly_name; configured_name is
+    // the slot's own custom_position_name_N. The row must show the latter.
+    const mismatchedSlots = [
+      {
+        ...slots[0],
+        configured_name: 'Living Room Window Open',
+        sensor_name: 'Living Room Shades Default',
+      },
+      slots[1],
+      slots[2],
+      slots[3],
+    ];
+    const el = await mount({
+      hass: hass({ traceExtraAttrs: { custom_position_slots: mismatchedSlots } }),
+      discovered: discovered(),
+      open: true,
+    });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    const labels = Array.from(el.shadowRoot!.querySelectorAll('.slot-row .slot-label')).map(
+      (el) => el.textContent?.trim() ?? '',
+    );
+    expect(labels[0]).toBe('Living Room Window Open');
+  });
+
   it('shows the floor badge only when min_mode is true', async () => {
     const el = await mount({
       hass: hass({ traceExtraAttrs: { custom_position_slots: slots } }),
@@ -561,6 +587,70 @@ describe('acp-more-info-dialog: slot management', () => {
     (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
     await el.updateComplete;
     expect(el.shadowRoot!.querySelector('.slots-section')).toBeNull();
+  });
+});
+
+// Issue #278 audit finding #5: the dialog header badge's `.slotName` wiring
+// (`custom_position_active_slot_configured_name ?? custom_position_active_slot_name`)
+// had no regression guard at all — these lock in the preference order.
+describe('acp-more-info-dialog: header badge slot name preference (issue #278 audit)', () => {
+  function customPositionHass(
+    overrides: Partial<{
+      sensorName: string | null;
+      configuredName: string | null;
+    }> = {},
+  ): HomeAssistant {
+    return hass({
+      winner: 'custom_position',
+      trace: [{ handler: 'custom_position_1', matched: true, position: 55, reason: '' }],
+      traceExtraAttrs: {
+        custom_position_active_slot: 1,
+        custom_position_minimum_mode: false,
+        ...('sensorName' in overrides
+          ? { custom_position_active_slot_name: overrides.sensorName }
+          : {}),
+        ...('configuredName' in overrides
+          ? { custom_position_active_slot_configured_name: overrides.configuredName }
+          : {}),
+      },
+    });
+  }
+
+  function headerBadgeText(el: DialogLike): string {
+    const badge = el.shadowRoot!.querySelector('.header acp-tile-badge');
+    return badge!.shadowRoot!.querySelector('span.badge')!.textContent?.trim() ?? '';
+  }
+
+  it('prefers the configured name over the sensor name when both are present', async () => {
+    const el = await mount({
+      hass: customPositionHass({
+        sensorName: 'Living Room Shades Default',
+        configuredName: 'Living Room Window Open',
+      }),
+      discovered: discovered(),
+      open: true,
+    });
+    const text = headerBadgeText(el);
+    expect(text).toContain('Living Room Window Open');
+    expect(text).not.toContain('Living Room Shades Default');
+  });
+
+  it('falls back to the sensor name when the configured name is absent', async () => {
+    const el = await mount({
+      hass: customPositionHass({ sensorName: 'Living Room Shades Default' }),
+      discovered: discovered(),
+      open: true,
+    });
+    expect(headerBadgeText(el)).toContain('Living Room Shades Default');
+  });
+
+  it('falls back to #N when neither the configured name nor the sensor name is present', async () => {
+    const el = await mount({
+      hass: customPositionHass(),
+      discovered: discovered(),
+      open: true,
+    });
+    expect(headerBadgeText(el)).toContain('#1');
   });
 });
 

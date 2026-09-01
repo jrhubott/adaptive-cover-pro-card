@@ -89,12 +89,14 @@ export function buildStates(cfg: HarnessConfig): GeneratedStates {
             sun.azimuth,
             sun.elevation,
             cfg.scriptedAlsoMatched,
+            cfg.omitConfiguredSlotNames,
           )
         : decide({
             entry,
             sunAzimuth: sun.azimuth,
             sunElevation: sun.elevation,
             nowMs: now.getTime(),
+            omitConfiguredSlotNames: cfg.omitConfiguredSlotNames,
           });
     decisions.set(entry.entry_id, decision);
 

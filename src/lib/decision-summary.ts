@@ -9,13 +9,44 @@ import type { DecisionStep, DecisionTraceAttributes } from '../types';
 import type { HomeAssistant } from 'custom-card-helpers';
 import { formatPercent } from './formatters';
 
+/**
+ * Resolve a set of candidate slot-name strings, in preference order, to the
+ * first non-empty, trimmed string — or `null` when every candidate is
+ * absent, `null`, empty, or whitespace-only.
+ *
+ * The shared normalization for every "what do we call this slot?" read site
+ * (issue #278 audit findings #1/#2). Before this, `''` degraded three
+ * different, inconsistent ways depending on the call site: the floor chip's
+ * `name ? …` check treated it as absent, `buildDecisionSentence`'s
+ * `slotName ? …` check also treated it as absent, but
+ * `more-info-dialog.ts`'s `slot.configured_name ?? slot.sensor_name ?? '#'+slot`
+ * did NOT — `??` only skips `null`/`undefined`, so an empty string slipped
+ * through as a blank visible label. Trimming also catches whitespace-only
+ * values (`'   '`), which plain truthiness/`??` checks would treat as present.
+ */
+export function resolveConfiguredName(
+  ...candidates: Array<string | null | undefined>
+): string | null {
+  for (const candidate of candidates) {
+    if (candidate == null) continue;
+    const trimmed = candidate.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return null;
+}
+
 export interface ActiveFloor {
   slot: 1 | 2 | 3 | 4 | 5;
   position: number;
   /**
-   * The slot's configured `sensor_name`, or null when the slot is unnamed —
-   * the chip omits the name segment entirely rather than falling back to a
-   * `#N` label.
+   * The slot's own `configured_name` when the integration sends it (issue
+   * #278), else the trace-level `custom_position_active_slot_configured_name`
+   * when this snapshot row is the trace's active slot (split-rollout guard,
+   * audit finding #8), else `sensor_name` on older/partial integrations, or
+   * null when nothing qualifies — the chip omits the name segment entirely
+   * rather than falling back to a `#N` label. Resolved via
+   * {@link resolveConfiguredName}, so an empty/whitespace-only string is
+   * treated the same as absent.
    */
   name: string | null;
   /**
@@ -48,7 +79,14 @@ export interface ActiveFloor {
  * (position unavailable), clamping is conservatively false.
  */
 export function resolveActiveMinModeFloor(
-  attrs: Pick<DecisionTraceAttributes, 'custom_position_slots'> | undefined,
+  attrs:
+    | Pick<
+        DecisionTraceAttributes,
+        | 'custom_position_slots'
+        | 'custom_position_active_slot'
+        | 'custom_position_active_slot_configured_name'
+      >
+    | undefined,
   hassStates: HomeAssistant['states'],
   targetPosition: number | null,
 ): ActiveFloor | null {
@@ -70,10 +108,21 @@ export function resolveActiveMinModeFloor(
 
   const position = best.position!;
   const priority = best.priority ?? null;
+  // An integration could ship the trace-level configured name before (or
+  // without) the per-slot one, or vice versa — the two are independent,
+  // separately-added fields (audit finding #8). Only borrow the trace-level
+  // name when the snapshot row IS the trace's active slot; it says nothing
+  // about any other slot. With both new fields absent this reduces to
+  // `best.sensor_name ?? null`, matching pre-#278 behavior exactly.
+  const isActiveSlot = attrs?.custom_position_active_slot === best.slot;
   return {
     slot: best.slot,
     position,
-    name: best.sensor_name ?? null,
+    name: resolveConfiguredName(
+      best.configured_name,
+      isActiveSlot ? attrs?.custom_position_active_slot_configured_name : undefined,
+      best.sensor_name,
+    ),
     clamping: targetPosition !== null && position > targetPosition,
     sensorOn: true,
     priority,
@@ -195,6 +244,7 @@ export function buildDecisionSentence(
     | 'custom_position_active_slot'
     | 'custom_position_minimum_mode'
     | 'custom_position_active_slot_name'
+    | 'custom_position_active_slot_configured_name'
     | 'custom_position_slots'
   >,
   // winnerHandler is reserved for callers that want to verify the winner
@@ -231,6 +281,7 @@ function formatStep(
     | 'custom_position_active_slot'
     | 'custom_position_minimum_mode'
     | 'custom_position_active_slot_name'
+    | 'custom_position_active_slot_configured_name'
     | 'custom_position_slots'
   >,
   labels: Record<string, string>,
@@ -242,8 +293,16 @@ function formatStep(
 
   if (handler !== 'custom_position') return `${baseLabel}${pct}`.trimEnd();
 
-  const slotLabel = attrs.custom_position_active_slot_name
-    ? `${baseLabel} · ${attrs.custom_position_active_slot_name}`
+  // Prefer the slot's own configured name (issue #278) over the bound
+  // sensor's friendly name; fall back to the sensor name on integrations
+  // that don't yet send the configured-name field. resolveConfiguredName
+  // also treats an empty/whitespace-only string as absent (audit finding #2).
+  const slotName = resolveConfiguredName(
+    attrs.custom_position_active_slot_configured_name,
+    attrs.custom_position_active_slot_name,
+  );
+  const slotLabel = slotName
+    ? `${baseLabel} · ${slotName}`
     : attrs.custom_position_active_slot
       ? `${baseLabel} #${attrs.custom_position_active_slot}`
       : baseLabel;

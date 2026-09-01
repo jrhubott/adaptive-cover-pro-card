@@ -330,6 +330,7 @@ function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): Harne
     theme: 'light',
     language: 'en',
     legacyIntegration: false,
+    omitConfiguredSlotNames: false,
     entries: [makeEntry({ entry_id: 'south_window', title: 'Living Room', window_azimuth: 180 })],
     decisionMode: 'derived',
     scriptedWinner: 'solar',
@@ -754,7 +755,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'ha-tile-badge-row',
     label: 'HA tile layout — badges on the dedicated row',
     description:
-      "HA-tile layout match (#208 follow-up): the detailed Tile card now mirrors HA's native tile — a state-tinted 36px icon shape, a name-over-state label column, and HA-metric control buttons — with ACP's own chrome (Auto / Manual / floor badges) dropped onto a dedicated full-width row that starts at the label's left edge. This scenario arms a manual override AND an enabled, named min-mode floor slot ('Aeration floor'), so the badge row shows the Manual badge alongside the ↥ Aeration floor · 40% chip (#278: the floor chip now surfaces the slot's configured name); the top two rows read exactly like a native HA tile. Regression guard: the floor chip must ride this badge row, not collapse the detailed grid back to the one-line layout.",
+      "HA-tile layout match (#208 follow-up): the detailed Tile card now mirrors HA's native tile — a state-tinted 36px icon shape, a name-over-state label column, and HA-metric control buttons — with ACP's own chrome (Auto / Manual / floor badges) dropped onto a dedicated full-width row that starts at the label's left edge. This scenario arms a manual override AND an enabled, named min-mode floor slot whose configured name ('Aeration floor') deliberately differs from its bound sensor's friendly name ('Living Room Shades Default') — the mismatch issue #278 reported. The badge row shows the Manual badge alongside the ↥ Aeration floor · 40% chip: the slot's own configured name, not the sensor's friendly name. The top two rows read exactly like a native HA tile. Regression guard: the floor chip must ride this badge row, not collapse the detailed grid back to the one-line layout, and must keep surfacing the configured name over the sensor name.",
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'ha-tile-badge-row';
@@ -776,6 +777,9 @@ export const SCENARIOS: Scenario[] = [
           // Enable the priority-90 min-mode floor slot (slot 4) so its sensor
           // arms — with manual override winning (manual precedes custom_position
           // in HANDLER_ORDER), the floor stays a constraint and its ↥ chip shows.
+          // Slot 4's sensorFriendlyName deliberately differs from its name
+          // (issue #278) so the chip's "configured name, not sensor name"
+          // preference is actually exercised, not just coincidentally correct.
           slots: [
             {
               slot: 1,
@@ -806,6 +810,7 @@ export const SCENARIOS: Scenario[] = [
               enabled: true,
               position: 40,
               name: 'Aeration floor',
+              sensorFriendlyName: 'Living Room Shades Default',
               min_mode: true,
               priority: 90,
             },
@@ -826,6 +831,42 @@ export const SCENARIOS: Scenario[] = [
       // Arm the manual override on the built entry (makeEntry's `flags` override
       // wants the full flag set; mutating the returned full object is simpler).
       c.entries[0].flags.manual_override = true;
+      return c;
+    },
+  },
+  {
+    id: 'custom-position-name-mismatch-winner',
+    label: 'Custom position wins — configured name ≠ sensor name (#278)',
+    description:
+      "Issue #278 audit finding #4: `ha-tile-badge-row` only exercises the per-slot SNAPSHOT mismatch (the floor chip's `configured_name`), because it wins via manual override — `custom_position_active_slot_configured_name` stays undefined there. Here the custom-position slot itself WINS the decision outright (not as a min-mode floor riding under another winner), with its configured name ('Reading nook') deliberately differing from its bound sensor's HA friendly name ('Office Window Trigger'). That's what populates the TRACE-level `custom_position_active_slot_configured_name` field, which feeds the tile's direct-action badge and the decision-strip sentence (\"Custom Position · {name}\") — both must show the configured name, never the sensor's friendly name.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 13 * 60);
+      c.scenario = 'custom-position-name-mismatch-winner';
+      c.entries[0].flags.automatic_control = true;
+      c.entries[0].target_position = 55;
+      c.entries[0].covers[0].position = 55;
+      c.entries[0].slots = [
+        {
+          slot: 1,
+          enabled: true,
+          position: 55,
+          name: 'Reading nook',
+          sensorFriendlyName: 'Office Window Trigger',
+          min_mode: false,
+          priority: 60,
+        },
+        { slot: 2, enabled: false, position: 20, name: 'Privacy', min_mode: false, priority: 70 },
+        {
+          slot: 3,
+          enabled: false,
+          position: 100,
+          name: 'Welcome home',
+          min_mode: false,
+          priority: 50,
+        },
+        { slot: 4, enabled: false, position: 50, name: 'Floor', min_mode: true, priority: 90 },
+        { slot: 5, enabled: false, position: 0, name: 'Safety', min_mode: false, priority: 100 },
+      ];
       return c;
     },
   },
@@ -3352,6 +3393,7 @@ export function normalizeConfig(cfg: HarnessConfig): HarnessConfig {
     ...cfg,
     stageHeight: cfg.stageHeight ?? 0,
     legacyIntegration: cfg.legacyIntegration ?? false,
+    omitConfiguredSlotNames: cfg.omitConfiguredSlotNames ?? false,
     tile: {
       ...cfg.tile,
       badges: { ...defaultBadges(), ...(cfg.tile?.badges ?? {}) },

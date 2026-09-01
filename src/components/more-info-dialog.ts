@@ -16,6 +16,7 @@ import {
 import {
   buildDecisionSentence,
   isWinningSlotSafety,
+  resolveConfiguredName,
   resolveCustomPositionPct,
 } from '../lib/decision-summary';
 import {
@@ -249,7 +250,10 @@ export class MoreInfoDialog extends LitElement {
                             ? attrs?.custom_position_active_slot
                             : undefined}
                           .slotName=${h === 'custom_position'
-                            ? attrs?.custom_position_active_slot_name
+                            ? (resolveConfiguredName(
+                                attrs?.custom_position_active_slot_configured_name,
+                                attrs?.custom_position_active_slot_name,
+                              ) ?? undefined)
                             : undefined}
                           .pct=${h === 'custom_position'
                             ? (resolveCustomPositionPct(attrs, target) ?? undefined)
@@ -468,7 +472,11 @@ export class MoreInfoDialog extends LitElement {
   }
 
   private _renderSlotRow(slot: CustomPositionSlotSnapshot): TemplateResult {
-    const label = slot.sensor_name ?? `#${slot.slot}`;
+    // Prefer the slot's own configured name (issue #278) over the bound
+    // sensor's friendly name; fall back further to the bare slot number.
+    // resolveConfiguredName also treats an empty/whitespace-only string as
+    // absent (audit finding #2) rather than rendering a blank label.
+    const label = resolveConfiguredName(slot.configured_name, slot.sensor_name) ?? `#${slot.slot}`;
     // v2.28.0+ multi-sensor / template slots get a compact indicator chip. The
     // tooltip surfaces the sensor count and combine mode; the chip itself is an
     // icon so it needs no new i18n string.
