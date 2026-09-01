@@ -648,6 +648,74 @@ describe('group tile — position rail gestures (#267 characterization)', () => 
     expect(fillWidth(el)).toContain('width:40%');
   });
 
+  // The pointer-move gate has to survive the rail being torn out mid-gesture.
+  // `RailGestures.isActive()` — what this tile's `_railActive` flag replaced —
+  // also cleared on host disconnect; the flag only saw pointerup/pointercancel
+  // on the tag, and a rail removed under the finger produces neither. The stale
+  // `true` then made the NEXT rail swallow every pointermove until a fresh
+  // down/up pair. Driven entirely through dispatched events plus the card's own
+  // public `show_position_bar` option — nothing reaches into gesture state.
+  it('releases the pointer-move gate when the rail is removed mid-drag', async () => {
+    const { el, slider } = await mountRail();
+    const bar = el as GroupTileLike & { showPositionBar: boolean };
+    slider.dispatchEvent(down(20));
+    slider.dispatchEvent(move(80));
+    await railSettled(el);
+
+    // The rail goes away under the finger: no pointerup ever reaches the tag.
+    bar.showPositionBar = false;
+    await railSettled(el);
+    expect(el.shadowRoot!.querySelector('acp-rail-track')).toBeNull();
+    bar.showPositionBar = true;
+    await railSettled(el);
+
+    // A pointer merely crossing the fresh rail must still reach the dashboard.
+    const seen: string[] = [];
+    const spy = (): void => {
+      seen.push('move');
+    };
+    document.addEventListener('pointermove', spy);
+    try {
+      railRoot(el.shadowRoot!).querySelector('.pos-slider')!.dispatchEvent(move(50));
+    } finally {
+      document.removeEventListener('pointermove', spy);
+    }
+    expect(seen).toEqual(['move']);
+  });
+
+  // The rail swallows only the keys the slider actually CONSUMED, so a key it
+  // ignores still reaches whatever wraps the card. `RailGestures` calls
+  // preventDefault() on exactly the keys it handles and `_stopIfConsumed` reads
+  // that back, which is why these events are `cancelable: true`: without it
+  // happy-dom leaves `defaultPrevented` false and the gate silently degrades to
+  // "never stop" — the state this pair exists to rule out.
+  //
+  // Note the tile body is NOT what this protects: `_onBodyKeydown` ignores any
+  // keydown whose target is not the body itself, precisely so nested controls
+  // keep their own Enter/Space. What is downstream is the dashboard around the
+  // card.
+  it('swallows a consumed slider key and lets an unrelated one through', async () => {
+    const { el, slider, callService } = await mountRail();
+    const escaped: string[] = [];
+    const spy = (e: Event): void => {
+      escaped.push((e as KeyboardEvent).key);
+    };
+    const key = (k: string): KeyboardEvent =>
+      new KeyboardEvent('keydown', { bubbles: true, composed: true, cancelable: true, key: k });
+
+    document.addEventListener('keydown', spy);
+    try {
+      slider.dispatchEvent(key('ArrowRight'));
+      slider.dispatchEvent(key('Enter'));
+    } finally {
+      document.removeEventListener('keydown', spy);
+    }
+    await railSettled(el);
+    expect(escaped).toEqual(['Enter']);
+    // And the consumed one really was consumed: it moved the group, once.
+    expect(callService).toHaveBeenCalledTimes(1);
+  });
+
   it('arrow and Home/End keys step the drawn fill and commit immediately', async () => {
     const { el, slider, callService } = await mountRail();
     const sent = (): number[] =>

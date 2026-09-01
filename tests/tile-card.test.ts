@@ -3182,6 +3182,36 @@ describe('adaptive-cover-pro-tile-card — position bar drag slider', () => {
     expect(posCall(callService)?.[2]).toEqual({ axes: { position: expected } });
   });
 
+  // The rail swallows only the keys the slider actually CONSUMED, so a key it
+  // ignores still reaches whatever wraps the card. `RailGestures` calls
+  // preventDefault() on exactly the keys it handles and `_stopIfConsumed` reads
+  // that back, which is why these two events are `cancelable: true`: without it
+  // happy-dom leaves `defaultPrevented` false and the gate silently degrades to
+  // "never stop" — the state this pair exists to rule out.
+  it('swallows a consumed slider key and lets an unrelated one through', async () => {
+    const { slider } = await mountSlider();
+    const escaped: string[] = [];
+    const spy = (e: Event): void => {
+      escaped.push((e as KeyboardEvent).key);
+    };
+    document.addEventListener('keydown', spy);
+    try {
+      for (const key of ['ArrowRight', 'Enter']) {
+        slider.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            bubbles: true,
+            composed: true,
+            cancelable: true,
+            key,
+          }),
+        );
+      }
+    } finally {
+      document.removeEventListener('keydown', spy);
+    }
+    expect(escaped).toEqual(['Enter']);
+  });
+
   it('ignores unrelated keys', async () => {
     const { slider, callService } = await mountSlider();
     slider.dispatchEvent(
@@ -4452,19 +4482,22 @@ describe('tile card — drag position readout (#260)', () => {
     expect(readout.textContent!.trim()).toContain('37');
   });
 
-  // .pos-bar is overflow:hidden to clip the fill, so the readout must not live
-  // inside it, and it must never swallow the drag it reports on.
-  it('sits outside the clipped bar and is pointer-transparent', async () => {
+  // The readout must never swallow the drag it reports on.
+  //
+  // Its placement OUTSIDE the clipped .pos-bar is guarded elsewhere, and
+  // deliberately not re-asserted here: a `.pos-bar .pos-readout` query against
+  // the rail's shadow tree can never match, because the readout is light DOM in
+  // this card's tree no matter which slot it targets. The two assertions that
+  // do catch a readout rendered inside the bar are `readout.slot` in the test
+  // above and the slot-position guard in rail-track.test.ts.
+  it('stays light DOM on the rail and is pointer-transparent', async () => {
     const el = await mount(
       { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
       makeHass({ coverLeftCurrentPosition: 60 }),
     );
     await dragFirstRail(el);
 
-    // Flattened-tree equivalent: the readout is light DOM on the rail, handed
-    // to the slot that sits BESIDE .pos-bar rather than inside it.
     expect(el.shadowRoot!.querySelector('acp-rail-track > .pos-readout')).toBeTruthy();
-    expect(railRoot(el.shadowRoot!).querySelector('.pos-bar .pos-readout')).toBeFalsy();
     expect(AdaptiveCoverProTileCard.styles.toString()).toMatch(
       /\.pos-readout\s*\{[^}]*pointer-events:\s*none/,
     );

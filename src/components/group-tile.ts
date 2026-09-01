@@ -301,9 +301,8 @@ export class GroupTile extends LitElement {
                 @pointercancel=${this._onRailPointerEnd}
                 @keydown=${this._stopIfConsumed}
                 @acp-rail-set=${(e: CustomEvent<number>) => this._onRailSet(e.detail, s)}
-                @acp-rail-preview=${(e: CustomEvent<number | null>) => {
-                  this._drag = e.detail;
-                }}
+                @acp-rail-preview=${(e: CustomEvent<number | null>) =>
+                  this._onRailPreview(e.detail)}
               >
                 ${dragging || pending !== null || !spread
                   ? // A drag or a pending write is about to flatten the members,
@@ -422,6 +421,21 @@ export class GroupTile extends LitElement {
     setGroupPosition(this.hass, s, value);
   }
 
+  /**
+   * The rail's live drag value, and the end of the gesture whatever ended it.
+   *
+   * A null preview is the one signal that arrives however the gesture finished
+   * — release, cancel, or the rail being torn out from under the finger when
+   * `show_position_bar` flips. That last case reaches no pointerup on the tag,
+   * so clearing {@link _railActive} only there left the flag stuck true and the
+   * NEXT rail swallowing every pointermove. `RailGestures.isActive()`, which
+   * the flag replaced, cleared on host disconnect for exactly this reason.
+   */
+  private _onRailPreview(value: number | null): void {
+    this._drag = value;
+    if (value === null) this._railActive = false;
+  }
+
   private _onRailPointerDown(e: PointerEvent, controllable: boolean): void {
     e.stopPropagation();
     this._railActive = controllable;
@@ -439,8 +453,10 @@ export class GroupTile extends LitElement {
     this._railActive = false;
   };
 
-  /** Keys are swallowed only when the slider actually consumed them: the tile
-   *  body opens more-info on Enter/Space and has to keep hearing those.
+  /** Keys are swallowed only when the slider actually consumed them, so the
+   *  ones it ignores still reach the dashboard around the card. Not the tile
+   *  body: `_onBodyKeydown` already ignores any keydown it did not receive
+   *  directly, so nested controls keep their own Enter/Space either way.
    *  `RailGestures` calls `preventDefault()` on exactly the keys it handles, so
    *  that is the signal rather than a second copy of the key map out here. */
   private _stopIfConsumed(e: KeyboardEvent): void {
