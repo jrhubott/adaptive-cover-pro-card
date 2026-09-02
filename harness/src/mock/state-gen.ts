@@ -89,12 +89,14 @@ export function buildStates(cfg: HarnessConfig): GeneratedStates {
             sun.azimuth,
             sun.elevation,
             cfg.scriptedAlsoMatched,
+            cfg.omitConfiguredSlotNames,
           )
         : decide({
             entry,
             sunAzimuth: sun.azimuth,
             sunElevation: sun.elevation,
             nowMs: now.getTime(),
+            omitConfiguredSlotNames: cfg.omitConfiguredSlotNames,
           });
     decisions.set(entry.entry_id, decision);
 
@@ -602,7 +604,7 @@ function addEntryStates(
   );
   states[id('climate_mode_switch')] = mkState(
     id('climate_mode_switch'),
-    f.climate_strategy === 'intermediate' ? 'off' : 'on',
+    (f.climate_mode ?? f.climate_strategy !== 'intermediate') ? 'on' : 'off',
     { friendly_name: `${entry.title} Climate Mode` },
   );
   states[id('motion_control_switch')] = mkState(id('motion_control_switch'), 'on', {
@@ -625,7 +627,10 @@ function addEntryStates(
         ? s.enabled && entry.flags.safety_slot_active
         : s.enabled;
     states[sensorId] = mkState(sensorId, armed ? 'on' : 'off', {
-      friendly_name: `${entry.title} ${s.name}`,
+      // s.name is optional (issue #278 audit optional finding #2, simulating
+      // an integration that hasn't sent a configured name for this slot) —
+      // fall back rather than interpolating a literal "undefined".
+      friendly_name: `${entry.title} ${s.name ?? s.sensorFriendlyName ?? `Slot ${s.slot}`}`,
     });
   }
 }
@@ -780,6 +785,13 @@ function addGroupStates(states: Record<string, HassState>, entry: HarnessEntry):
   states[id('group_lock_switch')] = mkState(id('group_lock_switch'), g.locked ? 'on' : 'off', {
     friendly_name: `${entry.title} Group Lock`,
   });
+  // The writable bulk latch — same translation key as the rollup sensor above,
+  // separated by platform, exactly as the integration emits it.
+  states[id('group_climate_mode_switch')] = mkState(
+    id('group_climate_mode_switch'),
+    g.climate ? 'on' : 'off',
+    { friendly_name: `${entry.title} Group Climate Mode` },
+  );
   for (const role of [
     'group_scene_all_open_button',
     'group_scene_all_closed_button',

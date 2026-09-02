@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing, type TemplateResult, type PropertyValues } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
 import { entityStateChanged } from '../lib/hass-change';
@@ -22,9 +22,9 @@ import {
 } from '../lib/axes';
 import { setAxes, hasSetAxes } from '../lib/services';
 import { PendingMoves, isMovingState, isPendingVisible } from '../lib/pending-move';
-import { renderRailOverlay, railOverlayStyles } from './rail-overlay';
 import { t } from '../lib/i18n';
 import { tooltip } from '../lib/tooltip';
+import './rail-track';
 import './tilt-bar';
 
 @customElement('acp-cover-bar')
@@ -43,12 +43,14 @@ export class CoverBar extends LitElement {
    *  the entry doesn't manage are ignored. */
   @property({ attribute: false }) public coverOrder?: string[];
 
-  /** Live client-side preview for a Position track drag/keyboard-in-progress —
-   *  set on pointerdown/pointermove, cleared on pointerup/pointercancel. Drives
-   *  `.fill`/`.num` for the matching row only; never itself calls a service
-   *  (the trailing native `click` after a drag commits via `_handleTrackClick`,
-   *  exactly as it does for a plain tap today). */
-  @state() private _dragPreview: { entityId: string; pct: number } | null = null;
+  /** The live value under the finger, per cover entity_id, mirrored out of each
+   *  row's `acp-rail-track` by its `acp-rail-preview` event. Keyed so a drag
+   *  repaints `.num` (and the rail's own fill, via the props pushed back down)
+   *  for its own row only. Absent means "not being dragged".
+   *
+   *  A plain field rather than `@state`: a Map mutated in place is invisible to
+   *  Lit's identity check, so the handler asks for the render explicitly. */
+  private _previews = new Map<string, number>();
 
   /** Moves this bar commanded, keyed by cover entity_id — see
    *  `lib/pending-move.ts`. Keyed because the dialog stacks one track per
@@ -374,7 +376,7 @@ export class CoverBar extends LitElement {
     // A drag/keyboard gesture in progress for this row overrides the server-truth
     // percentage in the fill bar and the percent readout; every other row (and
     // this row once the drag ends) renders from `actual` unchanged.
-    const dragPct = this._dragPreview?.entityId === entityId ? this._dragPreview.pct : null;
+    const dragPct = this._previews.get(entityId) ?? null;
     const numText = dragPct !== null ? formatPercent(dragPct) : formatPercent(actual);
     // What the track paints: the sun-blocking fraction, per the axis's own
     // `open_blocks_sun` polarity. The readout above stays the integration's
@@ -441,49 +443,39 @@ export class CoverBar extends LitElement {
                 html`<span class="num-pct">${formatPercent(null)}</span>`}
         </div>
         ${hasPosition
-          ? html`<div
-              class="track"
-              role="slider"
-              tabindex="0"
-              aria-valuemin="0"
-              aria-valuemax="100"
-              aria-valuenow=${fillPct}
-              aria-valuetext=${t('covers.position_open_value', this.hass, { pct: numText })}
-              aria-label=${t('covers.position_slider_label', this.hass)}
-              @click=${(e: MouseEvent) => this._handleTrackClick(e, entityId, axis)}
-              @pointerdown=${(e: PointerEvent) => this._onTrackPointerDown(e, entityId, axis)}
-              @pointermove=${(e: PointerEvent) => this._onTrackPointerMove(e, entityId, axis)}
-              @pointerup=${() => this._onTrackPointerEnd(entityId)}
-              @pointercancel=${() => this._onTrackPointerEnd(entityId)}
-              @keydown=${(e: KeyboardEvent) => this._onTrackKeydown(e, entityId, fillPct, axis)}
-              ${tooltip(t('covers.click_to_set', this.hass))}
-            >
-              <div class="fill" style="width:${fillPct}%"></div>
-              <div class="fill-closed" style="width:${100 - fillPct}%"></div>
-              ${pending !== null && pendingPct !== null
-                ? renderRailOverlay({
-                    hass: this.hass,
-                    liveFrac: fillPct,
-                    pendingFrac: pendingPct,
-                    pending,
-                  })
-                : nothing}
-              ${target !== null
-                ? html`<div
-                    class="marker"
-                    style="left:clamp(1px, ${markerPct}%, calc(100% - 1px))"
-                    ${tooltip(
-                      t(
-                        overrideDivergence
-                          ? 'covers.target_tooltip_override'
-                          : 'covers.target_tooltip',
-                        this.hass,
-                        { pct: targetPct },
-                      ),
-                    )}
-                  ></div>`
-                : nothing}
-            </div>`
+          ? html`<acp-rail-track
+              variant="dialog"
+              .hass=${this.hass}
+              .axis=${axis}
+              .value=${
+                // The keyboard's LOGICAL stepping base. `fillPct` is the DRAWN
+                // fill, and `axisDisplayValue` is its own inverse, so this is
+                // the value the fill came from — including the mirrored-axis
+                // case where an unread cover steps from the empty end.
+                axisDisplayValue(fillPct, axis)
+              }
+              .fillPct=${fillPct}
+              .closedPct=${100 - fillPct}
+              .target=${target}
+              .targetPct=${markerPct}
+              .pending=${pending}
+              .pendingPct=${pendingPct}
+              .valueNow=${fillPct}
+              .valueText=${t('covers.position_open_value', this.hass, { pct: numText })}
+              .label=${t('covers.position_slider_label', this.hass)}
+              .hint=${t('covers.click_to_set', this.hass)}
+              .targetTooltip=${target === null
+                ? null
+                : t(
+                    overrideDivergence ? 'covers.target_tooltip_override' : 'covers.target_tooltip',
+                    this.hass,
+                    { pct: targetPct },
+                  )}
+              @acp-rail-set=${(e: CustomEvent<number>) =>
+                this._setAxis(entityId, 'position', e.detail)}
+              @acp-rail-preview=${(e: CustomEvent<number | null>) =>
+                this._onRailPreview(entityId, e.detail)}
+            ></acp-rail-track>`
           : // The row is a grid, so the track column has to be HELD, not
             // collapsed: dropping the element outright slides the trailing
             // spacer and the warn badge left into it, and offsets the slat
@@ -521,89 +513,22 @@ export class CoverBar extends LitElement {
     this._openMoreInfo();
   };
 
-  /** Shared clientX→0-100 track-fraction math, used by the click commit path
-   *  and the drag-preview pointer handlers alike. */
-  private _pctFromEvent(e: { clientX: number }, track: HTMLElement): number {
-    const rect = track.getBoundingClientRect();
-    const pct = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-    return Math.max(0, Math.min(100, pct));
-  }
-
-  private _handleTrackClick(e: MouseEvent, entityId: string, axis: ResolvedAxis): void {
-    const track = e.currentTarget as HTMLElement;
-    const clamped = this._pctFromEvent(e, track);
-    this._setAxis(entityId, 'position', axisDisplayValue(clamped, axis));
-  }
-
-  /** Begin a drag: capture the pointer (best-effort — happy-dom may not
-   *  implement it) and start the live client-side preview for this row. No
-   *  `preventDefault()` here — suppressing it would also suppress the
-   *  trailing compatibility `click` the commit path depends on. */
-  private _onTrackPointerDown = (e: PointerEvent, entityId: string, axis: ResolvedAxis): void => {
-    const track = e.currentTarget as HTMLElement;
-    (track as HTMLElement & { setPointerCapture?: (id: number) => void }).setPointerCapture?.(
-      e.pointerId,
-    );
-    this._dragPreview = { entityId, pct: axisDisplayValue(this._pctFromEvent(e, track), axis) };
-  };
-
-  /** Update the live preview while dragging. No-op for any row other than the
-   *  one that owns the current drag. */
-  private _onTrackPointerMove = (e: PointerEvent, entityId: string, axis: ResolvedAxis): void => {
-    if (this._dragPreview?.entityId !== entityId) return;
-    const track = e.currentTarget as HTMLElement;
-    this._dragPreview = { entityId, pct: axisDisplayValue(this._pctFromEvent(e, track), axis) };
-  };
-
-  /** End of gesture: clear the preview for this row. Never calls a service —
-   *  on pointerup, the browser's native trailing `click` fires and
-   *  `_handleTrackClick` commits; on pointercancel there is no commit at all. */
-  private _onTrackPointerEnd = (entityId: string): void => {
-    if (this._dragPreview?.entityId !== entityId) return;
-    this._dragPreview = null;
-  };
-
-  /** Standard WAI-ARIA slider keyboard pattern on the focused `.track`:
-   *  Arrow keys step by 1, Page keys by 10, Home/End jump to the extremes.
-   *  Commits immediately via `_setAxis` (no drag preview involved). */
-  private _onTrackKeydown(
-    e: KeyboardEvent,
-    entityId: string,
-    current: number,
-    axis: ResolvedAxis,
-  ): void {
-    let next: number;
-    switch (e.key) {
-      case 'ArrowRight':
-      case 'ArrowUp':
-        next = current + 1;
-        break;
-      case 'ArrowLeft':
-      case 'ArrowDown':
-        next = current - 1;
-        break;
-      case 'PageUp':
-        next = current + 10;
-        break;
-      case 'PageDown':
-        next = current - 10;
-        break;
-      case 'Home':
-        next = 0;
-        break;
-      case 'End':
-        next = 100;
-        break;
-      default:
-        return;
-    }
-    e.preventDefault();
-    const clamped = Math.max(0, Math.min(100, next));
-    this._setAxis(entityId, 'position', axisDisplayValue(clamped, axis));
+  /**
+   * One row's live drag value, reported by its rail.
+   *
+   * The rail owns the gesture; this component stays the single source of truth
+   * for what the gesture is allowed to redraw — the `.num` readout, the fill it
+   * pushes back down, and the suppression of the pending band underneath. The
+   * value is LOGICAL, exactly what `RailGestures.preview()` used to hand back
+   * here, so everything downstream of `dragPct` is unchanged.
+   */
+  private _onRailPreview(entityId: string, value: number | null): void {
+    if (value === null) this._previews.delete(entityId);
+    else this._previews.set(entityId, value);
+    this.requestUpdate();
   }
 
   public static styles = [
-    railOverlayStyles,
     css`
       :host {
         display: block;
@@ -699,7 +624,7 @@ export class CoverBar extends LitElement {
 
        Deliberately not a bare [data-tooltip] selector. The other three anchors
        in here are interactive and already carry the right cursor — .name is a
-       role="button" that opens more-info, and .track / the tilt track are
+       role="button" that opens more-info, and the two rails below it are
        drag-to-set sliders — so a blanket rule would replace three correct
        pointers with a help cursor that promises information instead of action. */
       .transit[data-tooltip]:hover,
@@ -724,23 +649,12 @@ export class CoverBar extends LitElement {
         outline: 2px solid var(--primary-color);
         outline-offset: 2px;
       }
-      .track {
-        position: relative;
-        display: flex;
-        height: 10px;
-        background: var(--secondary-background-color, rgba(0, 0, 0, 0.08));
-        border-radius: 6px;
-        cursor: pointer;
-        overflow: hidden;
-        /* A touch-drag must move the fill, not the page — own the gesture. */
-        touch-action: none;
-      }
-      .track:focus-visible {
-        outline: 2px solid var(--primary-color);
-        outline-offset: 2px;
-      }
-      :host([compact]) .track {
-        height: 6px;
+      /* The track itself belongs to acp-rail-track now — its box, its gestures,
+       its focus ring, its fill segments and its marker. The two rules that used
+       to reach into that markup from out here became knobs, because a
+       descendant selector cannot cross the element's shadow boundary. */
+      :host([compact]) acp-rail-track {
+        --acp-rail-height: 6px;
       }
       :host([compact]) .cover {
         font-size: 0.75rem;
@@ -753,47 +667,6 @@ export class CoverBar extends LitElement {
       }
       :host([compact]) .head {
         display: none;
-      }
-      /* Both segments derive from the cover colour (override, else --primary-color),
-       distinguished by opacity: blocking is solid, clear is pale — "lighter =
-       more open" — matching the compass FOV (light) vs cover wedge (solid) of
-       the same hue. No gold, so nothing competes with the gold sun on the compass.
-
-       .fill is the LEADING segment and now carries the sun-blocking portion, so
-       the track fills from the left as the cover closes — the same polarity as
-       the tile rails and the compass wedge. Class names are kept (a rename buys
-       nothing the comment does not) but the colours swapped with the meaning. */
-      .fill {
-        height: 100%;
-        flex-shrink: 0;
-        background: color-mix(
-          in srgb,
-          var(--acp-cover-color, var(--primary-color)) 50%,
-          transparent
-        );
-        transition: width 0.3s ease;
-      }
-      .fill-closed {
-        height: 100%;
-        flex-shrink: 0;
-        background: color-mix(
-          in srgb,
-          var(--acp-cover-color, var(--primary-color)) 18%,
-          transparent
-        );
-        transition: width 0.3s ease;
-      }
-      /* The marker is centred on its left value via translateX(-50%) and its
-       left is clamped 1px inside the rail (inline), so the 2px box never gets
-       clipped by .track { overflow:hidden } at the 0%/100% extremes (#158). */
-      .marker {
-        position: absolute;
-        top: -2px;
-        width: 2px;
-        height: 14px;
-        background: var(--accent-color, red);
-        transform: translateX(-50%);
-        transition: left 0.3s ease;
       }
       .num {
         font-variant-numeric: tabular-nums;
@@ -845,9 +718,11 @@ export class CoverBar extends LitElement {
       /* On a position mismatch, recolour the leading (sun-blocking) segment with
        the error colour and lean on the warn icon at the end of the row. It is
        the segment that carries the cover hue, so tinting it is what reads as a
-       divergence rather than as a second cover colour. */
-      .mismatch .fill {
-        background: color-mix(in srgb, var(--error-color, crimson) 35%, transparent);
+       divergence rather than as a second cover colour. Set as the rail's fill
+       knob and inherited into its shadow tree; only this row's rail is inside
+       .cover, so the slat bar stacked below keeps its own colour. */
+      .cover.mismatch acp-rail-track {
+        --acp-rail-fill: color-mix(in srgb, var(--error-color, crimson) 35%, transparent);
       }
       .placeholder {
         color: var(--secondary-text-color);

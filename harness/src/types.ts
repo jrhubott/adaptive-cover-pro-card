@@ -46,6 +46,10 @@ export interface GroupFields {
   locked: boolean;
   /** group_automation switch on/off. */
   automation: boolean;
+  /** group_climate_mode SWITCH on/off — the writable bulk latch. Distinct from
+   *  {@link climate_mode}, which is the read-only rollup sensor sharing the same
+   *  translation key on a different platform. */
+  climate: boolean;
   /** Aggregate climate mode string (group_climate_mode sensor). */
   climate_mode: string;
   /** Emit the integration's OPT-IN aggregate `cover.…group_cover` entity. It is
@@ -88,7 +92,24 @@ export interface CustomPositionSlotCfg {
   slot: 1 | 2 | 3 | 4 | 5;
   enabled: boolean;
   position: number;
-  name: string;
+  /** The slot's own configured name — mirrors the card's `custom_name`
+   *  (on the `custom_position_slots[]` snapshot) / `custom_position_active_slot_name`
+   *  (trace-level, issue #278). Optional (issue #278 audit optional finding
+   *  #2): absent models an integration that hasn't sent a configured name for
+   *  this slot, so `activeSlotName()` falls back to `sensorFriendlyName`.
+   *  Before this the field was required `string`, which made that `??` arm
+   *  in `decider.ts` unreachable — `custom_position_active_slot_name` and
+   *  `custom_position_slots[].custom_name` were always the same string, so no
+   *  scenario could model "slot has no configured name, trace falls back to
+   *  the sensor's friendly name," the one state that actually distinguishes
+   *  the two production fields. */
+  name?: string;
+  /** The bound sensor's HA friendly_name, when it differs from the slot's own
+   *  `name` (issue #278). Absent (default) means the sensor and slot share
+   *  the same string, mirroring most real setups — set this to exercise the
+   *  mismatch the card must resolve in favor of `name`. Feeds the card's
+   *  `sensor_name` / `custom_position_active_slot_name` fields. */
+  sensorFriendlyName?: string;
   min_mode: boolean;
   /** Slot priority (mirrors the integration). >80 resists a manual ↓; the
    *  v2.28.0 safety slot (slot 5) uses priority 100. */
@@ -202,6 +223,12 @@ export interface HarnessEntry {
   flags: {
     integration_enabled: boolean;
     automatic_control: boolean;
+    /** The entry's own Climate Mode switch. Omit and it derives from
+     *  `climate_strategy` as it always has (`intermediate` → off), which is a
+     *  proxy, not the switch — set this explicitly whenever the scenario is
+     *  ABOUT whether climate is enabled, such as the group climate rollup
+     *  (issue #287), rather than about which strategy is acting. */
+    climate_mode?: boolean;
     manual_override: boolean;
     /** Minutes from "now" when the manual override expires. */
     manual_override_minutes_from_now: number;
@@ -275,6 +302,23 @@ export interface HarnessEntry {
      *  entry's covers so the tile shows the localized "Opening"/"Closing" state
      *  text. null/undefined = at rest (no transit_states emitted). */
     transit_direction?: 'opening' | 'closing' | null;
+    /** Force the trace's `custom_position_minimum_mode` independent of the
+     *  winning slot's own `min_mode` config (issue #278 audit optional
+     *  finding #5). The mock's default derives `custom_position_minimum_mode`
+     *  directly from `winningSlot(entry).min_mode` — a static "is this slot a
+     *  floor type" fact — but the real integration's field means "is the
+     *  floor actively clamping THIS cycle," a dynamic per-cycle fact that can
+     *  legitimately be `false` even while a floor-type slot wins (the floor
+     *  is configured but a no-op this cycle). Without this override there is
+     *  no way to model that state: whenever a min_mode-type slot is also the
+     *  winner, the mock always reports `custom_position_minimum_mode: true`,
+     *  which makes `resolveActiveMinModeFloor`'s `isActiveSlot` borrow branch
+     *  (armed floor === the winning slot) impossible to exercise without
+     *  `showFloorChip` suppressing the very chip meant to demonstrate it
+     *  (that suppression fires whenever winner===custom_position &&
+     *  minimum_mode===true). undefined = today's default (mirror the slot's
+     *  own `min_mode`). */
+    custom_position_minimum_mode_override?: boolean;
   };
   /** When true this entry is a Cover Group (issue #185): the mock emits the
    *  `group_*` entities from {@link group} and skips the per-cover sensor block,
@@ -300,6 +344,8 @@ export interface RootCardOptions {
   show_compass_legend: boolean;
   show_moon: boolean;
   hide_inactive_handlers: boolean;
+  /** Cover Group entries only — the group view's climate on/off toggle. */
+  show_climate: boolean;
   show_decision_summary: boolean;
   /** Color the header cover icon by state, HA-style (default true). */
   state_color: boolean;
@@ -335,6 +381,7 @@ export interface TileCardOptions {
   show_scene_select: boolean;
   show_lock: boolean;
   show_automation: boolean;
+  show_climate: boolean;
   show_clear_overrides: boolean;
   show_member_badges: boolean;
   /** Per-member roster display-name overrides, keyed by member entry_id (or a
@@ -451,6 +498,20 @@ export interface HarnessConfig {
    *  the mock hass omits the `set_axes` service, so the card exercises its
    *  legacy fallback (synthesized axes + per-axis set_position/set_tilt). */
   legacyIntegration: boolean;
+  /** Simulate a pre-jrhubott/adaptive-cover-pro#867 integration that hasn't
+   *  rolled the slot's own `custom_name` out to the `custom_position_slots[]`
+   *  snapshot yet (issue #278 audit finding #3): when true, every slot row
+   *  omits `custom_name`, so the snapshot-level read site (the floor chip)
+   *  falls back to `sensor_name` — the branch that's otherwise unreachable in
+   *  the harness because the mock decider emits `custom_name` unconditionally
+   *  — except when that row is also the trace's active slot and
+   *  `custom_position_minimum_mode` is not `true`, in which case
+   *  `resolveActiveMinModeFloor`'s `isActiveSlot` borrow supplies the
+   *  trace-level name instead and the `sensor_name` fallback never runs.
+   *  `custom_position_active_slot_name`'s configured-name-first resolution
+   *  predates and is independent of this snapshot-field rollout (per the
+   *  maintainer), so it keeps resolving correctly regardless of this flag. */
+  omitConfiguredSlotNames: boolean;
   /** Entries to simulate (1..4). */
   entries: HarnessEntry[];
   /** Forces a specific handler winner instead of running the mock pipeline. */

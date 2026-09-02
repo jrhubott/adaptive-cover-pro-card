@@ -37,6 +37,10 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
    *  cascade (default true). */
   state_color?: boolean;
   hide_inactive_handlers?: boolean;
+  /** Cover Group entries only: render the climate on/off toggle in the group
+   *  view's control row (default **false**). Same opt-in rationale as the tile
+   *  card's option of the same name. */
+  show_climate?: boolean;
   /** Render a plain-English "Why this position?" sentence above the decision
    *  strip's row grid. Defaults to true. */
   show_decision_summary?: boolean;
@@ -200,6 +204,11 @@ export interface AdaptiveCoverProTileCardConfig extends LovelaceCardConfig {
   show_lock?: boolean;
   /** Render the member-automation toggle (default true). */
   show_automation?: boolean;
+  /** Render the group climate on/off toggle (default **false**). The only
+   *  opt-IN control in the group row: a press enables or disables climate mode
+   *  on every ACP member at once, with no group-level readout that makes the
+   *  resulting state obvious afterwards. */
+  show_climate?: boolean;
   /** Render the clear-member-overrides button (default true). Turn it off to
    *  keep a shared dashboard from clearing everyone's overrides. */
   show_clear_overrides?: boolean;
@@ -566,10 +575,15 @@ export interface DecisionTraceAttributes {
    *  autonomous calculation. False when the floor is configured but is a no-op
    *  this cycle. Absent in exact mode or when any non-custom handler wins. */
   custom_position_minimum_mode?: boolean;
-  /** Friendly name of the winning slot's bound sensor — surfaces as the
-   *  human-readable slot label. Integration v2.22.1+; absent when the sensor
-   *  has no friendly_name. */
-  custom_position_active_slot_name?: string;
+  /** The winning slot's name for display — already resolves the slot's own
+   *  configured name (`custom_position_name_N` in the integration's config
+   *  entry) first, falling back to the bound sensor's HA `friendly_name` only
+   *  when the slot has none of its own (issue #278). Integration v2.22.1+;
+   *  absent when neither is available — and, like its slot-level sibling
+   *  {@link CustomPositionSlotSnapshot.sensor_name}, typed nullable rather
+   *  than just optional since an HA attribute explicitly serialized from
+   *  Python `None` arrives as `null`, not an absent key. */
+  custom_position_active_slot_name?: string | null;
   /** Snapshot of all custom-position slots' configured state. Stable list (one
    *  row per slot); unconfigured slots read `sensor=null`. v2.28.0+ adds a 5th
    *  row for the priority-100 safety slot. Absent on integrations that pre-date
@@ -615,7 +629,16 @@ export interface CustomPositionSlotSnapshot {
   slot: 1 | 2 | 3 | 4 | 5;
   enabled: boolean;
   sensor: string | null;
+  /** The bound sensor's HA friendly_name — NOT the slot's own configured name
+   *  (see {@link custom_name}). Null when the sensor has no friendly_name. */
   sensor_name: string | null;
+  /** The slot's OWN configured name — read from `custom_position_name_N` in
+   *  the integration's config entry and normalized so a cleared text box and
+   *  an absent key both arrive as `null` — distinct from {@link sensor_name},
+   *  which is the bound sensor's HA friendly_name and can differ from what
+   *  the user typed as the slot's label (issue #278). On the wire alongside
+   *  `sensor_name` since integration v2026.8.0 (jrhubott/adaptive-cover-pro#867). */
+  custom_name?: string | null;
   position: number | null;
   priority: number | null;
   min_mode: boolean | null;

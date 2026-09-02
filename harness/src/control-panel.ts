@@ -42,6 +42,7 @@ function defaultGroupFields(): GroupFields {
     scene_option: 'auto',
     locked: false,
     automation: true,
+    climate: true,
     climate_mode: 'summer_mode',
   };
 }
@@ -208,6 +209,11 @@ export class AcpHarnessControlPanel extends LitElement {
         'Legacy integration (no discovery / set_axes)',
         this.config.legacyIntegration,
         (v) => this._emit({ ...this.config, legacyIntegration: v }),
+      )}
+      ${this._checkbox(
+        "Integration doesn't send slot name yet (issue #278)",
+        this.config.omitConfiguredSlotNames,
+        (v) => this._emit({ ...this.config, omitConfiguredSlotNames: v }),
       )}
       <label class="row">
         <span>Tooltips</span>
@@ -857,6 +863,11 @@ export class AcpHarnessControlPanel extends LitElement {
             ${this._checkbox('Automatic control', e.flags.automatic_control, (v) =>
               this._patchFlags(idx, { automatic_control: v }),
             )}
+            ${this._checkbox(
+              'Climate mode',
+              e.flags.climate_mode ?? e.flags.climate_strategy !== 'intermediate',
+              (v) => this._patchFlags(idx, { climate_mode: v }),
+            )}
             ${this._checkbox('Manual override', e.flags.manual_override, (v) =>
               this._patchFlags(idx, { manual_override: v }),
             )}
@@ -1109,10 +1120,28 @@ export class AcpHarnessControlPanel extends LitElement {
                   <span class="slot-num">#${s.slot}</span>
                   <input
                     type="text"
-                    .value=${s.name}
+                    title="Slot's own configured name — leave blank to simulate an integration that hasn't sent a configured name for this slot (issue #278 audit optional finding #2)"
+                    placeholder="(no configured name)"
+                    .value=${s.name ?? ''}
                     @change=${(ev: Event) => {
+                      const value = (ev.target as HTMLInputElement).value;
                       const slots = e.slots.map((ss, i) =>
-                        i === si ? { ...ss, name: (ev.target as HTMLInputElement).value } : ss,
+                        i === si ? { ...ss, name: value === '' ? undefined : value } : ss,
+                      );
+                      this._patchEntry(idx, { slots });
+                    }}
+                  />
+                  <input
+                    type="text"
+                    title="Bound sensor's HA friendly_name — leave blank to match the slot name (issue #278)"
+                    placeholder="(same as name)"
+                    .value=${s.sensorFriendlyName ?? ''}
+                    @change=${(ev: Event) => {
+                      const value = (ev.target as HTMLInputElement).value;
+                      const slots = e.slots.map((ss, i) =>
+                        i === si
+                          ? { ...ss, sensorFriendlyName: value === '' ? undefined : value }
+                          : ss,
                       );
                       this._patchEntry(idx, { slots });
                     }}
@@ -1211,6 +1240,9 @@ export class AcpHarnessControlPanel extends LitElement {
         ${this._checkbox('Color icon by state', this.config.root.state_color, (v) =>
           this._emit({ ...this.config, root: { ...this.config.root, state_color: v } }),
         )}
+        ${this._checkbox('Show climate toggle (groups)', this.config.root.show_climate, (v) =>
+          this._emit({ ...this.config, root: { ...this.config.root, show_climate: v } }),
+        )}
         ${this._numberSlider('North offset °', this.config.root.north_offset, -180, 180, 1, (v) =>
           this._emit({ ...this.config, root: { ...this.config.root, north_offset: v } }),
         )}
@@ -1294,6 +1326,7 @@ export class AcpHarnessControlPanel extends LitElement {
             'show_scene_select',
             'show_lock',
             'show_automation',
+            'show_climate',
             'show_clear_overrides',
             'show_member_badges',
             'show_compass',

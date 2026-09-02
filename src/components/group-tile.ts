@@ -20,9 +20,9 @@ import {
 } from '../lib/group-controls';
 import { hiddenMemberCovers } from '../lib/group-roster';
 import { PendingMoves, isPendingVisible } from '../lib/pending-move';
-import { renderRailOverlay, railOverlayStyles } from './rail-overlay';
 import { t } from '../lib/i18n';
-import { tooltip } from '../lib/tooltip';
+
+import './rail-track';
 
 import './cover-move-buttons';
 import './group-controls-row';
@@ -57,6 +57,7 @@ export class GroupTile extends LitElement {
   @property({ type: Boolean }) public showSceneSelect = true;
   @property({ type: Boolean }) public showLock = true;
   @property({ type: Boolean }) public showAutomation = true;
+  @property({ type: Boolean }) public showClimate = false;
   @property({ type: Boolean }) public showClearOverrides = true;
   /** Card config `show_member_badges` — the member-override rollup. */
   @property({ type: Boolean }) public showMemberBadges = true;
@@ -77,10 +78,27 @@ export class GroupTile extends LitElement {
    *  show. */
   @property({ attribute: false }) public members?: string[];
 
-  /** Live percentage while a slider drag is in flight; null when idle. Drives
-   *  the fill + readout so the bar tracks the finger instead of waiting on the
-   *  server round-trip (mirrors the cover tile's `_posDrag`). */
-  @state() private _posDrag: number | null = null;
+  /** How far the pointer must travel before the gesture counts as a deliberate
+   *  drag. A group write is not like a cover write: `group_set_position` flattens
+   *  EVERY member onto one value and takes them off their own solar targets, so
+   *  a stray tap while reaching for the tile must not commit it. Below this it is
+   *  a tap, and a tap on a group rail now does nothing at all. */
+  private static readonly DRAG_THRESHOLD_PX = 4;
+
+  /** The live value under the finger, mirrored out of `acp-rail-track` by its
+   *  `acp-rail-preview` event. Null below {@link GroupTile.DRAG_THRESHOLD_PX},
+   *  which is what keeps a tap from collapsing the spread band it is about to
+   *  leave alone. This tile stays the source of truth for everything that
+   *  reading redraws — the fill it hands back down, the state line, the
+   *  collapsed spread, the suppressed pending band. */
+  @state() private _drag: number | null = null;
+
+  /** Is a gesture in flight on the rail — INCLUDING one still below the drag
+   *  threshold, which previews nothing? The pointer-move stop below rides on
+   *  this, exactly as it rode on `RailGestures.isActive()` before the rail
+   *  moved behind its own shadow boundary. Set from the pointer events this
+   *  tile already sees on the tag, so no gesture state is re-derived. */
+  private _railActive = false;
 
   /** Where the group was last told to go, until it gets there — see
    *  `lib/pending-move.ts`. A single key: a group write flattens every member
@@ -114,7 +132,8 @@ export class GroupTile extends LitElement {
     const s = this._snapshot();
 
     const stateText = t(`group.state_${s.aggregate}`, this.hass);
-    const shownPosition = this._posDrag ?? s.position;
+    const drag = this._drag;
+    const shownPosition = drag ?? s.position;
     // Rail polarity, same source as every other position surface. A group
     // publishes no axes of its own (GroupPolicy.axes is empty), so this is
     // the synthesized fallback — mirrored unless the entry is an awning.
@@ -127,7 +146,7 @@ export class GroupTile extends LitElement {
     // Mid-drag the rail previews a SINGLE value, deliberately: the drag is about
     // to flatten every member onto it, and collapsing the spread as the finger
     // moves is the clearest possible statement of that.
-    const dragging = this._posDrag !== null;
+    const dragging = drag !== null;
     // A pending group move collapses the spread for the same reason a drag does:
     // the write flattens every member onto one value, so the disagreement the
     // band describes is about to stop existing. Suppressed mid-drag — the drag
@@ -224,17 +243,42 @@ export class GroupTile extends LitElement {
             (w) => html`<acp-tile-badge .hass=${this.hass} .winner=${w}></acp-tile-badge>`,
           )}
           ${this.showPositionBar
-            ? html`<div
-                class="pos-slider${this._posDrag !== null ? ' dragging' : ''}${controllable
-                  ? ''
-                  : ' disabled'}"
-                role="slider"
-                tabindex=${controllable ? 0 : -1}
-                aria-disabled=${controllable ? 'false' : 'true'}
-                aria-valuemin="0"
-                aria-valuemax="100"
-                aria-valuenow=${spread && !dragging ? spread.min : shownFill}
-                aria-valuetext=${spread && !spread.aligned && !dragging
+            ? html`<acp-rail-track
+                variant="dense"
+                commit-on="release"
+                drag-threshold-px=${GroupTile.DRAG_THRESHOLD_PX}
+                .hass=${this.hass}
+                .axis=${posAxis}
+                .value=${
+                  // The keyboard's LOGICAL stepping base. Never the aggregate
+                  // mean: on a 40/40/40/0/0 roster that is 24, a value no member
+                  // holds and which appears nowhere on the tile, so one arrow
+                  // press flattened all five onto 25. Step from the drawn
+                  // MINIMUM instead — the solid part of the rail, the coverage
+                  // every member has actually reached — un-drawn on the way out.
+                  // With no reading at all the rail draws EMPTY, so stepping
+                  // starts from the empty end rather than redrawing it full.
+                  axisDisplayValue(
+                    spread?.min ??
+                      (s.position === null ? 0 : axisDisplayValue(s.position, posAxis)),
+                    posAxis,
+                  )
+                }
+                .fillPct=${
+                  // Solid to the LEAST-covered member: the coverage every member
+                  // has reached. The band slotted below spans to the most-covered
+                  // one, so the gap between them IS the disagreement the word
+                  // "Mixed" was gesturing at. A drag or a pending write collapses
+                  // it, because both are about to flatten every member onto one
+                  // value.
+                  dragging || pending !== null || !spread ? shownFill : spread.min
+                }
+                .target=${null}
+                .targetPct=${0}
+                .pending=${pending}
+                .pendingPct=${pendingFill}
+                .valueNow=${spread && !dragging ? spread.min : shownFill}
+                .valueText=${spread && !spread.aligned && !dragging
                   ? // LOGICAL, like every other readout. `min`/`max` are coverage
                     // coordinates for drawing and are mirrored on a blind, so
                     // reading them out told a screen-reader user 60-100% while the
@@ -247,49 +291,37 @@ export class GroupTile extends LitElement {
                   : t('covers.position_open_value', this.hass, {
                       pct: formatPercent(shownPosition),
                     })}
-                aria-label=${t('group.position_slider_label', this.hass)}
-                ${tooltip(t('group.drag_to_set_all', this.hass, { count: s.rosterTotal }))}
+                .label=${t('group.position_slider_label', this.hass)}
+                .hint=${t('group.drag_to_set_all', this.hass, { count: s.rosterTotal })}
+                ?disabled=${!controllable}
                 @click=${this._stop}
-                @pointerdown=${(e: PointerEvent) => this._onPosPointerDown(e, controllable)}
-                @pointermove=${this._onPosPointerMove}
-                @pointerup=${(e: PointerEvent) => this._onPosPointerEnd(e, s)}
-                @pointercancel=${this._onPosCancel}
-                @keydown=${(e: KeyboardEvent) => this._onPosKeydown(e, s)}
+                @pointerdown=${(e: PointerEvent) => this._onRailPointerDown(e, controllable)}
+                @pointermove=${this._onRailPointerMove}
+                @pointerup=${this._onRailPointerEnd}
+                @pointercancel=${this._onRailPointerEnd}
+                @keydown=${this._stopIfConsumed}
+                @acp-rail-set=${(e: CustomEvent<number>) => this._onRailSet(e.detail, s)}
+                @acp-rail-preview=${(e: CustomEvent<number | null>) =>
+                  this._onRailPreview(e.detail)}
               >
-                <div class="pos-bar">
-                  ${dragging || pending !== null || !spread
-                    ? html`<div class="pos-fill" style=${`width:${shownFill}%`}></div>`
-                    : html`
-                        <!-- Solid to the LEAST-covered member: the coverage every
-                             member has reached. Band on top spans to the most-
-                             covered one, so the gap between them IS the disagreement
-                             the word "Mixed" was gesturing at. -->
-                        <div class="pos-fill" style=${`width:${spread.min}%`}></div>
-                        ${spread.aligned
-                          ? nothing
-                          : html`<div
-                              class="pos-band"
-                              style=${`left:${spread.min}%;width:${spread.max - spread.min}%`}
-                            ></div>`}
-                        ${spread.ticks.map(
-                          (v) =>
-                            html`<div
-                              class="pos-tick"
-                              style=${`left:clamp(1px, ${v}%, calc(100% - 1px))`}
-                            ></div>`,
-                        )}
-                      `}
-                  ${pending !== null && pendingFill !== null
-                    ? renderRailOverlay({
-                        hass: this.hass,
-                        liveFrac: shownFill,
-                        pendingFrac: pendingFill,
-                        pending,
-                        prefix: 'pos-',
-                      })
-                    : nothing}
-                </div>
-              </div>`
+                ${dragging || pending !== null || !spread
+                  ? // A drag or a pending write is about to flatten the members,
+                    // so there is no disagreement left to draw.
+                    nothing
+                  : html`${spread.aligned
+                      ? nothing
+                      : html`<div
+                          class="pos-band"
+                          style=${`left:${spread.min}%;width:${spread.max - spread.min}%`}
+                        ></div>`}
+                    ${spread.ticks.map(
+                      (v) =>
+                        html`<div
+                          class="pos-tick"
+                          style=${`left:clamp(1px, ${v}%, calc(100% - 1px))`}
+                        ></div>`,
+                    )}`}
+              </acp-rail-track>`
             : nothing}
         </div>
 
@@ -318,6 +350,7 @@ export class GroupTile extends LitElement {
           .showSceneSelect=${this.showSceneSelect}
           .showLock=${this.showLock}
           .showAutomation=${this.showAutomation}
+          .showClimate=${this.showClimate}
           .showClearOverrides=${this.showClearOverrides}
         ></acp-group-controls-row>
       </div>
@@ -369,125 +402,65 @@ export class GroupTile extends LitElement {
     this._openMoreInfo();
   };
 
-  /* Slider gestures mirror the cover tile's: capture the pointer, preview the
-     fill locally, and let the trailing compatibility `click` do the commit — so
-     no `preventDefault()` on pointerdown. Every handler stops propagation so a
-     drag never reads as a tap on the tile body. */
-  private _pctFromEvent(e: { clientX: number }, el: HTMLElement): number {
-    const rect = el.getBoundingClientRect();
-    const pct = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-    return Math.max(0, Math.min(100, pct));
-  }
+  /* Rail policy. The gesture itself lives inside `acp-rail-track`; what stays
+     here is what this TILE decides — where a committed value goes, and the
+     `stopPropagation()` that keeps a drag from reading as a tap on the tile
+     body, which opens more-info on click. */
 
-  /** How far the pointer must travel before the gesture counts as a deliberate
-   *  drag. A group write is not like a cover write: `group_set_position` flattens
-   *  EVERY member onto one value and takes them off their own solar targets, so
-   *  a stray tap while reaching for the tile must not commit it. Below this it is
-   *  a tap, and a tap on a group rail now does nothing at all. */
-  private static readonly DRAG_THRESHOLD_PX = 4;
-
-  /** Pointer x at gesture start, and whether it has since passed the threshold. */
-  private _posDownX: number | null = null;
-  private _posMoved = false;
-
-  private _onPosPointerDown(e: PointerEvent, controllable: boolean): void {
-    e.stopPropagation();
-    if (!controllable) return;
-    const el = e.currentTarget as HTMLElement;
-    (el as HTMLElement & { setPointerCapture?: (id: number) => void }).setPointerCapture?.(
-      e.pointerId,
-    );
-    this._posDownX = e.clientX;
-    this._posMoved = false;
-    // Deliberately NO preview yet. The rail commits only past the threshold, so
-    // previewing on contact showed a committed-looking flatten for a tap that
-    // does nothing — the spread collapsed and the state line changed, then both
-    // sprang back on release.
-  }
-
-  private _onPosPointerMove = (e: PointerEvent): void => {
-    if (this._posDownX === null) return;
-    e.stopPropagation();
-    if (Math.abs(e.clientX - this._posDownX) >= GroupTile.DRAG_THRESHOLD_PX) {
-      this._posMoved = true;
-    }
-    if (!this._posMoved) return;
-    this._posDrag = axisDisplayValue(
-      this._pctFromEvent(e, e.currentTarget as HTMLElement),
-      positionAxisFor(this.discovered),
-    );
-  };
-
-  /** Commit on release, and ONLY when the gesture actually travelled. The commit
-   *  moved here from the trailing `click` precisely so a tap can be distinguished
-   *  from a drag — `click` fires for both and cannot tell them apart. */
-  private _onPosPointerEnd = (e: PointerEvent, s: GroupSnapshot): void => {
-    e.stopPropagation();
-    const value = this._posDrag;
-    const moved = this._posMoved;
-    this._posDrag = null;
-    this._posDownX = null;
-    this._posMoved = false;
-    if (!moved || value === null || !s.target) return;
-    this._pending.start(GroupTile.PENDING_KEY, value);
-    setGroupPosition(this.hass, s, value);
-  };
-
-  private _onPosCancel = (e: PointerEvent): void => {
-    e.stopPropagation();
-    this._posDrag = null;
-    this._posDownX = null;
-    this._posMoved = false;
-  };
-
-  /** Standard WAI-ARIA slider keys: arrows ±1, Page ±10, Home/End to the ends. */
-  private _onPosKeydown(e: KeyboardEvent, s: GroupSnapshot): void {
-    // Stepped in the DRAWN direction so an arrow key moves the fill the way it
-    // points, then converted back at the commit — same contract as the cover
-    // tile's rails and the axis bars.
-    const posAxis = positionAxisFor(this.discovered);
-    // With no aggregate reading the rail draws EMPTY (line ~83), so stepping
-    // starts from the empty end. Using 0 meant the mirrored axis started from
-    // the FULL end, and one rightward key redrew an empty rail as completely
-    // full — the same defect fixed in acp-axis-bar.
-    // Never the aggregate mean: on a 40/40/40/0/0 roster that is 24, a value no
-    // member holds and which appears nowhere on the tile, so one arrow press
-    // flattened all five onto 25. Step from the drawn MINIMUM instead — the
-    // solid part of the rail, the coverage every member has actually reached.
-    const spread = memberSpread(s.memberPositions, posAxis);
-    const current =
-      spread?.min ?? (s.position === null ? 0 : axisDisplayValue(s.position, posAxis));
-    let next: number;
-    switch (e.key) {
-      case 'ArrowRight':
-      case 'ArrowUp':
-        next = current + 1;
-        break;
-      case 'ArrowLeft':
-      case 'ArrowDown':
-        next = current - 1;
-        break;
-      case 'PageUp':
-        next = current + 10;
-        break;
-      case 'PageDown':
-        next = current - 10;
-        break;
-      case 'Home':
-        next = 0;
-        break;
-      case 'End':
-        next = 100;
-        break;
-      default:
-        return;
-    }
-    e.preventDefault();
-    e.stopPropagation();
+  /**
+   * A committed value: release past the drag threshold, or a keyboard step.
+   *
+   * `group_set_position` flattens EVERY member onto one value and takes them
+   * off their own solar targets, which is why this rail alone commits on
+   * release rather than on the trailing `click` — `click` fires for a tap and
+   * a drag alike and cannot tell them apart.
+   */
+  private _onRailSet(value: number, s: GroupSnapshot): void {
     if (!s.target) return;
-    const value = axisDisplayValue(Math.max(0, Math.min(100, next)), posAxis);
     this._pending.start(GroupTile.PENDING_KEY, value);
     setGroupPosition(this.hass, s, value);
+  }
+
+  /**
+   * The rail's live drag value, and the end of the gesture whatever ended it.
+   *
+   * A null preview is the one signal that arrives however the gesture finished
+   * — release, cancel, or the rail being torn out from under the finger when
+   * `show_position_bar` flips. That last case reaches no pointerup on the tag,
+   * so clearing {@link _railActive} only there left the flag stuck true and the
+   * NEXT rail swallowing every pointermove. `RailGestures.isActive()`, which
+   * the flag replaced, cleared on host disconnect for exactly this reason.
+   */
+  private _onRailPreview(value: number | null): void {
+    this._drag = value;
+    if (value === null) this._railActive = false;
+  }
+
+  private _onRailPointerDown(e: PointerEvent, controllable: boolean): void {
+    e.stopPropagation();
+    this._railActive = controllable;
+  }
+
+  /** Pointer moves are swallowed only while a gesture is in flight — including
+   *  one still below the threshold, which previews nothing — so a pointer
+   *  merely crossing the rail still reaches whatever listens above the card. */
+  private _onRailPointerMove = (e: PointerEvent): void => {
+    if (this._railActive) e.stopPropagation();
+  };
+
+  private _onRailPointerEnd = (e: PointerEvent): void => {
+    e.stopPropagation();
+    this._railActive = false;
+  };
+
+  /** Keys are swallowed only when the slider actually consumed them, so the
+   *  ones it ignores still reach the dashboard around the card. Not the tile
+   *  body: `_onBodyKeydown` already ignores any keydown it did not receive
+   *  directly, so nested controls keep their own Enter/Space either way.
+   *  `RailGestures` calls `preventDefault()` on exactly the keys it handles, so
+   *  that is the signal rather than a second copy of the key map out here. */
+  private _stopIfConsumed(e: KeyboardEvent): void {
+    if (e.defaultPrevented) e.stopPropagation();
   }
 
   private _stop(e: Event): void {
@@ -495,7 +468,6 @@ export class GroupTile extends LitElement {
   }
 
   public static styles = [
-    railOverlayStyles,
     css`
       :host {
         display: block;
@@ -636,56 +608,22 @@ export class GroupTile extends LitElement {
         overflow: visible;
         flex: 0 0 auto;
       }
-      /* Interactive wrapper carries the sizing; the visible rail below stays 6px.
-       Geometry is copied from the cover tile's .chrome-line .pos-slider rule so
-       a group tile stacked under cover tiles lines its bar up with theirs,
-       instead of stretching the full width of the row. */
-      .pos-slider {
+      /* The rail is acp-rail-track now, and how it BEHAVES — the relative box,
+       the cursor, the touch-action, the grab area, the focus ring, the disabled
+       and dragging states — lives inside it. What stays here is how it SITS in
+       this row, copied from the cover tile's own rule so a group tile stacked
+       under cover tiles lines its bar up with theirs instead of stretching the
+       full width of the row. */
+      acp-rail-track {
         margin-left: auto;
         align-self: center;
-        position: relative;
         flex: 0 1 170px;
         max-width: 55%;
-        cursor: pointer;
-        /* A touch-drag must move the fill, not scroll the dashboard. */
-        touch-action: none;
-      }
-      /* The rail is too thin to grab on a phone — widen the hit area vertically
-       with an invisible absolute box, which adds no layout height. */
-      .pos-slider::before {
-        content: '';
-        position: absolute;
-        inset: -8px 0;
-      }
-      .pos-slider:focus-visible {
-        outline: 2px solid var(--primary-color);
-        outline-offset: 3px;
-        border-radius: 6px;
-      }
-      /* Nothing to drive: match the buttons rather than looking live and no-oping. */
-      .pos-slider.disabled {
-        cursor: default;
-        opacity: 0.4;
-        touch-action: auto;
-      }
-      .pos-bar {
-        position: relative;
-        width: 100%;
-        height: 6px;
-        border-radius: 6px;
-        background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
-        overflow: hidden;
-      }
-      .pos-fill {
-        position: absolute;
-        inset: 0 auto 0 0;
-        /* One constant color for every rail, never the cover's state color: a rail
-         that changed hue as it crossed open/closed read as a status light rather
-         than a measurement. Overridable per-theme via --acp-pos-fill-color. */
-        background: var(--acp-pos-fill-color, ${unsafeCSS(COVER_ACTIVE_COLOR)});
-        opacity: 0.55;
-        border-radius: 6px;
-        transition: width 0.3s ease;
+        /* The rail has to show the member ticks that overhang it. Only the fill
+         and the band need clipping to the rounded ends, and they round
+         themselves. This is the one place any rail unclips its bar, so it is a
+         knob rather than the element's default. */
+        --acp-rail-overflow: visible;
       }
       /* Disagreement band: from the least-covered member to the most-covered one.
        Same hue as the fill at a lower opacity, so it reads as "some of them are
@@ -716,17 +654,8 @@ export class GroupTile extends LitElement {
         transform: translateX(-50%);
         transition: left 0.3s ease;
       }
-      /* The rail has to show the ticks that overhang it. Only the FILL and BAND
-       need clipping to the rounded ends, so they round themselves instead. */
-      .pos-bar {
-        overflow: visible;
-      }
       .pos-band {
         border-radius: 6px;
-      }
-      /* The ease above smooths server-driven updates; mid-drag it reads as lag. */
-      .pos-slider.dragging .pos-fill {
-        transition: none;
       }
       .tilt-line {
         grid-area: tilt;

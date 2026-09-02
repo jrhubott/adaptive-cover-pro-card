@@ -13,6 +13,22 @@ export interface DecisionInput {
   sunElevation: number;
   /** Used by the custom_position handler — pick a slot that's enabled. */
   nowMs: number;
+  /** Simulate a pre-adaptive-cover-pro#867 integration that hasn't rolled the
+   *  slot's own `custom_name` out to the `custom_position_slots[]` snapshot
+   *  yet (issue #278 audit finding #3). When true, `custom_name` is omitted
+   *  entirely from every slot row (not even an `undefined`-valued key), so
+   *  the snapshot-level read site (the floor chip) exercises the fallback to
+   *  `sensor_name` — except when that row is also the trace's active slot
+   *  and `custom_position_minimum_mode` is not `true`, in which case
+   *  `resolveActiveMinModeFloor`'s `isActiveSlot` borrow supplies
+   *  `custom_position_active_slot_name` instead and the `sensor_name`
+   *  fallback never runs. `custom_position_active_slot_name`'s
+   *  configured-name-first resolution predates and is independent of this
+   *  snapshot-field rollout (per the maintainer), so it continues to resolve
+   *  correctly regardless of this flag. Mirrors the harness's existing
+   *  `legacyIntegration` "simulate an old integration" pattern. Omitted/false
+   *  = `custom_name` is sent (today's default). */
+  omitConfiguredSlotNames?: boolean;
 }
 
 export interface DecisionResult {
@@ -33,7 +49,7 @@ export interface DecisionResult {
  * exactly. Position numbers and reason strings are reasonable approximations.
  */
 export function decide(input: DecisionInput): DecisionResult {
-  const { entry, sunAzimuth, sunElevation } = input;
+  const { entry, sunAzimuth, sunElevation, omitConfiguredSlotNames } = input;
   const f = entry.flags;
   const trace: DecisionStep[] = [];
   let winner: HandlerName | string = 'default';
@@ -95,14 +111,15 @@ export function decide(input: DecisionInput): DecisionResult {
     sun_state: directSunValid ? 'hitting' : inFov ? 'in_fov_not_valid' : 'outside_fov',
     custom_position_active_slot: winner === 'custom_position' ? activeSlot(entry) : undefined,
     custom_position_minimum_mode:
-      winner === 'custom_position' ? activeSlotMinMode(entry) : undefined,
+      winner === 'custom_position' ? activeSlotMinimumMode(entry) : undefined,
     custom_position_active_slot_name:
       winner === 'custom_position' ? activeSlotName(entry) : undefined,
     custom_position_slots: entry.slots.map((s) => ({
       slot: s.slot,
       enabled: s.enabled,
       sensor: `sensor.custom_${entry.entry_id}_slot${s.slot}`,
-      sensor_name: s.name,
+      sensor_name: s.sensorFriendlyName ?? s.name ?? null,
+      ...(omitConfiguredSlotNames ? {} : { custom_name: s.name }),
       position: s.position,
       priority: s.priority,
       min_mode: s.min_mode,
@@ -186,9 +203,11 @@ function evalHandler(
         matches,
         position: slot?.position ?? null,
         reason: matches
-          ? isSafety
-            ? `Safety slot ${slot!.slot} (${slot!.name}) at ${slot!.position}%`
-            : `Custom slot ${slot!.slot} (${slot!.name}) at ${slot!.position}%`
+          ? // slot.name is optional (issue #278 audit optional finding #2) —
+            // fall back rather than interpolating a literal "undefined".
+            isSafety
+            ? `Safety slot ${slot!.slot} (${slot!.name ?? slot!.sensorFriendlyName ?? `Slot ${slot!.slot}`}) at ${slot!.position}%`
+            : `Custom slot ${slot!.slot} (${slot!.name ?? slot!.sensorFriendlyName ?? `Slot ${slot!.slot}`}) at ${slot!.position}%`
           : 'no enabled custom slot',
       };
     }
@@ -286,12 +305,29 @@ function activeSlot(entry: HarnessEntry): 1 | 2 | 3 | 4 | 5 | undefined {
   return winningSlot(entry)?.slot;
 }
 
+/** The winning slot's name for display — mirrors the card's
+ *  `custom_position_active_slot_name`, which already resolves the slot's own
+ *  configured name first, server-side, falling back to the bound sensor's
+ *  friendly name only when the slot has none of its own (issue #278). */
 function activeSlotName(entry: HarnessEntry): string | undefined {
-  return winningSlot(entry)?.name;
+  const slot = winningSlot(entry);
+  return slot ? (slot.name ?? slot.sensorFriendlyName) : undefined;
 }
 
 function activeSlotMinMode(entry: HarnessEntry): boolean | undefined {
   return winningSlot(entry)?.min_mode;
+}
+
+/**
+ * The trace's `custom_position_minimum_mode` for the winning slot — the
+ * winning slot's own `min_mode` config, unless the scenario has forced a
+ * value via `flags.custom_position_minimum_mode_override` (issue #278 audit
+ * optional finding #5; see the flag's doc comment for why the mock cannot
+ * otherwise model "a min_mode-type slot wins but its floor is a no-op this
+ * cycle").
+ */
+function activeSlotMinimumMode(entry: HarnessEntry): boolean | undefined {
+  return entry.flags.custom_position_minimum_mode_override ?? activeSlotMinMode(entry);
 }
 
 /** Whether the cycle's winning custom slot is the priority-100 safety slot. */
@@ -316,6 +352,7 @@ export function scriptedDecision(
   sunAzimuth: number,
   sunElevation: number,
   alsoMatched: readonly HandlerName[] = [],
+  omitConfiguredSlotNames = false,
 ): DecisionResult {
   const trace: DecisionStep[] = HANDLER_ORDER.map((h) => ({
     handler: h,
@@ -364,14 +401,15 @@ export function scriptedDecision(
       sun_state: directSunValid ? 'hitting' : aziInFov ? 'in_fov_not_valid' : 'outside_fov',
       custom_position_active_slot: winner === 'custom_position' ? activeSlot(entry) : undefined,
       custom_position_minimum_mode:
-        winner === 'custom_position' ? activeSlotMinMode(entry) : undefined,
+        winner === 'custom_position' ? activeSlotMinimumMode(entry) : undefined,
       custom_position_active_slot_name:
         winner === 'custom_position' ? activeSlotName(entry) : undefined,
       custom_position_slots: entry.slots.map((s) => ({
         slot: s.slot,
         enabled: s.enabled,
         sensor: `sensor.custom_${entry.entry_id}_slot${s.slot}`,
-        sensor_name: s.name,
+        sensor_name: s.sensorFriendlyName ?? s.name ?? null,
+        ...(omitConfiguredSlotNames ? {} : { custom_name: s.name }),
         position: s.position,
         priority: s.priority,
         min_mode: s.min_mode,

@@ -89,6 +89,8 @@ const FORM_DEFAULTS = {
   show_scene_select: true,
   show_lock: true,
   show_automation: true,
+  // The one group-row control that is opt-IN — see `GroupControlsRow.showClimate`.
+  show_climate: false,
   show_clear_overrides: true,
   show_member_badges: true,
 } as const;
@@ -136,6 +138,7 @@ const LABEL_KEYS: Record<string, string> = {
   show_scene_select: 'editor.tile.show_scene_select',
   show_lock: 'editor.tile.show_lock',
   show_automation: 'editor.tile.show_automation',
+  show_climate: 'editor.tile.show_climate',
   show_clear_overrides: 'editor.tile.show_clear_overrides',
   show_member_badges: 'editor.tile.show_member_badges',
 };
@@ -983,6 +986,7 @@ export class AdaptiveCoverProTileCardEditor extends LitElement implements Lovela
             { name: 'show_scene_select', selector: { boolean: {} } },
             { name: 'show_lock', selector: { boolean: {} } },
             { name: 'show_automation', selector: { boolean: {} } },
+            { name: 'show_climate', selector: { boolean: {} } },
             { name: 'show_clear_overrides', selector: { boolean: {} } },
             { name: 'show_member_badges', selector: { boolean: {} } },
           ]),

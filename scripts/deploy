@@ -203,7 +203,9 @@ if [[ -n "$EXISTING_MOUNT" ]]; then
     echo "==> Share already mounted at ${EXISTING_MOUNT}, reusing it."
     MOUNT_POINT="$EXISTING_MOUNT"
 else
-    MOUNT_POINT="$(mktemp -d)"
+    # macOS resolves /var → /private/var in `mount` output, so track the
+    # realpath — otherwise post-mount grep checks never match.
+    MOUNT_POINT="$(cd "$(mktemp -d)" && pwd -P)"
     MOUNTED_BY_US=true
     echo "==> Mounting //${HA_SMB_HOST}/${HA_SMB_SHARE} → ${MOUNT_POINT}..."
     do_mount "${MOUNT_POINT}" || true

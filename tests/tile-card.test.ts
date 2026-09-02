@@ -4,6 +4,34 @@ import { INTEGRATION_DOMAIN } from '../src/const';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { AdaptiveCoverProTileCardConfig } from '../src/types';
 import type { EntityRegistryEntry } from '../src/lib/entity-registry';
+import { railRoot, railSettled } from './rail-query';
+
+/** The nth position rail's interactive container — the node the gestures are
+ *  wired to AND whose rect the pointer math measures (`RailGestures` reads
+ *  `e.currentTarget`), so it is the node every gesture test dispatches on. */
+/** The rail element's compiled stylesheet, for the rules that moved into it
+ *  when the four tracks merged (#271 Part 2). */
+function railCss(): string {
+  const styles = (customElements.get('acp-rail-track') as unknown as { styles: unknown }).styles;
+  return (Array.isArray(styles) ? styles : [styles])
+    .map((x) => (x as { cssText: string }).cssText)
+    .join('\n');
+}
+
+function posSlider(root: Pick<ParentNode, 'querySelectorAll'>, i = 0): HTMLElement {
+  return railRoot(root, i).querySelector('.pos-slider') as HTMLElement;
+}
+
+/** One node per rail, in rail order — the flattened-tree replacement for a
+ *  `querySelectorAll('.pos-stack .pos-fill')` that used to cross every rail in
+ *  one query. Throws on a rail that did not render, via the shared hop. */
+function perRail(root: Pick<ParentNode, 'querySelectorAll'>, sel: string): HTMLElement[] {
+  return Array.from(root.querySelectorAll('acp-rail-track')).map((_, i) => {
+    const node = railRoot(root, i).querySelector(sel);
+    if (!node) throw new Error(`perRail: rail ${i} rendered no ${sel}`);
+    return node as HTMLElement;
+  });
+}
 
 const TYPE = 'custom:adaptive-cover-pro-tile-card';
 
@@ -746,6 +774,72 @@ describe('adaptive-cover-pro-tile-card render', () => {
     expect(badge).toBeTruthy();
     const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
     expect(text).toBe('Table terrasse · 60% ↥');
+  });
+
+  it("badge prefers the active slot's snapshot custom_name over the trace-level custom_position_active_slot_name (issue #278 audit optional finding #1)", async () => {
+    // custom_position_active_slot_name's "already resolves configured-name-
+    // first, server-side" behaviour rests entirely on the maintainer's word
+    // (evidence packet: "asserted by maintainer, unverifiable locally") — the
+    // exact class of single-source claim that shipped broken twice already
+    // (#279, #292). The badge hedges by preferring the active slot's own
+    // snapshot custom_name, which the card can verify locally via a plain
+    // array lookup, matching resolveActiveMinModeFloor's identical
+    // snapshot-first preference for the floor chip.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, layout: 'one-line' },
+      makeHass({
+        decisionState: 'custom_position_1',
+        decisionAttrs: {
+          trace: [{ handler: 'custom_position_1', matched: true, reason: '', position: 60 }],
+          custom_position_active_slot: 1,
+          custom_position_active_slot_name: 'Trace Name (unverifiable)',
+          custom_position_slots: [
+            {
+              slot: 1,
+              enabled: true,
+              sensor: 'input_number.table',
+              sensor_name: 'Sensor Name',
+              custom_name: 'Snapshot Name',
+              position: 60,
+              priority: 1,
+              min_mode: false,
+            },
+            {
+              slot: 2,
+              enabled: false,
+              sensor: null,
+              sensor_name: null,
+              position: null,
+              priority: null,
+              min_mode: null,
+            },
+            {
+              slot: 3,
+              enabled: false,
+              sensor: null,
+              sensor_name: null,
+              position: null,
+              priority: null,
+              min_mode: null,
+            },
+            {
+              slot: 4,
+              enabled: false,
+              sensor: null,
+              sensor_name: null,
+              position: null,
+              priority: null,
+              min_mode: null,
+            },
+          ],
+        },
+      }),
+    );
+    const badge = el.shadowRoot!.querySelector('acp-tile-badge');
+    expect(badge).toBeTruthy();
+    const text = badge!.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(text).toContain('Snapshot Name');
+    expect(text).not.toContain('Trace Name');
   });
 
   it('shows Manual badge when manual_override is on even if pipeline winner is not manual', async () => {
@@ -1970,6 +2064,7 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
       customPositionMinimumMode?: boolean;
       priority?: number | null;
       sensorName?: string | null;
+      customName?: string | null;
     } = {},
   ): HomeAssistant {
     const {
@@ -1980,6 +2075,7 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
       customPositionMinimumMode = false,
       priority = 1,
       sensorName = 'Aeration',
+      customName = undefined,
     } = opts;
     const hass = makeHass({
       decisionState: winner,
@@ -1993,6 +2089,7 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
             enabled: true,
             sensor: 'input_boolean.floor_sensor',
             sensor_name: sensorName,
+            ...(customName !== undefined ? { custom_name: customName } : {}),
             position: 25,
             priority,
             min_mode: true,
@@ -2051,6 +2148,26 @@ describe('adaptive-cover-pro-tile-card floor chip', () => {
     const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
     expect(chip).toBeTruthy();
     expect(chip!.textContent?.trim()).toMatch(/^↥\s*25%$/);
+  });
+
+  it("prefers the slot's custom_name over sensor_name when both present (issue #278)", async () => {
+    // sensor_name is the bound sensor's HA friendly_name; custom_name is
+    // the slot's own custom_position_name_N — the value the user actually
+    // typed as the slot's label. The chip must show the latter.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeFloorHass({ sensorName: 'Living Room Shades Default', customName: 'Aeration floor' }),
+    );
+    const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
+    expect(chip).toBeTruthy();
+    expect(chip!.textContent?.trim()).toMatch(/↥\s*Aeration floor\s*·\s*25%/);
+  });
+
+  it('falls back to sensor_name when custom_name is absent (older integrations)', async () => {
+    const el = await mount({ type: TYPE, entry_id: ENTRY }, makeFloorHass());
+    const chip = el.shadowRoot!.querySelector('.acp-floor-chip');
+    expect(chip).toBeTruthy();
+    expect(chip!.textContent?.trim()).toMatch(/↥\s*Aeration\s*·\s*25%/);
   });
 
   it('detailed: floor chip rides the dedicated badge row, not the one-line grid (#208 follow-up)', async () => {
@@ -2477,8 +2594,8 @@ describe('adaptive-cover-pro-tile-card unavailable dual-axis cover (issue #212)'
     const tiltBar = el.shadowRoot!.querySelector('acp-tilt-bar') as HTMLElement & {
       updateComplete: Promise<boolean>;
     };
-    await tiltBar.updateComplete;
-    const track = tiltBar.shadowRoot!.querySelector('.track') as HTMLElement;
+    await railSettled(tiltBar);
+    const track = railRoot(tiltBar.shadowRoot!).querySelector('.track') as HTMLElement;
     Object.defineProperty(track, 'getBoundingClientRect', {
       value: () => ({ left: 0, width: 100, top: 0, bottom: 8, right: 100, height: 8 }),
       configurable: true,
@@ -2506,8 +2623,8 @@ describe('adaptive-cover-pro-tile-card unavailable dual-axis cover (issue #212)'
       updateComplete: Promise<boolean>;
     };
     expect(tiltBar.disabled).toBe(false);
-    await tiltBar.updateComplete;
-    const track = tiltBar.shadowRoot!.querySelector('.track') as HTMLElement;
+    await railSettled(tiltBar);
+    const track = railRoot(tiltBar.shadowRoot!).querySelector('.track') as HTMLElement;
     Object.defineProperty(track, 'getBoundingClientRect', {
       value: () => ({ left: 0, width: 100, top: 0, bottom: 8, right: 100, height: 8 }),
       configurable: true,
@@ -2686,9 +2803,9 @@ describe('adaptive-cover-pro-tile-card HA tile layout (detailed)', () => {
       { type: TYPE, entry_id: ENTRY },
       makeHass({ coverLeftCurrentPosition: 60 }),
     );
-    const bar = el.shadowRoot!.querySelector(
-      '.tile-body.detailed .chrome-line .pos-bar',
-    ) as HTMLElement;
+    const bar = railRoot(
+      el.shadowRoot!.querySelector('.tile-body.detailed .chrome-line')!,
+    ).querySelector('.pos-bar') as HTMLElement;
     expect(bar).toBeTruthy();
     const fill = bar.querySelector('.pos-fill') as HTMLElement;
     const marker = bar.querySelector('.pos-marker') as HTMLElement;
@@ -2696,6 +2813,36 @@ describe('adaptive-cover-pro-tile-card HA tile layout (detailed)', () => {
     // solar target sits at 58% along the track.
     expect(fill.getAttribute('style') ?? '').toContain('width:40%');
     expect(marker.getAttribute('style') ?? '').toContain('58%');
+  });
+
+  // `.pos-fill`, the overlay's `.pos-travel`/`.pos-pending`, and `.pos-marker`
+  // are all `position: absolute` with `z-index: auto` (see `railFillStyles`
+  // and `rail-overlay.ts`), so on THIS rail DOM order is paint order — a call
+  // site that re-siblings the overlay ahead of (or the marker behind) the
+  // fill would silently sink the "moving to" indicator under the fill (#272),
+  // invisible to every other assertion in this suite. This pins the order at
+  // the actual `_posBar` call site, not just inside the shared helper.
+  it('detailed: keeps .pos-fill before the overlay before the marker when a move is pending AND a target is set (#272 call-site order guard)', async () => {
+    // coverLeftState 'closing' arms isMovingState → the rail's own automatic-
+    // move hint, which is what drives the "moving to" overlay without a drag.
+    // current_position 60 vs. the default sensor.cover_position target (42)
+    // is well past the 2-point arrival tolerance, so the overlay stays live.
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY },
+      makeHass({ coverLeftCurrentPosition: 60, coverLeftState: 'closing' }),
+    );
+    // Scoped to .chrome-line, so the guard still pins WHERE the rail lives as
+    // well as how it stacks. The decorations `<slot>` carries no class and is
+    // not a drawn layer; its own position between the pip and the marker is
+    // pinned once, at the element level, in rail-track.test.ts.
+    const bar = railRoot(
+      el.shadowRoot!.querySelector('.tile-body.detailed .chrome-line')!,
+    ).querySelector('.pos-bar') as HTMLElement;
+    expect(bar).toBeTruthy();
+    const order = Array.from(bar.children)
+      .map((c) => c.className)
+      .filter((n) => n !== '');
+    expect(order).toEqual(['pos-fill', 'pos-travel', 'pos-pending', 'pos-marker']);
   });
 
   it('detailed: keeps the position bar when show_badge is false (bar is independent of badges)', async () => {
@@ -2706,7 +2853,7 @@ describe('adaptive-cover-pro-tile-card HA tile layout (detailed)', () => {
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
     // No ACP badges render, but the position bar stays — it has its own toggle.
     expect(body.querySelector('acp-tile-badge')).toBeFalsy();
-    expect(body.querySelector('.pos-bar')).toBeTruthy();
+    expect(railRoot(body).querySelector('.pos-bar')).toBeTruthy();
     // The chrome row still exists to carry the bar, in its bar-only form.
     expect(body.classList.contains('has-chrome-row')).toBe(true);
     expect(body.classList.contains('bar-only')).toBe(true);
@@ -2718,7 +2865,7 @@ describe('adaptive-cover-pro-tile-card HA tile layout (detailed)', () => {
       makeHass({ coverLeftCurrentPosition: 60 }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    expect(body.querySelector('.pos-bar')).toBeFalsy();
+    expect(body.querySelector('acp-rail-track')).toBeFalsy();
     // Badges still render (only the bar was turned off), so the chrome row is
     // NOT bar-only here.
     expect(body.classList.contains('bar-only')).toBe(false);
@@ -2952,7 +3099,7 @@ async function mountInverse(hass: HomeAssistant): Promise<CardLike> {
 }
 
 const fillWidth = (el: CardLike): string =>
-  (el.shadowRoot!.querySelector('.pos-bar .pos-fill') as HTMLElement).getAttribute('style') ?? '';
+  (railRoot(el.shadowRoot!).querySelector('.pos-fill') as HTMLElement).getAttribute('style') ?? '';
 
 describe('adaptive-cover-pro-tile-card — inverse_state frame normalization (#234)', () => {
   it('draws the fill and the target marker from one frame when the cover is at target', async () => {
@@ -2960,7 +3107,7 @@ describe('adaptive-cover-pro-tile-card — inverse_state frame normalization (#2
     // bar with the marker pinned at the far end is a 100-point disagreement
     // inside a single widget. Both must resolve to the same number.
     const el = await mountInverse(inverseHass());
-    const bar = el.shadowRoot!.querySelector('.pos-bar') as HTMLElement;
+    const bar = railRoot(el.shadowRoot!).querySelector('.pos-bar') as HTMLElement;
     expect(bar).toBeTruthy();
     const marker = bar.querySelector('.pos-marker') as HTMLElement;
     expect(fillWidth(el)).toContain('width:100%');
@@ -3021,13 +3168,11 @@ describe('adaptive-cover-pro-tile-card — position bar drag slider', () => {
       adaptive_cover_pro: { set_axes: {}, set_position: {} },
     };
     const el = await mount({ type: TYPE, entry_id: ENTRY }, h);
-    const slider = el.shadowRoot!.querySelector('.pos-slider') as HTMLElement;
-    if (slider) {
-      Object.defineProperty(slider, 'getBoundingClientRect', {
-        value: () => RECT,
-        configurable: true,
-      });
-    }
+    const slider = posSlider(el.shadowRoot!);
+    Object.defineProperty(slider, 'getBoundingClientRect', {
+      value: () => RECT,
+      configurable: true,
+    });
     return { el, slider, callService };
   }
 
@@ -3126,6 +3271,36 @@ describe('adaptive-cover-pro-tile-card — position bar drag slider', () => {
     expect(posCall(callService)?.[2]).toEqual({ axes: { position: expected } });
   });
 
+  // The rail swallows only the keys the slider actually CONSUMED, so a key it
+  // ignores still reaches whatever wraps the card. `RailGestures` calls
+  // preventDefault() on exactly the keys it handles and `_stopIfConsumed` reads
+  // that back, which is why these two events are `cancelable: true`: without it
+  // happy-dom leaves `defaultPrevented` false and the gate silently degrades to
+  // "never stop" — the state this pair exists to rule out.
+  it('swallows a consumed slider key and lets an unrelated one through', async () => {
+    const { slider } = await mountSlider();
+    const escaped: string[] = [];
+    const spy = (e: Event): void => {
+      escaped.push((e as KeyboardEvent).key);
+    };
+    document.addEventListener('keydown', spy);
+    try {
+      for (const key of ['ArrowRight', 'Enter']) {
+        slider.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            bubbles: true,
+            composed: true,
+            cancelable: true,
+            key,
+          }),
+        );
+      }
+    } finally {
+      document.removeEventListener('keydown', spy);
+    }
+    expect(escaped).toEqual(['Enter']);
+  });
+
   it('ignores unrelated keys', async () => {
     const { slider, callService } = await mountSlider();
     slider.dispatchEvent(
@@ -3146,7 +3321,7 @@ describe('adaptive-cover-pro-tile-card — position bar drag slider', () => {
   });
 
   it('declares an expanded touch target and owns the touch gesture', () => {
-    const css = tileCss();
+    const css = railCss();
     expect(css).toContain('touch-action: none');
     // The 6px rail is too thin to grab; an invisible ::before widens the hit
     // area without adding layout height.
@@ -3164,7 +3339,7 @@ describe('adaptive-cover-pro-tile-card — position bar drag slider', () => {
       adaptive_cover_pro: { set_axes: {}, set_position: {} },
     };
     const el = await mountInverse(h);
-    const slider = el.shadowRoot!.querySelector('.pos-slider') as HTMLElement;
+    const slider = posSlider(el.shadowRoot!);
     Object.defineProperty(slider, 'getBoundingClientRect', {
       value: () => RECT,
       configurable: true,
@@ -3181,7 +3356,7 @@ describe('adaptive-cover-pro-tile-card — position bar drag slider', () => {
       { type: TYPE, entry_id: ENTRY, show_position_bar: false },
       makeHass({ coverLeftCurrentPosition: 60 }),
     );
-    expect(el.shadowRoot!.querySelector('.pos-slider')).toBeFalsy();
+    expect(el.shadowRoot!.querySelector('acp-rail-track')).toBeFalsy();
   });
 });
 
@@ -3438,7 +3613,7 @@ describe('adaptive-cover-pro-tile-card — tilt-only cover type (#277)', () => {
 
   it('renders no position rail for an entry with no position axis', async () => {
     const el = await mountLouvered(louveredHass());
-    expect(el.shadowRoot!.querySelector('.pos-bar')).toBeNull();
+    expect(el.shadowRoot!.querySelector('acp-rail-track')).toBeNull();
   });
 
   it('renders no % readout, but keeps the entity state text', async () => {
@@ -3563,7 +3738,7 @@ describe('adaptive-cover-pro-tile-card — tilt-only cover type (#277)', () => {
     );
     btn(el, 'down').click();
     await el.updateComplete;
-    expect(el.shadowRoot!.querySelector('.pos-pending')).not.toBeNull();
+    expect(railRoot(el.shadowRoot!).querySelector('.pos-pending')).not.toBeNull();
     expect(slatBar(el).movingTo).toBeNull();
   });
 });
@@ -3932,7 +4107,7 @@ describe('adaptive-cover-pro-tile-card — multi-cover rails', () => {
 
   it('draws each rail from its OWN cover, not the resolved one', async () => {
     const el = await mountRails();
-    const fills = el.shadowRoot!.querySelectorAll('.pos-stack .pos-fill');
+    const fills = perRail(el.shadowRoot!, '.pos-fill');
     // Blind polarity: 60 open → 40 blocking, 25 open → 75 blocking.
     expect(fills[0].getAttribute('style')).toContain('width:40%');
     expect(fills[1].getAttribute('style')).toContain('width:75%');
@@ -3950,15 +4125,14 @@ describe('adaptive-cover-pro-tile-card — multi-cover rails', () => {
 
   it('names each slider for its own rail so they are distinguishable', async () => {
     const el = await mountRails();
-    const sliders = el.shadowRoot!.querySelectorAll('.pos-stack .pos-slider');
+    const sliders = perRail(el.shadowRoot!, '.pos-slider');
     expect(sliders[0].getAttribute('aria-label')).toContain('bottom rail');
     expect(sliders[1].getAttribute('aria-label')).toContain('middle rail');
   });
 
   it('drags one rail without moving the other', async () => {
     const el = await mountRails();
-    const sliders = el.shadowRoot!.querySelectorAll('.pos-stack .pos-slider');
-    const first = sliders[0] as HTMLElement;
+    const first = posSlider(el.shadowRoot!, 0);
     Object.defineProperty(first, 'getBoundingClientRect', {
       value: () => ({ left: 0, width: 100, top: 0, bottom: 6, right: 100, height: 6 }),
       configurable: true,
@@ -3967,7 +4141,7 @@ describe('adaptive-cover-pro-tile-card — multi-cover rails', () => {
       new PointerEvent('pointerdown', { bubbles: true, composed: true, clientX: 90, pointerId: 1 }),
     );
     await el.updateComplete;
-    const fills = el.shadowRoot!.querySelectorAll('.pos-stack .pos-fill');
+    const fills = perRail(el.shadowRoot!, '.pos-fill');
     // A single shared drag state used to paint both rails from whichever one
     // had the finger on it.
     expect(fills[0].getAttribute('style')).toContain('width:90%');
@@ -3982,7 +4156,7 @@ describe('adaptive-cover-pro-tile-card — multi-cover rails', () => {
       adaptive_cover_pro: { set_axes: {} },
     };
     const el = await mountRails({}, hass);
-    const second = el.shadowRoot!.querySelectorAll('.pos-stack .pos-slider')[1] as HTMLElement;
+    const second = posSlider(el.shadowRoot!, 1);
     Object.defineProperty(second, 'getBoundingClientRect', {
       value: () => ({ left: 0, width: 100, top: 0, bottom: 6, right: 100, height: 6 }),
       configurable: true,
@@ -4000,7 +4174,7 @@ describe('adaptive-cover-pro-tile-card — multi-cover rails', () => {
 
   it('ticks the resolved rail from the pipeline target and the rest per-entity', async () => {
     const el = await mountRails();
-    const markers = el.shadowRoot!.querySelectorAll('.pos-stack .pos-marker');
+    const markers = perRail(el.shadowRoot!, '.pos-marker');
     // Resolved cover keeps the entry target (42 → 58 drawn); the second rail
     // takes its own dispatched value (30 → 70 drawn), which is on a different
     // scale precisely because it is a remap.
@@ -4017,14 +4191,14 @@ describe('adaptive-cover-pro-tile-card — multi-cover rails', () => {
     const railEls = rails(el);
     // Better tickless than borrowing the entry target, which is on the wrong
     // scale for this rail.
-    expect(railEls[1].querySelector('.pos-marker')).toBeNull();
-    expect(railEls[0].querySelector('.pos-marker')).not.toBeNull();
+    expect(railRoot(railEls[1]).querySelector('.pos-marker')).toBeNull();
+    expect(railRoot(railEls[0]).querySelector('.pos-marker')).not.toBeNull();
   });
 
   it('collapses to a single rail when the tile is pinned with `cover`', async () => {
     const el = await mountRails({ cover: 'cover.right' });
     expect(el.shadowRoot!.querySelector('.pos-stack')).toBeNull();
-    const fill = el.shadowRoot!.querySelector('.pos-fill') as HTMLElement;
+    const fill = railRoot(el.shadowRoot!).querySelector('.pos-fill') as HTMLElement;
     // The single-rail branch must read the PINNED cover, not the resolved one.
     expect(fill.getAttribute('style')).toContain('width:75%');
   });
@@ -4039,7 +4213,7 @@ describe('adaptive-cover-pro-tile-card — multi-cover rails', () => {
   it('drops ids the entry does not manage', async () => {
     const el = await mountRails({ covers: ['cover.right', 'cover.gone'] });
     expect(el.shadowRoot!.querySelector('.pos-stack')).toBeNull();
-    expect(el.shadowRoot!.querySelector('.pos-fill')).not.toBeNull();
+    expect(railRoot(el.shadowRoot!).querySelector('.pos-fill')).not.toBeNull();
   });
 
   it('falls back to every rail when `covers` matches nothing at all', async () => {
@@ -4165,7 +4339,7 @@ describe('tile card — bar-only layout (#260)', () => {
         makeHass({ coverLeftCurrentPosition: 60 }),
       );
       const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-      expect(body.querySelector('.chrome-line .pos-bar')).toBeTruthy();
+      expect(railRoot(body.querySelector('.chrome-line')!).querySelector('.pos-bar')).toBeTruthy();
       expect(body.querySelector('.label .chrome-line')).toBeFalsy();
     }
   });
@@ -4197,7 +4371,7 @@ describe('tile card — rail geometry (#260)', () => {
       makeHass({ coverLeftCurrentPosition: 60 }),
     );
     const body = el.shadowRoot!.querySelector('.tile-body.detailed')!;
-    expect(body.querySelector('.pos-bar')).toBeTruthy();
+    expect(railRoot(body).querySelector('.pos-bar')).toBeTruthy();
     expect(body.querySelector('.pos-stack')).toBeFalsy();
     expect(body.querySelector('.pos-glyph')).toBeFalsy();
   });
@@ -4214,12 +4388,10 @@ describe('tile card — rail geometry (#260)', () => {
 });
 
 describe('tile card — rail color is constant (#260)', () => {
-  const css = (): string => AdaptiveCoverProTileCard.styles.toString();
-
   // A rail is a measurement, not a status light: it must not change hue as the
   // cover crosses open/closed, and on a multi-rail tile the rails must agree.
   it('paints the fill from the cover-active token, not the per-state one', () => {
-    const text = css();
+    const text = railCss();
     expect(text).toContain('--acp-pos-fill-color');
     expect(text).toContain('var(--state-cover-active-color');
     expect(text).not.toContain('--state-cover-open-color');
@@ -4231,7 +4403,7 @@ describe('tile card — rail color is constant (#260)', () => {
         { type: TYPE, entry_id: ENTRY },
         makeHass({ coverLeftCurrentPosition: 60, coverLeftState }),
       );
-      const fills = el.shadowRoot!.querySelectorAll('.pos-fill');
+      const fills = perRail(el.shadowRoot!, '.pos-fill');
       expect(fills.length).toBeGreaterThan(0);
       for (const fill of fills) {
         expect(fill.getAttribute('style') ?? '').not.toContain('background');
@@ -4320,8 +4492,22 @@ describe('tile card — low-battery overlay (#260)', () => {
 });
 
 describe('tile card — drag position readout (#260)', () => {
-  interface Draggable extends CardLike {
-    _posDrag: { id: string; pct: number } | null;
+  const RECT = { left: 0, width: 100, top: 0, bottom: 6, right: 100, height: 6 };
+
+  /** Put the first rail into a live drag through the real gesture path, and
+   *  hand back the slider so the caller can end it. On a mirrored blind the
+   *  drawn 63 under the finger is logical 37 — the value these tests assert. */
+  async function dragFirstRail(el: CardLike): Promise<HTMLElement> {
+    const slider = posSlider(el.shadowRoot!, 0);
+    Object.defineProperty(slider, 'getBoundingClientRect', {
+      value: () => RECT,
+      configurable: true,
+    });
+    slider.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, composed: true, clientX: 63, pointerId: 1 }),
+    );
+    await railSettled(el);
+    return slider;
   }
 
   it('shows no readout when idle', async () => {
@@ -4335,12 +4521,11 @@ describe('tile card — drag position readout (#260)', () => {
   // The hover tooltip carries the same number, but a tooltip is mouse-only —
   // on a phone the finger setting the position also covers the rail.
   it('shows the live logical percentage on the dragged rail only', async () => {
-    const el = (await mount(
+    const el = await mount(
       { type: TYPE, entry_id: ENTRY },
       makeHass({ coverLeftCurrentPosition: 60 }),
-    )) as Draggable;
-    el._posDrag = { id: 'cover.left', pct: 37 };
-    await el.updateComplete;
+    );
+    await dragFirstRail(el);
 
     const readouts = el.shadowRoot!.querySelectorAll('.pos-readout');
     expect(readouts.length).toBe(1);
@@ -4348,31 +4533,60 @@ describe('tile card — drag position readout (#260)', () => {
   });
 
   it('clears the readout when the drag ends', async () => {
-    const el = (await mount(
+    const el = await mount(
       { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
       makeHass({ coverLeftCurrentPosition: 60 }),
-    )) as Draggable;
-    el._posDrag = { id: 'cover.left', pct: 37 };
-    await el.updateComplete;
+    );
+    const slider = await dragFirstRail(el);
     expect(el.shadowRoot!.querySelector('.pos-readout')).toBeTruthy();
 
-    el._posDrag = null;
+    slider.dispatchEvent(
+      new PointerEvent('pointerup', { bubbles: true, composed: true, clientX: 63, pointerId: 1 }),
+    );
     await el.updateComplete;
     expect(el.shadowRoot!.querySelector('.pos-readout')).toBeFalsy();
   });
 
-  // .pos-bar is overflow:hidden to clip the fill, so the readout must not live
-  // inside it, and it must never swallow the drag it reports on.
-  it('sits outside the clipped bar and is pointer-transparent', async () => {
-    const el = (await mount(
+  // #271 Part 2: the bar moved behind `acp-rail-track`'s shadow boundary, but
+  // the readout did NOT — it stays a light-DOM child the card styles with a
+  // plain class selector, handed to the element's `readout` slot so it lands
+  // beside the clipped bar rather than inside it.
+  it('renders the readout as slotted light DOM on the rail', async () => {
+    const el = await mount(
       { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
       makeHass({ coverLeftCurrentPosition: 60 }),
-    )) as Draggable;
-    el._posDrag = { id: 'cover.left', pct: 37 };
-    await el.updateComplete;
+    );
+    const slider = railRoot(el.shadowRoot!).querySelector('.pos-slider') as HTMLElement;
+    Object.defineProperty(slider, 'getBoundingClientRect', {
+      value: () => RECT,
+      configurable: true,
+    });
+    slider.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, composed: true, clientX: 63, pointerId: 1 }),
+    );
+    await railSettled(el);
+    const readout = el.shadowRoot!.querySelector('acp-rail-track > .pos-readout') as HTMLElement;
+    expect(readout).toBeTruthy();
+    expect(readout.slot).toBe('readout');
+    expect(readout.textContent!.trim()).toContain('37');
+  });
 
-    expect(el.shadowRoot!.querySelector('.pos-slider > .pos-readout')).toBeTruthy();
-    expect(el.shadowRoot!.querySelector('.pos-bar .pos-readout')).toBeFalsy();
+  // The readout must never swallow the drag it reports on.
+  //
+  // Its placement OUTSIDE the clipped .pos-bar is guarded elsewhere, and
+  // deliberately not re-asserted here: a `.pos-bar .pos-readout` query against
+  // the rail's shadow tree can never match, because the readout is light DOM in
+  // this card's tree no matter which slot it targets. The two assertions that
+  // do catch a readout rendered inside the bar are `readout.slot` in the test
+  // above and the slot-position guard in rail-track.test.ts.
+  it('stays light DOM on the rail and is pointer-transparent', async () => {
+    const el = await mount(
+      { type: TYPE, entry_id: ENTRY, covers: ['cover.left'] },
+      makeHass({ coverLeftCurrentPosition: 60 }),
+    );
+    await dragFirstRail(el);
+
+    expect(el.shadowRoot!.querySelector('acp-rail-track > .pos-readout')).toBeTruthy();
     expect(AdaptiveCoverProTileCard.styles.toString()).toMatch(
       /\.pos-readout\s*\{[^}]*pointer-events:\s*none/,
     );

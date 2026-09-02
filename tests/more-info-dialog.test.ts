@@ -453,6 +453,32 @@ describe('acp-more-info-dialog: slot management', () => {
     expect(labels[1]).toContain('Movie');
   });
 
+  it('prefers custom_name over sensor_name in the slot row (issue #278 audit finding #5)', async () => {
+    // sensor_name is the bound sensor's HA friendly_name; custom_name is
+    // the slot's own custom_position_name_N. The row must show the latter.
+    const mismatchedSlots = [
+      {
+        ...slots[0],
+        custom_name: 'Living Room Window Open',
+        sensor_name: 'Living Room Shades Default',
+      },
+      slots[1],
+      slots[2],
+      slots[3],
+    ];
+    const el = await mount({
+      hass: hass({ traceExtraAttrs: { custom_position_slots: mismatchedSlots } }),
+      discovered: discovered(),
+      open: true,
+    });
+    (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
+    await el.updateComplete;
+    const labels = Array.from(el.shadowRoot!.querySelectorAll('.slot-row .slot-label')).map(
+      (el) => el.textContent?.trim() ?? '',
+    );
+    expect(labels[0]).toBe('Living Room Window Open');
+  });
+
   it('shows the floor badge only when min_mode is true', async () => {
     const el = await mount({
       hass: hass({ traceExtraAttrs: { custom_position_slots: slots } }),
@@ -561,6 +587,99 @@ describe('acp-more-info-dialog: slot management', () => {
     (el.shadowRoot!.querySelector('.advanced-toggle') as HTMLElement).click();
     await el.updateComplete;
     expect(el.shadowRoot!.querySelector('.slots-section')).toBeNull();
+  });
+});
+
+// Issue #278 audit finding #5 / optional finding #1: the dialog header
+// badge's `.slotName` wiring now prefers the active slot's locally-
+// verifiable snapshot `custom_name` over the trace-level
+// `custom_position_active_slot_name`, whose "already resolves the configured
+// name first, server-side" behaviour the card cannot verify (evidence
+// packet: "asserted by maintainer, unverifiable locally" — the exact class
+// of single-source claim that shipped broken twice already, #279 and #292).
+// Falls back to the trace field when the snapshot has no matching row/name,
+// and to `#N` when neither carries a name. resolveConfiguredName's
+// blank-guard (audit finding #2) still applies throughout.
+describe('acp-more-info-dialog: header badge slot name (issue #278 audit)', () => {
+  function customPositionHass(
+    overrides: Partial<{
+      slotName: string | null;
+      snapshotCustomName: string | null;
+    }> = {},
+  ): HomeAssistant {
+    return hass({
+      winner: 'custom_position',
+      trace: [{ handler: 'custom_position_1', matched: true, position: 55, reason: '' }],
+      traceExtraAttrs: {
+        custom_position_active_slot: 1,
+        custom_position_minimum_mode: false,
+        ...('slotName' in overrides
+          ? { custom_position_active_slot_name: overrides.slotName }
+          : {}),
+        ...('snapshotCustomName' in overrides
+          ? {
+              custom_position_slots: [
+                {
+                  slot: 1,
+                  enabled: true,
+                  sensor: 'input_boolean.slot1',
+                  sensor_name: 'Sensor Name',
+                  custom_name: overrides.snapshotCustomName,
+                  position: 55,
+                  priority: 1,
+                  min_mode: false,
+                },
+              ],
+            }
+          : {}),
+      },
+    });
+  }
+
+  function headerBadgeText(el: DialogLike): string {
+    const badge = el.shadowRoot!.querySelector('.header acp-tile-badge');
+    return badge!.shadowRoot!.querySelector('span.badge')!.textContent?.trim() ?? '';
+  }
+
+  it("prefers the active slot's snapshot custom_name over the trace-level custom_position_active_slot_name", async () => {
+    const el = await mount({
+      hass: customPositionHass({
+        slotName: 'Trace Name (unverifiable)',
+        snapshotCustomName: 'Snapshot Name',
+      }),
+      discovered: discovered(),
+      open: true,
+    });
+    const text = headerBadgeText(el);
+    expect(text).toContain('Snapshot Name');
+    expect(text).not.toContain('Trace Name');
+  });
+
+  it('falls back to custom_position_active_slot_name when the snapshot has no matching row', async () => {
+    const el = await mount({
+      hass: customPositionHass({ slotName: 'Living Room Window Open' }),
+      discovered: discovered(),
+      open: true,
+    });
+    expect(headerBadgeText(el)).toContain('Living Room Window Open');
+  });
+
+  it('treats a blank/whitespace-only slot name as absent, falling back to #N', async () => {
+    const el = await mount({
+      hass: customPositionHass({ slotName: '   ' }),
+      discovered: discovered(),
+      open: true,
+    });
+    expect(headerBadgeText(el)).toContain('#1');
+  });
+
+  it('falls back to #N when neither the snapshot nor the trace carries a name', async () => {
+    const el = await mount({
+      hass: customPositionHass(),
+      discovered: discovered(),
+      open: true,
+    });
+    expect(headerBadgeText(el)).toContain('#1');
   });
 });
 

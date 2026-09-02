@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   axisDisplayValue,
+  axisFraction,
   hasPositionAxis,
   positionAxisFor,
   positionAxisInverted,
@@ -467,5 +468,64 @@ describe('axisDisplayValue', () => {
     expect(axisDisplayValue(-90, slat)).toBe(90);
     expect(axisDisplayValue(90, slat)).toBe(-90);
     expect(axisDisplayValue(0, slat)).toBe(0);
+  });
+});
+
+describe('axisFraction', () => {
+  const blind = { openBlocksSun: false, min: 0, max: 100 };
+  const awning = { openBlocksSun: true, min: 0, max: 100 };
+  const slat = { openBlocksSun: false, min: -90, max: 90 };
+  const slatIdentity = { openBlocksSun: true, min: -90, max: 90 };
+
+  it('maps a 0–100 identity axis straight onto the track', () => {
+    expect(axisFraction(0, awning)).toBe(0);
+    expect(axisFraction(35, awning)).toBe(35);
+    expect(axisFraction(100, awning)).toBe(100);
+  });
+
+  it('flips a mirrored 0–100 axis', () => {
+    expect(axisFraction(35, blind)).toBe(65);
+    expect(axisFraction(0, blind)).toBe(100);
+    expect(axisFraction(100, blind)).toBe(0);
+  });
+
+  it('normalizes a non-0–100 range onto the track before mirroring', () => {
+    expect(axisFraction(45, slatIdentity)).toBe(75);
+    expect(axisFraction(45, slat)).toBe(25);
+  });
+
+  it('draws EMPTY, never full, when there is no reading', () => {
+    // Substituting `min` would be harmless on an identity axis but maps to a
+    // completely full bar on a mirrored one — an unknown cover reading as
+    // fully blocking.
+    expect(axisFraction(null, blind)).toBe(0);
+    expect(axisFraction(undefined, blind)).toBe(0);
+    expect(axisFraction(NaN, blind)).toBe(0);
+    expect(axisFraction(null, awning)).toBe(0);
+  });
+
+  it('draws empty for a zero-span axis rather than dividing by zero', () => {
+    expect(axisFraction(50, { openBlocksSun: true, min: 50, max: 50 })).toBe(0);
+    expect(axisFraction(50, { openBlocksSun: false, min: 50, max: 50 })).toBe(0);
+  });
+
+  it('clamps a value outside the range to the track ends', () => {
+    expect(axisFraction(150, awning)).toBe(100);
+    expect(axisFraction(-20, awning)).toBe(0);
+    expect(axisFraction(150, blind)).toBe(0);
+    expect(axisFraction(-20, blind)).toBe(100);
+  });
+
+  it('agrees with axisDisplayValue — the parity that lets one helper serve both', () => {
+    // `_frac` in `acp-axis-bar` mirrored on the PERCENTAGE while
+    // `axisDisplayValue` mirrors in AXIS UNITS. This sweep is the evidence that
+    // the two rules are the same rule, which is what allows `_frac` to be
+    // deleted in favour of this helper.
+    for (const v of [0, 1, 17, 35, 50, 62, 99, 100]) {
+      expect(axisFraction(v, blind)).toBe(axisFraction(axisDisplayValue(v, blind), awning));
+    }
+    for (const v of [-90, -45, -1, 0, 1, 45, 90]) {
+      expect(axisFraction(v, slat)).toBe(axisFraction(axisDisplayValue(v, slat), slatIdentity));
+    }
   });
 });

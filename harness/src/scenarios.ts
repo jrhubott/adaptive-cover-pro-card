@@ -18,6 +18,7 @@ function defaultRoot(): HarnessConfig['root'] {
     show_compass_legend: true,
     show_moon: false,
     hide_inactive_handlers: false,
+    show_climate: false,
     show_decision_summary: true,
     state_color: true,
     north_offset: 0,
@@ -109,6 +110,7 @@ function defaultTile(): HarnessConfig['tile'] {
     show_scene_select: true,
     show_lock: true,
     show_automation: true,
+    show_climate: false,
     show_clear_overrides: true,
     show_member_badges: true,
     badges: defaultBadges(),
@@ -240,6 +242,7 @@ function makeGroupEntry(
       scene_option: 'auto',
       locked: false,
       automation: true,
+      climate: true,
       climate_mode: 'summer_mode',
     },
   };
@@ -293,10 +296,27 @@ function automationGroupEntries(auto: [boolean, boolean]): HarnessEntry[] {
         scene_option: 'auto',
         locked: false,
         automation: true,
+        climate: true,
         climate_mode: 'summer_mode',
       },
     }),
   ];
+}
+
+/**
+ * The climate twin of {@link automationGroupEntries} (issue #287).
+ *
+ * Same two real ACP members behind one group, but the per-entry switch the
+ * scenario drives is `climate_mode` rather than `automatic_control`. The group's
+ * own `climate: true` latch is left ON in every case on purpose: that is the
+ * write-only latch the integration restores, so a scenario where the members
+ * disagree with it is exactly the one the pre-rollup button got wrong.
+ */
+function climateGroupEntries(climate: [boolean, boolean]): HarnessEntry[] {
+  const entries = automationGroupEntries([true, true]);
+  entries[0].flags.climate_mode = climate[0];
+  entries[1].flags.climate_mode = climate[1];
+  return entries;
 }
 
 function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): HarnessConfig {
@@ -310,6 +330,7 @@ function baseConfig(date: string, time: number, lat = 47.6, lon = -122.3): Harne
     theme: 'light',
     language: 'en',
     legacyIntegration: false,
+    omitConfiguredSlotNames: false,
     entries: [makeEntry({ entry_id: 'south_window', title: 'Living Room', window_azimuth: 180 })],
     decisionMode: 'derived',
     scriptedWinner: 'solar',
@@ -734,7 +755,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'ha-tile-badge-row',
     label: 'HA tile layout — badges on the dedicated row',
     description:
-      "HA-tile layout match (#208 follow-up): the detailed Tile card now mirrors HA's native tile — a state-tinted 36px icon shape, a name-over-state label column, and HA-metric control buttons — with ACP's own chrome (Auto / Manual / floor badges) dropped onto a dedicated full-width row that starts at the label's left edge. This scenario arms a manual override AND an enabled, named min-mode floor slot ('Aeration floor'), so the badge row shows the Manual badge alongside the ↥ Aeration floor · 40% chip (#278: the floor chip now surfaces the slot's configured name); the top two rows read exactly like a native HA tile. Regression guard: the floor chip must ride this badge row, not collapse the detailed grid back to the one-line layout.",
+      "HA-tile layout match (#208 follow-up): the detailed Tile card now mirrors HA's native tile — a state-tinted 36px icon shape, a name-over-state label column, and HA-metric control buttons — with ACP's own chrome (Auto / Manual / floor badges) dropped onto a dedicated full-width row that starts at the label's left edge. This scenario arms a manual override AND an enabled, named min-mode floor slot whose configured name ('Aeration floor') deliberately differs from its bound sensor's friendly name ('Living Room Shades Default') — the mismatch issue #278 reported. The badge row shows the Manual badge alongside the ↥ Aeration floor · 40% chip: the slot's own configured name, not the sensor's friendly name. The top two rows read exactly like a native HA tile. Regression guard: the floor chip must ride this badge row, not collapse the detailed grid back to the one-line layout, and must keep surfacing the configured name over the sensor name.",
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'ha-tile-badge-row';
@@ -756,6 +777,9 @@ export const SCENARIOS: Scenario[] = [
           // Enable the priority-90 min-mode floor slot (slot 4) so its sensor
           // arms — with manual override winning (manual precedes custom_position
           // in HANDLER_ORDER), the floor stays a constraint and its ↥ chip shows.
+          // Slot 4's sensorFriendlyName deliberately differs from its name
+          // (issue #278) so the chip's "configured name, not sensor name"
+          // preference is actually exercised, not just coincidentally correct.
           slots: [
             {
               slot: 1,
@@ -786,6 +810,7 @@ export const SCENARIOS: Scenario[] = [
               enabled: true,
               position: 40,
               name: 'Aeration floor',
+              sensorFriendlyName: 'Living Room Shades Default',
               min_mode: true,
               priority: 90,
             },
@@ -806,6 +831,80 @@ export const SCENARIOS: Scenario[] = [
       // Arm the manual override on the built entry (makeEntry's `flags` override
       // wants the full flag set; mutating the returned full object is simpler).
       c.entries[0].flags.manual_override = true;
+      return c;
+    },
+  },
+  {
+    id: 'custom-position-name-mismatch-winner',
+    label: 'Custom position wins — configured name ≠ sensor name (#278)',
+    description:
+      "Issue #278 audit finding #4: `ha-tile-badge-row` only exercises the per-slot SNAPSHOT mismatch (the floor chip's `custom_name`), because it wins via manual override — the trace-level `custom_position_active_slot` fields describe the floor slot there, not the winner. Here the custom-position slot itself WINS the decision outright (not as a min-mode floor riding under another winner), with its configured name ('Reading nook') deliberately differing from its bound sensor's HA friendly name ('Office Window Trigger'). That's what populates the TRACE-level `custom_position_active_slot_name` field — which, per the maintainer, already resolves the slot's configured name first, server-side — feeding the tile's direct-action badge and the decision-strip sentence (\"Custom Position · {name}\") — both must show the configured name, never the sensor's friendly name.",
+    build: () => {
+      const c = baseConfig('2026-06-21', 13 * 60);
+      c.scenario = 'custom-position-name-mismatch-winner';
+      c.entries[0].flags.automatic_control = true;
+      c.entries[0].target_position = 55;
+      c.entries[0].covers[0].position = 55;
+      c.entries[0].slots = [
+        {
+          slot: 1,
+          enabled: true,
+          position: 55,
+          name: 'Reading nook',
+          sensorFriendlyName: 'Office Window Trigger',
+          min_mode: false,
+          priority: 60,
+        },
+        { slot: 2, enabled: false, position: 20, name: 'Privacy', min_mode: false, priority: 70 },
+        {
+          slot: 3,
+          enabled: false,
+          position: 100,
+          name: 'Welcome home',
+          min_mode: false,
+          priority: 50,
+        },
+        { slot: 4, enabled: false, position: 50, name: 'Floor', min_mode: true, priority: 90 },
+        { slot: 5, enabled: false, position: 0, name: 'Safety', min_mode: false, priority: 100 },
+      ];
+      return c;
+    },
+  },
+  {
+    id: 'custom-position-floor-borrows-trace-name',
+    label: 'Floor chip borrows the trace name (#278 audit optional finding #5)',
+    description:
+      "Issue #278 audit optional finding #5: resolveActiveMinModeFloor's isActiveSlot borrow — the floor chip falls through to the trace-level custom_position_active_slot_name only when the snapshot row IS the trace's active/winning slot — had no scenario reaching it. Slot 1 wins the decision outright AND is itself the armed min-mode floor (its own sensor is on). omitConfiguredSlotNames is true so the snapshot's custom_name is withheld, forcing resolveActiveMinModeFloor past its first candidate. custom_position_minimum_mode is forced false via the mock's override flag: the real integration can report a floor-type slot as a this-cycle no-op independent of its static min_mode config, a state the harness's default winningSlot().min_mode mirror cannot express, and without it showFloorChip's badge-redundancy suppression (winner===custom_position && minimum_mode===true) would hide the very chip meant to demonstrate the borrow. The floor chip should read '↥ Greenhouse floor · 45%' — the slot's OWN configured name, borrowed from the trace, never the bound sensor's friendly name ('Greenhouse Trigger').",
+    build: () => {
+      const c = baseConfig('2026-06-21', 13 * 60);
+      c.scenario = 'custom-position-floor-borrows-trace-name';
+      c.omitConfiguredSlotNames = true;
+      c.entries[0].flags.automatic_control = true;
+      c.entries[0].flags.custom_position_minimum_mode_override = false;
+      c.entries[0].target_position = 45;
+      c.entries[0].covers[0].position = 45;
+      c.entries[0].slots = [
+        {
+          slot: 1,
+          enabled: true,
+          position: 45,
+          name: 'Greenhouse floor',
+          sensorFriendlyName: 'Greenhouse Trigger',
+          min_mode: true,
+          priority: 60,
+        },
+        { slot: 2, enabled: false, position: 20, name: 'Privacy', min_mode: false, priority: 70 },
+        {
+          slot: 3,
+          enabled: false,
+          position: 100,
+          name: 'Welcome home',
+          min_mode: false,
+          priority: 50,
+        },
+        { slot: 4, enabled: false, position: 50, name: 'Floor', min_mode: true, priority: 90 },
+        { slot: 5, enabled: false, position: 0, name: 'Safety', min_mode: false, priority: 100 },
+      ];
       return c;
     },
   },
@@ -1438,7 +1537,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'group-tile',
     label: 'Cover Group — tile variant (issue #185)',
     description:
-      "A Cover Group entry rendered as the group tile, now carrying the cover tile's full control surface: a position-aware glyph tinted by the aggregate state, the ↑■↓ button row, a drag-to-set aggregate slider, and the group row (scene select, lock, automation, clear overrides) — plus the who-won \"2/3\" badge. Drag the slider or press ↑/↓ → adaptive_cover_pro.group_set_position fans out to every member; ■ → group_stop; pick a scene → select.select_option; toggle lock/automation → switch.turn_on/off; clear overrides → button.press. Tap the tile body to open the group dialog, where every member row is independently controllable. This group's members are bare cover entity_ids with no ACP entries behind them, so the Automation button has nothing to roll up and holds its pre-rollup look — driven by the group's own switch. That degradation is the point of keeping it here; the three colors live in the group-automation-* scenarios.",
+      "A Cover Group entry rendered as the group tile, now carrying the cover tile's full control surface: a position-aware glyph tinted by the aggregate state, the ↑■↓ button row, a drag-to-set aggregate slider, and the group row (scene select, lock, automation, climate, clear overrides) — plus the who-won \"2/3\" badge. Drag the slider or press ↑/↓ → adaptive_cover_pro.group_set_position fans out to every member; ■ → group_stop; pick a scene → select.select_option; toggle lock/automation/climate → switch.turn_on/off; clear overrides → button.press. The climate toggle (issue #225) is the one control that defaults to HIDDEN — `show_climate` is on here, and it starts OFF, so a press sends switch.turn_on to the group's bulk climate latch and flips the button. Like the Automation button beside it, it has nothing to fan out to in this scenario: these members are bare cover entity_ids with no ACP entries, so no member climate switch exists to follow. cover-group-full carries the on state. Tap the tile body to open the group dialog, where every member row is independently controllable. This group's members are bare cover entity_ids with no ACP entries behind them, so the Automation button has nothing to roll up and holds its pre-rollup look — driven by the group's own switch. That degradation is the point of keeping it here; the three colors live in the group-automation-* scenarios.",
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'group-tile';
@@ -1450,6 +1549,10 @@ export const SCENARIOS: Scenario[] = [
       c.decision.enabled = false;
       c.solarChart.enabled = false;
       c.tile.layout = 'detailed';
+      // Climate is the one opt-in control, so it needs turning on to appear at
+      // all. Shown in its OFF state here; cover-group-full carries the on state.
+      c.tile.show_climate = true;
+      c.entries[0].group!.climate = false;
       return c;
     },
   },
@@ -1483,6 +1586,7 @@ export const SCENARIOS: Scenario[] = [
             scene_option: 'auto',
             locked: false,
             automation: true,
+            climate: true,
             climate_mode: 'summer_mode',
           },
         }),
@@ -1549,6 +1653,7 @@ export const SCENARIOS: Scenario[] = [
             scene_option: 'auto',
             locked: false,
             automation: true,
+            climate: true,
             climate_mode: 'summer_mode',
           },
         }),
@@ -1617,6 +1722,60 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'group-climate-all',
+    label: 'Cover Group — Climate green (every member on)',
+    description:
+      'The climate twin of the three group-automation-* scenarios (issue #287). Both ACP members have their own Climate Mode switch on, so the button is green with the filled mdi:sun-thermometer glyph and reads “Climate — 2 of 2 members using climate”. `show_climate` is on here; it defaults to hidden, so this is the only family of scenarios where the button appears at all. A press sends switch.turn_off to the group latch, since every member is already on.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-climate-all';
+      c.entries = climateGroupEntries([true, true]);
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      c.tile.show_climate = true;
+      return c;
+    },
+  },
+  {
+    id: 'group-climate-mixed',
+    label: 'Cover Group — Climate amber (members disagree)',
+    description:
+      'The case #287 exists for. Side Yard Shade has Climate Mode OFF while Backyard Shade has it on, so the button is amber with the outlined glyph and reads “Climate — 1 of 2 members using climate”, with aria-pressed="mixed". The group climate latch still says ON: as shipped in #225 that painted the button fully-on and a press sent turn_OFF, moving the group further from what the icon claimed. Now a press sends turn_ON and brings the straggler up. Toggle Side Yard Shade’s own climate switch to watch the group button follow — the whole thing the latch could not do.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-climate-mixed';
+      c.entries = climateGroupEntries([true, false]);
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      c.tile.show_climate = true;
+      return c;
+    },
+  },
+  {
+    id: 'group-climate-none',
+    label: 'Cover Group — Climate grey (no member on)',
+    description:
+      'Both ACP members have Climate Mode off, so the button is grey and untinted, reading “Climate — 0 of 2 members using climate”. Its glyph is mdi:thermometer-off — the one place the climate set leaves the sun-thermometer family, because MDI has no sun-thermometer-off and the off state is the one that most needs to be unmistakable at 20px. Grey rather than red for the same reason automation is: climate off is a state the user chose, not a fault. The group latch is STILL on, so this is the pure form of the bug.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'group-climate-none';
+      c.entries = climateGroupEntries([false, false]);
+      c.root.enabled = false;
+      c.compass.enabled = false;
+      c.decision.enabled = false;
+      c.solarChart.enabled = false;
+      c.tile.layout = 'detailed';
+      c.tile.show_climate = true;
+      return c;
+    },
+  },
+  {
     id: 'group-tilt',
     label: 'Cover Group — aggregate cover + tilt axis',
     description:
@@ -1649,6 +1808,7 @@ export const SCENARIOS: Scenario[] = [
             scene_option: 'auto',
             locked: false,
             automation: true,
+            climate: true,
             climate_mode: 'summer_mode',
             aggregate_cover: true,
             tilt: 45,
@@ -1667,7 +1827,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'cover-group-full',
     label: 'Cover Group — full main-card view (issue #185)',
     description:
-      'A Cover Group entry rendered through the ROOT main card, which routes it to the group view (no sun/window geometry). The view now carries the same control surface as the tile dialog: an aggregate position track, the ↑■↓ row, the scene select, lock / automation toggles, a clear-overrides button, and a member roster of 4 covers where every row is independently controllable. Winners are mixed — solar, group_scene, and group_lock drive three ACP members, while a generic cover shows its position with no who-won badge and takes native cover.* services. The group is locked.',
+      'A Cover Group entry rendered through the ROOT main card, which routes it to the group view (no sun/window geometry). The view now carries the same control surface as the tile dialog: an aggregate position track, the ↑■↓ row, the scene select, lock / automation / climate toggles, a clear-overrides button, and a member roster of 4 covers where every row is independently controllable. The climate toggle (issue #225) is opt-in and reaches this surface through the MAIN card’s own `show_climate`, which is the only route to it here — the other three controls have never been configurable on the main card. It starts ON, so a press disables climate mode across every member. Winners are mixed — solar, group_scene, and group_lock drive three ACP members, while a generic cover shows its position with no who-won badge and takes native cover.* services. The group is locked.',
     build: () => {
       const c = baseConfig('2026-06-21', 12 * 60);
       c.scenario = 'cover-group-full';
@@ -1693,6 +1853,7 @@ export const SCENARIOS: Scenario[] = [
             scene_option: 'all_closed',
             locked: true,
             automation: true,
+            climate: true,
             climate_mode: 'summer_mode',
           },
         }),
@@ -1701,6 +1862,9 @@ export const SCENARIOS: Scenario[] = [
       // cards are cover-oriented and hidden here. The root card routes to the
       // group view automatically via `is_group`.
       c.root.enabled = true;
+      // The main card's own opt-in for the climate toggle — this is the surface
+      // that would otherwise have no way to reach it. Shown in its ON state.
+      c.root.show_climate = true;
       c.tile.enabled = false;
       c.compass.enabled = false;
       c.decision.enabled = false;
@@ -2477,6 +2641,7 @@ export const SCENARIOS: Scenario[] = [
             scene_option: 'auto',
             locked: false,
             automation: true,
+            climate: true,
             climate_mode: 'summer_mode',
           },
         }),
@@ -2977,6 +3142,7 @@ export const SCENARIOS: Scenario[] = [
             scene_option: 'auto',
             locked: false,
             automation: true,
+            climate: true,
             climate_mode: 'summer_mode',
           },
         }),
@@ -3046,6 +3212,7 @@ export const SCENARIOS: Scenario[] = [
             scene_option: 'auto',
             locked: false,
             automation: true,
+            climate: true,
             climate_mode: 'summer_mode',
           },
         }),
@@ -3120,6 +3287,7 @@ export const SCENARIOS: Scenario[] = [
             scene_option: 'auto',
             locked: false,
             automation: true,
+            climate: true,
             climate_mode: 'summer_mode',
           },
         }),
@@ -3263,6 +3431,7 @@ export function normalizeConfig(cfg: HarnessConfig): HarnessConfig {
     ...cfg,
     stageHeight: cfg.stageHeight ?? 0,
     legacyIntegration: cfg.legacyIntegration ?? false,
+    omitConfiguredSlotNames: cfg.omitConfiguredSlotNames ?? false,
     tile: {
       ...cfg.tile,
       badges: { ...defaultBadges(), ...(cfg.tile?.badges ?? {}) },
