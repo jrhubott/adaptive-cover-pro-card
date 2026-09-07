@@ -4,6 +4,7 @@ import {
   azimuthInFov,
   findFovWindow,
   findFovWindows,
+  findSunPathBlindSpotRuns,
   getMoonData,
   nextSolarEvents,
   sampleDay,
@@ -133,6 +134,24 @@ describe('findFovWindows', () => {
     // morning run sits on the E side of N, evening run on the W side
     expect(samples[runs[0].startIdx].azimuth).toBeLessThan(90);
     expect(samples[runs[1].endIdx].azimuth).toBeGreaterThan(270);
+  });
+
+  describe('findSunPathBlindSpotRuns', () => {
+    const samples = [120, 160, 175, 185, 200].map((azimuth, i) => ({
+      t: new Date(i * 60_000),
+      azimuth,
+      elevation: 30,
+    }));
+
+    it('returns only the blind-spot portion crossed by the sun path', () => {
+      expect(findSunPathBlindSpotRuns(samples, 180, 90, 90, [[170, 190]])).toEqual([
+        { startIdx: 2, endIdx: 3, blindSpotIndex: 0 },
+      ]);
+    });
+
+    it('applies elevation limits to the intersection', () => {
+      expect(findSunPathBlindSpotRuns(samples, 180, 90, 90, [[170, 190]], 40)).toEqual([]);
+    });
   });
 
   it('returns a single run for a south-facing window, matching findFovWindow', () => {

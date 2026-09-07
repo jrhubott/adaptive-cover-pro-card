@@ -5,8 +5,19 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import { entityStateChanged } from '../lib/hass-change';
 
 import type { ControlStatusAttributes, DiscoveredEntities, SunPositionAttributes } from '../types';
-import { findFovWindows, sampleDay, startOfDayInZone, type SunSample } from '../lib/sun-model';
-import { elevationBandFraction, ribbonLayout, scheduleZones } from '../lib/geometry';
+import {
+  findFovWindows,
+  findSunPathBlindSpotRuns,
+  sampleDay,
+  startOfDayInZone,
+  type SunSample,
+} from '../lib/sun-model';
+import {
+  blindSpotBearingList,
+  elevationBandFraction,
+  ribbonLayout,
+  scheduleZones,
+} from '../lib/geometry';
 import { startMinuteTimer } from '../lib/minute-timer';
 import { sunDotState, SUN_DOT_CLASS } from '../lib/sun-dot-state';
 import { resolveCoverColor } from '../lib/palette';
@@ -34,6 +45,57 @@ function parseScheduleBound(value: string | null | undefined): Date | null {
   if (!value) return null;
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Return the FOV runs with configured blind-spot bearings removed. The chart's
+ * ten-minute sampling is also used for the normal FOV boundaries, so using it
+ * here keeps all timing bands on the same x-axis resolution.
+ */
+function findVisibleFovWindows(
+  samples: SunSample[],
+  windowAzi: number,
+  fovLeft: number,
+  fovRight: number,
+  blindSpots: Array<[number, number]>,
+  minElevation?: number,
+  maxElevation?: number,
+): Array<{ startIdx: number; endIdx: number }> {
+  const fovRuns = findFovWindows(samples, windowAzi, fovLeft, fovRight);
+  if (blindSpots.length === 0) return fovRuns;
+
+  const blindIndices = new Set(
+    findSunPathBlindSpotRuns(
+      samples,
+      windowAzi,
+      fovLeft,
+      fovRight,
+      blindSpots,
+      minElevation,
+      maxElevation,
+    ).flatMap((run) => {
+      const indices: number[] = [];
+      for (let i = run.startIdx; i <= run.endIdx; i++) indices.push(i);
+      return indices;
+    }),
+  );
+
+  const visibleRuns: Array<{ startIdx: number; endIdx: number }> = [];
+  for (const run of fovRuns) {
+    let visibleStart = -1;
+    for (let i = run.startIdx; i <= run.endIdx; i++) {
+      if (!blindIndices.has(i)) {
+        if (visibleStart === -1) visibleStart = i;
+      } else if (visibleStart !== -1) {
+        visibleRuns.push({ startIdx: visibleStart, endIdx: i - 1 });
+        visibleStart = -1;
+      }
+    }
+    if (visibleStart !== -1) {
+      visibleRuns.push({ startIdx: visibleStart, endIdx: run.endIdx });
+    }
+  }
+  return visibleRuns;
 }
 
 @customElement('acp-elevation-chart')
@@ -231,7 +293,28 @@ export class ElevationChart extends LitElement {
       if (!attrs) {
         return { d, runs: [], inPlotBands: [], runBars: [], label: '', color, inlineFill };
       }
-      const runs = findFovWindows(samples, attrs.window_azimuth, attrs.fov_left, attrs.fov_right);
+      const blindSpots = blindSpotBearingList(
+        attrs.window_azimuth,
+        attrs.blind_spot_ranges,
+        attrs.blind_spot_range,
+      );
+      const runs = this.showRawBlindSpot
+        ? findVisibleFovWindows(
+            samples,
+            attrs.window_azimuth,
+            attrs.fov_left,
+            attrs.fov_right,
+            blindSpots,
+          )
+        : findVisibleFovWindows(
+            samples,
+            attrs.window_azimuth,
+            attrs.fov_left,
+            attrs.fov_right,
+            blindSpots,
+            attrs.min_elevation,
+            attrs.max_elevation,
+          );
 
       // Elevation limits (optional integration attrs) clip the in-plot band.
       const hasMin = typeof attrs.min_elevation === 'number';

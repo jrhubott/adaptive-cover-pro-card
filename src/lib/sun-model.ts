@@ -164,6 +164,61 @@ export function findFovWindows(
   return runs;
 }
 
+export interface SunPathBlindSpotRun {
+  startIdx: number;
+  endIdx: number;
+  blindSpotIndex: number;
+}
+
+/**
+ * Find portions of a configured blind spot that the sun actually traverses
+ * today. A sample must be above the horizon, inside the window FOV, inside the
+ * optional elevation limits, and inside the blind-spot bearing.
+ */
+export function findSunPathBlindSpotRuns(
+  samples: SunSample[],
+  windowAzi: number,
+  fovLeft: number,
+  fovRight: number,
+  blindSpots: readonly (readonly [number, number])[],
+  minElevation?: number,
+  maxElevation?: number,
+): SunPathBlindSpotRun[] {
+  const runs: SunPathBlindSpotRun[] = [];
+  let current: SunPathBlindSpotRun | null = null;
+  for (let i = 0; i < samples.length; i++) {
+    const sample = samples[i];
+    const elevationInRange =
+      sample.elevation > 0 &&
+      (minElevation === undefined || sample.elevation > minElevation) &&
+      (maxElevation === undefined || sample.elevation < maxElevation);
+    const blindSpotIndex = elevationInRange
+      ? blindSpots.findIndex(([start, end]) => {
+          const sweep = (((end - start) % 360) + 360) % 360;
+          const center = (start + sweep / 2) % 360;
+          return azimuthInFov(sample.azimuth, windowAzi, fovLeft, fovRight) &&
+            azimuthInFov(sample.azimuth, center, sweep / 2, sweep / 2)
+            ? true
+            : false;
+        })
+      : -1;
+
+    if (blindSpotIndex >= 0) {
+      if (current && current.blindSpotIndex === blindSpotIndex && current.endIdx === i - 1) {
+        current.endIdx = i;
+      } else {
+        if (current) runs.push(current);
+        current = { startIdx: i, endIdx: i, blindSpotIndex };
+      }
+    } else if (current) {
+      runs.push(current);
+      current = null;
+    }
+  }
+  if (current) runs.push(current);
+  return runs;
+}
+
 /**
  * The single longest contiguous "sun in FOV + above horizon" run for today, or
  * null if the sun never enters the FOV. For all disjoint runs see

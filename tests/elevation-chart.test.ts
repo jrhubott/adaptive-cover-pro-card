@@ -120,6 +120,14 @@ describe('acp-elevation-chart: single-window (legacy, unchanged)', () => {
     expect(style).not.toMatch(/fill\s*:/);
   });
 
+  it('splits the single-window FOV band around a blind spot', async () => {
+    const el = await mount({
+      hass: hass({ blind_spot_ranges: [[30, 60]] }),
+      discoveredList: [discovered],
+    });
+    expect(el.shadowRoot!.querySelectorAll('rect.fov-band').length).toBe(2);
+  });
+
   it('renders NO ribbon bars or tracks for a single window', async () => {
     const el = await mount({ hass: hass({}), discoveredList: [discovered] });
     expect(el.shadowRoot!.querySelectorAll('rect.ribbon-bar').length).toBe(0);
