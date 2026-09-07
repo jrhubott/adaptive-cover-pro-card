@@ -15,6 +15,7 @@ interface SkyCompassLike extends HTMLElement {
   showMoon?: boolean;
   showCardinals?: boolean;
   showBlindSpot?: boolean;
+  showRawBlindSpot?: boolean;
   showSunPath?: boolean;
   showSunriseSunset?: boolean;
   showCoverFill?: boolean;
@@ -716,7 +717,7 @@ describe('acp-sky-compass blind spot bearing conversion', () => {
     const hass = makeHass([
       { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, blindSpot: [10, 30] },
     ]);
-    const el = await mountCompass([d], hass);
+    const el = await mountCompass([d], hass, { showRawBlindSpot: true });
     const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
     const expected = wedgePath(normalizeAzimuth(150), normalizeAzimuth(170), 110, 0, 0);
     const blind = el.shadowRoot!.querySelector('path.blind-spot') as SVGPathElement;
@@ -728,7 +729,7 @@ describe('acp-sky-compass blind spot bearing conversion', () => {
     const hass = makeHass([
       { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, blindSpot: [10, 30] },
     ]);
-    const el = await mountCompass([d], hass);
+    const el = await mountCompass([d], hass, { showRawBlindSpot: true });
     const title = el.shadowRoot!.querySelector('g.blind-group')?.getAttribute('data-tooltip') ?? '';
     expect(title).toContain('150');
     expect(title).toContain('170');
@@ -922,7 +923,7 @@ describe('acp-sky-compass visual toggles', () => {
   });
 
   it('showBlindSpot=true (default) renders blind-spot wedge inside FOV', async () => {
-    const el = await mountCompass([d()], hass());
+    const el = await mountCompass([d()], hass(), { showRawBlindSpot: true });
     const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
     // windowAzimuth=180, fov_left=45, fov_right=45 → FOV: 135°–225°
     // blind_spot_range=[10, 30] → absolute bearings 150°–170° (inside FOV)

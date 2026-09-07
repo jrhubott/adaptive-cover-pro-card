@@ -69,6 +69,35 @@ describe('editor show_elevation_chart toggle', () => {
     expect(emitted!.show_elevation_chart).toBe(false);
   });
 
+  describe('editor raw blind spot toggle', () => {
+    it('emits show_raw_blind_spot when enabled', () => {
+      const el = makeEditor();
+      el._entries = [{ entry_id: 'a', title: 'Kitchen' }];
+      el.setConfig({ type: 'custom:x', entry_ids: ['a'] });
+
+      let emitted: SkyCompassCardConfig | null = null;
+      el.addEventListener('config-changed', (e: Event) => {
+        emitted = (e as CustomEvent).detail.config;
+      });
+
+      el._onToggle('show_raw_blind_spot', true);
+      expect(emitted!.show_raw_blind_spot).toBe(true);
+    });
+
+    it('renders the raw blind spot checkbox disabled by default', async () => {
+      const el = makeEditor();
+      el._entries = [{ entry_id: 'a', title: 'Kitchen' }];
+      el.setConfig({ type: 'custom:x', entry_ids: ['a'] });
+      document.body.appendChild(el);
+      await el.updateComplete;
+
+      const labels = Array.from(el.shadowRoot!.querySelectorAll('.toggle-label')).map(
+        (n) => n.textContent?.trim() ?? '',
+      );
+      expect(labels).toContain('Raw blind spots');
+    });
+  });
+
   it('renders a show_elevation_chart checkbox in the display toggles, defaulting on', async () => {
     const el = makeEditor();
     el._entries = [{ entry_id: 'a', title: 'Kitchen' }];

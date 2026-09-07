@@ -16,6 +16,7 @@ type ToggleKey =
   | 'show_moon'
   | 'show_cardinals'
   | 'show_blind_spot'
+  | 'show_raw_blind_spot'
   | 'show_sun_path'
   | 'show_sunrise_sunset'
   | 'show_cover_fill'
@@ -65,6 +66,12 @@ const TOGGLE_ROWS: ToggleRow[] = [
     labelKey: 'editor.compass.toggle_blind_spot_label',
     descKey: 'editor.compass.toggle_blind_spot_desc',
     defaultOn: true,
+  },
+  {
+    key: 'show_raw_blind_spot',
+    labelKey: 'editor.compass.toggle_raw_blind_spot_label',
+    descKey: 'editor.compass.toggle_raw_blind_spot_desc',
+    defaultOn: false,
   },
   {
     key: 'show_sun_path',

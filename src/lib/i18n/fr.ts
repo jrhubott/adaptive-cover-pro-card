@@ -464,6 +464,9 @@ export const fr: EnDict = {
       show_compass_legend_desc: 'Clé de couleur sous la boussole céleste.',
       show_moon_label: 'Afficher la lune sur la boussole',
       show_moon_desc: 'Position et phase de la lune en superposition sur la boussole céleste.',
+      show_raw_blind_spot_label: 'Zones de soleil masqué brutes',
+      show_raw_blind_spot_desc:
+        "Afficher les angles configurés sans les limiter à la trajectoire et à l'élévation du soleil du jour.",
       show_climate_label: 'Afficher l’interrupteur climatique (groupes de volets)',
       show_climate_desc:
         'Ajoute un interrupteur marche/arrêt de régulation climatique à la barre de contrôle d’un groupe de volets. Une pression active ou désactive le mode climatique sur tous les membres.',
@@ -557,6 +560,9 @@ export const fr: EnDict = {
       toggle_blind_spot_label: 'Zones de soleil masqué',
       toggle_blind_spot_desc:
         'Secteurs hachurés pour la plage où le soleil est masqué de chaque fenêtre.',
+      toggle_raw_blind_spot_label: 'Zones de soleil masqué brutes',
+      toggle_raw_blind_spot_desc:
+        "Afficher les angles configurés sans les limiter à la trajectoire et à l'élévation du soleil du jour.",
       toggle_sun_path_label: 'Trajectoire solaire',
       toggle_sun_path_desc: 'Arc solaire du jour dans le ciel.',
       toggle_sunrise_sunset_label: 'Repères lever / coucher du soleil',
@@ -590,6 +596,9 @@ export const fr: EnDict = {
       display: 'Affichage',
       toggle_compact_label: 'Mode compact',
       toggle_compact_desc: 'Graphique plus petit, espacement plus serré.',
+      toggle_raw_blind_spot_label: 'Zones de soleil masqué brutes',
+      toggle_raw_blind_spot_desc:
+        'Diviser le graphique selon les angles configurés uniquement, utile pour vérifier la configuration.',
     },
     history: {
       title: 'Titre (facultatif)',

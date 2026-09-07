@@ -146,6 +146,10 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
     this._emit({ ...(this._config ?? { type: '', entry_id: '' }), show_moon: enabled });
   }
 
+  private _onRawBlindSpotToggle(enabled: boolean): void {
+    this._emit({ ...(this._config ?? { type: '', entry_id: '' }), show_raw_blind_spot: enabled });
+  }
+
   /** Cover Group entries only. Shown unconditionally: this editor resolves no
    *  entity registry, so it cannot tell a group entry from a cover one — the
    *  same reason the compass and handler options above stay visible for a group,
@@ -362,6 +366,22 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
             <span class="toggle-text">
               <span class="toggle-label">${t('editor.main.show_moon_label', this.hass)}</span>
               <span class="toggle-desc">${t('editor.main.show_moon_desc', this.hass)}</span>
+            </span>
+          </label>
+          <label class="toggle-row">
+            <input
+              type="checkbox"
+              .checked=${this._config.show_raw_blind_spot ?? false}
+              @change=${(e: Event) =>
+                this._onRawBlindSpotToggle((e.target as HTMLInputElement).checked)}
+            />
+            <span class="toggle-text">
+              <span class="toggle-label"
+                >${t('editor.main.show_raw_blind_spot_label', this.hass)}</span
+              >
+              <span class="toggle-desc"
+                >${t('editor.main.show_raw_blind_spot_desc', this.hass)}</span
+              >
             </span>
           </label>
           <label class="toggle-row">

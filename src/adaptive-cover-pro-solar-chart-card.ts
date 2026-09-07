@@ -208,6 +208,7 @@ export class AdaptiveCoverProSolarChartCard extends LitElement {
           .hass=${this.hass}
           .discoveredList=${discoveredList}
           .coverColors=${cfg.cover_colors ?? []}
+          .showRawBlindSpot=${cfg.show_raw_blind_spot ?? false}
           ?compact=${!!cfg.compact}
         ></acp-elevation-chart>
         ${missing.length > 0

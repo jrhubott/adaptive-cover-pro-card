@@ -26,6 +26,7 @@ import { coverActualPosition, displayTarget } from '../lib/cover-position';
 import {
   aboveHorizonSegments,
   findFovWindows,
+  findSunPathBlindSpotRuns,
   sampleDay,
   startOfDayInZone,
   getMoonData,
@@ -86,6 +87,7 @@ export class SkyCompass extends LitElement {
   @property({ attribute: false }) public showMoon = false;
   @property({ attribute: false }) public showCardinals = true;
   @property({ attribute: false }) public showBlindSpot = true;
+  @property({ attribute: false }) public showRawBlindSpot = false;
   @property({ attribute: false }) public showSunPath = true;
   @property({ attribute: false }) public showSunriseSunset = true;
   @property({ attribute: false }) public showCoverFill = true;
@@ -540,11 +542,28 @@ export class SkyCompass extends LitElement {
         ? coverWedgeOuterRadius(o.actualPos, o.openBlocksSun, OUTER_R, fovOuterR)
         : null;
     // Every configured slot, not just slot 1 — see blindSpotBearingList (#269).
-    const blindSpots = blindSpotBearingList(
+    const rawBlindSpots = blindSpotBearingList(
       windowAzi,
       o.sun.blind_spot_ranges,
       o.sun.blind_spot_range,
-    ).map(([from, to]) => ({
+    );
+    const computedBlindSpots = this.showRawBlindSpot
+      ? rawBlindSpots
+      : findSunPathBlindSpotRuns(
+          samples,
+          windowAzi,
+          o.sun.fov_left,
+          o.sun.fov_right,
+          rawBlindSpots,
+          o.sun.min_elevation,
+          o.sun.max_elevation,
+        )
+          .map((run) => {
+            const bounds = fovRunBounds(samples, run.startIdx, run.endIdx, 0);
+            return bounds ? ([bounds.wedgeStart, bounds.wedgeEnd] as [number, number]) : null;
+          })
+          .filter((range): range is [number, number] => range !== null);
+    const blindSpots = computedBlindSpots.map(([from, to]) => ({
       from,
       to,
       path: wedgePath(from, to, OUTER_R, 0, northOffsetDeg),

@@ -103,6 +103,39 @@ describe('solar-chart-card editor compact toggle', () => {
     expect(emitted).not.toBeNull();
     expect(emitted!.compact).toBe(true);
   });
+
+  describe('solar-chart-card editor raw blind spot toggle', () => {
+    it('emits show_raw_blind_spot when enabled', () => {
+      const el = makeEditor();
+      el._entries = [{ entry_id: 'a', title: 'Kitchen' }];
+      el.setConfig({ type: 'custom:x', entry_ids: ['a'] });
+
+      let emitted: SolarChartCardConfig | null = null;
+      el.addEventListener('config-changed', (e: Event) => {
+        emitted = (e as CustomEvent).detail.config;
+      });
+
+      el._onToggle('show_raw_blind_spot', true);
+      expect(emitted!.show_raw_blind_spot).toBe(true);
+    });
+
+    it('renders a raw blind spot checkbox disabled by default', async () => {
+      const el = makeEditor();
+      el._entries = [{ entry_id: 'a', title: 'Kitchen' }];
+      el.setConfig({ type: 'custom:x', entry_ids: ['a'] });
+      document.body.appendChild(el);
+      await el.updateComplete;
+
+      const labels = Array.from(el.shadowRoot!.querySelectorAll('.toggle-label')).map(
+        (n) => n.textContent?.trim() ?? '',
+      );
+      expect(labels).toContain('Raw blind spots');
+      const checkbox = Array.from(
+        el.shadowRoot!.querySelectorAll<HTMLInputElement>('.toggle-row input'),
+      ).find((input) => input.parentElement?.textContent?.includes('Raw blind spots'));
+      expect(checkbox?.checked).toBe(false);
+    });
+  });
 });
 
 describe('solar-chart-card editor cover_colors', () => {

@@ -105,7 +105,7 @@ export class AdaptiveCoverProSolarChartCardEditor extends LitElement implements 
     this._emitWithColors(base, newColors, { entry_ids: ordered });
   }
 
-  private _onToggle(key: 'compact', enabled: boolean): void {
+  private _onToggle(key: 'compact' | 'show_raw_blind_spot', enabled: boolean): void {
     this._emit({ ...this._baseConfig(), [key]: enabled });
   }
 
@@ -199,6 +199,22 @@ export class AdaptiveCoverProSolarChartCardEditor extends LitElement implements 
               >
               <span class="toggle-desc"
                 >${t('editor.solar_chart.toggle_compact_desc', this.hass)}</span
+              >
+            </span>
+          </label>
+          <label class="toggle-row">
+            <input
+              type="checkbox"
+              .checked=${this._config.show_raw_blind_spot ?? false}
+              @change=${(e: Event) =>
+                this._onToggle('show_raw_blind_spot', (e.target as HTMLInputElement).checked)}
+            />
+            <span class="toggle-text">
+              <span class="toggle-label"
+                >${t('editor.solar_chart.toggle_raw_blind_spot_label', this.hass)}</span
+              >
+              <span class="toggle-desc"
+                >${t('editor.solar_chart.toggle_raw_blind_spot_desc', this.hass)}</span
               >
             </span>
           </label>

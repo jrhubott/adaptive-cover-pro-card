@@ -104,6 +104,7 @@ export class ElevationChart extends LitElement {
   @property({ attribute: false }) public discoveredList: DiscoveredEntities[] = [];
   @property({ attribute: false }) public coverColors: (string | null | undefined)[] = [];
   @property({ type: Boolean, reflect: true }) public compact = false;
+  @property({ attribute: false }) public showRawBlindSpot = false;
 
   // Advance the "now" cursor as wall-clock time passes. Rendering is otherwise gated to
   // state changes (shouldUpdate), so without this the now-line would only move when a

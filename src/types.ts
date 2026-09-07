@@ -30,6 +30,8 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
   compact?: boolean;
   show_compass_stats?: boolean;
   show_compass_legend?: boolean;
+  /** Show configured blind-spot angles without sun-path filtering. */
+  show_raw_blind_spot?: boolean;
   show_moon?: boolean;
   /** Color the header cover state icon by its HA state (open/opening/closing =
    *  active tier, closed/unknown = inactive tier, unavailable/missing =
@@ -251,6 +253,9 @@ export interface SkyCompassCardConfig extends LovelaceCardConfig {
   show_moon?: boolean;
   show_cardinals?: boolean;
   show_blind_spot?: boolean;
+  /** Show the configured blind-spot bearing envelope instead of only the part
+   * crossed by today's sun path. Useful when setting up geometry. */
+  show_raw_blind_spot?: boolean;
   show_sun_path?: boolean;
   show_sunrise_sunset?: boolean;
   show_cover_fill?: boolean;
@@ -271,6 +276,8 @@ export interface SolarChartCardConfig extends LovelaceCardConfig {
   entry_ids: string[];
   title?: string;
   compact?: boolean;
+  /** Show raw configured blind-spot angles instead of sun-path intersections. */
+  show_raw_blind_spot?: boolean;
   cover_colors?: (string | null)[];
   /** Card-owned floating tooltip behavior. Defaults: enabled, offset [12,16],
    *  delay 400ms. Set `enabled: false` to use native browser tooltips. */
