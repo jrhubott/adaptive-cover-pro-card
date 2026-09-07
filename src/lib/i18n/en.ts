@@ -584,6 +584,12 @@ export const en = {
       display: 'Display',
       toggle_compact_label: 'Compact mode',
       toggle_compact_desc: 'Smaller chart, tighter spacing.',
+      blind_spot_mode_label: 'Blind-spot display',
+      blind_spot_mode_desc: 'Choose how blind spots affect FOV bands and overlays.',
+      blind_spot_mode_none: 'No blind spot',
+      blind_spot_mode_void: 'Void blind spot',
+      blind_spot_mode_width: 'Blind spot width only',
+      blind_spot_mode_full: 'Full blind spot',
       toggle_raw_blind_spot_label: 'Raw blind spots',
       toggle_raw_blind_spot_desc:
         'Split the chart using configured angles only, useful for checking the setup.',

@@ -105,8 +105,16 @@ export class AdaptiveCoverProSolarChartCardEditor extends LitElement implements 
     this._emitWithColors(base, newColors, { entry_ids: ordered });
   }
 
-  private _onToggle(key: 'compact' | 'show_raw_blind_spot', enabled: boolean): void {
+  private _onToggle(key: 'compact', enabled: boolean): void {
     this._emit({ ...this._baseConfig(), [key]: enabled });
+  }
+
+  private _onBlindSpotModeChange(e: Event): void {
+    this._emit({
+      ...this._baseConfig(),
+      blind_spot_mode: (e.target as HTMLSelectElement)
+        .value as SolarChartCardConfig['blind_spot_mode'],
+    });
   }
 
   private _onTitleChange(e: Event): void {
@@ -202,21 +210,32 @@ export class AdaptiveCoverProSolarChartCardEditor extends LitElement implements 
               >
             </span>
           </label>
-          <label class="toggle-row">
-            <input
-              type="checkbox"
-              .checked=${this._config.show_raw_blind_spot ?? false}
-              @change=${(e: Event) =>
-                this._onToggle('show_raw_blind_spot', (e.target as HTMLInputElement).checked)}
-            />
+          <label class="mode-row">
             <span class="toggle-text">
               <span class="toggle-label"
-                >${t('editor.solar_chart.toggle_raw_blind_spot_label', this.hass)}</span
+                >${t('editor.solar_chart.blind_spot_mode_label', this.hass)}</span
               >
               <span class="toggle-desc"
-                >${t('editor.solar_chart.toggle_raw_blind_spot_desc', this.hass)}</span
+                >${t('editor.solar_chart.blind_spot_mode_desc', this.hass)}</span
               >
             </span>
+            <select
+              @change=${this._onBlindSpotModeChange}
+              .value=${this._config.blind_spot_mode ?? 'full'}
+            >
+              <option value="none">
+                ${t('editor.solar_chart.blind_spot_mode_none', this.hass)}
+              </option>
+              <option value="void">
+                ${t('editor.solar_chart.blind_spot_mode_void', this.hass)}
+              </option>
+              <option value="width">
+                ${t('editor.solar_chart.blind_spot_mode_width', this.hass)}
+              </option>
+              <option value="full">
+                ${t('editor.solar_chart.blind_spot_mode_full', this.hass)}
+              </option>
+            </select>
           </label>
         </div>
         ${renderEditorFooter(this.hass)}
@@ -320,6 +339,22 @@ export class AdaptiveCoverProSolarChartCardEditor extends LitElement implements 
       accent-color: var(--primary-color);
       width: 16px;
       height: 16px;
+    }
+    .mode-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 6px 0;
+    }
+    .mode-row select {
+      min-width: 170px;
+      padding: 6px 8px;
+      border: 1px solid var(--divider-color);
+      border-radius: 6px;
+      background: var(--card-background-color, transparent);
+      color: var(--primary-text-color);
+      font: inherit;
     }
     .toggle-text {
       display: flex;

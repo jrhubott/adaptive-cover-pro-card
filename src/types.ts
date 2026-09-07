@@ -276,8 +276,8 @@ export interface SolarChartCardConfig extends LovelaceCardConfig {
   entry_ids: string[];
   title?: string;
   compact?: boolean;
-  /** Show raw configured blind-spot angles instead of sun-path intersections. */
-  show_raw_blind_spot?: boolean;
+  /** How blind spots affect the FOV bands and chart overlays (default `full`). */
+  blind_spot_mode?: 'none' | 'void' | 'width' | 'full';
   cover_colors?: (string | null)[];
   /** Card-owned floating tooltip behavior. Defaults: enabled, offset [12,16],
    *  delay 400ms. Set `enabled: false` to use native browser tooltips. */
@@ -678,6 +678,19 @@ export interface SunPositionAttributes {
    *  the integration has had three since its #701. A card that reads only
    *  `blind_spot_range` draws slot 1 and silently loses the rest. */
   blind_spot_ranges?: Array<[number, number]>;
+  /** Elevation threshold for the blind spot, when published by the integration. */
+  blind_spot_elevation?: number;
+  /** Whether the blind spot applies below or above its elevation threshold. */
+  blind_spot_elevation_mode?: 'below' | 'above';
+  /** Per-slot blind-spot elevation thresholds and modes. */
+  blind_spot_elevations?: Array<number | null>;
+  blind_spot_elevation_modes?: Array<'below' | 'above' | null>;
+  /** Elevation gates paired with `blind_spot_ranges` (newer integration versions). */
+  blind_spot_slots?: Array<{
+    range?: [number, number];
+    elevation?: number | null;
+    elevation_mode?: 'below' | 'above' | null;
+  }>;
 }
 
 export interface StartEndSunAttributes {

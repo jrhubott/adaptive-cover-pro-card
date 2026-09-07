@@ -152,6 +152,18 @@ describe('findFovWindows', () => {
     it('applies elevation limits to the intersection', () => {
       expect(findSunPathBlindSpotRuns(samples, 180, 90, 90, [[170, 190]], 40)).toEqual([]);
     });
+
+    it('applies each blind-spot slot elevation gate to its intersection', () => {
+      const lowSun = samples.map((sample) => ({ ...sample, elevation: 10 }));
+      const highSun = samples.map((sample) => ({ ...sample, elevation: 40 }));
+      const gate = [{ elevation: 25, mode: 'above' as const }];
+      expect(
+        findSunPathBlindSpotRuns(lowSun, 180, 90, 90, [[170, 190]], undefined, undefined, gate),
+      ).toEqual([]);
+      expect(
+        findSunPathBlindSpotRuns(highSun, 180, 90, 90, [[170, 190]], undefined, undefined, gate),
+      ).toEqual([{ startIdx: 2, endIdx: 3, blindSpotIndex: 0 }]);
+    });
   });
 
   it('returns a single run for a south-facing window, matching findFovWindow', () => {

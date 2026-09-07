@@ -11,6 +11,7 @@ interface EditorLike extends HTMLElement {
   _onCoverColorReset(index: number): void;
   _onEntryToggle(entryId: string, enabled: boolean): void;
   _onToggle(key: string, enabled: boolean): void;
+  _onBlindSpotModeChange(e: Event): void;
 }
 
 function makeEditor(): EditorLike {
@@ -104,37 +105,36 @@ describe('solar-chart-card editor compact toggle', () => {
     expect(emitted!.compact).toBe(true);
   });
 
-  describe('solar-chart-card editor raw blind spot toggle', () => {
-    it('emits show_raw_blind_spot when enabled', () => {
-      const el = makeEditor();
-      el._entries = [{ entry_id: 'a', title: 'Kitchen' }];
-      el.setConfig({ type: 'custom:x', entry_ids: ['a'] });
+  it('emits the selected blind-spot mode', () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: 'a', title: 'Kitchen' }];
+    el.setConfig({ type: 'custom:x', entry_ids: ['a'] });
 
-      let emitted: SolarChartCardConfig | null = null;
-      el.addEventListener('config-changed', (e: Event) => {
-        emitted = (e as CustomEvent).detail.config;
-      });
-
-      el._onToggle('show_raw_blind_spot', true);
-      expect(emitted!.show_raw_blind_spot).toBe(true);
+    let emitted: SolarChartCardConfig | null = null;
+    el.addEventListener('config-changed', (e: Event) => {
+      emitted = (e as CustomEvent).detail.config;
     });
 
-    it('renders a raw blind spot checkbox disabled by default', async () => {
-      const el = makeEditor();
-      el._entries = [{ entry_id: 'a', title: 'Kitchen' }];
-      el.setConfig({ type: 'custom:x', entry_ids: ['a'] });
-      document.body.appendChild(el);
-      await el.updateComplete;
+    const select = document.createElement('select');
+    const option = document.createElement('option');
+    option.value = 'width';
+    select.appendChild(option);
+    select.value = 'width';
+    el._onBlindSpotModeChange({ target: select } as unknown as Event);
+    expect(emitted!.blind_spot_mode).toBe('width');
+  });
 
-      const labels = Array.from(el.shadowRoot!.querySelectorAll('.toggle-label')).map(
-        (n) => n.textContent?.trim() ?? '',
-      );
-      expect(labels).toContain('Raw blind spots');
-      const checkbox = Array.from(
-        el.shadowRoot!.querySelectorAll<HTMLInputElement>('.toggle-row input'),
-      ).find((input) => input.parentElement?.textContent?.includes('Raw blind spots'));
-      expect(checkbox?.checked).toBe(false);
-    });
+  it('renders the blind-spot mode selector with full mode by default', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: 'a', title: 'Kitchen' }];
+    el.setConfig({ type: 'custom:x', entry_ids: ['a'] });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const select = el.shadowRoot!.querySelector('select') as HTMLSelectElement;
+    expect(select).toBeTruthy();
+    expect(select.value).toBe('full');
+    expect(select.options).toHaveLength(4);
   });
 });
 

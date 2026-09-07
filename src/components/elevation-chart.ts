@@ -10,6 +10,7 @@ import {
   findSunPathBlindSpotRuns,
   sampleDay,
   startOfDayInZone,
+  type BlindSpotElevationGate,
   type SunSample,
 } from '../lib/sun-model';
 import {
@@ -60,6 +61,7 @@ function findVisibleFovWindows(
   blindSpots: Array<[number, number]>,
   minElevation?: number,
   maxElevation?: number,
+  blindSpotGates?: readonly BlindSpotElevationGate[],
 ): Array<{ startIdx: number; endIdx: number }> {
   const fovRuns = findFovWindows(samples, windowAzi, fovLeft, fovRight);
   if (blindSpots.length === 0) return fovRuns;
@@ -73,6 +75,7 @@ function findVisibleFovWindows(
       blindSpots,
       minElevation,
       maxElevation,
+      blindSpotGates,
     ).flatMap((run) => {
       const indices: number[] = [];
       for (let i = run.startIdx; i <= run.endIdx; i++) indices.push(i);
@@ -104,7 +107,7 @@ export class ElevationChart extends LitElement {
   @property({ attribute: false }) public discoveredList: DiscoveredEntities[] = [];
   @property({ attribute: false }) public coverColors: (string | null | undefined)[] = [];
   @property({ type: Boolean, reflect: true }) public compact = false;
-  @property({ attribute: false }) public showRawBlindSpot = false;
+  @property({ attribute: false }) public blindSpotMode: 'none' | 'void' | 'width' | 'full' = 'full';
 
   // Advance the "now" cursor as wall-clock time passes. Rendering is otherwise gated to
   // state changes (shouldUpdate), so without this the now-line would only move when a
@@ -299,23 +302,56 @@ export class ElevationChart extends LitElement {
         attrs.blind_spot_ranges,
         attrs.blind_spot_range,
       );
-      const runs = this.showRawBlindSpot
-        ? findVisibleFovWindows(
-            samples,
-            attrs.window_azimuth,
-            attrs.fov_left,
-            attrs.fov_right,
-            blindSpots,
-          )
-        : findVisibleFovWindows(
-            samples,
-            attrs.window_azimuth,
-            attrs.fov_left,
-            attrs.fov_right,
-            blindSpots,
-            attrs.min_elevation,
-            attrs.max_elevation,
-          );
+      const blindSpotGates: BlindSpotElevationGate[] = blindSpots.map((_, index) => {
+        const slot = attrs.blind_spot_slots?.[index];
+        return {
+          elevation:
+            slot?.elevation ?? attrs.blind_spot_elevations?.[index] ?? attrs.blind_spot_elevation,
+          mode:
+            slot?.elevation_mode ??
+            attrs.blind_spot_elevation_modes?.[index] ??
+            attrs.blind_spot_elevation_mode,
+        };
+      });
+      const rawBlindRuns = findSunPathBlindSpotRuns(
+        samples,
+        attrs.window_azimuth,
+        attrs.fov_left,
+        attrs.fov_right,
+        blindSpots,
+      );
+      const computedBlindRuns = findSunPathBlindSpotRuns(
+        samples,
+        attrs.window_azimuth,
+        attrs.fov_left,
+        attrs.fov_right,
+        blindSpots,
+        attrs.min_elevation,
+        attrs.max_elevation,
+        blindSpotGates,
+      );
+      const runs =
+        this.blindSpotMode === 'none'
+          ? findFovWindows(samples, attrs.window_azimuth, attrs.fov_left, attrs.fov_right)
+          : this.blindSpotMode === 'width'
+            ? findVisibleFovWindows(
+                samples,
+                attrs.window_azimuth,
+                attrs.fov_left,
+                attrs.fov_right,
+                blindSpots,
+              )
+            : findVisibleFovWindows(
+                samples,
+                attrs.window_azimuth,
+                attrs.fov_left,
+                attrs.fov_right,
+                blindSpots,
+                attrs.min_elevation,
+                attrs.max_elevation,
+                blindSpotGates,
+              );
+      const blindRuns = this.blindSpotMode === 'width' ? rawBlindRuns : computedBlindRuns;
 
       // Elevation limits (optional integration attrs) clip the in-plot band.
       const hasMin = typeof attrs.min_elevation === 'number';
@@ -348,6 +384,33 @@ export class ElevationChart extends LitElement {
           time_zone,
         )}`,
       }));
+      const blindBands =
+        this.blindSpotMode === 'width' || this.blindSpotMode === 'full'
+          ? blindRuns.map((w) => {
+              const gate = blindSpotGates[w.blindSpotIndex];
+              const elevation = gate.elevation;
+              const mode = gate.mode;
+              const threshold =
+                this.blindSpotMode === 'full' &&
+                typeof elevation === 'number' &&
+                Number.isFinite(elevation)
+                  ? Math.max(0, Math.min(90, elevation))
+                  : null;
+              const yTop = threshold === null ? bandY : mode === 'above' ? yAt(90) : yAt(threshold);
+              const yBottom =
+                threshold === null
+                  ? bandY + bandHeight
+                  : mode === 'above'
+                    ? yAt(threshold)
+                    : bandY + bandHeight;
+              return {
+                x: xAt(samples[w.startIdx].t),
+                width: Math.max(0, xAt(samples[w.endIdx].t) - xAt(samples[w.startIdx].t)),
+                y: yTop,
+                height: Math.max(0, yBottom - yTop),
+              };
+            })
+          : [];
       const label = runs
         .map(
           (w) =>
@@ -362,7 +425,7 @@ export class ElevationChart extends LitElement {
         if (hasMin) limitLines.push(clipBottomY);
         if (hasMax) limitLines.push(clipTopY);
       }
-      return { d, runs, inPlotBands, runBars, label, color, inlineFill, limitLines };
+      return { d, runs, inPlotBands, runBars, blindBands, label, color, inlineFill, limitLines };
     });
 
     const anyFov = windows.some((w) => w.runs.length > 0);
@@ -439,6 +502,20 @@ export class ElevationChart extends LitElement {
                     ),
                   )
             }
+            ${windows.flatMap((w, i) =>
+              (w.blindBands ?? []).map((b) => {
+                const row = multi ? ribbon.rows[i] : null;
+                const y = row ? ribbonBandTop + row.y : b.y;
+                const height = row ? row.height : b.height;
+                return svg`<rect
+                  class="blind-spot"
+                  x=${b.x}
+                  y=${y}
+                  width=${b.width}
+                  height=${height}
+                />`;
+              }),
+            )}
 
             <!-- Per-window FOV ribbon (multi-window only): one row per window,
                  a faint full-width track plus color-keyed bars for in-FOV runs,
@@ -641,6 +718,14 @@ export class ElevationChart extends LitElement {
          clearly against it. Matches the sky-compass .fov default. */
       fill: var(--primary-color);
       fill-opacity: 0.18;
+    }
+    .blind-spot {
+      fill: var(--error-color, crimson);
+      fill-opacity: 0.12;
+      stroke: var(--error-color, crimson);
+      stroke-width: 1;
+      stroke-dasharray: 3 3;
+      pointer-events: none;
     }
     .off-schedule-zone {
       fill: var(--divider-color);

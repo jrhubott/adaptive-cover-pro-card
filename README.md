@@ -22,7 +22,7 @@ It is hand-drawn SVG (no charting library), reads sun and window geometry straig
 
 The standalone Solar Chart shows the sun's elevation over the day for one or more Adaptive Cover Pro entries. It highlights each window's field of view and splits the open-status band around blind spots that the sun actually intersects, including the configured elevation limits.
 
-Use `show_raw_blind_spot: true` to display the configured blind-spot angles without sun-path filtering while setting up or checking window geometry.
+The Solar Chart uses `blind_spot_mode` to choose how blind spots are rendered.
 
 ## Decision card
 
@@ -42,12 +42,12 @@ One tile per shade: icon, name, live position, and `↑ ■ ▼` controls. The b
 
 Same `custom:adaptive-cover-pro-tile-card` in four states. The badge changes with the live decision:
 
-| Badge | Meaning |
-|-------|---------|
-| **Auto** | Automatic control is running and no specific handler has taken over. |
-| **Solar tracking** | The solar handler is positioning the cover against the sun, with the target shown inline. |
-| **Manual** | A manual override holds the cover. The badge shows the expiry time and a `↺` to resume automatic control. |
-| **Occupancy** | The occupancy handler holds the cover open while the room is occupied. |
+| Badge              | Meaning                                                                                                   |
+| ------------------ | --------------------------------------------------------------------------------------------------------- |
+| **Auto**           | Automatic control is running and no specific handler has taken over.                                      |
+| **Solar tracking** | The solar handler is positioning the cover against the sun, with the target shown inline.                 |
+| **Manual**         | A manual override holds the cover. The badge shows the expiry time and a `↺` to resume automatic control. |
+| **Occupancy**      | The occupancy handler holds the cover open while the room is occupied.                                    |
 
 Force, weather, glare, climate, cloud, and custom-position slots get their own badges too. Every badge can be toggled off individually, and a small occupancy indicator can sit on the icon when occupancy is detected. Stack as many tiles as you have shades for a dense, glanceable dashboard.
 
@@ -59,14 +59,14 @@ When you want everything in one place, the full card stacks the compass, the ele
 
 ## Cards in this bundle
 
-| Card | Type | Summary |
-|------|------|---------|
-| [Adaptive Cover Pro](https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card) | `custom:adaptive-cover-pro-card` | The full card: pick one integration entry, get every section. |
-| [Tile](https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card#tile-card) | `custom:adaptive-cover-pro-tile-card` | Compact per-shade row: icon, name, position, `↑ ■ ▼`, and a live decision badge. Tap opens the ACP dialog. |
-| [Sky Compass](https://github.com/jrhubott/adaptive-cover-pro/wiki/Sky-Compass-Card) | `custom:adaptive-cover-pro-sky-compass-card` | The compass on its own. Accepts multiple entries and overlays each window's FOV, blind spot, and cover wedge on a shared sun dot. |
-| Solar Chart | `custom:adaptive-cover-pro-solar-chart-card` | The sun-elevation chart for one or more entries, with FOV and blind-spot-aware open-status bands. |
-| Decision | `custom:adaptive-cover-pro-decision-card` | The current automation pipeline and winning decision for one entry, with a shortcut to history. |
-| History | `custom:adaptive-cover-pro-history-card` | Recorder-backed position, handler, context, and action history for one entry. |
+| Card                                                                                    | Type                                         | Summary                                                                                                                           |
+| --------------------------------------------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| [Adaptive Cover Pro](https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card) | `custom:adaptive-cover-pro-card`             | The full card: pick one integration entry, get every section.                                                                     |
+| [Tile](https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card#tile-card)     | `custom:adaptive-cover-pro-tile-card`        | Compact per-shade row: icon, name, position, `↑ ■ ▼`, and a live decision badge. Tap opens the ACP dialog.                        |
+| [Sky Compass](https://github.com/jrhubott/adaptive-cover-pro/wiki/Sky-Compass-Card)     | `custom:adaptive-cover-pro-sky-compass-card` | The compass on its own. Accepts multiple entries and overlays each window's FOV, blind spot, and cover wedge on a shared sun dot. |
+| Solar Chart                                                                             | `custom:adaptive-cover-pro-solar-chart-card` | The sun-elevation chart for one or more entries, with FOV and blind-spot-aware open-status bands.                                 |
+| Decision                                                                                | `custom:adaptive-cover-pro-decision-card`    | The current automation pipeline and winning decision for one entry, with a shortcut to history.                                   |
+| History                                                                                 | `custom:adaptive-cover-pro-history-card`     | Recorder-backed position, handler, context, and action history for one entry.                                                     |
 
 ## Install
 
@@ -91,6 +91,7 @@ When you want everything in one place, the full card stacks the compass, the ele
 Every option is exposed in the visual editor — except the composed `name` list below, which is YAML-only — and the rest of the YAML is the equivalent.
 
 **Tile card** (stack one per shade):
+
 ```yaml
 type: custom:adaptive-cover-pro-tile-card
 entry_id: YOUR_CONFIG_ENTRY_ID
@@ -113,6 +114,7 @@ entry_id: YOUR_CONFIG_ENTRY_ID
 ```
 
 **Sky compass** (one or more entries):
+
 ```yaml
 type: custom:adaptive-cover-pro-sky-compass-card
 entry_ids:
@@ -130,6 +132,7 @@ entry_ids:
 ```
 
 **Solar chart** (one or more entries):
+
 ```yaml
 type: custom:adaptive-cover-pro-solar-chart-card
 entry_ids:
@@ -138,11 +141,14 @@ entry_ids:
 # optional:
 # title: Sun today
 # compact: false
-# show_raw_blind_spot: false # show configured angles for setup/debugging
+# blind_spot_mode: full # none | void | width | full
+# none: FOV only; void: split FOV without overlay; width: full-height overlay;
+# full: overlay height follows the blind-spot elevation setting
 # cover_colors: ['#f9a825', '#42a5f5']
 ```
 
 **Decision card** (one entry):
+
 ```yaml
 type: custom:adaptive-cover-pro-decision-card
 entry_id: YOUR_CONFIG_ENTRY_ID
@@ -154,6 +160,7 @@ entry_id: YOUR_CONFIG_ENTRY_ID
 ```
 
 **History card** (one entry):
+
 ```yaml
 type: custom:adaptive-cover-pro-history-card
 entry_id: YOUR_CONFIG_ENTRY_ID
@@ -172,11 +179,12 @@ entry_id: YOUR_CONFIG_ENTRY_ID
 The compass and Solar Chart cards show blind spots by default only where
 today's sampled sun path intersects the configured azimuth and elevation
 limits. This prevents a blind-spot wedge or chart gap when the sun is below
-the awning's effective elevation. Set `show_raw_blind_spot: true` on either
-card to show the configured angular blind spot without the sun-path
-intersection, which is useful when setting up or checking the geometry.
+the awning's effective elevation. The Sky Compass retains
+`show_raw_blind_spot: true` for setup/debugging; the Solar Chart uses
+`blind_spot_mode: width` when a full-height, sun-path-width overlay is desired.
 
 **Full card:**
+
 ```yaml
 type: custom:adaptive-cover-pro-card
 entry_id: YOUR_CONFIG_ENTRY_ID

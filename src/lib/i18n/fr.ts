@@ -596,6 +596,13 @@ export const fr: EnDict = {
       display: 'Affichage',
       toggle_compact_label: 'Mode compact',
       toggle_compact_desc: 'Graphique plus petit, espacement plus serré.',
+      blind_spot_mode_label: 'Affichage des zones masquées',
+      blind_spot_mode_desc:
+        'Choisissez comment les zones masquées affectent les bandes FOV et les superpositions.',
+      blind_spot_mode_none: 'Aucune zone masquée',
+      blind_spot_mode_void: 'Zone masquée en vide',
+      blind_spot_mode_width: 'Largeur de zone uniquement',
+      blind_spot_mode_full: 'Zone masquée complète',
       toggle_raw_blind_spot_label: 'Zones de soleil masqué brutes',
       toggle_raw_blind_spot_desc:
         'Diviser le graphique selon les angles configurés uniquement, utile pour vérifier la configuration.',

@@ -170,6 +170,11 @@ export interface SunPathBlindSpotRun {
   blindSpotIndex: number;
 }
 
+export interface BlindSpotElevationGate {
+  elevation?: number | null;
+  mode?: 'below' | 'above' | null;
+}
+
 /**
  * Find portions of a configured blind spot that the sun actually traverses
  * today. A sample must be above the horizon, inside the window FOV, inside the
@@ -183,6 +188,7 @@ export function findSunPathBlindSpotRuns(
   blindSpots: readonly (readonly [number, number])[],
   minElevation?: number,
   maxElevation?: number,
+  blindSpotGates?: readonly BlindSpotElevationGate[],
 ): SunPathBlindSpotRun[] {
   const runs: SunPathBlindSpotRun[] = [];
   let current: SunPathBlindSpotRun | null = null;
@@ -193,13 +199,20 @@ export function findSunPathBlindSpotRuns(
       (minElevation === undefined || sample.elevation > minElevation) &&
       (maxElevation === undefined || sample.elevation < maxElevation);
     const blindSpotIndex = elevationInRange
-      ? blindSpots.findIndex(([start, end]) => {
+      ? blindSpots.findIndex(([start, end], index) => {
           const sweep = (((end - start) % 360) + 360) % 360;
           const center = (start + sweep / 2) % 360;
-          return azimuthInFov(sample.azimuth, windowAzi, fovLeft, fovRight) &&
-            azimuthInFov(sample.azimuth, center, sweep / 2, sweep / 2)
-            ? true
-            : false;
+          if (
+            !azimuthInFov(sample.azimuth, windowAzi, fovLeft, fovRight) ||
+            !azimuthInFov(sample.azimuth, center, sweep / 2, sweep / 2)
+          ) {
+            return false;
+          }
+          const gate = blindSpotGates?.[index];
+          if (gate?.elevation == null || !Number.isFinite(gate.elevation)) return true;
+          return gate.mode === 'above'
+            ? sample.elevation >= gate.elevation
+            : sample.elevation <= gate.elevation;
         })
       : -1;
 
