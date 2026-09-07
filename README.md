@@ -18,6 +18,22 @@ The compass above is the standalone card running through a simulated day. The su
 
 It is hand-drawn SVG (no charting library), reads sun and window geometry straight from the integration, and takes one or more `entry_id`s so several windows can share a single compass with one sun dot.
 
+## Solar chart
+
+The standalone Solar Chart shows the sun's elevation over the day for one or more Adaptive Cover Pro entries. It highlights each window's field of view and splits the open-status band around blind spots that the sun actually intersects, including the configured elevation limits.
+
+Use `show_raw_blind_spot: true` to display the configured blind-spot angles without sun-path filtering while setting up or checking window geometry.
+
+## Decision card
+
+The Decision card focuses on the current automation pipeline for one entry. It shows the active decision, the winning handler, the target position, and the other handlers that contributed to the result. Set `compact: true` or `hide_inactive_handlers: true` when you only want the relevant handlers. The history button opens the same detailed history dialog used by the other cards.
+
+## History card
+
+The standalone History card displays recorder-backed cover position, winning-handler, context, and action tracks for the selected entry. It defaults to the last 24 hours and includes an optional Advanced diagnostics section.
+
+Use `hours` to change the time window, `tracks` to hide individual tracks, `advanced_open` to expand diagnostics initially, or `hide_advanced` to remove that section.
+
 ## Tile card
 
 One tile per shade: icon, name, live position, and `↑ ■ ▼` controls. The badge on the right tells you which automation is driving the cover right now, and tapping the tile opens a full Adaptive Cover Pro dialog (target, per-cover bars, forecast strip, and the compass + pipeline trace under an advanced section).
@@ -48,6 +64,9 @@ When you want everything in one place, the full card stacks the compass, the ele
 | [Adaptive Cover Pro](https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card) | `custom:adaptive-cover-pro-card` | The full card: pick one integration entry, get every section. |
 | [Tile](https://github.com/jrhubott/adaptive-cover-pro/wiki/Lovelace-Card#tile-card) | `custom:adaptive-cover-pro-tile-card` | Compact per-shade row: icon, name, position, `↑ ■ ▼`, and a live decision badge. Tap opens the ACP dialog. |
 | [Sky Compass](https://github.com/jrhubott/adaptive-cover-pro/wiki/Sky-Compass-Card) | `custom:adaptive-cover-pro-sky-compass-card` | The compass on its own. Accepts multiple entries and overlays each window's FOV, blind spot, and cover wedge on a shared sun dot. |
+| Solar Chart | `custom:adaptive-cover-pro-solar-chart-card` | The sun-elevation chart for one or more entries, with FOV and blind-spot-aware open-status bands. |
+| Decision | `custom:adaptive-cover-pro-decision-card` | The current automation pipeline and winning decision for one entry, with a shortcut to history. |
+| History | `custom:adaptive-cover-pro-history-card` | Recorder-backed position, handler, context, and action history for one entry. |
 
 ## Install
 
@@ -104,10 +123,58 @@ entry_ids:
 # show_elevation_chart: true
 # show_moon: false
 # show_blind_spot: true
+# show_raw_blind_spot: false # show configured angles for setup/debugging
 # show_sun_path: true
 # show_legend: true
 # show_stats: true
 ```
+
+**Solar chart** (one or more entries):
+```yaml
+type: custom:adaptive-cover-pro-solar-chart-card
+entry_ids:
+  - KITCHEN_ENTRY_ID
+  - LIVING_ROOM_ENTRY_ID
+# optional:
+# title: Sun today
+# compact: false
+# show_raw_blind_spot: false # show configured angles for setup/debugging
+# cover_colors: ['#f9a825', '#42a5f5']
+```
+
+**Decision card** (one entry):
+```yaml
+type: custom:adaptive-cover-pro-decision-card
+entry_id: YOUR_CONFIG_ENTRY_ID
+# optional:
+# title: Why this position?
+# compact: false
+# hide_inactive_handlers: false
+# show_decision_summary: true
+```
+
+**History card** (one entry):
+```yaml
+type: custom:adaptive-cover-pro-history-card
+entry_id: YOUR_CONFIG_ENTRY_ID
+# optional:
+# title: Cover history
+# hours: 24
+# tracks:
+#   position: true
+#   who_won: true
+#   context: true
+#   actions: true
+# advanced_open: false
+# hide_advanced: false
+```
+
+The compass and Solar Chart cards show blind spots by default only where
+today's sampled sun path intersects the configured azimuth and elevation
+limits. This prevents a blind-spot wedge or chart gap when the sun is below
+the awning's effective elevation. Set `show_raw_blind_spot: true` on either
+card to show the configured angular blind spot without the sun-path
+intersection, which is useful when setting up or checking the geometry.
 
 **Full card:**
 ```yaml
