@@ -32,6 +32,10 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
   show_compass_legend?: boolean;
   /** Show configured blind-spot angles without sun-path filtering. */
   show_raw_blind_spot?: boolean;
+  /** How blind spots are rendered by the compass. */
+  sky_compass_blind_spot_mode?: 'none' | 'void' | 'width' | 'full' | 'raw';
+  /** How blind spots affect the embedded elevation chart. */
+  chart_blind_spot_mode?: 'none' | 'void' | 'width' | 'full';
   show_moon?: boolean;
   /** Color the header cover state icon by its HA state (open/opening/closing =
    *  active tier, closed/unknown = inactive tier, unavailable/missing =
@@ -256,6 +260,10 @@ export interface SkyCompassCardConfig extends LovelaceCardConfig {
   /** Show the configured blind-spot bearing envelope instead of only the part
    * crossed by today's sun path. Useful when setting up geometry. */
   show_raw_blind_spot?: boolean;
+  /** How blind spots are rendered by the compass. */
+  sky_compass_blind_spot_mode?: 'none' | 'void' | 'width' | 'full' | 'raw';
+  /** How blind spots affect the embedded elevation chart. */
+  chart_blind_spot_mode?: 'none' | 'void' | 'width' | 'full';
   show_sun_path?: boolean;
   show_sunrise_sunset?: boolean;
   show_cover_fill?: boolean;
@@ -277,7 +285,7 @@ export interface SolarChartCardConfig extends LovelaceCardConfig {
   title?: string;
   compact?: boolean;
   /** How blind spots affect the FOV bands and chart overlays (default `full`). */
-  blind_spot_mode?: 'none' | 'void' | 'width' | 'full';
+  chart_blind_spot_mode?: 'none' | 'void' | 'width' | 'full';
   cover_colors?: (string | null)[];
   /** Card-owned floating tooltip behavior. Defaults: enabled, offset [12,16],
    *  delay 400ms. Set `enabled: false` to use native browser tooltips. */

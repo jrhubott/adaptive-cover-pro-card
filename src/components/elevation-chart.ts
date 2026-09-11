@@ -107,7 +107,8 @@ export class ElevationChart extends LitElement {
   @property({ attribute: false }) public discoveredList: DiscoveredEntities[] = [];
   @property({ attribute: false }) public coverColors: (string | null | undefined)[] = [];
   @property({ type: Boolean, reflect: true }) public compact = false;
-  @property({ attribute: false }) public blindSpotMode: 'none' | 'void' | 'width' | 'full' = 'full';
+  @property({ attribute: false })
+  public blindSpotMode: 'none' | 'void' | 'width' | 'full' = 'full';
 
   // Advance the "now" cursor as wall-clock time passes. Rendering is otherwise gated to
   // state changes (shouldUpdate), so without this the now-line would only move when a
@@ -313,7 +314,7 @@ export class ElevationChart extends LitElement {
             attrs.blind_spot_elevation_mode,
         };
       });
-      const rawBlindRuns = findSunPathBlindSpotRuns(
+      const widthBlindRuns = findSunPathBlindSpotRuns(
         samples,
         attrs.window_azimuth,
         attrs.fov_left,
@@ -351,7 +352,7 @@ export class ElevationChart extends LitElement {
                 attrs.max_elevation,
                 blindSpotGates,
               );
-      const blindRuns = this.blindSpotMode === 'width' ? rawBlindRuns : computedBlindRuns;
+      const blindRuns = this.blindSpotMode === 'width' ? widthBlindRuns : computedBlindRuns;
 
       // Elevation limits (optional integration attrs) clip the in-plot band.
       const hasMin = typeof attrs.min_elevation === 'number';

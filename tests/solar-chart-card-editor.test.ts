@@ -121,7 +121,7 @@ describe('solar-chart-card editor compact toggle', () => {
     select.appendChild(option);
     select.value = 'width';
     el._onBlindSpotModeChange({ target: select } as unknown as Event);
-    expect(emitted!.blind_spot_mode).toBe('width');
+    expect(emitted!.chart_blind_spot_mode).toBe('width');
   });
 
   it('renders the blind-spot mode selector with full mode by default', async () => {
@@ -135,6 +135,7 @@ describe('solar-chart-card editor compact toggle', () => {
     expect(select).toBeTruthy();
     expect(select.value).toBe('full');
     expect(select.options).toHaveLength(4);
+    expect(Array.from(select.options).map((option) => option.value)).not.toContain('raw');
   });
 });
 

@@ -566,6 +566,13 @@ export const de: EnDict = {
       toggle_elevation_chart_label: 'Sonne-heute-Diagramm',
       toggle_elevation_chart_desc:
         'Höhen-Zeit-Diagramm unterhalb des Kompasses, mit SAA-Bereich und Höhengrenzen.',
+      blind_spot_mode_label: 'Blindbereich-Anzeige im Kompass',
+      blind_spot_mode_desc: 'Festlegen, wie Blindbereiche im Kompass dargestellt werden.',
+      blind_spot_mode_none: 'Kein Blindbereich',
+      blind_spot_mode_void: 'Blindbereich als Lücke',
+      blind_spot_mode_width: 'Nur Blindbereich-Breite',
+      blind_spot_mode_full: 'Vollständiger Blindbereich',
+      blind_spot_mode_raw: 'Ungefilterte Blindflecke',
     },
     decision: {
       title: 'Titel (optional)',
@@ -588,13 +595,13 @@ export const de: EnDict = {
       display: 'Anzeige',
       toggle_compact_label: 'Kompaktmodus',
       toggle_compact_desc: 'Kleineres Diagramm, engerer Abstand.',
-      blind_spot_mode_label: 'Blindbereich-Anzeige',
-      blind_spot_mode_desc:
-        'Festlegen, wie Blindbereiche FOV-Bänder und Überlagerungen beeinflussen.',
+      blind_spot_mode_label: 'Blindbereich-Anzeige im Diagramm',
+      blind_spot_mode_desc: 'Festlegen, wie Blindbereiche im Höhendiagramm dargestellt werden.',
       blind_spot_mode_none: 'Kein Blindbereich',
       blind_spot_mode_void: 'Blindbereich als Lücke',
       blind_spot_mode_width: 'Nur Blindbereich-Breite',
       blind_spot_mode_full: 'Vollständiger Blindbereich',
+      blind_spot_mode_raw: 'Ungefilterte Blindflecke',
       toggle_raw_blind_spot_label: 'Ungefilterte Blindflecke',
       toggle_raw_blind_spot_desc:
         'Das Diagramm nur anhand der konfigurierten Winkel teilen – hilfreich zur Kontrolle der Einrichtung.',

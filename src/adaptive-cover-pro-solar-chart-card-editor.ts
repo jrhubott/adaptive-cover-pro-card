@@ -112,8 +112,8 @@ export class AdaptiveCoverProSolarChartCardEditor extends LitElement implements 
   private _onBlindSpotModeChange(e: Event): void {
     this._emit({
       ...this._baseConfig(),
-      blind_spot_mode: (e.target as HTMLSelectElement)
-        .value as SolarChartCardConfig['blind_spot_mode'],
+      chart_blind_spot_mode: (e.target as HTMLSelectElement)
+        .value as SolarChartCardConfig['chart_blind_spot_mode'],
     });
   }
 
@@ -221,7 +221,7 @@ export class AdaptiveCoverProSolarChartCardEditor extends LitElement implements 
             </span>
             <select
               @change=${this._onBlindSpotModeChange}
-              .value=${this._config.blind_spot_mode ?? 'full'}
+              .value=${this._config.chart_blind_spot_mode ?? 'full'}
             >
               <option value="none">
                 ${t('editor.solar_chart.blind_spot_mode_none', this.hass)}

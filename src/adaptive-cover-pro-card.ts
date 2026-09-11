@@ -421,6 +421,7 @@ export class AdaptiveCoverProCard extends LitElement {
                 .showLegend=${this._config.show_compass_legend ?? true}
                 .showMoon=${this._config.show_moon ?? false}
                 .showRawBlindSpot=${this._config.show_raw_blind_spot ?? false}
+                .blindSpotMode=${this._config.sky_compass_blind_spot_mode ?? 'full'}
                 .coverColors=${this._config.cover_colors ?? []}
                 .northOffsetDeg=${normalizeAzimuth(this._config.north_offset ?? 0)}
               ></acp-sky-compass>`
@@ -432,6 +433,7 @@ export class AdaptiveCoverProCard extends LitElement {
                 ?compact=${!!this._config.compact}
                 .coverColors=${this._config.cover_colors ?? []}
                 .showRawBlindSpot=${this._config.show_raw_blind_spot ?? false}
+                .blindSpotMode=${this._config.chart_blind_spot_mode ?? 'full'}
               ></acp-elevation-chart>`
             : nothing}
           ${sections.includes('decision')

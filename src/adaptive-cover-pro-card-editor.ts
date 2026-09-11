@@ -146,8 +146,14 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
     this._emit({ ...(this._config ?? { type: '', entry_id: '' }), show_moon: enabled });
   }
 
-  private _onRawBlindSpotToggle(enabled: boolean): void {
-    this._emit({ ...(this._config ?? { type: '', entry_id: '' }), show_raw_blind_spot: enabled });
+  private _onBlindSpotModeChange(
+    key: 'sky_compass_blind_spot_mode' | 'chart_blind_spot_mode',
+    e: Event,
+  ): void {
+    this._emit({
+      ...(this._config ?? { type: '', entry_id: '' }),
+      [key]: (e.target as HTMLSelectElement).value as AdaptiveCoverProCardConfig[typeof key],
+    });
   }
 
   /** Cover Group entries only. Shown unconditionally: this editor resolves no
@@ -223,6 +229,55 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
               </label>
             `,
           )}
+          <label class="toggle-row">
+            <span class="toggle-text">
+              <span class="toggle-label"
+                >${t('editor.compass.blind_spot_mode_label', this.hass)}</span
+              >
+              <span class="toggle-desc"
+                >${t('editor.compass.blind_spot_mode_desc', this.hass)}</span
+              >
+            </span>
+            <select
+              class="select"
+              @change=${(e: Event) => this._onBlindSpotModeChange('sky_compass_blind_spot_mode', e)}
+              .value=${this._config.sky_compass_blind_spot_mode ?? 'full'}
+            >
+              <option value="none">${t('editor.compass.blind_spot_mode_none', this.hass)}</option>
+              <option value="void">${t('editor.compass.blind_spot_mode_void', this.hass)}</option>
+              <option value="width">${t('editor.compass.blind_spot_mode_width', this.hass)}</option>
+              <option value="full">${t('editor.compass.blind_spot_mode_full', this.hass)}</option>
+              <option value="raw">${t('editor.compass.blind_spot_mode_raw', this.hass)}</option>
+            </select>
+          </label>
+          <label class="toggle-row">
+            <span class="toggle-text">
+              <span class="toggle-label"
+                >${t('editor.solar_chart.blind_spot_mode_label', this.hass)}</span
+              >
+              <span class="toggle-desc"
+                >${t('editor.solar_chart.blind_spot_mode_desc', this.hass)}</span
+              >
+            </span>
+            <select
+              class="select"
+              @change=${(e: Event) => this._onBlindSpotModeChange('chart_blind_spot_mode', e)}
+              .value=${this._config.chart_blind_spot_mode ?? 'full'}
+            >
+              <option value="none">
+                ${t('editor.solar_chart.blind_spot_mode_none', this.hass)}
+              </option>
+              <option value="void">
+                ${t('editor.solar_chart.blind_spot_mode_void', this.hass)}
+              </option>
+              <option value="width">
+                ${t('editor.solar_chart.blind_spot_mode_width', this.hass)}
+              </option>
+              <option value="full">
+                ${t('editor.solar_chart.blind_spot_mode_full', this.hass)}
+              </option>
+            </select>
+          </label>
         </div>
 
         <div class="section">
@@ -366,22 +421,6 @@ export class AdaptiveCoverProCardEditor extends LitElement implements LovelaceCa
             <span class="toggle-text">
               <span class="toggle-label">${t('editor.main.show_moon_label', this.hass)}</span>
               <span class="toggle-desc">${t('editor.main.show_moon_desc', this.hass)}</span>
-            </span>
-          </label>
-          <label class="toggle-row">
-            <input
-              type="checkbox"
-              .checked=${this._config.show_raw_blind_spot ?? false}
-              @change=${(e: Event) =>
-                this._onRawBlindSpotToggle((e.target as HTMLInputElement).checked)}
-            />
-            <span class="toggle-text">
-              <span class="toggle-label"
-                >${t('editor.main.show_raw_blind_spot_label', this.hass)}</span
-              >
-              <span class="toggle-desc"
-                >${t('editor.main.show_raw_blind_spot_desc', this.hass)}</span
-              >
             </span>
           </label>
           <label class="toggle-row">

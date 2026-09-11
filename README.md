@@ -22,7 +22,7 @@ It is hand-drawn SVG (no charting library), reads sun and window geometry straig
 
 The standalone Solar Chart shows the sun's elevation over the day for one or more Adaptive Cover Pro entries. It highlights each window's field of view and splits the open-status band around blind spots that the sun actually intersects, including the configured elevation limits.
 
-The Solar Chart uses `blind_spot_mode` to choose how blind spots are rendered.
+The Sky Compass and Solar Chart use independent blind-spot rendering options.
 
 ## Decision card
 
@@ -125,7 +125,8 @@ entry_ids:
 # show_elevation_chart: true
 # show_moon: false
 # show_blind_spot: true
-# show_raw_blind_spot: false # show configured angles for setup/debugging
+# sky_compass_blind_spot_mode: full # compass: none | void | width | full | raw
+# chart_blind_spot_mode: full # embedded elevation chart: none | void | width | full
 # show_sun_path: true
 # show_legend: true
 # show_stats: true
@@ -141,7 +142,7 @@ entry_ids:
 # optional:
 # title: Sun today
 # compact: false
-# blind_spot_mode: full # none | void | width | full
+# chart_blind_spot_mode: full # elevation chart: none | void | width | full
 # none: FOV only; void: split FOV without overlay; width: full-height overlay;
 # full: overlay height follows the blind-spot elevation setting
 # cover_colors: ['#f9a825', '#42a5f5']
@@ -179,9 +180,11 @@ entry_id: YOUR_CONFIG_ENTRY_ID
 The compass and Solar Chart cards show blind spots by default only where
 today's sampled sun path intersects the configured azimuth and elevation
 limits. This prevents a blind-spot wedge or chart gap when the sun is below
-the awning's effective elevation. The Sky Compass retains
-`show_raw_blind_spot: true` for setup/debugging; the Solar Chart uses
-`blind_spot_mode: width` when a full-height, sun-path-width overlay is desired.
+the awning's effective elevation. The Sky Compass and full cards expose independent options:
+`sky_compass_blind_spot_mode` controls the compass arc, while
+`chart_blind_spot_mode` controls the embedded elevation chart. The standalone
+Solar Chart exposes `chart_blind_spot_mode`.
+Raw blind-spot display is available only for the Sky Compass mode.
 
 **Full card:**
 
@@ -191,6 +194,8 @@ entry_id: YOUR_CONFIG_ENTRY_ID
 # optional:
 # show_sections: [sky, decision, covers, overrides]
 # compact: false
+# sky_compass_blind_spot_mode: full # compass: none | void | width | full | raw
+# chart_blind_spot_mode: full # embedded elevation chart: none | void | width | full
 ```
 
 Find your `entry_id` at `/config/integrations/integration/adaptive_cover_pro`: click the entry and read it out of the URL bar (`entry_id=...`).

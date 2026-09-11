@@ -10,6 +10,10 @@ interface EditorLike extends HTMLElement {
   _onCoverColorChange(value: string): void;
   _onCoverColorReset(): void;
   _onSectionToggle(key: string, enabled: boolean): void;
+  _onBlindSpotModeChange(
+    key: 'sky_compass_blind_spot_mode' | 'chart_blind_spot_mode',
+    e: Event,
+  ): void;
 }
 
 function makeEditor(): EditorLike {
@@ -26,6 +30,23 @@ describe('main-card editor cover colors (issue #132)', () => {
     document.body.appendChild(el);
     await el.updateComplete;
     expect(el.shadowRoot!.querySelector('input[type="color"]')).toBeTruthy();
+  });
+
+  describe('main-card editor blind-spot rendering', () => {
+    it('emits chart_blind_spot_mode when the rendering mode changes', () => {
+      const el = makeEditor();
+      el._entries = [{ entry_id: 'a', title: 'Kitchen' }];
+      el.setConfig({ type: 'custom:adaptive-cover-pro-card', entry_id: 'a' });
+      let emitted: AdaptiveCoverProCardConfig | null = null;
+      el.addEventListener('config-changed', (e: Event) => {
+        emitted = (e as CustomEvent).detail.config;
+      });
+
+      el._onBlindSpotModeChange('chart_blind_spot_mode', {
+        target: { value: 'void' },
+      } as unknown as Event);
+      expect(emitted!.chart_blind_spot_mode).toBe('void');
+    });
   });
 
   it('does not render a color input when entry_id is empty', async () => {

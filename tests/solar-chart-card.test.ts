@@ -242,7 +242,7 @@ describe('adaptive-cover-pro-solar-chart-card render', () => {
     const el = await mountWithRegistry({
       type: 'custom:adaptive-cover-pro-solar-chart-card',
       entry_ids: [ENTRY],
-      blind_spot_mode: 'width',
+      chart_blind_spot_mode: 'width',
     });
     const chart = el.shadowRoot!.querySelector('acp-elevation-chart') as HTMLElement & {
       blindSpotMode?: string;
