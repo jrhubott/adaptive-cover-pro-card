@@ -184,7 +184,9 @@ export class DecisionStrip extends LitElement {
     // A recognized reason_code marks this skip as the load-bearing reason the
     // pipeline isn't acting (#295) — render full-weight with a warning accent
     // and a clarifying tooltip instead of the uniform dimmed skip treatment.
-    const isBlocker = row?.reason_code != null && ACTIVE_BLOCKER_REASON_CODES.has(row.reason_code);
+    // Never the winner row (audit finding 1): a matched/winning step keeps its
+    // normal winner/match styling even if it happens to carry a listed code.
+    const isBlocker = !isWinner && isActiveBlockerStep(row);
     return html`
       <div
         class="row ${isWinner ? 'winner' : matched ? 'match' : 'skip'}${isBlocker
@@ -196,6 +198,7 @@ export class DecisionStrip extends LitElement {
         <span class="pos">${posDisplay}</span>
         <span
           class="reason-inline ${isBlocker ? '' : 'dim'}"
+          tabindex=${isBlocker ? '0' : nothing}
           ${isBlocker ? tooltip(t('decision.active_blocker_hint', this.hass)) : nothing}
           >${reason}${solarContext}</span
         >
@@ -262,14 +265,20 @@ export class DecisionStrip extends LitElement {
       opacity: 0.55;
     }
     /* An active-blocker skip (#295) is the load-bearing reason the pipeline
-       isn't acting — full opacity and a warning accent, not the routine dim. */
+       isn't acting — full opacity and a warning accent, not the routine dim.
+       An inset shadow (not a border-left) keeps every row's fixed-column grid
+       content aligned — a real border would shift this row 3px right of its
+       neighbors (audit finding 4). */
     .row.skip.blocker {
       opacity: 1;
-      border-left: 3px solid var(--warning-color, orange);
+      box-shadow: inset 3px 0 0 var(--warning-color, orange);
       background: rgba(255, 152, 0, 0.08);
     }
-    .row.blocker .reason-inline {
-      color: var(--warning-color, orange);
+    /* Warning-orange text over the 8% tint above reads at roughly 2:1 contrast
+       on light themes — keep the accent on the shadow/tint only and render the
+       reason text in the normal, undimmed primary color (audit finding 6). */
+    .row.skip.blocker .reason-inline {
+      color: var(--primary-text-color);
     }
     .row.match {
       background: rgba(255, 193, 7, 0.08);
@@ -376,7 +385,7 @@ export function computeDisabledHandlers(
 
 export function selectVisibleHandlers(
   order: readonly HandlerName[],
-  steps: Map<string, { matched: boolean }>,
+  steps: Map<string, { matched: boolean; reason_code?: string }>,
   winner: string,
   hideInactive: boolean,
   disabledHandlers: ReadonlySet<HandlerName> = new Set(),
@@ -384,9 +393,27 @@ export function selectVisibleHandlers(
   return order.filter((h) => {
     if (h === winner) return true;
     if (disabledHandlers.has(h)) return false;
-    if (hideInactive && steps.get(h)?.matched !== true) return false;
+    const step = steps.get(h);
+    if (hideInactive && step?.matched !== true && !isActiveBlockerStep(step)) return false;
     return true;
   });
+}
+
+/** Pure helper: a trace step counts as an "active blocker" (issue #295) only
+ *  when it exists, did NOT match, and its reason_code is one of
+ *  ACTIVE_BLOCKER_REASON_CODES. A matched/winning step never counts, even if
+ *  it happens to carry a listed code — the blocker treatment is exclusively
+ *  for skip rows (audit finding 1: a winner must never lose its winner
+ *  styling to the blocker accent). */
+export function isActiveBlockerStep(
+  step: { matched: boolean; reason_code?: string } | undefined,
+): boolean {
+  return (
+    step !== undefined &&
+    step.matched !== true &&
+    step.reason_code != null &&
+    ACTIVE_BLOCKER_REASON_CODES.has(step.reason_code)
+  );
 }
 
 interface TraceRow {
