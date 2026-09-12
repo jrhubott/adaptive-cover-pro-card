@@ -223,6 +223,12 @@ export interface HarnessEntry {
   flags: {
     integration_enabled: boolean;
     automatic_control: boolean;
+    /** Forces the mock solar handler to report the closed sun-tracking-gate
+     *  skip (issue #295) — `matches: false`, `reason_code:
+     *  'skip.sun_tracking_gate'` — regardless of whether the sun is otherwise
+     *  hitting the window, reproducing the integration's gate-closed reason so
+     *  the decision strip's blocker-row treatment can be exercised here. */
+    sun_tracking_gate_closed?: boolean;
     /** The entry's own Climate Mode switch. Omit and it derives from
      *  `climate_strategy` as it always has (`intermediate` → off), which is a
      *  proxy, not the switch — set this explicitly whenever the scenario is

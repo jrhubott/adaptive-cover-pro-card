@@ -262,6 +262,7 @@ export const fr: EnDict = {
       "La fenêtre de planning configurée n'est pas active, le positionnement automatique est donc en pause.",
     solar_would_be: 'solaire {pct}',
     next_change_in: 'Prochain ajustement autorisé dans {time}',
+    active_blocker_hint: 'Ceci est le blocage actif — un interrupteur ici ne le résoudra pas.',
   },
   solar: {
     title: 'Calcul solaire',

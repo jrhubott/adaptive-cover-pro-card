@@ -262,6 +262,7 @@ export const en = {
       'The configured schedule window is not active, so automatic positioning is paused.',
     solar_would_be: 'solar {pct}',
     next_change_in: 'Next adjustment allowed in {time}',
+    active_blocker_hint: "This is the active blocker — a toggle here won't fix it.",
   },
   solar: {
     title: 'Solar Calculation',

@@ -3,7 +3,12 @@ import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 
 import { entityStateChanged } from '../lib/hass-change';
-import { HANDLER_I18N_KEYS, HANDLER_ORDER, type HandlerName } from '../const';
+import {
+  ACTIVE_BLOCKER_REASON_CODES,
+  HANDLER_I18N_KEYS,
+  HANDLER_ORDER,
+  type HandlerName,
+} from '../const';
 import type { DecisionTraceAttributes, DiscoveredEntities, LastSkippedAttributes } from '../types';
 import { formatPercent, countdownTo, nextAllowedIso } from '../lib/formatters';
 import { buildDecisionSentence, normalizeHandler } from '../lib/decision-summary';
@@ -93,6 +98,7 @@ export class DecisionStrip extends LitElement {
         reason: row.reason,
         position: row.position,
         held_position: row.held_position,
+        reason_code: row.reason_code,
       });
     }
     const labels: Record<string, string> = {};
@@ -175,12 +181,24 @@ export class DecisionStrip extends LitElement {
       hasHeld && pos != null
         ? html` · ${t('decision.solar_would_be', this.hass, { pct: formatPercent(pos) })}`
         : nothing;
+    // A recognized reason_code marks this skip as the load-bearing reason the
+    // pipeline isn't acting (#295) — render full-weight with a warning accent
+    // and a clarifying tooltip instead of the uniform dimmed skip treatment.
+    const isBlocker = row?.reason_code != null && ACTIVE_BLOCKER_REASON_CODES.has(row.reason_code);
     return html`
-      <div class="row ${isWinner ? 'winner' : matched ? 'match' : 'skip'}">
+      <div
+        class="row ${isWinner ? 'winner' : matched ? 'match' : 'skip'}${isBlocker
+          ? ' blocker'
+          : ''}"
+      >
         <span class="name">${t(HANDLER_I18N_KEYS[h], this.hass)}</span>
         <span class="dots" aria-hidden="true">${matched ? '████' : '────'}</span>
         <span class="pos">${posDisplay}</span>
-        <span class="reason-inline dim">${reason}${solarContext}</span>
+        <span
+          class="reason-inline ${isBlocker ? '' : 'dim'}"
+          ${isBlocker ? tooltip(t('decision.active_blocker_hint', this.hass)) : nothing}
+          >${reason}${solarContext}</span
+        >
         ${isWinner ? html`<span class="badge">✓</span>` : nothing}
       </div>
     `;
@@ -242,6 +260,16 @@ export class DecisionStrip extends LitElement {
     }
     .row.skip {
       opacity: 0.55;
+    }
+    /* An active-blocker skip (#295) is the load-bearing reason the pipeline
+       isn't acting — full opacity and a warning accent, not the routine dim. */
+    .row.skip.blocker {
+      opacity: 1;
+      border-left: 3px solid var(--warning-color, orange);
+      background: rgba(255, 152, 0, 0.08);
+    }
+    .row.blocker .reason-inline {
+      color: var(--warning-color, orange);
     }
     .row.match {
       background: rgba(255, 193, 7, 0.08);
@@ -367,6 +395,8 @@ interface TraceRow {
   position: number | null;
   /** Forwarded from DecisionStep.held_position — see types.ts for semantics. */
   held_position?: number | null;
+  /** Forwarded from DecisionStep.reason_code — see types.ts for semantics. */
+  reason_code?: string;
 }
 
 // normalizeHandler lives in src/lib/decision-summary.ts so the helper and the

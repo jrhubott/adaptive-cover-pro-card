@@ -257,6 +257,7 @@ export const de: EnDict = {
       'Das konfigurierte Zeitplanfenster ist nicht aktiv, daher ist die automatische Positionierung pausiert.',
     solar_would_be: 'solar {pct}',
     next_change_in: 'Nächste Anpassung erlaubt in {time}',
+    active_blocker_hint: 'Dies ist die aktive Blockade — ein Schalter hier ändert daran nichts.',
   },
   solar: {
     title: 'Sonnenberechnung',
