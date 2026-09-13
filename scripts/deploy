@@ -3,10 +3,12 @@
 # Deploy adaptive-cover-pro-card to a Home Assistant server via SMB.
 #
 # Usage:
-#   ./scripts/deploy [--dry-run] [--verbose] [--help]
+#   ./scripts/deploy [--dry-run] [--unmount] [--verbose] [--help]
 #
 # Flags:
 #   --dry-run   Simulate deploy without copying files
+#   --unmount   Unmount the SMB share when done (default: leave it mounted so
+#               the next deploy reuses it)
 #   --verbose   Show bash trace (set -x)
 #   --help      Show help and exit
 #
@@ -33,18 +35,22 @@ HA_SMB_HOST="${HA_SMB_HOST:-home-assistant.home}"
 HA_SMB_SHARE="${HA_SMB_SHARE:-config}"
 DRY_RUN=false
 VERBOSE=false
+UNMOUNT=false
 MOUNTED_BY_US=false
 
 for arg in "$@"; do
     case "$arg" in
         --dry-run)    DRY_RUN=true ;;
+        --unmount)    UNMOUNT=true ;;
         --verbose|-v) VERBOSE=true ;;
         --help|-h)
             cat <<'HELP'
-Usage: ./scripts/deploy [--dry-run] [--verbose] [--help]
+Usage: ./scripts/deploy [--dry-run] [--unmount] [--verbose] [--help]
 
 Flags:
   --dry-run   Simulate deploy without copying files
+  --unmount   Unmount the SMB share when done (default: leave it mounted
+              so the next deploy reuses it)
   --verbose   Show bash trace (set -x)
   --help      Show this help message and exit
 
@@ -113,19 +119,30 @@ cleanup() {
     if [[ -n "${DIST_BAK:-}" && -f "$DIST_BAK" ]]; then
         mv -f "$DIST_BAK" dist/adaptive-cover-pro-card.js
     fi
-    if $MOUNTED_BY_US && [[ -n "${MOUNT_POINT:-}" ]]; then
+    # The share stays mounted by default so the next deploy reuses it instead of
+    # mounting (and possibly prompting for credentials) again. --unmount tears
+    # it down, whether this run mounted it or reused an existing mount.
+    if [[ -n "${MOUNT_POINT:-}" ]]; then
         if mount | grep -q "on ${MOUNT_POINT} "; then
-            echo "==> Unmounting ${MOUNT_POINT}..."
-            case "$(uname)" in
-                Darwin)
-                    diskutil unmount force "${MOUNT_POINT}" 2>/dev/null || umount "${MOUNT_POINT}" 2>/dev/null || true
-                    ;;
-                *)
-                    sudo umount "${MOUNT_POINT}" 2>/dev/null || umount "${MOUNT_POINT}" 2>/dev/null || true
-                    ;;
-            esac
+            if $UNMOUNT; then
+                echo "==> Unmounting ${MOUNT_POINT}..."
+                case "$(uname)" in
+                    Darwin)
+                        diskutil unmount force "${MOUNT_POINT}" 2>/dev/null || umount "${MOUNT_POINT}" 2>/dev/null || true
+                        ;;
+                    *)
+                        sudo umount "${MOUNT_POINT}" 2>/dev/null || umount "${MOUNT_POINT}" 2>/dev/null || true
+                        ;;
+                esac
+            else
+                echo "==> Leaving share mounted at ${MOUNT_POINT} (pass --unmount to unmount)."
+            fi
         fi
-        rmdir "${MOUNT_POINT}" 2>/dev/null || true
+        # Only remove a temp mount point this run created, and only once nothing
+        # is mounted on it (a failed mount, or a successful --unmount).
+        if $MOUNTED_BY_US && ! mount | grep -q "on ${MOUNT_POINT} "; then
+            rmdir "${MOUNT_POINT}" 2>/dev/null || true
+        fi
     fi
 }
 
