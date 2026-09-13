@@ -541,6 +541,11 @@ export interface DecisionStep {
    *  When present, `position` is the solar would-be target; this field is the
    *  actual held value that should be displayed as the primary position. */
   held_position?: number | null;
+  /** Machine-readable classification of `reason` (e.g. `skip.sun_tracking_gate`),
+   *  issue #295. Optional and back-compat: older integrations omit it, and the
+   *  card falls back to today's uniform skip treatment when absent. Also the
+   *  field #214's eventual card-owned localization would key its renderer on. */
+  reason_code?: string;
 }
 
 export interface DecisionTraceAttributes {

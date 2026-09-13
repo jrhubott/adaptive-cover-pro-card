@@ -3410,6 +3410,20 @@ export const SCENARIOS: Scenario[] = [
       return c;
     },
   },
+  {
+    id: 'solar-tracking-gate-closed',
+    label: 'Sun tracking gate closed (#295)',
+    added: '2026-09-12',
+    description:
+      'Automatic control is on and the sun is in FOV, but the integration reports its sun-tracking gate as closed — a gate-style condition unrelated to automatic_control or the sun position itself. The solar handler reports reason_code skip.sun_tracking_gate and the default handler wins instead. The Solar Tracking pipeline row renders full-weight with a warning accent and a tooltip explaining it is the active blocker, instead of the routine dimmed skip treatment every other skip reason gets.',
+    build: () => {
+      const c = baseConfig('2026-06-21', 12 * 60);
+      c.scenario = 'solar-tracking-gate-closed';
+      c.decisionMode = 'derived';
+      c.entries[0].flags.sun_tracking_gate_closed = true;
+      return c;
+    },
+  },
 ];
 
 export function findScenario(id: string): Scenario | undefined {

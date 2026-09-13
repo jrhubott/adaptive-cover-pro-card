@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { selectVisibleHandlers, computeDisabledHandlers } from '../src/components/decision-strip';
+import {
+  selectVisibleHandlers,
+  computeDisabledHandlers,
+  isActiveBlockerStep,
+} from '../src/components/decision-strip';
 import { HANDLER_ORDER } from '../src/const';
 
 describe('selectVisibleHandlers', () => {
@@ -245,5 +249,60 @@ describe('config typing', () => {
       hide_inactive_handlers: true,
     };
     expect(c.hide_inactive_handlers).toBe(true);
+  });
+});
+
+describe('isActiveBlockerStep (issue #295 audit finding 1)', () => {
+  it('returns false for a matched step even with a listed reason_code', () => {
+    expect(isActiveBlockerStep({ matched: true, reason_code: 'skip.sun_tracking_gate' })).toBe(
+      false,
+    );
+  });
+
+  it('returns true for an unmatched step with a listed reason_code', () => {
+    expect(isActiveBlockerStep({ matched: false, reason_code: 'skip.sun_tracking_gate' })).toBe(
+      true,
+    );
+  });
+
+  it('returns false for an undefined step', () => {
+    expect(isActiveBlockerStep(undefined)).toBe(false);
+  });
+
+  it('returns false for an unmatched step with no reason_code', () => {
+    expect(isActiveBlockerStep({ matched: false })).toBe(false);
+  });
+
+  it('returns false for an unmatched step with an unrecognized reason_code', () => {
+    expect(isActiveBlockerStep({ matched: false, reason_code: 'skip.something_else' })).toBe(false);
+  });
+});
+
+describe('selectVisibleHandlers with an active-blocker step (issue #295 audit finding 5)', () => {
+  it('a blocker step stays visible under hideInactive even though it did not match', () => {
+    const steps = new Map([
+      ['solar', { matched: false, reason_code: 'skip.sun_tracking_gate' }],
+      ['default', { matched: true }],
+    ]);
+    const result = selectVisibleHandlers(HANDLER_ORDER, steps, 'default', true);
+    expect(result).toContain('solar');
+  });
+
+  it('a disabled blocker step is still hidden under hideInactive (disabled wins)', () => {
+    const steps = new Map([
+      ['solar', { matched: false, reason_code: 'skip.sun_tracking_gate' }],
+      ['default', { matched: true }],
+    ]);
+    const result = selectVisibleHandlers(HANDLER_ORDER, steps, 'default', true, new Set(['solar']));
+    expect(result).not.toContain('solar');
+  });
+
+  it('an unmatched, non-blocker step is still hidden under hideInactive (unchanged behavior)', () => {
+    const steps = new Map([
+      ['solar', { matched: false, reason_code: 'skip.something_else' }],
+      ['default', { matched: true }],
+    ]);
+    const result = selectVisibleHandlers(HANDLER_ORDER, steps, 'default', true);
+    expect(result).not.toContain('solar');
   });
 });
