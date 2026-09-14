@@ -113,6 +113,35 @@ describe('adaptive-cover-pro-card cover_colors (issue #132)', () => {
     expect(chart).toBeTruthy();
     expect(chart.coverColors).toEqual(['#ff3366']);
   });
+
+  it('forwards blind_spot_mode to the embedded elevation chart', async () => {
+    const el = await mountWithRegistry({
+      type: 'custom:adaptive-cover-pro-card',
+      entry_id: ENTRY,
+      chart_blind_spot_mode: 'void',
+    });
+    const chart = el.shadowRoot!.querySelector('acp-elevation-chart') as HTMLElement & {
+      blindSpotMode?: string;
+    };
+    expect(chart.blindSpotMode).toBe('void');
+  });
+
+  it('forwards independent compass and chart blind-spot modes', async () => {
+    const el = await mountWithRegistry({
+      type: 'custom:adaptive-cover-pro-card',
+      entry_id: ENTRY,
+      sky_compass_blind_spot_mode: 'none',
+      chart_blind_spot_mode: 'width',
+    });
+    const compass = el.shadowRoot!.querySelector('acp-sky-compass') as HTMLElement & {
+      blindSpotMode?: string;
+    };
+    const chart = el.shadowRoot!.querySelector('acp-elevation-chart') as HTMLElement & {
+      blindSpotMode?: string;
+    };
+    expect(compass.blindSpotMode).toBe('none');
+    expect(chart.blindSpotMode).toBe('width');
+  });
 });
 
 interface GridOptions {

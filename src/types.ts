@@ -30,6 +30,12 @@ export interface AdaptiveCoverProCardConfig extends LovelaceCardConfig {
   compact?: boolean;
   show_compass_stats?: boolean;
   show_compass_legend?: boolean;
+  /** Show configured blind-spot angles without sun-path filtering. */
+  show_raw_blind_spot?: boolean;
+  /** How blind spots are rendered by the compass. */
+  sky_compass_blind_spot_mode?: 'none' | 'void' | 'width' | 'full' | 'raw';
+  /** How blind spots affect the embedded elevation chart. */
+  chart_blind_spot_mode?: 'none' | 'void' | 'width' | 'full';
   show_moon?: boolean;
   /** Color the header cover state icon by its HA state (open/opening/closing =
    *  active tier, closed/unknown = inactive tier, unavailable/missing =
@@ -251,6 +257,13 @@ export interface SkyCompassCardConfig extends LovelaceCardConfig {
   show_moon?: boolean;
   show_cardinals?: boolean;
   show_blind_spot?: boolean;
+  /** Show the configured blind-spot bearing envelope instead of only the part
+   * crossed by today's sun path. Useful when setting up geometry. */
+  show_raw_blind_spot?: boolean;
+  /** How blind spots are rendered by the compass. */
+  sky_compass_blind_spot_mode?: 'none' | 'void' | 'width' | 'full' | 'raw';
+  /** How blind spots affect the embedded elevation chart. */
+  chart_blind_spot_mode?: 'none' | 'void' | 'width' | 'full';
   show_sun_path?: boolean;
   show_sunrise_sunset?: boolean;
   show_cover_fill?: boolean;
@@ -271,6 +284,8 @@ export interface SolarChartCardConfig extends LovelaceCardConfig {
   entry_ids: string[];
   title?: string;
   compact?: boolean;
+  /** How blind spots affect the FOV bands and chart overlays (default `full`). */
+  chart_blind_spot_mode?: 'none' | 'void' | 'width' | 'full';
   cover_colors?: (string | null)[];
   /** Card-owned floating tooltip behavior. Defaults: enabled, offset [12,16],
    *  delay 400ms. Set `enabled: false` to use native browser tooltips. */
@@ -676,6 +691,19 @@ export interface SunPositionAttributes {
    *  the integration has had three since its #701. A card that reads only
    *  `blind_spot_range` draws slot 1 and silently loses the rest. */
   blind_spot_ranges?: Array<[number, number]>;
+  /** Elevation threshold for the blind spot, when published by the integration. */
+  blind_spot_elevation?: number;
+  /** Whether the blind spot applies below or above its elevation threshold. */
+  blind_spot_elevation_mode?: 'below' | 'above';
+  /** Per-slot blind-spot elevation thresholds and modes. */
+  blind_spot_elevations?: Array<number | null>;
+  blind_spot_elevation_modes?: Array<'below' | 'above' | null>;
+  /** Elevation gates paired with `blind_spot_ranges` (newer integration versions). */
+  blind_spot_slots?: Array<{
+    range?: [number, number];
+    elevation?: number | null;
+    elevation_mode?: 'below' | 'above' | null;
+  }>;
 }
 
 export interface StartEndSunAttributes {

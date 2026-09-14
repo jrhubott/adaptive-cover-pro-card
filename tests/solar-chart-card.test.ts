@@ -238,6 +238,18 @@ describe('adaptive-cover-pro-solar-chart-card render', () => {
     expect(chart.coverColors).toEqual(['#ff7043', '#7e57c2']);
   });
 
+  it('forwards the selected blind-spot mode to the elevation chart', async () => {
+    const el = await mountWithRegistry({
+      type: 'custom:adaptive-cover-pro-solar-chart-card',
+      entry_ids: [ENTRY],
+      chart_blind_spot_mode: 'width',
+    });
+    const chart = el.shadowRoot!.querySelector('acp-elevation-chart') as HTMLElement & {
+      blindSpotMode?: string;
+    };
+    expect(chart.blindSpotMode).toBe('width');
+  });
+
   it('renders a card-header when title is set', async () => {
     const el = await mountWithRegistry({
       type: 'custom:adaptive-cover-pro-solar-chart-card',

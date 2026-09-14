@@ -198,6 +198,16 @@ export class AdaptiveCoverProSkyCompassCardEditor extends LitElement implements 
     this._emit({ ...this._baseConfig(), [key]: enabled });
   }
 
+  private _onBlindSpotModeChange(
+    key: 'sky_compass_blind_spot_mode' | 'chart_blind_spot_mode',
+    e: Event,
+  ): void {
+    this._emit({
+      ...this._baseConfig(),
+      [key]: (e.target as HTMLSelectElement).value,
+    });
+  }
+
   _onNorthOffsetChange(e: Event): void {
     const raw = parseFloat((e.target as HTMLInputElement).value);
     const value = Number.isFinite(raw) ? raw : 0;
@@ -296,6 +306,53 @@ export class AdaptiveCoverProSkyCompassCardEditor extends LitElement implements 
               </label>
             `,
           )}
+          <label class="toggle-row">
+            <span class="toggle-text">
+              <span class="toggle-label"
+                >${t('editor.compass.blind_spot_mode_label', this.hass)}</span
+              >
+              <span class="toggle-desc"
+                >${t('editor.compass.blind_spot_mode_desc', this.hass)}</span
+              >
+            </span>
+            <select
+              @change=${(e: Event) => this._onBlindSpotModeChange('sky_compass_blind_spot_mode', e)}
+              .value=${this._config.sky_compass_blind_spot_mode ?? 'full'}
+            >
+              <option value="none">${t('editor.compass.blind_spot_mode_none', this.hass)}</option>
+              <option value="void">${t('editor.compass.blind_spot_mode_void', this.hass)}</option>
+              <option value="width">${t('editor.compass.blind_spot_mode_width', this.hass)}</option>
+              <option value="full">${t('editor.compass.blind_spot_mode_full', this.hass)}</option>
+              <option value="raw">${t('editor.compass.blind_spot_mode_raw', this.hass)}</option>
+            </select>
+          </label>
+          <label class="toggle-row">
+            <span class="toggle-text">
+              <span class="toggle-label"
+                >${t('editor.solar_chart.blind_spot_mode_label', this.hass)}</span
+              >
+              <span class="toggle-desc"
+                >${t('editor.solar_chart.blind_spot_mode_desc', this.hass)}</span
+              >
+            </span>
+            <select
+              @change=${(e: Event) => this._onBlindSpotModeChange('chart_blind_spot_mode', e)}
+              .value=${this._config.chart_blind_spot_mode ?? 'full'}
+            >
+              <option value="none">
+                ${t('editor.solar_chart.blind_spot_mode_none', this.hass)}
+              </option>
+              <option value="void">
+                ${t('editor.solar_chart.blind_spot_mode_void', this.hass)}
+              </option>
+              <option value="width">
+                ${t('editor.solar_chart.blind_spot_mode_width', this.hass)}
+              </option>
+              <option value="full">
+                ${t('editor.solar_chart.blind_spot_mode_full', this.hass)}
+              </option>
+            </select>
+          </label>
         </div>
 
         <div class="section">

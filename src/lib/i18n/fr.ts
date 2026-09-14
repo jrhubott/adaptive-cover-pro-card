@@ -465,6 +465,9 @@ export const fr: EnDict = {
       show_compass_legend_desc: 'Clé de couleur sous la boussole céleste.',
       show_moon_label: 'Afficher la lune sur la boussole',
       show_moon_desc: 'Position et phase de la lune en superposition sur la boussole céleste.',
+      show_raw_blind_spot_label: 'Zones de soleil masqué brutes',
+      show_raw_blind_spot_desc:
+        "Afficher les angles configurés sans les limiter à la trajectoire et à l'élévation du soleil du jour.",
       show_climate_label: 'Afficher l’interrupteur climatique (groupes de volets)',
       show_climate_desc:
         'Ajoute un interrupteur marche/arrêt de régulation climatique à la barre de contrôle d’un groupe de volets. Une pression active ou désactive le mode climatique sur tous les membres.',
@@ -558,6 +561,9 @@ export const fr: EnDict = {
       toggle_blind_spot_label: 'Zones de soleil masqué',
       toggle_blind_spot_desc:
         'Secteurs hachurés pour la plage où le soleil est masqué de chaque fenêtre.',
+      toggle_raw_blind_spot_label: 'Zones de soleil masqué brutes',
+      toggle_raw_blind_spot_desc:
+        "Afficher les angles configurés sans les limiter à la trajectoire et à l'élévation du soleil du jour.",
       toggle_sun_path_label: 'Trajectoire solaire',
       toggle_sun_path_desc: 'Arc solaire du jour dans le ciel.',
       toggle_sunrise_sunset_label: 'Repères lever / coucher du soleil',
@@ -569,6 +575,13 @@ export const fr: EnDict = {
       toggle_elevation_chart_label: 'Graphique du soleil',
       toggle_elevation_chart_desc:
         "Graphique élévation/temps sous la boussole, avec bande SAA et limites d'élévation.",
+      blind_spot_mode_label: 'Affichage des zones masquées du compas',
+      blind_spot_mode_desc: 'Choisissez comment les zones masquées sont affichées sur le compas.',
+      blind_spot_mode_none: 'Aucune zone masquée',
+      blind_spot_mode_void: 'Zone masquée en vide',
+      blind_spot_mode_width: 'Largeur de zone uniquement',
+      blind_spot_mode_full: 'Zone masquée complète',
+      blind_spot_mode_raw: 'Zones de soleil masqué brutes',
     },
     decision: {
       title: 'Titre (facultatif)',
@@ -591,6 +604,17 @@ export const fr: EnDict = {
       display: 'Affichage',
       toggle_compact_label: 'Mode compact',
       toggle_compact_desc: 'Graphique plus petit, espacement plus serré.',
+      blind_spot_mode_label: 'Affichage des zones masquées du graphique',
+      blind_spot_mode_desc:
+        'Choisissez comment les zones masquées sont affichées sur le graphique d’élévation.',
+      blind_spot_mode_none: 'Aucune zone masquée',
+      blind_spot_mode_void: 'Zone masquée en vide',
+      blind_spot_mode_width: 'Largeur de zone uniquement',
+      blind_spot_mode_full: 'Zone masquée complète',
+      blind_spot_mode_raw: 'Zones de soleil masqué brutes',
+      toggle_raw_blind_spot_label: 'Zones de soleil masqué brutes',
+      toggle_raw_blind_spot_desc:
+        'Diviser le graphique selon les angles configurés uniquement, utile pour vérifier la configuration.',
     },
     history: {
       title: 'Titre (facultatif)',

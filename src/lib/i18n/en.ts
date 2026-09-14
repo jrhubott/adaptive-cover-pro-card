@@ -458,6 +458,9 @@ export const en = {
       show_compass_legend_desc: 'Color key below the sky compass.',
       show_moon_label: 'Show moon on compass',
       show_moon_desc: 'Moon position and phase overlay on the sky compass.',
+      show_raw_blind_spot_label: 'Raw blind spots',
+      show_raw_blind_spot_desc:
+        'Show configured blind-spot angles without restricting them to today’s sun path and elevation.',
       show_climate_label: 'Show climate toggle (Cover Groups)',
       show_climate_desc:
         'Adds an on/off climate control to a Cover Group’s control row. One press enables or disables climate mode on every member.',
@@ -548,6 +551,9 @@ export const en = {
       toggle_cardinals_desc: 'N/E/S/W letters around the compass.',
       toggle_blind_spot_label: 'Blind spots',
       toggle_blind_spot_desc: 'Hatched wedges for each window’s blind range.',
+      toggle_raw_blind_spot_label: 'Raw blind spots',
+      toggle_raw_blind_spot_desc:
+        'Show the configured blind-spot angles without restricting them to today’s sun path and elevation.',
       toggle_sun_path_label: 'Sun path',
       toggle_sun_path_desc: 'Today’s sun arc across the sky.',
       toggle_sunrise_sunset_label: 'Sunrise / sunset markers',
@@ -559,6 +565,13 @@ export const en = {
       toggle_elevation_chart_label: 'Sun-today chart',
       toggle_elevation_chart_desc:
         'Elevation-vs-time chart below the compass, with SAA band and elevation limits.',
+      blind_spot_mode_label: 'Compass blind-spot display',
+      blind_spot_mode_desc: 'Choose how blind spots are rendered on the compass.',
+      blind_spot_mode_none: 'No blind spot',
+      blind_spot_mode_void: 'Void blind spot',
+      blind_spot_mode_width: 'Blind spot width only',
+      blind_spot_mode_full: 'Full blind spot',
+      blind_spot_mode_raw: 'Raw blind spots',
     },
     decision: {
       title: 'Title (optional)',
@@ -579,6 +592,16 @@ export const en = {
       display: 'Display',
       toggle_compact_label: 'Compact mode',
       toggle_compact_desc: 'Smaller chart, tighter spacing.',
+      blind_spot_mode_label: 'Chart blind-spot display',
+      blind_spot_mode_desc: 'Choose how blind spots are rendered on the elevation chart.',
+      blind_spot_mode_none: 'No blind spot',
+      blind_spot_mode_void: 'Void blind spot',
+      blind_spot_mode_width: 'Blind spot width only',
+      blind_spot_mode_full: 'Full blind spot',
+      blind_spot_mode_raw: 'Raw blind spots',
+      toggle_raw_blind_spot_label: 'Raw blind spots',
+      toggle_raw_blind_spot_desc:
+        'Split the chart using configured angles only, useful for checking the setup.',
     },
     history: {
       title: 'Title (optional)',
