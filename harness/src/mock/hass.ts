@@ -515,6 +515,12 @@ export function buildMockHass(
     callWS: callWS as unknown as HomeAssistant['callWS'],
     connection: {
       subscribeEvents,
+      // registry-store.ts reaches for `hass.connection.sendMessagePromise` when it
+      // refetches after an `entity_registry_updated` event. `callWS` already answers
+      // `config/entity_registry/list`, and both are "send a websocket message" on the
+      // real connection, so delegating keeps the mock honest — without it the store
+      // holds a connection missing the method and throws the moment an event fires.
+      sendMessagePromise: callWS,
     } as unknown as HomeAssistant['connection'],
     localize: ((key: string, ...rest: unknown[]) => {
       const args: Record<string, string | number> = {};

@@ -1,6 +1,6 @@
 import type { HomeAssistant } from 'custom-card-helpers';
 import { INTEGRATION_DOMAIN } from '../const';
-import { fetchEntityRegistry } from './entity-registry';
+import { loadEntityRegistry } from './registry-store';
 
 export interface AcpConfigEntry {
   entry_id: string;
@@ -26,6 +26,13 @@ interface RawConfigEntry {
  * `platform === 'adaptive_cover_pro'` in the entity registry. This excludes
  * "building profile" config entries (introduced in integration 2.30) that
  * share the same domain but provision no cover entities.
+ *
+ * The registry half of the lookup is served from `registry-store.ts`'s shared
+ * process-wide cache (`loadEntityRegistry`) rather than a raw fetch, so the
+ * six `getStubConfig` callers and six card-editor dropdowns that all call this
+ * function no longer each pay their own full `config/entity_registry/list`
+ * round trip. The store keeps itself fresh via its own `entity_registry_updated`
+ * subscription, so this stays correct even before any ACP card is mounted.
  */
 export async function fetchAcpConfigEntries(hass: HomeAssistant): Promise<AcpConfigEntry[]> {
   const [entries, registry] = await Promise.all([
@@ -33,7 +40,7 @@ export async function fetchAcpConfigEntries(hass: HomeAssistant): Promise<AcpCon
       type: 'config_entries/get',
       domain: INTEGRATION_DOMAIN,
     }),
-    fetchEntityRegistry(hass),
+    loadEntityRegistry(hass),
   ]);
   const coverProfileIds = new Set(
     registry
