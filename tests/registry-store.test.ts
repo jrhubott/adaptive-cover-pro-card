@@ -250,5 +250,24 @@ describe('registry-store', () => {
       expect(sendMessagePromise).toHaveBeenCalledTimes(2);
       expect(getCachedRegistry()).toBe(REGISTRY_V2);
     });
+
+    it('recovers from a rejecting connPromise instead of bricking the store', async () => {
+      // `connPromise` itself fails to resolve at all (e.g. an HA auth failure
+      // or a failed bootstrap reconnect) — before any `conn` is ever obtained,
+      // so no fetch and no subscription ever start.
+      (globalThis as { hassConnection?: unknown }).hassConnection = Promise.reject(
+        new Error('no connection'),
+      );
+
+      warmEntityRegistry();
+      await flush();
+
+      // `_inFlight` must not be left pointing at the permanently-rejected
+      // chain — a later `loadEntityRegistry` call must run its own fetch and
+      // succeed normally, not inherit the earlier rejection forever.
+      const { hass } = hassWithCallWS(() => Promise.resolve(REGISTRY));
+      await expect(loadEntityRegistry(hass)).resolves.toBe(REGISTRY);
+      expect(getCachedRegistry()).toBe(REGISTRY);
+    });
   });
 });

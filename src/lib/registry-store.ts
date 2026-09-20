@@ -103,15 +103,28 @@ function refetchAndSettle(conn: HassConnection['conn']): Promise<EntityRegistryE
  *  arrive while any of them is in flight, not just a subscription-driven one.
  *  Reads the module-level `_conn` rather than taking a parameter, precisely so
  *  `loadEntityRegistry` (which has no `conn` of its own) can call it too.
- *  No-op if the subscription was never established (`_conn` is null). */
+ *  No-op if the subscription was never established (`_conn` is null).
+ *
+ *  Strictly best-effort: it is always called synchronously from inside another
+ *  settle handler's `.then`/`.catch` body, so a throw here would propagate
+ *  into *that* handler — flipping an already-successful `loadEntityRegistry`
+ *  resolution into a rejection, or masking the original error on its failure
+ *  path. It must never throw. */
 function runTrailingRefetchIfPending(): void {
   if (!_pendingRefetch || !_conn) return;
   _pendingRefetch = false;
-  _inFlight = refetchAndSettle(_conn);
-  _inFlight.catch(() => {
-    // Swallow — a failed trailing refresh just leaves the prior cache in place;
-    // the next `loadEntityRegistry` caller can still retry.
-  });
+  try {
+    _inFlight = refetchAndSettle(_conn);
+    _inFlight.catch(() => {
+      // Swallow — a failed trailing refresh just leaves the prior cache in place;
+      // the next `loadEntityRegistry` caller can still retry.
+    });
+  } catch {
+    // Swallow a synchronous throw (e.g. from `conn.sendMessagePromise` itself
+    // throwing instead of rejecting) for the same reason — this function must
+    // never affect its caller's own resolve/reject path.
+    _inFlight = null;
+  }
 }
 
 /** Guards the module-level `entity_registry_updated` subscription so it is
@@ -172,7 +185,27 @@ export function warmEntityRegistry(): void {
   if (!connPromise) return;
   connPromise.then(({ conn }) => subscribeToRegistryChanges(conn)).catch(() => {});
   if (_cache || _inFlight) return;
-  _inFlight = connPromise.then(({ conn }) => refetchAndSettle(conn));
+  const p: Promise<EntityRegistryEntry[]> = connPromise
+    .then(({ conn }) => refetchAndSettle(conn))
+    .catch((err) => {
+      // Reaches here when `connPromise` itself rejects (HA auth failure, a
+      // failed bootstrap reconnect) or the `{ conn }` destructure throws —
+      // cases where `refetchAndSettle` never even started, so nothing else
+      // ever clears `_inFlight`. Without this, `_inFlight` would point at a
+      // permanently-rejected promise for the rest of the page session:
+      // `loadEntityRegistry`'s `if (_inFlight) return _inFlight;` would hand
+      // that rejection to every later caller, including forced refreshes, and
+      // `warmEntityRegistry`'s own `_cache || _inFlight` guard would never
+      // retry. Only clear `_inFlight` if it still points at *this* chain —
+      // if `refetchAndCache` inside `refetchAndSettle` is what actually
+      // rejected instead, its own catch already cleared `_inFlight` and may
+      // have started a trailing refetch (`runTrailingRefetchIfPending`) by
+      // the time this runs; stomping that reference here would silently
+      // break the in-flight dedupe for it.
+      if (_inFlight === p) _inFlight = null;
+      throw err;
+    });
+  _inFlight = p;
   // Fire-and-forget: swallow rejection here so an unawaited warm can't surface as
   // an unhandled rejection. Real `loadEntityRegistry` awaiters still see failures.
   _inFlight.catch(() => {});
