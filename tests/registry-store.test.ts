@@ -1,7 +1,17 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { EntityRegistryEntry } from '../src/lib/entity-registry';
-import { loadEntityRegistry, getCachedRegistry } from '../src/lib/registry-store';
+import {
+  loadEntityRegistry,
+  getCachedRegistry,
+  warmEntityRegistry,
+} from '../src/lib/registry-store';
+
+/** Flush the microtask queue enough hops for a `.then().then()` chain to settle. */
+async function flush(): Promise<void> {
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+}
 
 // The global test setup (tests/setup.ts) resets the store before each test.
 
@@ -79,5 +89,40 @@ describe('registry-store', () => {
     await expect(loadEntityRegistry(hass)).rejects.toThrow('boom');
     expect(getCachedRegistry()).toBeNull();
     expect(await loadEntityRegistry(hass)).toBe(REGISTRY);
+  });
+
+  describe('warmEntityRegistry subscription', () => {
+    afterEach(() => {
+      delete (globalThis as { hassConnection?: unknown }).hassConnection;
+    });
+
+    it('keeps the shared cache fresh via its own registry subscription', async () => {
+      const REGISTRY_V2: EntityRegistryEntry[] = [{ ...REGISTRY[0], entity_id: 'sensor.y' }];
+      let capturedCb: ((ev: { data: unknown }) => void) | null = null;
+      const sendMessagePromise = vi
+        .fn()
+        .mockResolvedValueOnce(REGISTRY)
+        .mockResolvedValueOnce(REGISTRY_V2);
+      const subscribeEvents = vi.fn((cb: (ev: { data: unknown }) => void) => {
+        capturedCb = cb;
+        return Promise.resolve(() => {});
+      });
+      (globalThis as { hassConnection?: unknown }).hassConnection = Promise.resolve({
+        conn: { sendMessagePromise, subscribeEvents },
+      });
+
+      warmEntityRegistry();
+      await flush();
+
+      expect(getCachedRegistry()).toBe(REGISTRY);
+      expect(subscribeEvents).toHaveBeenCalledWith(expect.any(Function), 'entity_registry_updated');
+
+      expect(capturedCb).not.toBeNull();
+      capturedCb!({ data: { action: 'create', entity_id: 'sensor.y' } });
+      await flush();
+
+      expect(sendMessagePromise).toHaveBeenCalledTimes(2);
+      expect(getCachedRegistry()).toBe(REGISTRY_V2);
+    });
   });
 });
