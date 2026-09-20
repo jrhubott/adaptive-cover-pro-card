@@ -62,7 +62,7 @@ type HassWithConnection = HomeAssistant & { connection: HassConnection['conn'] }
  *  `connection` — the original `loadEntityRegistry` tests use exactly that
  *  shape, and there is nothing to subscribe through in that case. */
 function connFromHass(hass: HomeAssistant): HassConnection['conn'] | undefined {
-  return (hass as HassWithConnection).connection;
+  return (hass as HassWithConnection | undefined)?.connection;
 }
 
 /** POST `config/entity_registry/list` and replace `_cache` with the result.
