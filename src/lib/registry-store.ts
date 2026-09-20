@@ -14,11 +14,13 @@ import { fetchEntityRegistry, type EntityRegistryEntry } from './entity-registry
  * This caches the result in memory and dedupes concurrent fetches, so the whole board pays
  * a single round-trip; the 2nd..Nth callers (and per-tick revalidations) read the cache
  * without touching the network. The store keeps itself fresh: it establishes its own
- * `entity_registry_updated` subscription at warm time (see `warmEntityRegistry`) and
- * refetches on any event, so the cache is correct whether or not any ACP card instance
- * happens to be mounted and subscribed on its own. A burst of events (e.g. a new config
- * entry registering ~20 entities at once) coalesces into at most one trailing refetch
- * rather than one round trip per event — see `refetchAndSettle`.
+ * `entity_registry_updated` subscription the first chance it gets — either at warm time via
+ * the global `hassConnection` (see `warmEntityRegistry`) or on the first `loadEntityRegistry`
+ * call via `hass.connection` (see `connFromHass`), whichever comes first — and refetches on
+ * any event, so the cache is correct whether or not any ACP card instance happens to be
+ * mounted and subscribed on its own, and whether or not the global was ever set. A burst of
+ * events (e.g. a new config entry registering ~20 entities at once) coalesces into at most
+ * one trailing refetch rather than one round trip per event — see `refetchAndSettle`.
  */
 
 let _cache: EntityRegistryEntry[] | null = null;
@@ -43,6 +45,24 @@ type HassConnection = {
 };
 function hassConnection(): Promise<HassConnection> | undefined {
   return (globalThis as { hassConnection?: Promise<HassConnection> }).hassConnection;
+}
+
+/** `hass.connection` is a real HA `Connection` instance at runtime — it
+ *  already exposes both `subscribeEvents` and `sendMessagePromise`, the same
+ *  two methods this module already calls via the global `hassConnection`.
+ *  `entity-registry.ts`'s own `HassWithConnection` narrows `connection` to
+ *  just `subscribeEvents`, since that file never needs `sendMessagePromise`;
+ *  this module does (for the trailing refetch), so it declares its own
+ *  narrowing with both methods rather than casting through the narrower one. */
+type HassWithConnection = HomeAssistant & { connection: HassConnection['conn'] };
+
+/** The connection `loadEntityRegistry` can reach directly off `hass`, with no
+ *  dependency on the global `hassConnection` (see `subscribeToRegistryChanges`
+ *  callers below). `undefined` for hass-shaped test doubles that never set
+ *  `connection` — the original `loadEntityRegistry` tests use exactly that
+ *  shape, and there is nothing to subscribe through in that case. */
+function connFromHass(hass: HomeAssistant): HassConnection['conn'] | undefined {
+  return (hass as HassWithConnection).connection;
 }
 
 /** POST `config/entity_registry/list` and replace `_cache` with the result.
@@ -132,16 +152,25 @@ function runTrailingRefetchIfPending(): void {
 let _subscribed = false;
 let _unsubscribe: (() => void) | null = null;
 
-/** Subscribe once to `entity_registry_updated`. Each event either starts a
- *  fresh refetch-and-replace of `_cache`, or — if a fetch is already in
- *  flight — sets `_pendingRefetch` so `runTrailingRefetchIfPending` runs
- *  exactly one trailing refetch once that fetch settles (whichever path
- *  settles it — see `runTrailingRefetchIfPending`). This is process-lifetime
- *  by design — there is no unmount event for a module-scoped cache — and is
- *  intentionally never torn down outside tests (`_resetRegistryStore`
- *  unsubscribes and clears the guard for test isolation only). Independent of
- *  the `_cache`/`_inFlight` guard in `warmEntityRegistry` so a cache populated
- *  by some other path can never skip establishing this subscription. */
+/** Subscribe once to `entity_registry_updated`, from whichever caller gets
+ *  here first — `warmEntityRegistry` (via the global `hassConnection`) or
+ *  `loadEntityRegistry` (via `hass.connection`, see `connFromHass`). Each
+ *  event either starts a fresh refetch-and-replace of `_cache`, or — if a
+ *  fetch is already in flight — sets `_pendingRefetch` so
+ *  `runTrailingRefetchIfPending` runs exactly one trailing refetch once that
+ *  fetch settles (whichever path settles it — see `runTrailingRefetchIfPending`).
+ *  This is process-lifetime by design — there is no unmount event for a
+ *  module-scoped cache — and is intentionally never torn down outside tests
+ *  (`_resetRegistryStore` unsubscribes and clears the guard for test isolation
+ *  only). Independent of the `_cache`/`_inFlight` guard in `warmEntityRegistry`
+ *  so a cache populated by some other path can never skip establishing this
+ *  subscription.
+ *
+ *  If the `subscribeEvents` call itself rejects, the guard is released so a
+ *  later call (either entry point) can retry — one attempt per call, not an
+ *  unbounded loop, but a transient failure here must not permanently latch
+ *  `_subscribed` with no subscription ever established for the rest of the
+ *  session. */
 function subscribeToRegistryChanges(conn: HassConnection['conn']): void {
   if (_subscribed) return;
   _subscribed = true;
@@ -162,8 +191,11 @@ function subscribeToRegistryChanges(conn: HassConnection['conn']): void {
       _unsubscribe = unsub;
     })
     .catch(() => {
-      // Swallow — subscription failure means the cache won't auto-refresh on
-      // registry changes, but manual reload (a forced `loadEntityRegistry`) still works.
+      // Release the guard — see the doc comment above — so a later
+      // `warmEntityRegistry`/`loadEntityRegistry` call retries instead of the
+      // cache going permanently stale for the rest of the session.
+      _subscribed = false;
+      _conn = null;
     });
 }
 
@@ -174,11 +206,16 @@ function subscribeToRegistryChanges(conn: HassConnection['conn']): void {
  * so nothing else has populated the cache yet — and the picker memoizes on the
  * selected entity, so it will not recompute on a later `hass` tick. Warming at
  * registration means the registry is usually resident by the time the user opens
- * the picker. Also establishes the module's own `entity_registry_updated`
- * subscription (once, regardless of how many times this runs — it's called once
- * per card registration, six times total) so the cache stays correct even before
- * any ACP card instance is mounted. No-op when no connection exists (e.g. tests).
- * Reuses `_inFlight` so a concurrent `loadEntityRegistry` dedupes.
+ * the picker. Also tries to establish the module's own `entity_registry_updated`
+ * subscription (idempotent regardless of how many times this runs — it's called
+ * once per card registration, six times total) so the cache stays correct even
+ * before any ACP card instance is mounted. No-op when no global connection
+ * exists yet (e.g. tests, or HA not having set it before this module evaluates)
+ * — this is only ever an optimization, not the only way the subscription gets
+ * established: `loadEntityRegistry` retries the same subscribe via
+ * `hass.connection` on every call, so a missing global here just means the
+ * subscription starts a little later rather than never. Reuses `_inFlight` so
+ * a concurrent `loadEntityRegistry` dedupes.
  */
 export function warmEntityRegistry(): void {
   const connPromise = hassConnection();
@@ -222,11 +259,24 @@ export function warmEntityRegistry(): void {
  *   registry event arrived while *this* fetch was the one in flight, the event's change
  *   isn't reflected in what this fetch returned, so one more conn-based refetch runs to
  *   pick it up rather than leaving it stranded until some unrelated later fetch happens by.
+ * - Also tries to establish the module's own subscription via `hass.connection`
+ *   (see `connFromHass`), independent of the cache/in-flight state below (so a
+ *   warm-cache hit still tries). `warmEntityRegistry`'s global `hassConnection`
+ *   depends on HA having set that global before card registration — an
+ *   assumption this module shouldn't have to make. `hass.connection` is
+ *   always available once any card actually has a `hass`, and this runs on
+ *   every call, so it's retried on every subsequent call too if it hasn't
+ *   succeeded yet (e.g. after a rejected `subscribeEvents`, see
+ *   `subscribeToRegistryChanges`). Routing through `hass` this way makes the
+ *   global an optimization — it warms the subscription earlier — rather than
+ *   a hard dependency.
  */
 export function loadEntityRegistry(
   hass: HomeAssistant,
   force = false,
 ): Promise<EntityRegistryEntry[]> {
+  const conn = connFromHass(hass);
+  if (conn) subscribeToRegistryChanges(conn);
   if (_inFlight) return _inFlight;
   if (!force && _cache) return Promise.resolve(_cache);
   const p = fetchEntityRegistry(hass)

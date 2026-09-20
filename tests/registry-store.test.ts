@@ -269,5 +269,91 @@ describe('registry-store', () => {
       await expect(loadEntityRegistry(hass)).resolves.toBe(REGISTRY);
       expect(getCachedRegistry()).toBe(REGISTRY);
     });
+
+    it('establishes the subscription via hass.connection when the global is absent entirely', async () => {
+      // No `globalThis.hassConnection` at all — the scenario where HA hasn't
+      // set the bootstrap global yet (or something is wrong with the
+      // load-order assumption `warmEntityRegistry` makes). `loadEntityRegistry`
+      // must not depend on it: `hass.connection` is available on every call.
+      expect((globalThis as { hassConnection?: unknown }).hassConnection).toBeUndefined();
+
+      const REGISTRY_V2: EntityRegistryEntry[] = [{ ...REGISTRY[0], entity_id: 'sensor.y' }];
+      let capturedCb: ((ev: { data: unknown }) => void) | null = null;
+      const subscribeEvents = vi.fn((cb: (ev: { data: unknown }) => void) => {
+        capturedCb = cb;
+        return Promise.resolve(() => Promise.resolve());
+      });
+      const sendMessagePromise = vi.fn().mockResolvedValue(REGISTRY_V2);
+      const hass = {
+        callWS: () => Promise.resolve(REGISTRY),
+        connection: { subscribeEvents, sendMessagePromise },
+      } as unknown as HomeAssistant;
+
+      expect(await loadEntityRegistry(hass)).toBe(REGISTRY);
+      await flush();
+      expect(subscribeEvents).toHaveBeenCalledWith(expect.any(Function), 'entity_registry_updated');
+      expect(capturedCb).not.toBeNull();
+
+      // Firing the captured callback refreshes `_cache` via the conn obtained
+      // from `hass`, exactly as it would via the global.
+      capturedCb!({ data: { action: 'create', entity_id: 'sensor.y' } });
+      await flush();
+
+      expect(getCachedRegistry()).toBe(REGISTRY_V2);
+    });
+
+    it('retries establishing the subscription after a rejected subscribeEvents call', async () => {
+      const subscribeEvents = vi
+        .fn<(cb: (ev: { data: unknown }) => void) => Promise<() => Promise<void>>>()
+        .mockRejectedValueOnce(new Error('subscribe failed'))
+        .mockResolvedValueOnce(() => Promise.resolve());
+      const sendMessagePromise = vi.fn().mockResolvedValue(REGISTRY);
+      const hass = {
+        callWS: () => Promise.resolve(REGISTRY),
+        connection: { subscribeEvents, sendMessagePromise },
+      } as unknown as HomeAssistant;
+
+      // First call: the fetch itself succeeds independently of the subscribe
+      // attempt, but the attempt rejects — this must not permanently latch
+      // the guard with no subscription ever established for the session.
+      expect(await loadEntityRegistry(hass)).toBe(REGISTRY);
+      await flush();
+      expect(subscribeEvents).toHaveBeenCalledTimes(1);
+
+      // Second call: the guard must have released, so this is a genuine retry
+      // — not a no-op skip and not an unbounded loop, exactly one more attempt.
+      expect(await loadEntityRegistry(hass, true)).toBe(REGISTRY);
+      await flush();
+      expect(subscribeEvents).toHaveBeenCalledTimes(2);
+    });
+
+    it('establishes exactly one subscription when the global and loadEntityRegistry both fire', async () => {
+      const subscribeEventsGlobal = vi.fn(() => Promise.resolve(() => Promise.resolve()));
+      const sendMessagePromiseGlobal = vi.fn().mockResolvedValue(REGISTRY);
+      (globalThis as { hassConnection?: unknown }).hassConnection = Promise.resolve({
+        conn: {
+          sendMessagePromise: sendMessagePromiseGlobal,
+          subscribeEvents: subscribeEventsGlobal,
+        },
+      });
+
+      const subscribeEventsHass = vi.fn(() => Promise.resolve(() => Promise.resolve()));
+      const sendMessagePromiseHass = vi.fn().mockResolvedValue(REGISTRY);
+      const hass = {
+        callWS: () => Promise.resolve(REGISTRY),
+        connection: {
+          subscribeEvents: subscribeEventsHass,
+          sendMessagePromise: sendMessagePromiseHass,
+        },
+      } as unknown as HomeAssistant;
+
+      warmEntityRegistry();
+      await loadEntityRegistry(hass);
+      await flush();
+
+      const totalSubscribeCalls =
+        subscribeEventsGlobal.mock.calls.length + subscribeEventsHass.mock.calls.length;
+      expect(totalSubscribeCalls).toBe(1);
+    });
   });
 });
