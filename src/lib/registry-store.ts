@@ -16,7 +16,9 @@ import { fetchEntityRegistry, type EntityRegistryEntry } from './entity-registry
  * without touching the network. The store keeps itself fresh: it establishes its own
  * `entity_registry_updated` subscription at warm time (see `warmEntityRegistry`) and
  * refetches on any event, so the cache is correct whether or not any ACP card instance
- * happens to be mounted and subscribed on its own.
+ * happens to be mounted and subscribed on its own. A burst of events (e.g. a new config
+ * entry registering ~20 entities at once) coalesces into at most one trailing refetch
+ * rather than one round trip per event — see `refetchAndSettle`.
  */
 
 let _cache: EntityRegistryEntry[] | null = null;
@@ -44,7 +46,8 @@ function hassConnection(): Promise<HassConnection> | undefined {
 }
 
 /** POST `config/entity_registry/list` and replace `_cache` with the result.
- *  Shared by the initial warm fetch and the subscription's refetch-on-event. */
+ *  The actual network call — always invoked through `refetchAndSettle`, which
+ *  is what tracks `_inFlight`. */
 function refetchAndCache(conn: HassConnection['conn']): Promise<EntityRegistryEntry[]> {
   return conn
     .sendMessagePromise<EntityRegistryEntry[]>({ type: 'config/entity_registry/list' })
@@ -54,24 +57,90 @@ function refetchAndCache(conn: HassConnection['conn']): Promise<EntityRegistryEn
     });
 }
 
+/** Set when an `entity_registry_updated` event arrives while a fetch is already
+ *  in flight (the initial warm fetch, an ordinary `loadEntityRegistry` caller,
+ *  or a previous event's own refetch). Consumed by `runTrailingRefetchIfPending`
+ *  once that fetch settles to run exactly one trailing refetch, so a burst of
+ *  N events collapses into at most one extra round trip instead of N
+ *  concurrent ones — and so an event that arrives during someone else's fetch
+ *  is never silently dropped. */
+let _pendingRefetch = false;
+
+/** The live connection, captured the moment the module's own subscription is
+ *  established (see `subscribeToRegistryChanges`). `runTrailingRefetchIfPending`
+ *  needs a `conn` to actually issue a trailing fetch — including when the fetch
+ *  that just settled was an ordinary `loadEntityRegistry` call, which only ever
+ *  has a `hass`, not a `conn`. Null until the subscription resolves (e.g. most
+ *  tests, which never warm), in which case there is no event source that could
+ *  have set `_pendingRefetch` in the first place. */
+let _conn: HassConnection['conn'] | null = null;
+
+/** Run one fetch-and-cache cycle as the shared `_inFlight`, then clear it and
+ *  run the trailing-refetch check. Used by the initial warm fetch and by the
+ *  subscription's own event handler — the two places that fetch over the raw
+ *  `conn` rather than `hass.callWS`. Never leaves `_inFlight` dangling, on
+ *  success or failure. */
+function refetchAndSettle(conn: HassConnection['conn']): Promise<EntityRegistryEntry[]> {
+  return refetchAndCache(conn)
+    .then((entries) => {
+      _inFlight = null;
+      runTrailingRefetchIfPending();
+      return entries;
+    })
+    .catch((err) => {
+      _inFlight = null;
+      runTrailingRefetchIfPending();
+      throw err;
+    });
+}
+
+/** The trailing half of the coalescing scheme: if a registry event arrived
+ *  while a fetch was in flight, start exactly one more now that it has
+ *  settled, so the event's change still lands in `_cache` instead of being
+ *  dropped. Called from every path that clears `_inFlight` — `refetchAndSettle`
+ *  (the subscription's own refetches and the initial warm fetch) and
+ *  `loadEntityRegistry` (an ordinary card's fetch) — because an event can
+ *  arrive while any of them is in flight, not just a subscription-driven one.
+ *  Reads the module-level `_conn` rather than taking a parameter, precisely so
+ *  `loadEntityRegistry` (which has no `conn` of its own) can call it too.
+ *  No-op if the subscription was never established (`_conn` is null). */
+function runTrailingRefetchIfPending(): void {
+  if (!_pendingRefetch || !_conn) return;
+  _pendingRefetch = false;
+  _inFlight = refetchAndSettle(_conn);
+  _inFlight.catch(() => {
+    // Swallow — a failed trailing refresh just leaves the prior cache in place;
+    // the next `loadEntityRegistry` caller can still retry.
+  });
+}
+
 /** Guards the module-level `entity_registry_updated` subscription so it is
  *  established at most once, independent of `_cache`/`_inFlight` state. */
 let _subscribed = false;
 let _unsubscribe: (() => void) | null = null;
 
-/** Subscribe once to `entity_registry_updated` and refetch-and-replace `_cache`
- *  on any event. This is process-lifetime by design — there is no unmount event
- *  for a module-scoped cache — and is intentionally never torn down outside
- *  tests (`_resetRegistryStore` unsubscribes and clears the guard for test
- *  isolation only). Independent of the `_cache`/`_inFlight` guard in
- *  `warmEntityRegistry` so a cache populated by some other path can never skip
- *  establishing this subscription. */
+/** Subscribe once to `entity_registry_updated`. Each event either starts a
+ *  fresh refetch-and-replace of `_cache`, or — if a fetch is already in
+ *  flight — sets `_pendingRefetch` so `runTrailingRefetchIfPending` runs
+ *  exactly one trailing refetch once that fetch settles (whichever path
+ *  settles it — see `runTrailingRefetchIfPending`). This is process-lifetime
+ *  by design — there is no unmount event for a module-scoped cache — and is
+ *  intentionally never torn down outside tests (`_resetRegistryStore`
+ *  unsubscribes and clears the guard for test isolation only). Independent of
+ *  the `_cache`/`_inFlight` guard in `warmEntityRegistry` so a cache populated
+ *  by some other path can never skip establishing this subscription. */
 function subscribeToRegistryChanges(conn: HassConnection['conn']): void {
   if (_subscribed) return;
   _subscribed = true;
+  _conn = conn;
   conn
     .subscribeEvents(() => {
-      refetchAndCache(conn).catch(() => {
+      if (_inFlight) {
+        _pendingRefetch = true;
+        return;
+      }
+      _inFlight = refetchAndSettle(conn);
+      _inFlight.catch(() => {
         // Swallow — a failed refresh on an event just leaves the prior cache in
         // place; the next `loadEntityRegistry` caller can still retry.
       });
@@ -103,16 +172,7 @@ export function warmEntityRegistry(): void {
   if (!connPromise) return;
   connPromise.then(({ conn }) => subscribeToRegistryChanges(conn)).catch(() => {});
   if (_cache || _inFlight) return;
-  _inFlight = connPromise
-    .then(({ conn }) => refetchAndCache(conn))
-    .then((entries) => {
-      _inFlight = null;
-      return entries;
-    })
-    .catch((err) => {
-      _inFlight = null;
-      throw err;
-    });
+  _inFlight = connPromise.then(({ conn }) => refetchAndSettle(conn));
   // Fire-and-forget: swallow rejection here so an unawaited warm can't surface as
   // an unhandled rejection. Real `loadEntityRegistry` awaiters still see failures.
   _inFlight.catch(() => {});
@@ -125,6 +185,10 @@ export function warmEntityRegistry(): void {
  * - Concurrent callers — including forced refreshes — share the single in-flight fetch.
  * - `force` triggers a fresh fetch when nothing is in-flight; used after a registry-updated
  *   event so a stale cache can't mask the change.
+ * - Also runs the trailing-refetch check on settle (`runTrailingRefetchIfPending`): if a
+ *   registry event arrived while *this* fetch was the one in flight, the event's change
+ *   isn't reflected in what this fetch returned, so one more conn-based refetch runs to
+ *   pick it up rather than leaving it stranded until some unrelated later fetch happens by.
  */
 export function loadEntityRegistry(
   hass: HomeAssistant,
@@ -136,10 +200,12 @@ export function loadEntityRegistry(
     .then((entries) => {
       _cache = entries;
       _inFlight = null;
+      runTrailingRefetchIfPending();
       return entries;
     })
     .catch((err) => {
       _inFlight = null;
+      runTrailingRefetchIfPending();
       throw err;
     });
   _inFlight = p;
@@ -150,6 +216,8 @@ export function loadEntityRegistry(
 export function _resetRegistryStore(): void {
   _cache = null;
   _inFlight = null;
+  _pendingRefetch = false;
+  _conn = null;
   if (_unsubscribe) _unsubscribe();
   _unsubscribe = null;
   _subscribed = false;

@@ -124,5 +124,131 @@ describe('registry-store', () => {
       expect(sendMessagePromise).toHaveBeenCalledTimes(2);
       expect(getCachedRegistry()).toBe(REGISTRY_V2);
     });
+
+    it('subscribes even when the cache is already populated', async () => {
+      // Warm the cache through a plain `loadEntityRegistry` call first — this is
+      // the "some other path already populated `_cache`" case. The subscription
+      // must still be established; it must not be skipped by the `_cache`/
+      // `_inFlight` early return that guards the fetch itself.
+      const { hass } = hassWithCallWS(() => Promise.resolve(REGISTRY));
+      await loadEntityRegistry(hass);
+      expect(getCachedRegistry()).toBe(REGISTRY);
+
+      const subscribeEvents = vi.fn(() => Promise.resolve(() => {}));
+      const sendMessagePromise = vi.fn().mockResolvedValue(REGISTRY);
+      (globalThis as { hassConnection?: unknown }).hassConnection = Promise.resolve({
+        conn: { sendMessagePromise, subscribeEvents },
+      });
+
+      warmEntityRegistry();
+      await flush();
+
+      expect(subscribeEvents).toHaveBeenCalledWith(expect.any(Function), 'entity_registry_updated');
+    });
+
+    it('establishes exactly one subscription across six warm calls', async () => {
+      const subscribeEvents = vi.fn(() => Promise.resolve(() => {}));
+      const sendMessagePromise = vi.fn().mockResolvedValue(REGISTRY);
+      (globalThis as { hassConnection?: unknown }).hassConnection = Promise.resolve({
+        conn: { sendMessagePromise, subscribeEvents },
+      });
+
+      // Production calls this once per card registration — six cards, six calls,
+      // synchronously in the same tick.
+      for (let i = 0; i < 6; i += 1) warmEntityRegistry();
+      await flush();
+
+      expect(subscribeEvents.mock.calls.length).toBe(1);
+    });
+
+    it('coalesces a burst of events into at most one trailing refetch', async () => {
+      // The initial warm fetch never resolves until we say so, so every event
+      // fired below arrives while a fetch is genuinely in flight.
+      let resolveInitial!: (v: EntityRegistryEntry[]) => void;
+      const sendMessagePromise = vi
+        .fn()
+        .mockImplementationOnce(
+          () => new Promise<EntityRegistryEntry[]>((r) => (resolveInitial = r)),
+        )
+        .mockResolvedValue(REGISTRY);
+      let capturedCb: ((ev: { data: unknown }) => void) | null = null;
+      const subscribeEvents = vi.fn((cb: (ev: { data: unknown }) => void) => {
+        capturedCb = cb;
+        return Promise.resolve(() => {});
+      });
+      (globalThis as { hassConnection?: unknown }).hassConnection = Promise.resolve({
+        conn: { sendMessagePromise, subscribeEvents },
+      });
+
+      warmEntityRegistry();
+      await flush();
+      expect(capturedCb).not.toBeNull();
+      expect(sendMessagePromise).toHaveBeenCalledTimes(1); // the initial fetch, still pending
+
+      // A burst of ~20 registry events land while that fetch is in flight — e.g.
+      // a new config entry registering its entities one by one.
+      for (let i = 0; i < 20; i += 1) {
+        capturedCb!({ data: { action: 'create', entity_id: `sensor.new_${i}` } });
+      }
+
+      // Let the in-flight fetch settle, then let a trailing refetch (if any) run.
+      resolveInitial(REGISTRY);
+      await flush();
+
+      // One fetch for the burst's trailing refetch, on top of the initial one —
+      // never one fetch per event.
+      expect(sendMessagePromise).toHaveBeenCalledTimes(2);
+    });
+
+    it('runs a trailing refetch when an event arrives during a loadEntityRegistry fetch', async () => {
+      // Get the subscription established and the store settled first — this is
+      // the zero-ACP-cards-mounted case: nothing but the module's own
+      // subscription will ever refresh the cache again.
+      const REGISTRY_V2: EntityRegistryEntry[] = [{ ...REGISTRY[0], entity_id: 'sensor.y' }];
+      const sendMessagePromise = vi
+        .fn()
+        .mockResolvedValueOnce(REGISTRY) // the initial warm fetch
+        .mockResolvedValueOnce(REGISTRY_V2); // the trailing refetch after the event
+      let capturedCb: ((ev: { data: unknown }) => void) | null = null;
+      const subscribeEvents = vi.fn((cb: (ev: { data: unknown }) => void) => {
+        capturedCb = cb;
+        return Promise.resolve(() => {});
+      });
+      (globalThis as { hassConnection?: unknown }).hassConnection = Promise.resolve({
+        conn: { sendMessagePromise, subscribeEvents },
+      });
+
+      warmEntityRegistry();
+      await flush();
+      expect(getCachedRegistry()).toBe(REGISTRY);
+      expect(capturedCb).not.toBeNull();
+
+      // An ordinary card calls `loadEntityRegistry(hass, true)` — a fetch path
+      // that goes through `hass.callWS`, entirely independent of the conn — and
+      // it is held open so we control exactly when it resolves.
+      let resolveCallWS!: (v: EntityRegistryEntry[]) => void;
+      const REGISTRY_FROM_CALLWS: EntityRegistryEntry[] = [
+        { ...REGISTRY[0], entity_id: 'sensor.callws' },
+      ];
+      const { hass } = hassWithCallWS(
+        () => new Promise<EntityRegistryEntry[]>((r) => (resolveCallWS = r)),
+      );
+      const loadPromise = loadEntityRegistry(hass, true);
+
+      // A registry event arrives while that fetch is still in flight.
+      capturedCb!({ data: { action: 'create', entity_id: 'sensor.y' } });
+
+      // The in-flight `loadEntityRegistry` fetch now resolves — with a snapshot
+      // that predates the event, the classic race this is guarding against.
+      resolveCallWS(REGISTRY_FROM_CALLWS);
+      await loadPromise;
+      await flush();
+
+      // A trailing refetch must still have run and won the cache — the event's
+      // change must not be silently dropped just because a different fetch path
+      // was the one in flight when it arrived.
+      expect(sendMessagePromise).toHaveBeenCalledTimes(2);
+      expect(getCachedRegistry()).toBe(REGISTRY_V2);
+    });
   });
 });
