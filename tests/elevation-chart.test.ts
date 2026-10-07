@@ -14,6 +14,7 @@ interface ChartLike extends HTMLElement {
   discoveredList?: DiscoveredEntities[];
   coverColors?: (string | null | undefined)[];
   compact?: boolean;
+  blindSpotMode?: 'none' | 'void' | 'width' | 'full';
 }
 
 const discovered: DiscoveredEntities = {
@@ -120,6 +121,118 @@ describe('acp-elevation-chart: single-window (legacy, unchanged)', () => {
     expect(style).not.toMatch(/fill\s*:/);
   });
 
+  it('splits the single-window FOV band around a blind spot', async () => {
+    const el = await mount({
+      hass: hass({ blind_spot_ranges: [[30, 60]] }),
+      discoveredList: [discovered],
+    });
+    expect(el.shadowRoot!.querySelectorAll('rect.fov-band').length).toBe(2);
+  });
+
+  it('renders one uninterrupted FOV band when blind-spot drawing is disabled', async () => {
+    const el = await mount({
+      hass: hass({ blind_spot_ranges: [[30, 60]] }),
+      discoveredList: [discovered],
+      blindSpotMode: 'none',
+    });
+    expect(el.shadowRoot!.querySelectorAll('rect.fov-band').length).toBe(1);
+  });
+
+  it('separates the FOV without drawing a blind-spot overlay in void mode', async () => {
+    const el = await mount({
+      hass: hass({ blind_spot_ranges: [[30, 60]] }),
+      discoveredList: [discovered],
+      blindSpotMode: 'void',
+    });
+    expect(el.shadowRoot!.querySelectorAll('rect.fov-band').length).toBe(2);
+    expect(el.shadowRoot!.querySelectorAll('rect.blind-spot').length).toBe(0);
+  });
+
+  it('draws a full-height blind-spot overlay in width mode', async () => {
+    const el = await mount({
+      hass: hass({ blind_spot_ranges: [[30, 60]] }),
+      discoveredList: [discovered],
+      blindSpotMode: 'width',
+    });
+    expect(el.shadowRoot!.querySelectorAll('rect.fov-band').length).toBe(2);
+    const overlay = el.shadowRoot!.querySelector('rect.blind-spot')!;
+    expect(parseFloat(overlay.getAttribute('y')!)).toBe(10);
+    expect(parseFloat(overlay.getAttribute('height')!)).toBe(128);
+  });
+
+  it('draws blind-spot overlays clipped to the configured elevation limits', async () => {
+    const el = await mount({
+      hass: hass({
+        blind_spot_ranges: [[30, 60]],
+        min_elevation: 10,
+        max_elevation: 60,
+      }),
+      discoveredList: [discovered],
+      blindSpotMode: 'full',
+    });
+    const overlay = el.shadowRoot!.querySelector('rect.blind-spot');
+    expect(overlay).toBeTruthy();
+    const fov = el.shadowRoot!.querySelector('rect.fov-band')!;
+    expect(parseFloat(overlay!.getAttribute('y')!)).toBe(parseFloat(fov.getAttribute('y')!));
+    expect(parseFloat(overlay!.getAttribute('height')!)).toBe(
+      parseFloat(fov.getAttribute('height')!),
+    );
+  });
+
+  it('draws a below blind spot from its elevation threshold to the FOV band bottom', async () => {
+    const el = await mount({
+      hass: hass({
+        blind_spot_ranges: [[30, 60]],
+        blind_spot_elevation: 60,
+        blind_spot_elevation_mode: 'below',
+      }),
+      discoveredList: [discovered],
+      blindSpotMode: 'full',
+    });
+    const overlay = el.shadowRoot!.querySelector('rect.blind-spot')!;
+    const plotTop = 10;
+    const plotBottom = VIEWBOX_H - PAD_B;
+    const yAt = (elevation: number) =>
+      plotBottom - ((elevation + 10) / 100) * (plotBottom - plotTop);
+    expect(parseFloat(overlay.getAttribute('y')!)).toBeCloseTo(yAt(60));
+    expect(parseFloat(overlay.getAttribute('height')!)).toBeCloseTo(plotBottom - yAt(60));
+  });
+
+  it('draws an above blind spot from its elevation threshold to 90 degrees', async () => {
+    const el = await mount({
+      hass: hass({
+        blind_spot_ranges: [[30, 60]],
+        blind_spot_elevation: 30,
+        blind_spot_elevation_mode: 'above',
+      }),
+      discoveredList: [discovered],
+      blindSpotMode: 'full',
+    });
+    const overlay = el.shadowRoot!.querySelector('rect.blind-spot')!;
+    const plotTop = 10;
+    const plotBottom = VIEWBOX_H - PAD_B;
+    const yAt = (elevation: number) =>
+      plotBottom - ((elevation + 10) / 100) * (plotBottom - plotTop);
+    expect(parseFloat(overlay.getAttribute('y')!)).toBeCloseTo(plotTop);
+    expect(parseFloat(overlay.getAttribute('height')!)).toBeCloseTo(yAt(30) - plotTop);
+  });
+
+  it('reads elevation and mode from blind-spot slots', async () => {
+    const el = await mount({
+      hass: hass({
+        blind_spot_ranges: [[30, 60]],
+        blind_spot_slots: [{ range: [30, 60], elevation: 25, elevation_mode: 'above' }],
+      }),
+      discoveredList: [discovered],
+      blindSpotMode: 'full',
+    });
+    const overlay = el.shadowRoot!.querySelector('rect.blind-spot')!;
+    const plotBottom = VIEWBOX_H - PAD_B;
+    const yAt = (elevation: number) => plotBottom - ((elevation + 10) / 100) * (plotBottom - 10);
+    expect(parseFloat(overlay.getAttribute('y')!)).toBeCloseTo(10);
+    expect(parseFloat(overlay.getAttribute('height')!)).toBeCloseTo(yAt(25) - 10);
+  });
+
   it('renders NO ribbon bars or tracks for a single window', async () => {
     const el = await mount({ hass: hass({}), discoveredList: [discovered] });
     expect(el.shadowRoot!.querySelectorAll('rect.ribbon-bar').length).toBe(0);
@@ -205,6 +318,39 @@ function ribbonRanges(el: ChartLike, fill: string) {
 }
 
 describe('acp-elevation-chart: multi-window ribbon', () => {
+  it('keeps blind-spot overlays in each cover row without elevation height clipping', async () => {
+    const el = await mount({
+      hass: multiHass({
+        'sensor.sun_south': {
+          window_azimuth: 180,
+          blind_spot_ranges: [[-90, 90]],
+          blind_spot_slots: [{ elevation: 25, elevation_mode: 'below' }],
+        },
+        'sensor.sun_west': {
+          window_azimuth: 270,
+          blind_spot_ranges: [[-90, 90]],
+          blind_spot_slots: [{ elevation: 25, elevation_mode: 'below' }],
+        },
+      }),
+      discoveredList: [discoveredSouth, discoveredWest],
+      coverColors: ['#ff7043', '#7e57c2'],
+      blindSpotMode: 'full',
+    });
+    const overlays = el.shadowRoot!.querySelectorAll('rect.blind-spot');
+    const tracks = el.shadowRoot!.querySelectorAll('rect.ribbon-track');
+    expect(overlays.length).toBeGreaterThanOrEqual(2);
+    expect(tracks.length).toBe(2);
+    const rows = Array.from(tracks).map((track) => ({
+      top: parseFloat(track.getAttribute('y')!),
+      bottom: parseFloat(track.getAttribute('y')!) + parseFloat(track.getAttribute('height')!),
+    }));
+    for (const overlay of overlays) {
+      const top = parseFloat(overlay.getAttribute('y')!);
+      const bottom = top + parseFloat(overlay.getAttribute('height')!);
+      expect(rows.some((row) => top >= row.top && bottom <= row.bottom)).toBe(true);
+    }
+  });
+
   it('renders a ribbon (bars) and NO in-plot fov-band rects', async () => {
     const el = await mount({
       hass: twoWindowHass(),

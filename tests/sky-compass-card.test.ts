@@ -247,6 +247,30 @@ describe('adaptive-cover-pro-sky-compass-card — elevation chart toggle', () =>
     expect(chart.discoveredList?.length).toBe(2);
     expect(chart.coverColors).toEqual(['#ff7043', '#7e57c2']);
   });
+
+  it('forwards blind_spot_mode to the elevation chart', async () => {
+    const el = await mountWithRegistry({
+      type: 'custom:adaptive-cover-pro-sky-compass-card',
+      entry_ids: [ENTRY],
+      chart_blind_spot_mode: 'width',
+    });
+    const chart = el.shadowRoot!.querySelector('acp-elevation-chart') as HTMLElement & {
+      blindSpotMode?: string;
+    };
+    expect(chart.blindSpotMode).toBe('width');
+  });
+
+  it('forwards the compass blind-spot mode independently', async () => {
+    const el = await mountWithRegistry({
+      type: 'custom:adaptive-cover-pro-sky-compass-card',
+      entry_ids: [ENTRY],
+      sky_compass_blind_spot_mode: 'void',
+    });
+    const compass = el.shadowRoot!.querySelector('acp-sky-compass') as HTMLElement & {
+      blindSpotMode?: string;
+    };
+    expect(compass.blindSpotMode).toBe('void');
+  });
 });
 
 interface GridOptions {

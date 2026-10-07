@@ -26,6 +26,7 @@ import { coverActualPosition, displayTarget } from '../lib/cover-position';
 import {
   aboveHorizonSegments,
   findFovWindows,
+  findSunPathBlindSpotRuns,
   sampleDay,
   startOfDayInZone,
   getMoonData,
@@ -44,6 +45,7 @@ import { tooltip } from '../lib/tooltip';
 // text-anchor="middle" (~7px half-width at 12px font).
 const VIEWBOX = 280;
 const OUTER_R = 110;
+const VOID_ARC_ENDPOINT_TOLERANCE_DEG = 2;
 
 // Monotonic counter giving each compass instance a unique legend moon-mask id,
 // so the legend's phase mask never collides with the plot's hardcoded
@@ -76,6 +78,48 @@ interface EntryOverlay {
   hasBlindGeometry: boolean;
 }
 
+function clockwiseDegrees(from: number, to: number): number {
+  return normalizeAzimuth(to - from);
+}
+
+export function subtractBlindSpotsFromArc(
+  start: number,
+  end: number,
+  blindSpots: Array<{ from: number; to: number }>,
+): Array<[number, number]> {
+  const span = clockwiseDegrees(start, end);
+  if (span === 0 || blindSpots.length === 0) return [[start, end]];
+
+  const cuts = blindSpots
+    .map(({ from, to }) => {
+      const offset = clockwiseDegrees(start, from);
+      const width = clockwiseDegrees(from, to);
+      if (offset >= span || offset + width <= 0) return null;
+      return {
+        start: offset <= VOID_ARC_ENDPOINT_TOLERANCE_DEG ? 0 : Math.max(0, offset),
+        end:
+          span - (offset + width) <= VOID_ARC_ENDPOINT_TOLERANCE_DEG
+            ? span
+            : Math.min(span, offset + width),
+      };
+    })
+    .filter((cut): cut is { start: number; end: number } => cut !== null)
+    .sort((a, b) => a.start - b.start);
+
+  const segments: Array<[number, number]> = [];
+  let cursor = 0;
+  for (const cut of cuts) {
+    if (cut.start > cursor) {
+      segments.push([normalizeAzimuth(start + cursor), normalizeAzimuth(start + cut.start)]);
+    }
+    cursor = Math.max(cursor, cut.end);
+  }
+  if (cursor < span) {
+    segments.push([normalizeAzimuth(start + cursor), normalizeAzimuth(end)]);
+  }
+  return segments;
+}
+
 @customElement('acp-sky-compass')
 export class SkyCompass extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
@@ -86,6 +130,9 @@ export class SkyCompass extends LitElement {
   @property({ attribute: false }) public showMoon = false;
   @property({ attribute: false }) public showCardinals = true;
   @property({ attribute: false }) public showBlindSpot = true;
+  @property({ attribute: false }) public showRawBlindSpot = false;
+  @property({ attribute: false })
+  public blindSpotMode: 'none' | 'void' | 'width' | 'full' | 'raw' = 'full';
   @property({ attribute: false }) public showSunPath = true;
   @property({ attribute: false }) public showSunriseSunset = true;
   @property({ attribute: false }) public showCoverFill = true;
@@ -540,16 +587,107 @@ export class SkyCompass extends LitElement {
         ? coverWedgeOuterRadius(o.actualPos, o.openBlocksSun, OUTER_R, fovOuterR)
         : null;
     // Every configured slot, not just slot 1 — see blindSpotBearingList (#269).
-    const blindSpots = blindSpotBearingList(
+    const rawBlindSpots = blindSpotBearingList(
       windowAzi,
       o.sun.blind_spot_ranges,
       o.sun.blind_spot_range,
-    ).map(([from, to]) => ({
-      from,
-      to,
-      path: wedgePath(from, to, OUTER_R, 0, northOffsetDeg),
-    }));
-    const fovPath = wedgePath(wedgeStart, wedgeEnd, fovOuterR, fovInnerR, northOffsetDeg);
+    );
+    const blindSpotGates = rawBlindSpots.map((_, index) => {
+      const slot = o.sun.blind_spot_slots?.[index];
+      return {
+        elevation:
+          slot?.elevation ?? o.sun.blind_spot_elevations?.[index] ?? o.sun.blind_spot_elevation,
+        mode:
+          slot?.elevation_mode ??
+          o.sun.blind_spot_elevation_modes?.[index] ??
+          o.sun.blind_spot_elevation_mode,
+      };
+    });
+    const rawSunRuns = findSunPathBlindSpotRuns(
+      samples,
+      windowAzi,
+      o.sun.fov_left,
+      o.sun.fov_right,
+      rawBlindSpots,
+    );
+    const computedSunRuns = findSunPathBlindSpotRuns(
+      samples,
+      windowAzi,
+      o.sun.fov_left,
+      o.sun.fov_right,
+      rawBlindSpots,
+      o.sun.min_elevation,
+      o.sun.max_elevation,
+      blindSpotGates,
+    );
+    const rawDisplay = this.showRawBlindSpot || this.blindSpotMode === 'raw';
+    const selectedRuns =
+      rawDisplay || this.blindSpotMode === 'width'
+        ? rawSunRuns
+        : this.blindSpotMode === 'none'
+          ? []
+          : computedSunRuns;
+    const selectedBlindSpots = selectedRuns
+      .map((run) => {
+        // A single sampled point at sunrise/sunset is not an arc. Treating it
+        // as one creates a thin sliver at the end of the sun path in void mode.
+        if (run.startIdx === run.endIdx) return null;
+        const bounds = fovRunBounds(samples, run.startIdx, run.endIdx, 0);
+        return bounds ? { from: bounds.wedgeStart, to: bounds.wedgeEnd } : null;
+      })
+      .filter((spot): spot is { from: number; to: number } => spot !== null);
+    const blindSpots = rawDisplay
+      ? rawBlindSpots.map(([from, to]) => ({
+          from,
+          to,
+          path: wedgePath(from, to, OUTER_R, 0, northOffsetDeg),
+        }))
+      : this.blindSpotMode === 'void'
+        ? []
+        : selectedRuns
+            .map((run) => {
+              const bounds = fovRunBounds(samples, run.startIdx, run.endIdx, 0);
+              if (!bounds) return null;
+              const gate = blindSpotGates[run.blindSpotIndex];
+              const threshold =
+                this.blindSpotMode === 'full' &&
+                !rawDisplay &&
+                typeof gate.elevation === 'number' &&
+                Number.isFinite(gate.elevation)
+                  ? Math.max(0, Math.min(90, gate.elevation))
+                  : null;
+              const inner =
+                threshold === null || gate.mode === 'above' ? 0 : OUTER_R * (1 - threshold / 90);
+              const outer =
+                threshold !== null && gate.mode === 'above'
+                  ? OUTER_R * (1 - threshold / 90)
+                  : OUTER_R;
+              return {
+                from: bounds.wedgeStart,
+                to: bounds.wedgeEnd,
+                path: wedgePath(bounds.wedgeStart, bounds.wedgeEnd, outer, inner, northOffsetDeg),
+              };
+            })
+            .filter((spot): spot is { from: number; to: number; path: string } => spot !== null);
+    const voidFovArcs =
+      this.blindSpotMode === 'void'
+        ? subtractBlindSpotsFromArc(wedgeStart, wedgeEnd, selectedBlindSpots)
+        : [];
+    if (this.blindSpotMode === 'void') {
+      // Keep this diagnostic visible in browser devtools when investigating
+      // sun-path/FOV geometry without affecting the rendered compass.
+      // eslint-disable-next-line no-console
+      console.debug('[ACP] Drawing void blind spot', {
+        entry: o.d.entry_title,
+        fovArc: { from: wedgeStart, to: wedgeEnd },
+        blindSpotArcs: selectedBlindSpots,
+        fovArcsToDraw: voidFovArcs,
+      });
+    }
+    const fovPaths =
+      this.blindSpotMode === 'void'
+        ? voidFovArcs.map(([from, to]) => wedgePath(from, to, fovOuterR, fovInnerR, northOffsetDeg))
+        : [wedgePath(wedgeStart, wedgeEnd, fovOuterR, fovInnerR, northOffsetDeg)];
     // Static FOV underlay: the configured `windowAzi ± fov_left/right` envelope.
     // Shown dim beneath the active arc so the developer can see the "configured
     // FOV" vs "today's reachable arc" together. We skip it when the active arc
@@ -559,14 +697,18 @@ export class SkyCompass extends LitElement {
     const fovStaticPath = showStaticUnderlay
       ? wedgePath(fovStart, fovEnd, fovOuterR, fovInnerR, northOffsetDeg)
       : '';
-    const coverPath =
+    const coverPaths =
       coverOuter !== null && coverOuter > fovInnerR
-        ? wedgePath(wedgeStart, wedgeEnd, coverOuter, fovInnerR, northOffsetDeg)
-        : '';
-    const actualPath =
+        ? (this.blindSpotMode === 'void' ? voidFovArcs : [[wedgeStart, wedgeEnd]]).map(
+            ([from, to]) => wedgePath(from, to, coverOuter, fovInnerR, northOffsetDeg),
+          )
+        : [];
+    const actualPaths =
       actualOuter !== null && actualOuter > fovInnerR
-        ? wedgePath(wedgeStart, wedgeEnd, actualOuter, fovInnerR, northOffsetDeg)
-        : '';
+        ? (this.blindSpotMode === 'void' ? voidFovArcs : [[wedgeStart, wedgeEnd]]).map(
+            ([from, to]) => wedgePath(from, to, actualOuter, fovInnerR, northOffsetDeg),
+          )
+        : [];
 
     // Other FOV crossings for today. A window facing toward the pole catches the
     // sun on both sides of the window normal, so the day has more than one
@@ -660,7 +802,7 @@ export class SkyCompass extends LitElement {
     const arrowStyle = groupColor ? `stroke: ${o.color};` : '';
     const arrowBaseStyle = groupColor ? `fill: ${o.color};` : '';
 
-    const showCover = this.showCoverFill && coverPath !== '';
+    const showCover = this.showCoverFill && coverPaths.length > 0;
     const showBlind = this.showBlindSpot && blindSpots.length > 0;
     const showArrow = this.showWindowArrow;
     const arrowPath = `M 0 0 L ${windowArrow.x} ${windowArrow.y}`;
@@ -692,7 +834,7 @@ export class SkyCompass extends LitElement {
           : nothing
       }
       <g ${tooltip(ttFov)}>
-        <path class="fov" style=${fovStyle} d=${fovPath}></path>
+        ${fovPaths.map((path) => svg`<path class="fov" style=${fovStyle} d=${path}></path>`)}
       </g>
       ${extraWedges.map((w) => {
         const ttExtra = `${label}${t('compass.active_sun_arc', this.hass, {
@@ -712,10 +854,12 @@ export class SkyCompass extends LitElement {
         <circle class="window-base" style=${arrowBaseStyle} cx="0" cy="0" r="4"></circle>
       </g>
       <g class="cover-group" style=${showCover ? '' : hideStyle} ${tooltip(ttCoverFill)}>
-        <path class="cover-fill" style=${coverStyle} d=${coverPath}></path>
+        ${coverPaths.map((path) => svg`<path class="cover-fill" style=${coverStyle} d=${path}></path>`)}
         ${
-          this.showCoverFill && actualPath
-            ? svg`<path class="cover-actual" style=${coverStyle} d=${actualPath}></path>`
+          this.showCoverFill
+            ? actualPaths.map(
+                (path) => svg`<path class="cover-actual" style=${coverStyle} d=${path}></path>`,
+              )
             : nothing
         }
       </g>

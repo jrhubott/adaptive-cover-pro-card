@@ -15,6 +15,8 @@ interface SkyCompassLike extends HTMLElement {
   showMoon?: boolean;
   showCardinals?: boolean;
   showBlindSpot?: boolean;
+  showRawBlindSpot?: boolean;
+  blindSpotMode?: 'none' | 'void' | 'width' | 'full' | 'raw';
   showSunPath?: boolean;
   showSunriseSunset?: boolean;
   showCoverFill?: boolean;
@@ -57,6 +59,8 @@ function makeHass(
     fovLeft?: number;
     fovRight?: number;
     blindSpot?: [number, number];
+    blindSpotElevation?: number;
+    blindSpotElevationMode?: 'below' | 'above';
     minElevation?: number;
     maxElevation?: number;
     coverPos?: number;
@@ -97,6 +101,17 @@ function makeHass(
         azimuth_max: e.windowAzimuth + fovRight,
         in_fov: e.inFov ?? true,
         blind_spot_range: e.blindSpot ?? null,
+        ...(e.blindSpotElevation !== undefined || e.blindSpotElevationMode !== undefined
+          ? {
+              blind_spot_slots: [
+                {
+                  range: e.blindSpot ?? [0, 0],
+                  elevation: e.blindSpotElevation,
+                  elevation_mode: e.blindSpotElevationMode,
+                },
+              ],
+            }
+          : {}),
         ...(e.minElevation !== undefined ? { min_elevation: e.minElevation } : {}),
         ...(e.maxElevation !== undefined ? { max_elevation: e.maxElevation } : {}),
       },
@@ -716,7 +731,7 @@ describe('acp-sky-compass blind spot bearing conversion', () => {
     const hass = makeHass([
       { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, blindSpot: [10, 30] },
     ]);
-    const el = await mountCompass([d], hass);
+    const el = await mountCompass([d], hass, { showRawBlindSpot: true });
     const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
     const expected = wedgePath(normalizeAzimuth(150), normalizeAzimuth(170), 110, 0, 0);
     const blind = el.shadowRoot!.querySelector('path.blind-spot') as SVGPathElement;
@@ -728,10 +743,84 @@ describe('acp-sky-compass blind spot bearing conversion', () => {
     const hass = makeHass([
       { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, blindSpot: [10, 30] },
     ]);
-    const el = await mountCompass([d], hass);
+    const el = await mountCompass([d], hass, { showRawBlindSpot: true });
     const title = el.shadowRoot!.querySelector('g.blind-group')?.getAttribute('data-tooltip') ?? '';
     expect(title).toContain('150');
     expect(title).toContain('170');
+  });
+
+  it('renders no blind-spot arc in none mode', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, blindSpot: [10, 30] },
+    ]);
+    const el = await mountCompass([d], hass, { blindSpotMode: 'none' });
+    expect(el.shadowRoot!.querySelector('path.blind-spot')).toBeNull();
+  });
+
+  it('reduces the FOV arc without drawing a red blind-spot slice in void mode', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const targetSensorId = 'sensor.target_pos_entry1';
+    const hass = makeHass([
+      {
+        sensorId: 'sensor.sun_pos_entry1',
+        windowAzimuth: 180,
+        blindSpot: [-90, 90],
+        coverPos: 40,
+        targetSensorId,
+      },
+    ]);
+    const el = await mountCompass([d], hass, { blindSpotMode: 'void' });
+    expect(el.shadowRoot!.querySelector('path.blind-spot')).toBeNull();
+    expect(el.shadowRoot!.querySelectorAll('path.fov').length).toBeGreaterThan(0);
+    expect(el.shadowRoot!.querySelector('path.fov')?.getAttribute('d')).not.toBe(
+      (await import('../src/lib/geometry')).wedgePath(135, 225, 110, 0, 0),
+    );
+  });
+
+  it('does not draw a zero-width void cut for a one-sample sun-path intersection', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, blindSpot: [0, 1] },
+    ]);
+    const el = await mountCompass([d], hass, { blindSpotMode: 'void' });
+    expect(el.shadowRoot!.querySelector('path.blind-spot')).toBeNull();
+  });
+
+  it('snaps a sampled blind-spot end to a nearby FOV endpoint', async () => {
+    const { subtractBlindSpotsFromArc } = await import('../src/components/sky-compass');
+    const arcs = subtractBlindSpotsFromArc(128.6, 276.1, [{ from: 264.781, to: 275.299 }]);
+    expect(arcs).toHaveLength(1);
+    expect(arcs[0][0]).toBeCloseTo(128.6);
+    expect(arcs[0][1]).toBeCloseTo(264.781);
+  });
+
+  it('renders raw blind spots without sun-path filtering', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([
+      { sensorId: 'sensor.sun_pos_entry1', windowAzimuth: 180, blindSpot: [0, 1] },
+    ]);
+    const el = await mountCompass([d], hass, { blindSpotMode: 'raw' });
+    const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
+    const expected = wedgePath(normalizeAzimuth(179), normalizeAzimuth(180), 110, 0, 0);
+    const blind = el.shadowRoot!.querySelector('path.blind-spot') as SVGPathElement;
+    expect(blind.getAttribute('d')).toBe(expected);
+  });
+
+  it('limits a full below blind-spot arc to its configured elevation height', async () => {
+    const d = makeDiscovered('entry1', 'Kitchen');
+    const hass = makeHass([
+      {
+        sensorId: 'sensor.sun_pos_entry1',
+        windowAzimuth: 180,
+        blindSpot: [-45, 45],
+        blindSpotElevation: 90,
+        blindSpotElevationMode: 'below',
+      },
+    ]);
+    const el = await mountCompass([d], hass, { blindSpotMode: 'full' });
+    const blind = el.shadowRoot!.querySelector('path.blind-spot') as SVGPathElement;
+    expect(blind.getAttribute('d')).toContain('110');
   });
 });
 
@@ -922,7 +1011,7 @@ describe('acp-sky-compass visual toggles', () => {
   });
 
   it('showBlindSpot=true (default) renders blind-spot wedge inside FOV', async () => {
-    const el = await mountCompass([d()], hass());
+    const el = await mountCompass([d()], hass(), { showRawBlindSpot: true });
     const { wedgePath, normalizeAzimuth } = await import('../src/lib/geometry');
     // windowAzimuth=180, fov_left=45, fov_right=45 → FOV: 135°–225°
     // blind_spot_range=[10, 30] → absolute bearings 150°–170° (inside FOV)

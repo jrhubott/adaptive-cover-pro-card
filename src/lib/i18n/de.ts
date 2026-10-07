@@ -457,6 +457,9 @@ export const de: EnDict = {
       show_compass_legend_desc: 'Farbschlüssel unterhalb des Himmelskompasses.',
       show_moon_label: 'Mond auf Kompass anzeigen',
       show_moon_desc: 'Mondposition und Mondphase als Überlagerung auf dem Himmelskompass.',
+      show_raw_blind_spot_label: 'Ungefilterte Blindflecke',
+      show_raw_blind_spot_desc:
+        'Konfigurierte Blindfleckwinkel ohne Begrenzung auf die heutige Sonnenbahn und Sonnenhöhe anzeigen.',
       show_climate_label: 'Klima-Umschalter anzeigen (Abdeckungsgruppen)',
       show_climate_desc:
         'Fügt der Steuerleiste einer Abdeckungsgruppe einen Ein/Aus-Schalter für die Klimasteuerung hinzu. Ein Druck aktiviert oder deaktiviert den Klimamodus für alle Mitglieder.',
@@ -549,6 +552,9 @@ export const de: EnDict = {
       toggle_cardinals_desc: 'N/O/S/W-Buchstaben rund um den Kompass.',
       toggle_blind_spot_label: 'Blindflecke',
       toggle_blind_spot_desc: 'Schraffierte Sektoren für den Blindfleckbereich jedes Fensters.',
+      toggle_raw_blind_spot_label: 'Ungefilterte Blindflecke',
+      toggle_raw_blind_spot_desc:
+        'Konfigurierte Blindfleckwinkel ohne Begrenzung auf die heutige Sonnenbahn und Sonnenhöhe anzeigen.',
       toggle_sun_path_label: 'Sonnenbahn',
       toggle_sun_path_desc: 'Heutiger Sonnenbogen am Himmel.',
       toggle_sunrise_sunset_label: 'Sonnenaufgangs-/Untergangsmarkierungen',
@@ -561,6 +567,13 @@ export const de: EnDict = {
       toggle_elevation_chart_label: 'Sonne-heute-Diagramm',
       toggle_elevation_chart_desc:
         'Höhen-Zeit-Diagramm unterhalb des Kompasses, mit SAA-Bereich und Höhengrenzen.',
+      blind_spot_mode_label: 'Blindbereich-Anzeige im Kompass',
+      blind_spot_mode_desc: 'Festlegen, wie Blindbereiche im Kompass dargestellt werden.',
+      blind_spot_mode_none: 'Kein Blindbereich',
+      blind_spot_mode_void: 'Blindbereich als Lücke',
+      blind_spot_mode_width: 'Nur Blindbereich-Breite',
+      blind_spot_mode_full: 'Vollständiger Blindbereich',
+      blind_spot_mode_raw: 'Ungefilterte Blindflecke',
     },
     decision: {
       title: 'Titel (optional)',
@@ -583,6 +596,16 @@ export const de: EnDict = {
       display: 'Anzeige',
       toggle_compact_label: 'Kompaktmodus',
       toggle_compact_desc: 'Kleineres Diagramm, engerer Abstand.',
+      blind_spot_mode_label: 'Blindbereich-Anzeige im Diagramm',
+      blind_spot_mode_desc: 'Festlegen, wie Blindbereiche im Höhendiagramm dargestellt werden.',
+      blind_spot_mode_none: 'Kein Blindbereich',
+      blind_spot_mode_void: 'Blindbereich als Lücke',
+      blind_spot_mode_width: 'Nur Blindbereich-Breite',
+      blind_spot_mode_full: 'Vollständiger Blindbereich',
+      blind_spot_mode_raw: 'Ungefilterte Blindflecke',
+      toggle_raw_blind_spot_label: 'Ungefilterte Blindflecke',
+      toggle_raw_blind_spot_desc:
+        'Das Diagramm nur anhand der konfigurierten Winkel teilen – hilfreich zur Kontrolle der Einrichtung.',
     },
     history: {
       title: 'Titel (optional)',

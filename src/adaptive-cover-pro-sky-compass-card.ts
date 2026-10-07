@@ -215,6 +215,8 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
           .showMoon=${cfg.show_moon ?? false}
           .showCardinals=${cfg.show_cardinals ?? true}
           .showBlindSpot=${cfg.show_blind_spot ?? true}
+          .showRawBlindSpot=${cfg.show_raw_blind_spot ?? false}
+          .blindSpotMode=${cfg.sky_compass_blind_spot_mode ?? 'full'}
           .showSunPath=${cfg.show_sun_path ?? true}
           .showSunriseSunset=${cfg.show_sunrise_sunset ?? true}
           .showCoverFill=${cfg.show_cover_fill ?? true}
@@ -227,6 +229,8 @@ export class AdaptiveCoverProSkyCompassCard extends LitElement {
               .hass=${this.hass}
               .discoveredList=${discoveredList}
               .coverColors=${cfg.cover_colors ?? []}
+              .showRawBlindSpot=${cfg.show_raw_blind_spot ?? false}
+              .blindSpotMode=${cfg.chart_blind_spot_mode ?? 'full'}
               ?compact=${!!cfg.compact}
             ></acp-elevation-chart>`
           : nothing}

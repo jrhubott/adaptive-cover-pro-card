@@ -11,6 +11,7 @@ interface EditorLike extends HTMLElement {
   _onCoverColorReset(index: number): void;
   _onEntryToggle(entryId: string, enabled: boolean): void;
   _onToggle(key: string, enabled: boolean): void;
+  _onBlindSpotModeChange(e: Event): void;
 }
 
 function makeEditor(): EditorLike {
@@ -102,6 +103,39 @@ describe('solar-chart-card editor compact toggle', () => {
     el._onToggle('compact', true);
     expect(emitted).not.toBeNull();
     expect(emitted!.compact).toBe(true);
+  });
+
+  it('emits the selected blind-spot mode', () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: 'a', title: 'Kitchen' }];
+    el.setConfig({ type: 'custom:x', entry_ids: ['a'] });
+
+    let emitted: SolarChartCardConfig | null = null;
+    el.addEventListener('config-changed', (e: Event) => {
+      emitted = (e as CustomEvent).detail.config;
+    });
+
+    const select = document.createElement('select');
+    const option = document.createElement('option');
+    option.value = 'width';
+    select.appendChild(option);
+    select.value = 'width';
+    el._onBlindSpotModeChange({ target: select } as unknown as Event);
+    expect(emitted!.chart_blind_spot_mode).toBe('width');
+  });
+
+  it('renders the blind-spot mode selector with full mode by default', async () => {
+    const el = makeEditor();
+    el._entries = [{ entry_id: 'a', title: 'Kitchen' }];
+    el.setConfig({ type: 'custom:x', entry_ids: ['a'] });
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const select = el.shadowRoot!.querySelector('select') as HTMLSelectElement;
+    expect(select).toBeTruthy();
+    expect(select.value).toBe('full');
+    expect(select.options).toHaveLength(4);
+    expect(Array.from(select.options).map((option) => option.value)).not.toContain('raw');
   });
 });
 

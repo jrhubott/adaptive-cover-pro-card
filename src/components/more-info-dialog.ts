@@ -76,6 +76,7 @@ export class MoreInfoDialog extends LitElement {
 
   @property({ type: Boolean }) public advancedOpen = false;
   @property({ type: Boolean }) public showCompass = true;
+  @property({ type: Boolean }) public showRawBlindSpot = false;
   @property({ type: Boolean }) public showElevationChart = true;
   @property({ type: Boolean }) public showSolarCalc = true;
   @property({ type: Boolean }) public stateColor = true;
@@ -344,6 +345,7 @@ export class MoreInfoDialog extends LitElement {
                         ?compact=${true}
                         .showLegend=${false}
                         .showStats=${true}
+                        .showRawBlindSpot=${this.showRawBlindSpot}
                       ></acp-sky-compass>
                     </div>`
                   : nothing}
@@ -352,6 +354,7 @@ export class MoreInfoDialog extends LitElement {
                       .hass=${this.hass}
                       .discoveredList=${this._discoveredList}
                       ?compact=${true}
+                      .showRawBlindSpot=${this.showRawBlindSpot}
                     ></acp-elevation-chart>`
                   : nothing}
                 ${this._renderSlots(attrs?.custom_position_slots)}
