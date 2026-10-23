@@ -3,6 +3,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import { normalizeHandler } from './decision-summary';
 import { coverStateIcon } from './icons';
 import { isOffline } from './formatters';
+import { coverAssumedState } from './cover-position';
 import { rollupMemberAutomation, rollupMemberClimate, type MemberRollup } from './member-rollup';
 import { getCachedRegistry } from './registry-store';
 import {
@@ -93,6 +94,10 @@ export interface GroupSnapshot {
   target: string | undefined;
   /** The members' shared HA `device_class`, or undefined when they disagree. */
   deviceClass: string | undefined;
+  /** Some member has no position feedback (HA `assumed_state`), so the
+   *  aggregate `position` cannot prove the group is at either end — the group
+   *  ↑/↓ stay live, or a guessed member would block the command that moves it. */
+  assumedState: boolean;
   /** Live aggregate tilt + its cover entity, present only when the optional
    *  aggregate cover exists AND advertises SET_TILT_POSITION. */
   tilt: { entityId: string; value: number | null } | undefined;
@@ -119,9 +124,11 @@ export function readGroup(hass: HomeAssistant, discovered: DiscoveredEntities): 
     (sceneState?.attributes?.current_option as string | undefined) ?? sceneState?.state ?? 'auto';
 
   const classes = new Set<string>();
+  let assumedState = false;
   for (const id of Object.keys(memberPositions)) {
     const dc = hass.states[id]?.attributes?.device_class as string | undefined;
     if (dc) classes.add(dc);
+    if (coverAssumedState(hass, id)) assumedState = true;
   }
 
   const cover = e.group_cover;
@@ -171,6 +178,7 @@ export function readGroup(hass: HomeAssistant, discovered: DiscoveredEntities): 
     // sensor stands in when the optional aggregate cover is not enabled.
     target: cover ?? e.group_position_sensor,
     deviceClass: classes.size === 1 ? [...classes][0] : undefined,
+    assumedState,
     tilt:
       cover && tiltable
         ? {
@@ -268,6 +276,7 @@ export function restrictSnapshot(
     ),
     memberClimate: rollupMemberClimate(hass, getCachedRegistry(), Object.keys(memberWinners ?? {})),
     deviceClass: classes.size === 1 ? [...classes][0] : undefined,
+    assumedState: visible.some((id) => coverAssumedState(hass, id)),
   };
 }
 

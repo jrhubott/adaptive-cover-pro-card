@@ -162,6 +162,7 @@ const FALLBACK_LOCALIZATIONS: Record<string, string> = {
     'The configured schedule window is not active, so automatic positioning is paused.',
   'decision.solar_would_be': 'solar {pct}',
   'decision.next_change_in': 'Next adjustment allowed in {time}',
+  'decision.active_blocker_hint': "This is the active blocker — a toggle here won't fix it.",
   'elevation.schedule': 'Schedule {from} – {to}',
   'elevation.schedule_from': 'Schedule from {from}',
   'elevation.schedule_until': 'Schedule until {to}',
@@ -514,6 +515,12 @@ export function buildMockHass(
     callWS: callWS as unknown as HomeAssistant['callWS'],
     connection: {
       subscribeEvents,
+      // registry-store.ts reaches for `hass.connection.sendMessagePromise` when it
+      // refetches after an `entity_registry_updated` event. `callWS` already answers
+      // `config/entity_registry/list`, and both are "send a websocket message" on the
+      // real connection, so delegating keeps the mock honest — without it the store
+      // holds a connection missing the method and throws the moment an event fires.
+      sendMessagePromise: callWS,
     } as unknown as HomeAssistant['connection'],
     localize: ((key: string, ...rest: unknown[]) => {
       const args: Record<string, string | number> = {};

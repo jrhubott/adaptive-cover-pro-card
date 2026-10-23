@@ -88,4 +88,19 @@ describe('fetchAcpConfigEntries', () => {
     const entries = await fetchAcpConfigEntries(makeHass(callWS));
     expect(entries).toEqual([]);
   });
+
+  it('reuses the shared registry cache across successive invocations', async () => {
+    const callCounts: Record<string, number> = {};
+    const callWS = vi.fn().mockImplementation((msg: { type: string }) => {
+      callCounts[msg.type] = (callCounts[msg.type] ?? 0) + 1;
+      return Promise.resolve([]);
+    });
+    const hass = makeHass(callWS);
+
+    await fetchAcpConfigEntries(hass);
+    await fetchAcpConfigEntries(hass);
+
+    expect(callCounts['config/entity_registry/list']).toBe(1);
+    expect(callCounts['config_entries/get']).toBe(2);
+  });
 });

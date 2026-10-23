@@ -79,6 +79,7 @@ export function decide(input: DecisionInput): DecisionResult {
       reason: evalResult.reason,
       position: evalResult.position,
       ...(evalResult.held_position != null ? { held_position: evalResult.held_position } : {}),
+      ...(evalResult.reason_code ? { reason_code: evalResult.reason_code } : {}),
     });
     if (!matched && evalResult.matches) {
       matched = true;
@@ -141,6 +142,9 @@ interface HandlerEval {
    *  the integration is holding the cover at a position that diverges from the
    *  solar would-be (entry.target_position). */
   held_position?: number | null;
+  /** Mirrors DecisionStep.reason_code (issue #295) — emitted by the solar
+   *  handler when `flags.sun_tracking_gate_closed` forces the gate-closed skip. */
+  reason_code?: string;
 }
 
 interface DerivedConditions {
@@ -251,7 +255,11 @@ function evalHandler(
         reason: f.glare_active ? 'Glare zone active' : 'not in glare zone',
       };
     case 'solar': {
-      const matches = f.automatic_control && c.directSunValid;
+      // Issue #295: a closed sun-tracking gate forces the skip regardless of
+      // whether the sun is otherwise hitting the window, mirroring the
+      // integration's `skip.sun_tracking_gate` reason_code.
+      const gateClosed = f.automatic_control && !!f.sun_tracking_gate_closed;
+      const matches = !gateClosed && f.automatic_control && c.directSunValid;
       // Linear-ish position: full close at high elevation in FOV, partial near edges.
       const closeness = Math.max(0, Math.min(1, sunElevation / 60));
       const calculatedPosition = Math.round(80 - closeness * 60);
@@ -259,13 +267,16 @@ function evalHandler(
         enabled: true,
         matches,
         position: matches ? calculatedPosition : null,
-        reason: matches
-          ? `Solar tracking — calculated ${calculatedPosition}%`
-          : !c.inFov
-            ? 'sun outside FOV'
-            : !c.elevationValid
-              ? 'elevation outside threshold'
-              : 'sun not above horizon',
+        reason: gateClosed
+          ? 'sun tracking gate is closed'
+          : matches
+            ? `Solar tracking — calculated ${calculatedPosition}%`
+            : !c.inFov
+              ? 'sun outside FOV'
+              : !c.elevationValid
+                ? 'elevation outside threshold'
+                : 'sun not above horizon',
+        ...(gateClosed ? { reason_code: 'skip.sun_tracking_gate' } : {}),
       };
     }
     case 'default':

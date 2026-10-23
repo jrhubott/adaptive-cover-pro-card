@@ -9,6 +9,7 @@ import { resolveCoverEntryId } from '../lib/entity-suggestion';
 import { getCachedRegistry } from '../lib/registry-store';
 import type { EntityRegistryEntry } from '../lib/entity-registry';
 import { isOffline } from '../lib/formatters';
+import { coverAssumedState } from '../lib/cover-position';
 import type { AdaptiveCoverProTileCardConfig } from '../types';
 import { t } from '../lib/i18n';
 import { tooltip } from '../lib/tooltip';
@@ -268,6 +269,7 @@ export class GroupMemberRow extends LitElement {
             labels="tile"
             .hass=${this.hass}
             .position=${this.position}
+            .assumedState=${coverAssumedState(this.hass, this.entityId)}
             .deviceClass=${state?.attributes?.device_class as string | undefined}
             .enabled=${!offline}
             @acp-move=${this._onMove}

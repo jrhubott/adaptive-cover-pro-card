@@ -864,6 +864,11 @@ export class AcpHarnessControlPanel extends LitElement {
               this._patchFlags(idx, { automatic_control: v }),
             )}
             ${this._checkbox(
+              'Sun tracking gate closed',
+              e.flags.sun_tracking_gate_closed ?? false,
+              (v) => this._patchFlags(idx, { sun_tracking_gate_closed: v }),
+            )}
+            ${this._checkbox(
               'Climate mode',
               e.flags.climate_mode ?? e.flags.climate_strategy !== 'intermediate',
               (v) => this._patchFlags(idx, { climate_mode: v }),

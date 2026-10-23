@@ -508,6 +508,19 @@ export const CONTROL_STATUS_I18N_KEYS: Record<string, string> = {
  *  reason the cover is being left alone, and is colored as such. */
 export const CONTROL_STATUS_ACTIVE = new Set(['active']);
 
+/**
+ * `DecisionStep.reason_code` values that classify a skip as the *load-bearing*
+ * reason the pipeline isn't acting (issue #295) — e.g. a closed sun-tracking
+ * gate, the sole reason a cover sits at 100% for hours — rather than a
+ * routine, uninteresting skip ("no weather alert", "group not locked"). The
+ * decision-strip pipeline row for a matching code renders full-weight with a
+ * warning accent and a clarifying tooltip instead of the uniform dimmed skip
+ * treatment. A classification set, not a text template: extensible to future
+ * gate-style codes, and composable with #214's eventual reason-i18n renderer,
+ * which would key translated reason text off the same `reason_code` field.
+ */
+export const ACTIVE_BLOCKER_REASON_CODES: ReadonlySet<string> = new Set(['skip.sun_tracking_gate']);
+
 export const STATE_TRACKS: ReadonlyArray<{ role: EntityRole; key: string; cls: string }> = [
   { role: 'integration_enabled_switch', key: 'history.track_enabled', cls: 'ctx-enabled' },
   { role: 'automatic_control_switch', key: 'history.track_auto', cls: 'ctx-auto' },

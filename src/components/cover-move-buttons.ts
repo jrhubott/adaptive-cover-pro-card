@@ -27,6 +27,9 @@ export class CoverMoveButtons extends LitElement {
   /** Live position 0..100 driving the at-the-end disabling. Pass SERVER truth,
    *  never a drag preview, or the buttons flicker disabled mid-gesture. */
   @property({ attribute: false }) public position: number | null = null;
+  /** The target has no position feedback (HA `assumed_state`), so `position`
+   *  is a guess and must not disable ↑/↓ at either end. */
+  @property({ type: Boolean }) public assumedState = false;
   /** HA `device_class`, so awning/curtain/door/gate get the inset arrows. */
   @property({ attribute: false }) public deviceClass?: string;
   /** False when there is nothing to drive (no resolved service target). */
@@ -43,8 +46,9 @@ export class CoverMoveButtons extends LitElement {
   @property({ type: Boolean, reflect: true }) public fill = false;
 
   protected render(): TemplateResult {
-    const atOpen = this.position !== null && this.position >= 100;
-    const atClosed = this.position !== null && this.position <= 0;
+    const known = this.position !== null && !this.assumedState;
+    const atOpen = known && this.position! >= 100;
+    const atClosed = known && this.position! <= 0;
     return html`
       <div class="move-buttons">
         <button

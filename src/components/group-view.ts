@@ -115,6 +115,7 @@ export class GroupView extends LitElement {
             labels="group"
             .hass=${this.hass}
             .position=${s.position}
+            .assumedState=${s.assumedState}
             .deviceClass=${s.deviceClass}
             .enabled=${controllable}
             @acp-move=${(e: CustomEvent<'open' | 'stop' | 'close'>) => this._move(e, s)}
