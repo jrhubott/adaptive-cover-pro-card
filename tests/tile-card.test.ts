@@ -3045,7 +3045,9 @@ const AWNING = 'cover.patio_awning';
  * `reportsPosition: false` drops `current_position` to exercise the
  * `reportedPosition ?? calculatedPosition` fallback.
  */
-function inverseHass(opts: { legacy?: boolean; reportsPosition?: boolean } = {}): HomeAssistant {
+function inverseHass(
+  opts: { legacy?: boolean; reportsPosition?: boolean; assumed?: boolean } = {},
+): HomeAssistant {
   const legacy = opts.legacy === true;
   const h = makeHass({
     coverPositionSensorAttrs: {
@@ -3080,7 +3082,7 @@ function inverseHass(opts: { legacy?: boolean; reportsPosition?: boolean } = {})
     attributes: {
       friendly_name: 'Patio Awning',
       device_class: 'awning',
-      assumed_state: true,
+      ...(opts.assumed === false ? {} : { assumed_state: true }),
       ...(opts.reportsPosition === false ? {} : { current_position: 0 }),
     },
   } as never;
@@ -3119,12 +3121,24 @@ describe('adaptive-cover-pro-tile-card — inverse_state frame normalization (#2
 
   it('disables ↑ (open) and keeps ↓ (close) live on a fully-extended awning', async () => {
     // Pre-fix the raw 0 read as "fully closed", so the tile disabled Close —
-    // the only direction the awning could actually move.
-    const el = await mountInverse(inverseHass());
+    // the only direction the awning could actually move. `assumed: false`: an
+    // assumed-state cover keeps both live regardless (see the next test), so
+    // the frame is only observable through a cover that reports for real.
+    const el = await mountInverse(inverseHass({ assumed: false }));
     const up = el.shadowRoot!.querySelector('button.up') as HTMLButtonElement;
     const down = el.shadowRoot!.querySelector('button.down') as HTMLButtonElement;
     expect(down.disabled).toBe(false);
     expect(up.disabled).toBe(true);
+  });
+
+  it('keeps ↑ and ↓ live on an assumed-state awning reading fully extended', async () => {
+    // No position feedback: the 100 is the integration's guess, so it must not
+    // strand the user without an Open to resend — HA's own controls do the same.
+    const el = await mountInverse(inverseHass());
+    const up = el.shadowRoot!.querySelector('button.up') as HTMLButtonElement;
+    const down = el.shadowRoot!.querySelector('button.down') as HTMLButtonElement;
+    expect(up.disabled).toBe(false);
+    expect(down.disabled).toBe(false);
   });
 
   it('shows a readout that agrees with the entity state ("Open · 100%")', async () => {
@@ -3147,7 +3161,7 @@ describe('adaptive-cover-pro-tile-card — inverse_state frame normalization (#2
     // `linear_actual_positions` the card has no sound frame oracle, so it must
     // NOT guess. This guards the normalization against a future "helpful"
     // inference from the state/linear_position relation.
-    const el = await mountInverse(inverseHass({ legacy: true }));
+    const el = await mountInverse(inverseHass({ legacy: true, assumed: false }));
     expect(fillWidth(el)).toContain('width:0%');
     const down = el.shadowRoot!.querySelector('button.down') as HTMLButtonElement;
     expect(down.disabled).toBe(true);

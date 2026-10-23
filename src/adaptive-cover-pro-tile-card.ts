@@ -60,6 +60,7 @@ import {
   resolveActiveMinModeFloor,
 } from './lib/decision-summary';
 import {
+  coverAssumedState,
   coverCommandTargets,
   coverHeldPosition,
   coverLogicalActuals,
@@ -639,9 +640,11 @@ export class AdaptiveCoverProTileCard extends LitElement {
           : logicalAxisValue(this.hass, controlsAxis, controlsCover);
     // When the target reports its value, disable the control that can't do
     // anything: open (↑) at the axis maximum, close (↓) at its minimum. Targets
-    // that don't report leave both enabled (gate stays on `!controlsCover`).
-    const atOpen = controlsValue !== null && controlsValue >= (controlsAxis?.max ?? 100);
-    const atClosed = controlsValue !== null && controlsValue <= (controlsAxis?.min ?? 0);
+    // that don't report leave both enabled (gate stays on `!controlsCover`), and
+    // so does an `assumed_state` target: its value is a guess, not feedback.
+    const knownValue = coverAssumedState(this.hass, controlsCover) ? null : controlsValue;
+    const atOpen = knownValue !== null && knownValue >= (controlsAxis?.max ?? 100);
+    const atClosed = knownValue !== null && knownValue <= (controlsAxis?.min ?? 0);
     const winner = this._winner(discovered);
     const traceAttrs = this._traceAttrs(discovered);
     const manualEndIso = this._manualEndIso(discovered);

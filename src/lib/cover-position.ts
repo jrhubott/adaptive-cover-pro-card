@@ -183,6 +183,18 @@ export function logicalCoverPosition(
 }
 
 /**
+ * True when HA flags the cover `assumed_state` — it has no position feedback
+ * (an RTS/one-way motor), so whatever `current_position` it reports is the
+ * integration's own guess, not a reading. Every open/close control must stay
+ * live on such a cover regardless of that number, matching HA's own cover
+ * controls: a guessed "already open" must never strand the user without a way
+ * to send the command again.
+ */
+export function coverAssumedState(hass: HomeAssistant, cover: string | undefined): boolean {
+  return !!cover && hass.states[cover]?.attributes?.assumed_state === true;
+}
+
+/**
  * One cover entity's live value for `axis`, in the logical frame — the axis's
  * own `state_attr`, un-inverted when the integration reports that axis's
  * `inverted` flag (issues #234, #236). Mirrors the integration's
